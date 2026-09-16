@@ -21,7 +21,7 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AgentHostAuthenticationRequirementsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, type IAgentHostAuthenticationRequirementsSnapshot, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { AgentHostAuthenticationRequirementsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetClientHostedTunnelExtensionMethod, setClientHostedTunnelParamsValidator, SetClientRemoteAgentHostsPolicyExtensionMethod, SetClientTunnelDismissalsExtensionMethod, setClientTunnelDismissalsParamsValidator, type IAgentHostAuthenticationRequirementsSnapshot, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -72,6 +72,9 @@ import type { Implementation } from '../common/state/protocol/common/commands.js
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY } from '../common/tunnelAgentHostDiscovery.js';
+import type { ITunnelHostInfo } from '../common/tunnelAgentHost.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -342,6 +345,7 @@ export interface IProtocolServerConfig {
 	 * rejected.
 	 */
 	readonly otlpLogEmitter?: OtlpLogEmitter;
+	readonly updateHostedTunnel?: (tunnel: ITunnelHostInfo | undefined) => void;
 }
 
 /**
@@ -391,6 +395,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
@@ -534,6 +539,43 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							this._managedSettingsService.setClientRemoteAgentHostsEnabled(this._managedSettingsContributionId(client.clientId), enabled);
 						} else {
 							this._logService.warn('[ProtocolServer] Ignoring invalid remote Agent Host managed setting contribution.');
+						}
+					}
+					return;
+				}
+				if ((msg as { method: string }).method === SetClientHostedTunnelExtensionMethod) {
+					if (client && this._config.updateHostedTunnel) {
+						const result = setClientHostedTunnelParamsValidator.validate((msg as { params?: unknown }).params);
+						if (result.error) {
+							this._logService.warn('[ProtocolServer] Ignoring invalid hosted tunnel synchronization.');
+						} else if (!result.content.hosting) {
+							this._config.updateHostedTunnel(undefined);
+						} else {
+							const tunnelName = result.content.tunnelName;
+							if (!tunnelName) {
+								this._logService.warn('[ProtocolServer] Ignoring hosted tunnel synchronization without a tunnel name.');
+							} else {
+								this._config.updateHostedTunnel({
+									tunnelName,
+									tunnelId: result.content.tunnelId,
+									viaRemoteTunnelAccess: result.content.viaRemoteTunnelAccess,
+								});
+							}
+						}
+					}
+					return;
+				}
+				if ((msg as { method: string }).method === SetClientTunnelDismissalsExtensionMethod) {
+					if (client) {
+						const result = setClientTunnelDismissalsParamsValidator.validate((msg as { params?: unknown }).params);
+						if (result.error) {
+							this._logService.warn('[ProtocolServer] Ignoring invalid tunnel dismissal synchronization.');
+						} else {
+							try {
+								this._storageService.set(TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY, [...new Set(result.content.tunnelIds)]);
+							} catch (error) {
+								this._logService.error('[ProtocolServer] Failed to synchronize tunnel dismissals.', error);
+							}
 						}
 					}
 					return;

@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -55,6 +56,7 @@ import { resolveServerUrls } from './serverUrls.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { readAgentHostTunnelInfo, toKnownHostedTunnelIdentity, type HostedTunnelIdentity } from '../common/tunnelAgentHost.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -200,6 +202,7 @@ async function main(): Promise<void> {
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
+		hostedTunnel: observableValue<HostedTunnelIdentity>(process, toKnownHostedTunnelIdentity(readAgentHostTunnelInfo(process.env))),
 		byok: { kind: 'unavailable' },
 	});
 	disposables.add(runtime);

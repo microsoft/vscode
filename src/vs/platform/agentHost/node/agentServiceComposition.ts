@@ -5,7 +5,7 @@
 
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import type { IObservable } from '../../../base/common/observable.js';
+import { constObservable, type IObservable } from '../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
@@ -16,6 +16,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import type { HostedTunnelIdentity } from '../common/tunnelAgentHost.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -80,6 +81,7 @@ export function createAgentServiceComposition(
 	foundation: IAgentServiceFoundation,
 	localTurns: AgentHostLocalTurns,
 	additionalDisposables: readonly IDisposable[] = [],
+	hostedTunnel: IObservable<HostedTunnelIdentity> = constObservable<HostedTunnelIdentity>({ kind: 'unknown' }),
 ): IAgentServiceComposition {
 	const owned = new DisposableStore();
 	const contributions = owned.add(new MutableDisposable<IDisposable>());
@@ -94,7 +96,12 @@ export function createAgentServiceComposition(
 			: undefined;
 		const { callbackAdapter, stateManager, configurationService, authenticationService, featureAuthenticationRegistry, gitHubEndpointService } = foundation;
 		const providerService = accessor.get(IAgentHostProviderService);
-		owned.add(accessor.get(IAgentHostRemoteAgentsService).registerContribution(featureAuthenticationRegistry));
+		const remoteAgentsService = accessor.get(IAgentHostRemoteAgentsService);
+		const tunnelDiscoveryRegistration = remoteAgentsService.registerTunnelDiscovery?.(featureAuthenticationRegistry, hostedTunnel);
+		if (tunnelDiscoveryRegistration) {
+			owned.add(tunnelDiscoveryRegistration);
+		}
+		owned.add(remoteAgentsService.registerContribution(featureAuthenticationRegistry));
 		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
 		const core: IAgentServiceCore = {
 			disposables: owned,

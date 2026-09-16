@@ -3,19 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentHostRemoteTargetConnector, IAgentHostRemoteTargetHandle } from '../common/agentHostRemoteAgents.js';
 import { AgentHostRemoteAgentsEnabledConfigKey, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { TunnelAgentHostDiscoveryDisabledError, type TunnelAgentHostDiscoveryState } from '../common/tunnelAgentHostDiscovery.js';
+import { TunnelAgentHostsSettingId, type HostedTunnelIdentity } from '../common/tunnelAgentHost.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import type { IAgentHostFeatureAuthenticationRegistry } from './agentHostFeatureAuthentication.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostRemoteTargetRegistry } from './agentHostRemoteTargetRegistry.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
+import { TunnelAgentHostRemoteTargetConnector } from './tunnelAgentHostRemoteTargetConnector.js';
+import { TunnelAgentHostMainService } from './tunnelAgentHostService.js';
 
 export interface IAgentHostRemoteAgentsActivationContext {
 	readonly cancellationToken: CancellationToken;
@@ -34,7 +40,10 @@ export interface IAgentHostRemoteAgentsService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly tunnelDiscoveryEnabled: IObservable<boolean>;
+	readonly tunnelDiscoveryState?: IObservable<TunnelAgentHostDiscoveryState>;
 	readonly targets: IObservable<readonly IAgentHostRemoteTargetHandle[]>;
+	refreshTunnelDiscovery?(): Promise<void>;
+	registerTunnelDiscovery?(authenticationRegistry: IAgentHostFeatureAuthenticationRegistry, hostedTunnel?: IObservable<HostedTunnelIdentity>): IDisposable;
 	activate(): IDisposable;
 	registerContribution(contribution: IAgentHostRemoteAgentsContribution): IDisposable;
 }
@@ -101,23 +110,67 @@ export class AgentHostRemoteAgentsService extends Disposable implements IAgentHo
 
 	private readonly _tunnelDiscoveryEnabled = observableValue(this, false);
 	readonly tunnelDiscoveryEnabled: IObservable<boolean> = this._tunnelDiscoveryEnabled;
+	private readonly _additionalTunnelNames = observableValue<readonly string[]>(this, []);
 
 	private readonly _contributions = new Set<RemoteAgentsContributionRegistration>();
 	private readonly _targetRegistry: AgentHostRemoteTargetRegistry;
+	private readonly _tunnelDiscoveryState = observableValue<TunnelAgentHostDiscoveryState>(this, { kind: 'disabled' });
+	readonly tunnelDiscoveryState: IObservable<TunnelAgentHostDiscoveryState> = this._tunnelDiscoveryState;
 	readonly targets: IObservable<readonly IAgentHostRemoteTargetHandle[]>;
+	private _tunnelConnector: TunnelAgentHostRemoteTargetConnector | undefined;
 	private _active = false;
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
-		@IAgentHostStorageService storageService: IAgentHostStorageService,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._targetRegistry = this._register(new AgentHostRemoteTargetRegistry(storageService, _logService));
+		this._targetRegistry = this._register(new AgentHostRemoteTargetRegistry(_storageService, _logService));
 		this.targets = this._targetRegistry.targets;
 		this._register(Event.any(this._configurationService.onDidRootConfigChange, this._managedSettingsService.onDidChange)(() => this._refresh()));
 		this._refresh();
+	}
+
+	refreshTunnelDiscovery(): Promise<void> {
+		return this._tunnelConnector?.refresh() ?? Promise.reject(new TunnelAgentHostDiscoveryDisabledError());
+	}
+
+	registerTunnelDiscovery(authenticationRegistry: IAgentHostFeatureAuthenticationRegistry, hostedTunnel: IObservable<HostedTunnelIdentity> = constObservable<HostedTunnelIdentity>({ kind: 'unknown' })): IDisposable {
+		if (this._tunnelConnector) {
+			throw new Error('Tunnel Agent Host discovery is already registered.');
+		}
+		const resources = new DisposableStore();
+		const tunnelService = resources.add(new TunnelAgentHostMainService(this._logService));
+		const connector = resources.add(new TunnelAgentHostRemoteTargetConnector(
+			tunnelService,
+			authenticationRegistry,
+			this._storageService,
+			this._logService,
+			hostedTunnel,
+			this._additionalTunnelNames,
+		));
+		this._tunnelConnector = connector;
+
+		const registration = new DisposableStore();
+		try {
+			registration.add(this.registerContribution(connector));
+			registration.add(autorun(reader => this._tunnelDiscoveryState.set(connector.discoveryState.read(reader), undefined)));
+			registration.add(toDisposable(() => {
+				if (this._tunnelConnector === connector) {
+					this._tunnelConnector = undefined;
+					this._tunnelDiscoveryState.set({ kind: 'disabled' }, undefined);
+				}
+			}));
+			registration.add(resources);
+			return registration;
+		} catch (error) {
+			this._tunnelConnector = undefined;
+			registration.dispose();
+			resources.dispose();
+			throw error;
+		}
 	}
 
 	activate(): IDisposable {
@@ -156,11 +209,15 @@ export class AgentHostRemoteAgentsService extends Disposable implements IAgentHo
 			&& this._managedSettingsService.remoteAgentHostsEnabled === true;
 		const tunnelDiscoveryEnabled = enabled
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey) === true;
+		const additionalTunnelNames = this._configurationService.getRootValue(platformRootSchema, TunnelAgentHostsSettingId) ?? [];
 		const enabledChanged = this._enabled.get() !== enabled;
 
 		transaction(tx => {
 			this._enabled.set(enabled, tx);
 			this._tunnelDiscoveryEnabled.set(tunnelDiscoveryEnabled, tx);
+			if (!equals(this._additionalTunnelNames.get(), additionalTunnelNames)) {
+				this._additionalTunnelNames.set([...additionalTunnelNames], tx);
+			}
 		});
 
 		if (enabledChanged) {

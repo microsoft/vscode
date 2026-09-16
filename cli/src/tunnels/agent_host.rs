@@ -6,7 +6,7 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -62,6 +62,55 @@ pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// startup; its presence is what tells the server that it has a managing
 /// CLI and may therefore advertise the management RPC method to clients.
 pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
+/// Authenticated loopback endpoint for synchronizing a reused supervisor's hosted identity.
+pub const AGENT_HOST_TUNNEL_UPDATE_PATH: &str = "/_vscode/agent-host/hosted-tunnel";
+
+pub const AGENT_HOST_TUNNEL_NAME_ENV: &str = "VSCODE_AGENT_HOST_TUNNEL_NAME";
+pub const AGENT_HOST_TUNNEL_ID_ENV: &str = "VSCODE_AGENT_HOST_TUNNEL_ID";
+pub const AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV: &str =
+	"VSCODE_AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS";
+
+/// Non-secret identity of the dev tunnel currently hosting an agent host.
+///
+/// Authentication and connection tokens are deliberately not part of this
+/// value, so forwarding it cannot expose tunnel credentials.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentHostTunnelInfo {
+	pub name: String,
+	pub id: String,
+	pub via_remote_access: bool,
+}
+
+impl AgentHostTunnelInfo {
+	/// Reads tunnel identity inherited from the launching CLI process.
+	pub fn from_environment() -> Option<Self> {
+		let name = std::env::var(AGENT_HOST_TUNNEL_NAME_ENV).ok()?;
+		let id = std::env::var(AGENT_HOST_TUNNEL_ID_ENV).ok()?;
+		let name = name.trim();
+		let id = id.trim();
+		if name.is_empty() || id.is_empty() {
+			return None;
+		}
+		Some(Self {
+			name: name.to_string(),
+			id: id.to_string(),
+			via_remote_access: std::env::var(AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV)
+				.is_ok_and(|value| value == "1"),
+		})
+	}
+
+	/// Adds only the non-secret tunnel identity to a child process environment.
+	pub fn apply_to_command(&self, command: &mut std::process::Command) {
+		command.env(AGENT_HOST_TUNNEL_NAME_ENV, &self.name);
+		command.env(AGENT_HOST_TUNNEL_ID_ENV, &self.id);
+		if self.via_remote_access {
+			command.env(AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV, "1");
+		} else {
+			command.env_remove(AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV);
+		}
+	}
+}
 
 /// Environment variable holding a commit SHA used to override the agent
 /// host version the *first* time it is resolved. When set, the agent host
@@ -102,12 +151,15 @@ pub struct AgentHostConfig {
 	pub without_connection_token: bool,
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
+	/// Non-secret hosted tunnel identity to pass to the server process.
+	pub agent_host_tunnel: Option<AgentHostTunnelInfo>,
 }
 
 /// State of the running VS Code server process.
 struct RunningServer {
 	child: tokio::process::Child,
 	commit: String,
+	generation: u64,
 }
 
 /// Manages the VS Code server lifecycle: on-demand start, auto-restart
@@ -118,6 +170,7 @@ pub struct AgentHostManager {
 	platform: Platform,
 	cache: DownloadCache,
 	update_service: UpdateService,
+	agent_host_tunnel: std::sync::RwLock<Option<AgentHostTunnelInfo>>,
 	/// The latest known release, with the time it was checked.
 	latest_release: Mutex<Option<(Instant, Release)>>,
 	/// The currently running server, if any.
@@ -137,6 +190,10 @@ pub struct AgentHostManager {
 	/// other. Set once download completes and the kill is scheduled;
 	/// cleared by the spawned task once the restart attempt finishes.
 	upgrade_in_progress: AtomicBool,
+	/// Serializes every backend start, restart, and stop so only one child
+	/// can own the configured server data directory at a time.
+	backend_lifecycle: Mutex<()>,
+	next_backend_generation: AtomicU64,
 }
 
 impl AgentHostManager {
@@ -147,8 +204,10 @@ impl AgentHostManager {
 		http: BoxedHttp,
 		config: AgentHostConfig,
 	) -> Arc<Self> {
+		let agent_host_tunnel = config.agent_host_tunnel.clone();
 		Arc::new(Self {
 			update_service: UpdateService::new(log.clone(), http),
+			agent_host_tunnel: std::sync::RwLock::new(agent_host_tunnel),
 			log,
 			config,
 			platform,
@@ -159,11 +218,102 @@ impl AgentHostManager {
 			management_socket_path: get_socket_name(),
 			management_listener_started: AtomicBool::new(false),
 			upgrade_in_progress: AtomicBool::new(false),
+			backend_lifecycle: Mutex::new(()),
+			next_backend_generation: AtomicU64::new(0),
 		})
+	}
+
+	/// Updates the identity applied to future server child processes.
+	///
+	/// A child that has already started cannot receive environment updates.
+	pub fn set_agent_host_tunnel(&self, tunnel: Option<AgentHostTunnelInfo>) {
+		*self
+			.agent_host_tunnel
+			.write()
+			.unwrap_or_else(|poisoned| poisoned.into_inner()) = tunnel;
+	}
+
+	/// Applies a hosted identity and restarts an already-started backend before returning.
+	pub async fn update_agent_host_tunnel(
+		self: &Arc<Self>,
+		tunnel: AgentHostTunnelInfo,
+	) -> Result<(), CodeError> {
+		let _lifecycle = self.backend_lifecycle.lock().await;
+		let changed = {
+			let mut current = self
+				.agent_host_tunnel
+				.write()
+				.unwrap_or_else(|poisoned| poisoned.into_inner());
+			if current.as_ref() == Some(&tunnel) {
+				false
+			} else {
+				*current = Some(tunnel);
+				true
+			}
+		};
+		if !changed {
+			return Ok(());
+		}
+
+		self.restart_started_server_locked().await
+	}
+
+	/// Clears a hosted identity only while it is still the caller's lease.
+	///
+	/// A newer tunnel may have updated the shared supervisor after this
+	/// caller began tearing down. In that case this is an idempotent no-op.
+	pub async fn clear_agent_host_tunnel(
+		self: &Arc<Self>,
+		tunnel: &AgentHostTunnelInfo,
+	) -> Result<bool, CodeError> {
+		let _lifecycle = self.backend_lifecycle.lock().await;
+		let cleared = {
+			let mut current = self
+				.agent_host_tunnel
+				.write()
+				.unwrap_or_else(|poisoned| poisoned.into_inner());
+			if current.as_ref() == Some(tunnel) {
+				*current = None;
+				true
+			} else {
+				false
+			}
+		};
+		if !cleared {
+			return Ok(false);
+		}
+
+		self.restart_started_server_locked().await?;
+		Ok(true)
+	}
+
+	async fn restart_started_server_locked(self: &Arc<Self>) -> Result<(), CodeError> {
+		let ready = self.ready.lock().await.clone();
+		if let Some(mut ready) = ready {
+			let _ = ready.wait().await;
+			self.kill_running_server_locked().await;
+			self.start_server_locked().await?;
+		}
+		Ok(())
+	}
+
+	fn apply_agent_host_tunnel(&self, command: &mut std::process::Command) {
+		if let Some(tunnel) = self
+			.agent_host_tunnel
+			.read()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.as_ref()
+		{
+			tunnel.apply_to_command(command);
+		}
 	}
 
 	/// Returns an endpoint to a running agent host, starting one if needed.
 	async fn ensure_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+		self.start_server().await
+	}
+
+	async fn ensure_server_locked(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
 		// Fast path: if we already have a barrier, wait on it
 		{
 			let ready = self.ready.lock().await;
@@ -193,12 +343,17 @@ impl AgentHostManager {
 		}
 
 		// Need to start a new server
-		self.start_server().await
+		self.start_server_locked().await
 	}
 
 	/// Starts the server with the latest already-downloaded version.
 	/// Only blocks on a network fetch if no version has been downloaded yet.
 	async fn start_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+		let _lifecycle = self.backend_lifecycle.lock().await;
+		self.ensure_server_locked().await
+	}
+
+	async fn start_server_locked(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
 		// Every managed agent host gets a management listener: the
 		// listener is what makes server upgrades possible, and every
 		// AgentHostManager-managed server can be upgraded. Idempotent so
@@ -245,6 +400,7 @@ impl AgentHostManager {
 		};
 
 		let agent_host_socket = get_socket_name();
+		let generation = self.next_backend_generation.fetch_add(1, Ordering::SeqCst);
 		let mut cmd = new_script_command(&executable);
 		cmd.stdin(std::process::Stdio::null());
 		cmd.stderr(std::process::Stdio::piped());
@@ -276,6 +432,7 @@ impl AgentHostManager {
 		}
 		cmd.env(MANAGEMENT_SOCKET_ENV, &self.management_socket_path);
 		cmd.env_remove("VSCODE_DEV");
+		self.apply_agent_host_tunnel(cmd.as_std_mut());
 
 		let mut child = match cmd.spawn() {
 			Ok(c) => c,
@@ -304,9 +461,6 @@ impl AgentHostManager {
 					debug!(self.log, "[{} stdout]: {}", commit_prefix, l);
 					if !ready && l.contains("Agent host server listening on") {
 						ready = true;
-						if let Some(o) = opener.take() {
-							o.open(Ok(socket_path.clone()));
-						}
 					}
 				}
 				Ok(Some(l)) = stderr.next_line() => {
@@ -315,9 +469,6 @@ impl AgentHostManager {
 				_ = &mut startup_deadline, if !ready => {
 					warning!(self.log, "[{}]: Server did not become ready within {}s", commit_prefix, STARTUP_TIMEOUT.as_secs());
 					// Don't fail — the server may still start up, just slowly
-					if let Some(o) = opener.take() {
-						o.open(Ok(socket_path.clone()));
-					}
 					ready = true;
 				}
 				e = child.wait() => {
@@ -343,7 +494,11 @@ impl AgentHostManager {
 			*running = Some(RunningServer {
 				child,
 				commit: release.commit.clone(),
+				generation,
 			});
+		}
+		if let Some(o) = opener.take() {
+			o.open(Ok(socket_path));
 		}
 
 		info!(self.log, "[{}]: Server ready", commit_prefix);
@@ -369,7 +524,7 @@ impl AgentHostManager {
 			info!(log, "[{}]: Server process ended", commit_prefix);
 			let mut running = self_clone.running.lock().await;
 			if let Some(r) = &*running {
-				if r.commit == commit_prefix || r.commit.starts_with(&commit_prefix) {
+				if r.generation == generation {
 					*running = None;
 				}
 			}
@@ -583,6 +738,11 @@ impl AgentHostManager {
 	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
 	/// the node process is reaped along with the launcher. See issue #319516.
 	pub async fn kill_running_server(&self) {
+		let _lifecycle = self.backend_lifecycle.lock().await;
+		self.kill_running_server_locked().await;
+	}
+
+	async fn kill_running_server_locked(&self) {
 		let mut running = self.running.lock().await;
 		if let Some(mut server) = running.take() {
 			if let Some(pid) = server.child.id() {
@@ -817,10 +977,11 @@ impl AgentHostManager {
 		let release_commit = new_release.commit.clone();
 		tokio::spawn(async move {
 			tokio::time::sleep(UPGRADE_KILL_DELAY).await;
-			self_clone.kill_running_server().await;
+			let _lifecycle = self_clone.backend_lifecycle.lock().await;
+			self_clone.kill_running_server_locked().await;
 			// Eagerly spin up the new server so the next dial sees a
 			// ready endpoint instead of paying for startup again.
-			match self_clone.start_server().await {
+			match self_clone.start_server_locked().await {
 				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
 				Err(e) => warning!(
 					self_clone.log,
@@ -1400,7 +1561,217 @@ async fn handle_request_with_auth(
 		}
 	}
 
+	if req.uri().path() == AGENT_HOST_TUNNEL_UPDATE_PATH {
+		return Ok(match *req.method() {
+			::http::Method::POST => handle_hosted_tunnel_update_request(manager, req).await,
+			::http::Method::DELETE => handle_hosted_tunnel_clear_request(manager, req).await,
+			_ => Response::builder()
+				.status(::http::StatusCode::METHOD_NOT_ALLOWED)
+				.body(full_body("Method not allowed"))
+				.unwrap(),
+		});
+	}
+
 	handle_request(manager, req).await
+}
+
+async fn handle_hosted_tunnel_update_request(
+	manager: Arc<AgentHostManager>,
+	req: Request<Incoming>,
+) -> Response<HyperBody> {
+	let tunnel = match read_hosted_tunnel_request(&manager, req).await {
+		Ok(tunnel) => tunnel,
+		Err(response) => return response,
+	};
+	if let Err(error) = manager.update_agent_host_tunnel(tunnel).await {
+		error!(
+			manager.log,
+			"Failed to apply hosted tunnel identity update: {}", error
+		);
+		return Response::builder()
+			.status(503)
+			.body(full_body(format!(
+				"Failed to apply hosted tunnel identity: {error}"
+			)))
+			.unwrap();
+	}
+	Response::builder().status(204).body(empty_body()).unwrap()
+}
+
+async fn handle_hosted_tunnel_clear_request(
+	manager: Arc<AgentHostManager>,
+	req: Request<Incoming>,
+) -> Response<HyperBody> {
+	let tunnel = match read_hosted_tunnel_request(&manager, req).await {
+		Ok(tunnel) => tunnel,
+		Err(response) => return response,
+	};
+	if let Err(error) = manager.clear_agent_host_tunnel(&tunnel).await {
+		error!(
+			manager.log,
+			"Failed to release hosted tunnel identity: {}", error
+		);
+		return Response::builder()
+			.status(503)
+			.body(full_body(format!(
+				"Failed to release hosted tunnel identity: {error}"
+			)))
+			.unwrap();
+	}
+	Response::builder().status(204).body(empty_body()).unwrap()
+}
+
+async fn read_hosted_tunnel_request(
+	manager: &AgentHostManager,
+	req: Request<Incoming>,
+) -> Result<AgentHostTunnelInfo, Response<HyperBody>> {
+	let body = match req.into_body().collect().await {
+		Ok(body) => body.to_bytes(),
+		Err(error) => {
+			warning!(
+				manager.log,
+				"Failed to read hosted tunnel identity management request: {}",
+				error
+			);
+			return Err(Response::builder()
+				.status(400)
+				.body(full_body("Invalid hosted tunnel identity"))
+				.unwrap());
+		}
+	};
+	match serde_json::from_slice::<AgentHostTunnelInfo>(&body) {
+		Ok(tunnel) if !tunnel.name.trim().is_empty() && !tunnel.id.trim().is_empty() => Ok(tunnel),
+		Ok(_) | Err(_) => Err(Response::builder()
+			.status(400)
+			.body(full_body("Invalid hosted tunnel identity"))
+			.unwrap()),
+	}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AgentHostTunnelManagementOutcome {
+	Applied,
+	Unsupported,
+}
+
+/// Sends hosted identity to a reused TCP supervisor and waits for it to apply the update.
+pub async fn update_reused_agent_host_tunnel(
+	log: &log::Logger,
+	host: &str,
+	port: u16,
+	token: Option<&str>,
+	tunnel: &AgentHostTunnelInfo,
+) -> Result<AgentHostTunnelManagementOutcome, AnyError> {
+	request_reused_agent_host_tunnel(
+		log,
+		host,
+		port,
+		token,
+		tunnel,
+		::http::Method::POST,
+		"update",
+	)
+	.await
+}
+
+/// Releases this tunnel's identity lease without clearing a newer lease.
+pub async fn clear_reused_agent_host_tunnel(
+	log: &log::Logger,
+	host: &str,
+	port: u16,
+	token: Option<&str>,
+	tunnel: &AgentHostTunnelInfo,
+) -> Result<AgentHostTunnelManagementOutcome, AnyError> {
+	request_reused_agent_host_tunnel(
+		log,
+		host,
+		port,
+		token,
+		tunnel,
+		::http::Method::DELETE,
+		"release",
+	)
+	.await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn request_reused_agent_host_tunnel(
+	log: &log::Logger,
+	host: &str,
+	port: u16,
+	token: Option<&str>,
+	tunnel: &AgentHostTunnelInfo,
+	method: ::http::Method,
+	operation: &str,
+) -> Result<AgentHostTunnelManagementOutcome, AnyError> {
+	let stream = tokio::net::TcpStream::connect((host, port))
+		.await
+		.map_err(|error| wrap(error, "could not connect to reused agent host supervisor"))?;
+	let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+		.await
+		.map_err(|error| {
+			wrap(
+				error,
+				"could not establish reused agent host management connection",
+			)
+		})?;
+	let connection_log = log.clone();
+	tokio::spawn(async move {
+		if let Err(error) = connection.await {
+			debug!(
+				connection_log,
+				"Reused agent host management connection ended: {:?}", error
+			);
+		}
+	});
+
+	let uri = match token {
+		Some(token) => {
+			let encoded: String = url::form_urlencoded::byte_serialize(token.as_bytes()).collect();
+			format!("{AGENT_HOST_TUNNEL_UPDATE_PATH}?tkn={encoded}")
+		}
+		None => AGENT_HOST_TUNNEL_UPDATE_PATH.to_string(),
+	};
+	let body = serde_json::to_vec(tunnel)
+		.map_err(|error| wrap(error, "could not serialize hosted tunnel identity"))?;
+	let request = Request::builder()
+		.method(method)
+		.uri(uri)
+		.header(::http::header::CONTENT_TYPE, "application/json")
+		.body(http_body_util::Full::new(bytes::Bytes::from(body)))
+		.map_err(|error| wrap(error, "could not build hosted tunnel identity update"))?;
+	let response = sender.send_request(request).await.map_err(|error| {
+		wrap(
+			error,
+			format!("could not {operation} reused agent host supervisor"),
+		)
+	})?;
+	if response.status().is_success() {
+		return Ok(AgentHostTunnelManagementOutcome::Applied);
+	}
+	let status = response.status();
+	if matches!(
+		status,
+		::http::StatusCode::NOT_FOUND
+			| ::http::StatusCode::METHOD_NOT_ALLOWED
+			| ::http::StatusCode::NOT_IMPLEMENTED
+	) {
+		return Ok(AgentHostTunnelManagementOutcome::Unsupported);
+	}
+	let body = response
+		.into_body()
+		.collect()
+		.await
+		.map_err(|error| wrap(error, "could not read hosted tunnel update response"))?
+		.to_bytes();
+	Err(wrap(
+		std::io::Error::other(format!(
+			"reused agent host supervisor rejected hosted tunnel identity {operation} with {status}: {}",
+			String::from_utf8_lossy(&body)
+		)),
+		format!("could not {operation} reused agent host supervisor"),
+	)
+	.into())
 }
 
 // ---- Registry-based reuse ---------------------------------------------------
@@ -1506,6 +1877,7 @@ pub async fn serve_agent_host_tunnel_connection<RW>(
 	active_agent_host: super::control_server::SharedActiveAgentHost,
 	launcher_paths: LauncherPaths,
 	user_data_path: PathBuf,
+	agent_host_tunnel: Option<AgentHostTunnelInfo>,
 	delegate_to_editor: bool,
 ) where
 	RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
@@ -1516,6 +1888,7 @@ pub async fn serve_agent_host_tunnel_connection<RW>(
 		let active_agent_host = active_agent_host.clone();
 		let launcher_paths = launcher_paths.clone();
 		let user_data_path = user_data_path.clone();
+		let agent_host_tunnel = agent_host_tunnel.clone();
 		async move {
 			let path = req.uri().path().to_string();
 			if is_gateway_select_request(&req) {
@@ -1527,6 +1900,7 @@ pub async fn serve_agent_host_tunnel_connection<RW>(
 					log,
 					launcher_paths,
 					user_data_path,
+					agent_host_tunnel,
 					delegate_to_editor,
 					req,
 				)
@@ -1822,6 +2196,7 @@ async fn handle_gateway_select_request(
 	log: log::Logger,
 	launcher_paths: LauncherPaths,
 	user_data_path: PathBuf,
+	agent_host_tunnel: Option<AgentHostTunnelInfo>,
 	delegate_to_editor: bool,
 	mut req: Request<Incoming>,
 ) -> Result<Response<HyperBody>, Infallible> {
@@ -1856,6 +2231,7 @@ async fn handle_gateway_select_request(
 					svc_log,
 					launcher_paths,
 					user_data_path,
+					agent_host_tunnel,
 					delegate_to_editor,
 					ws,
 				)
@@ -1889,6 +2265,7 @@ async fn run_gateway_session<S>(
 	log: log::Logger,
 	launcher_paths: LauncherPaths,
 	user_data_path: PathBuf,
+	agent_host_tunnel: Option<AgentHostTunnelInfo>,
 	delegate_to_editor: bool,
 	mut client: WebSocketStream<S>,
 ) where
@@ -2026,7 +2403,7 @@ async fn run_gateway_session<S>(
 		None => selection,
 	};
 
-	let (endpoint, lifecycle) = match selection {
+	let (mut endpoint, mut lifecycle) = match selection {
 		GatewaySelection::Existing { instance_id } => {
 			// Reread the registry fresh here -- never reuse the inventory
 			// snapshot -- and require the *exact* entry to still be live.
@@ -2055,6 +2432,7 @@ async fn run_gateway_session<S>(
 				&log,
 				&user_data_path,
 				GATEWAY_NEW_INSTANCE_IDLE_TIMEOUT_SECS,
+				agent_host_tunnel.as_ref(),
 			)
 			.await
 			{
@@ -2071,6 +2449,87 @@ async fn run_gateway_session<S>(
 			}
 		}
 	};
+
+	if matches!(lifecycle, GatewayLifecycle::External)
+		&& endpoint.server_type == AgentHostServerType::Standalone
+	{
+		if let Some(tunnel) = agent_host_tunnel.as_ref() {
+			let (host, port) = match &endpoint.endpoint {
+				AgentHostEndpointAddress::Tcp { host, port } => {
+					(crate::commands::agent_host::dial_host(Some(host)), *port)
+				}
+				AgentHostEndpointAddress::Socket { .. } => {
+					send_gateway_error(
+						&log,
+						&mut client,
+						"Selected standalone agent host cannot accept a hosted tunnel identity update"
+							.to_string(),
+					)
+					.await;
+					return;
+				}
+			};
+			let token = (!endpoint.connection_token.is_empty())
+				.then_some(endpoint.connection_token.as_str());
+			match update_reused_agent_host_tunnel(&log, host, port, token, tunnel).await {
+				Ok(AgentHostTunnelManagementOutcome::Applied) => {}
+				Ok(AgentHostTunnelManagementOutcome::Unsupported) => {
+					info!(
+						log,
+						"Replacing selected agent host supervisor from an older CLI that cannot manage hosted tunnel identity"
+					);
+					if let Err(error) = crate::commands::agent_host::replace_existing(
+						&log,
+						&user_data_path,
+						endpoint.pid,
+						endpoint.instance_id.clone(),
+					)
+					.await
+					{
+						send_gateway_error(
+							&log,
+							&mut client,
+							format!("Failed to replace selected agent host: {error}"),
+						)
+						.await;
+						return;
+					}
+					match crate::commands::agent_host::spawn_dedicated_supervisor(
+						&launcher_paths,
+						&log,
+						&user_data_path,
+						GATEWAY_NEW_INSTANCE_IDLE_TIMEOUT_SECS,
+						Some(tunnel),
+					)
+					.await
+					{
+						Ok(replacement) => {
+							endpoint = replacement;
+							lifecycle = GatewayLifecycle::Managed;
+						}
+						Err(error) => {
+							send_gateway_error(
+								&log,
+								&mut client,
+								format!("Failed to start replacement agent host: {error}"),
+							)
+							.await;
+							return;
+						}
+					}
+				}
+				Err(error) => {
+					send_gateway_error(
+						&log,
+						&mut client,
+						format!("Failed to update selected agent host tunnel identity: {error}"),
+					)
+					.await;
+					return;
+				}
+			}
+		}
+	}
 
 	let target = match dial_gateway_target(&endpoint).await {
 		Ok(t) => t,
@@ -2250,7 +2709,7 @@ async fn proxy_gateway_frames<A, B>(
 mod tests {
 	use super::*;
 	use crate::util::http::ReqwestSimpleHttp;
-	use std::path::Path;
+	use std::{fs, path::Path};
 
 	fn make_test_manager(cache_dir: &Path) -> Arc<AgentHostManager> {
 		AgentHostManager::new(
@@ -2264,8 +2723,324 @@ mod tests {
 				without_connection_token: true,
 				connection_token: None,
 				connection_token_file: None,
+				agent_host_tunnel: None,
 			},
 		)
+	}
+
+	async fn make_test_manager_with_fake_server(
+		cache_dir: &Path,
+		start_log: &Path,
+	) -> Arc<AgentHostManager> {
+		let manager = make_test_manager(cache_dir);
+		let release = Release {
+			name: String::new(),
+			commit: "test-commit".to_string(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Stable,
+		};
+		let server_bin = cache_dir
+			.join(get_server_folder_name(release.quality, &release.commit))
+			.join(SERVER_FOLDER_NAME)
+			.join("bin");
+		fs::create_dir_all(&server_bin).unwrap();
+		let entrypoint = server_bin.join(release.quality.server_entrypoint());
+
+		#[cfg(windows)]
+		fs::write(
+			&entrypoint,
+			format!(
+				"@echo off\r\n>>\"{}\" echo started\r\nping -n 2 127.0.0.1 >NUL\r\necho Agent host server listening on test\r\nping -n 2 127.0.0.1 >NUL\r\n",
+				start_log.display()
+			),
+		)
+		.unwrap();
+
+		#[cfg(not(windows))]
+		{
+			use std::os::unix::fs::PermissionsExt;
+
+			let escaped_start_log = start_log.to_string_lossy().replace('\'', "'\\''");
+			fs::write(
+				&entrypoint,
+				format!(
+					"#!/bin/sh\nprintf 'started\\n' >> '{escaped_start_log}'\nsleep 0.2\necho 'Agent host server listening on test'\nsleep 1\n"
+				),
+			)
+			.unwrap();
+			fs::set_permissions(&entrypoint, fs::Permissions::from_mode(0o700)).unwrap();
+		}
+
+		*manager.latest_release.lock().await = Some((Instant::now(), release));
+		manager
+	}
+
+	#[tokio::test]
+	async fn concurrent_server_starts_are_single_flight() {
+		let dir = tempfile::tempdir().unwrap();
+		let start_log = dir.path().join("starts.log");
+		let manager = make_test_manager_with_fake_server(dir.path(), &start_log).await;
+
+		let (first, second) = tokio::join!(manager.start_server(), manager.start_server());
+		manager.kill_running_server().await;
+		tokio::time::sleep(Duration::from_millis(1200)).await;
+
+		assert_eq!(
+			(
+				first.is_ok(),
+				second.is_ok(),
+				fs::read_to_string(start_log)
+					.unwrap()
+					.lines()
+					.collect::<Vec<_>>(),
+			),
+			(true, true, vec!["started"])
+		);
+	}
+
+	#[test]
+	fn manager_applies_updated_tunnel_identity_to_server_command() {
+		let dir = tempfile::tempdir().unwrap();
+		let manager = make_test_manager(dir.path());
+		manager.set_agent_host_tunnel(Some(AgentHostTunnelInfo {
+			name: "dedicated-machine".to_string(),
+			id: "dedicated-tunnel-id".to_string(),
+			via_remote_access: false,
+		}));
+		let mut command = std::process::Command::new("code-server");
+		manager.apply_agent_host_tunnel(&mut command);
+
+		assert_eq!(
+			command
+				.get_envs()
+				.map(|(name, value)| (
+					name.to_string_lossy().into_owned(),
+					value.map(|value| value.to_string_lossy().into_owned())
+				))
+				.collect::<Vec<_>>(),
+			vec![
+				(
+					AGENT_HOST_TUNNEL_ID_ENV.to_string(),
+					Some("dedicated-tunnel-id".to_string()),
+				),
+				(
+					AGENT_HOST_TUNNEL_NAME_ENV.to_string(),
+					Some("dedicated-machine".to_string()),
+				),
+				(AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV.to_string(), None,),
+			]
+		);
+	}
+
+	#[tokio::test]
+	async fn sidecar_accepts_authenticated_hosted_tunnel_identity_update() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let log = log::Logger::test();
+		let manager = make_test_manager(dir.path());
+		let sidecar = AgentHostSidecar::bind_tcp(
+			log.clone(),
+			manager.clone(),
+			SocketAddr::from(([127, 0, 0, 1], 0)),
+			None,
+			LoopbackAuth::Token("management-token".to_string()),
+			None,
+			user_data_path,
+			"plain-supervisor".to_string(),
+			None,
+		)
+		.await
+		.unwrap();
+		let (shutdown, opener) = new_barrier::<ShutdownSignal>();
+		let bound_addr = sidecar.bound_addr();
+		let serving_sidecar = sidecar.clone();
+		let serve_task = tokio::spawn(async move { serving_sidecar.serve(shutdown).await });
+		let tunnel = AgentHostTunnelInfo {
+			name: "hosted-machine".to_string(),
+			id: "hosted-id".to_string(),
+			via_remote_access: false,
+		};
+
+		update_reused_agent_host_tunnel(
+			&log,
+			"127.0.0.1",
+			bound_addr.port(),
+			Some("management-token"),
+			&tunnel,
+		)
+		.await
+		.unwrap();
+		let mut command = std::process::Command::new("code-server");
+		manager.apply_agent_host_tunnel(&mut command);
+
+		opener.open(ShutdownSignal::CtrlC);
+		serve_task.await.unwrap().unwrap();
+		sidecar.shutdown().await;
+		assert_eq!(
+			command
+				.get_envs()
+				.map(|(name, value)| (
+					name.to_string_lossy().into_owned(),
+					value.map(|value| value.to_string_lossy().into_owned())
+				))
+				.collect::<Vec<_>>(),
+			vec![
+				(
+					AGENT_HOST_TUNNEL_ID_ENV.to_string(),
+					Some("hosted-id".to_string()),
+				),
+				(
+					AGENT_HOST_TUNNEL_NAME_ENV.to_string(),
+					Some("hosted-machine".to_string()),
+				),
+				(AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV.to_string(), None,),
+			]
+		);
+	}
+
+	#[tokio::test]
+	async fn hosted_identity_release_preserves_supervisor_and_newer_lease() {
+		let dir = tempfile::tempdir().unwrap();
+		let manager = make_test_manager(dir.path());
+		let first = AgentHostTunnelInfo {
+			name: "first-machine".to_string(),
+			id: "first-id".to_string(),
+			via_remote_access: false,
+		};
+		let newer = AgentHostTunnelInfo {
+			name: "newer-machine".to_string(),
+			id: "newer-id".to_string(),
+			via_remote_access: true,
+		};
+		manager
+			.update_agent_host_tunnel(first.clone())
+			.await
+			.unwrap();
+		manager
+			.update_agent_host_tunnel(newer.clone())
+			.await
+			.unwrap();
+
+		let released_stale = manager.clear_agent_host_tunnel(&first).await.unwrap();
+		let identity_after_stale_release = manager
+			.agent_host_tunnel
+			.read()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.clone();
+		let released_current = manager.clear_agent_host_tunnel(&newer).await.unwrap();
+		let identity_after_current_release = manager
+			.agent_host_tunnel
+			.read()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.clone();
+
+		let replacement = AgentHostTunnelInfo {
+			name: "replacement-machine".to_string(),
+			id: "replacement-id".to_string(),
+			via_remote_access: false,
+		};
+		manager
+			.update_agent_host_tunnel(replacement.clone())
+			.await
+			.unwrap();
+		let identity_after_reuse = manager
+			.agent_host_tunnel
+			.read()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.clone();
+
+		assert_eq!(
+			(
+				released_stale,
+				identity_after_stale_release,
+				released_current,
+				identity_after_current_release,
+				identity_after_reuse,
+			),
+			(false, Some(newer), true, None, Some(replacement))
+		);
+	}
+
+	#[tokio::test]
+	async fn supervisor_survives_hosted_identity_lease_release() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let log = log::Logger::test();
+		let manager = make_test_manager(dir.path());
+		let sidecar = AgentHostSidecar::bind_tcp(
+			log.clone(),
+			manager.clone(),
+			SocketAddr::from(([127, 0, 0, 1], 0)),
+			None,
+			LoopbackAuth::Token("management-token".to_string()),
+			None,
+			user_data_path,
+			"plain-supervisor".to_string(),
+			None,
+		)
+		.await
+		.unwrap();
+		let (shutdown, opener) = new_barrier::<ShutdownSignal>();
+		let bound_addr = sidecar.bound_addr();
+		let serving_sidecar = sidecar.clone();
+		let serve_task = tokio::spawn(async move { serving_sidecar.serve(shutdown).await });
+		let first = AgentHostTunnelInfo {
+			name: "first-machine".to_string(),
+			id: "first-id".to_string(),
+			via_remote_access: false,
+		};
+		let replacement = AgentHostTunnelInfo {
+			name: "replacement-machine".to_string(),
+			id: "replacement-id".to_string(),
+			via_remote_access: true,
+		};
+
+		let first_update = update_reused_agent_host_tunnel(
+			&log,
+			"127.0.0.1",
+			bound_addr.port(),
+			Some("management-token"),
+			&first,
+		)
+		.await
+		.unwrap();
+		let release = clear_reused_agent_host_tunnel(
+			&log,
+			"127.0.0.1",
+			bound_addr.port(),
+			Some("management-token"),
+			&first,
+		)
+		.await
+		.unwrap();
+		let replacement_update = update_reused_agent_host_tunnel(
+			&log,
+			"127.0.0.1",
+			bound_addr.port(),
+			Some("management-token"),
+			&replacement,
+		)
+		.await
+		.unwrap();
+		let identity = manager
+			.agent_host_tunnel
+			.read()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.clone();
+
+		opener.open(ShutdownSignal::CtrlC);
+		serve_task.await.unwrap().unwrap();
+		sidecar.shutdown().await;
+		assert_eq!(
+			(first_update, release, replacement_update, identity),
+			(
+				AgentHostTunnelManagementOutcome::Applied,
+				AgentHostTunnelManagementOutcome::Applied,
+				AgentHostTunnelManagementOutcome::Applied,
+				Some(replacement),
+			)
+		);
 	}
 
 	#[tokio::test]
@@ -3085,6 +3860,7 @@ mod tests {
 				log::Logger::test(),
 				launcher_paths,
 				user_data_path,
+				None,
 				delegate_to_editor,
 				server_ws,
 			)
@@ -3253,6 +4029,7 @@ mod tests {
 				log::Logger::test(),
 				launcher_paths,
 				user_data_path,
+				None,
 				true,
 				server_ws,
 			)
@@ -3398,6 +4175,7 @@ mod tests {
 				active_agent_host,
 				launcher_paths,
 				user_data_path,
+				None,
 				false,
 			)
 			.await;
@@ -3441,6 +4219,7 @@ mod tests {
 				active_agent_host,
 				launcher_paths,
 				user_data_path,
+				None,
 				true,
 			)
 			.await;
@@ -3527,6 +4306,7 @@ mod tests {
 				active_agent_host,
 				launcher_paths,
 				user_data_path,
+				None,
 				false,
 			)
 			.await;
@@ -3596,6 +4376,7 @@ mod tests {
 				active_agent_host,
 				launcher_paths,
 				user_data_path,
+				None,
 				false,
 			)
 			.await;

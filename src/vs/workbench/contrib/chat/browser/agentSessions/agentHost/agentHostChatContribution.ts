@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { getAgentHostTunnelAuthenticationIssuer } from '../../../../../../platform/agentHost/common/agentHostFeatureAuthentication.js';
 import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AuthRequiredReason, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -36,7 +37,7 @@ import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { areAuthenticationRequirementsEqual, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, hasAuthenticationRequirement, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessionsFromResources } from './agentHostAuth.js';
+import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, hasAuthenticationRequirement, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessionsFromResources } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -467,7 +468,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		const retainedRequirements = this._agentHostService.authenticationRequirements;
 		const wasRetained = retainedRequirements ? hasAuthenticationRequirement(retainedRequirements.get(), protectedResource) : false;
-		this._agentHostService.setAuthenticationPending(true);
+		const affectsInitialAuthentication = !isOptionalHostFeatureAuthentication(protectedResource);
+		if (affectsInitialAuthentication) {
+			this._agentHostService.setAuthenticationPending(true);
+		}
 		this._authRecovery.recover(protectedResource, {
 			authTokenCache: this._authTokenCache,
 			logPrefix: '[AgentHost]',
@@ -481,7 +485,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				}
 			})
 			.finally(() => {
-				if (this._isAuthenticationCurrent(generation)) {
+				if (affectsInitialAuthentication && this._isAuthenticationCurrent(generation)) {
 					this._agentHostService.setAuthenticationPending(false);
 				}
 			});
@@ -493,12 +497,16 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 		const retainedRequirements = this._agentHostService.authenticationRequirements;
-		this._agentHostService.setAuthenticationPending(true);
+		const affectsInitialAuthentication = requirements.some(requirement => !isOptionalHostFeatureAuthentication(requirement.resource));
+		if (affectsInitialAuthentication) {
+			this._agentHostService.setAuthenticationPending(true);
+		}
 		try {
 			await this._authRecovery.retry(requirements, {
 				authTokenCache: this._authTokenCache,
 				logPrefix: '[AgentHost]',
-				isCurrent: () => this._isAuthenticationCurrent(generation) && (!retainedRequirements || areAuthenticationRequirementsEqual(retainedRequirements.get(), requirements)),
+				isCurrent: () => this._isAuthenticationCurrent(generation),
+				isResourceCurrent: resource => !retainedRequirements || hasAuthenticationRequirement(retainedRequirements.get(), resource),
 				authenticate: request => this._authenticateIfCurrent(request, generation),
 			});
 		} catch (error) {
@@ -506,7 +514,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._logService.error('[AgentHost] Failed to retry retained authentication requirements', error);
 			}
 		} finally {
-			if (this._isAuthenticationCurrent(generation)) {
+			if (affectsInitialAuthentication && this._isAuthenticationCurrent(generation)) {
 				this._agentHostService.setAuthenticationPending(false);
 			}
 		}
@@ -559,4 +567,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		return this._agentHostService.authenticate(request);
 	}
+}
+
+function isOptionalHostFeatureAuthentication(resource: ProtectedResourceMetadata): boolean {
+	return resource.required === false && getAgentHostTunnelAuthenticationIssuer(resource.resource) !== undefined;
 }

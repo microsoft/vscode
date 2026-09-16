@@ -5,9 +5,12 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import type { ITunnelConnectResult, ITunnelGatewaySelectionSession } from '../../common/tunnelAgentHost.js';
 import {
 	TUNNEL_STEP_TIMEOUT_MS,
 	TunnelAgentHostConnector,
@@ -50,6 +53,7 @@ class FakeStream implements ITunnelDuplexStream {
 }
 
 class FakeRelayClient implements ITunnelRelayClient {
+	connectCalls = 0;
 	disposeCalls = 0;
 	readonly stream = new FakeStream();
 
@@ -57,6 +61,7 @@ class FakeRelayClient implements ITunnelRelayClient {
 	}
 
 	connect(): Promise<void> {
+		this.connectCalls++;
 		return this._connectResult;
 	}
 
@@ -108,6 +113,10 @@ class FakeSocket implements ITunnelMessageSocket {
 		this.disposeCalls++;
 		this._onDidReceiveMessage.dispose();
 		this._onDidClose.dispose();
+	}
+
+	emitMessage(data: string): void {
+		this._onDidReceiveMessage.fire(data);
 	}
 }
 
@@ -249,6 +258,40 @@ suite('TunnelAgentHostConnector', () => {
 		});
 	});
 
+	test('cancels a legacy relay connect immediately and disposes its relay client', async () => {
+		const hangingConnect = new DeferredPromise<void>();
+		const relayClient = new FakeRelayClient(hangingConnect.p);
+		const { connector } = createConnector(
+			{ tunnelId: 'cancelled-connect', clusterId: 'cluster', labels: ['protocolv5'] },
+			relayClient,
+			new FakeSocketFactory(new FakeSocket()),
+		);
+		const cancellation = new CancellationTokenSource();
+		try {
+			const resultPromise = connector.connect('token', 'github', 'cancelled-connect', 'cluster', cancellation.token)
+				.then(() => undefined, error => error);
+			while (relayClient.connectCalls === 0) {
+				await Promise.resolve();
+			}
+
+			cancellation.cancel();
+			const result = await resultPromise;
+			const immediateDisposeCalls = relayClient.disposeCalls;
+			hangingConnect.complete();
+
+			assert.deepStrictEqual({
+				cancelled: isCancellationError(result),
+				immediateDisposeCalls,
+			}, {
+				cancelled: true,
+				immediateDisposeCalls: 1,
+			});
+		} finally {
+			cancellation.dispose();
+			connector.dispose();
+		}
+	});
+
 	test('disposes the relay client when opening the legacy socket fails', async () => {
 		const relayClient = new FakeRelayClient();
 		const { connector } = createConnector(
@@ -317,6 +360,54 @@ suite('TunnelAgentHostConnector', () => {
 		}
 	});
 
+	test('cancels gateway preparation immediately and disposes its socket and relay', async () => {
+		const relayClient = new FakeRelayClient();
+		const socket = new FakeSocket();
+		const socketFactory = new FakeSocketFactory(socket);
+		const { connector } = createConnector(
+			{ tunnelId: 'cancelled-prepare', clusterId: 'cluster', labels: ['protocolv6'] },
+			relayClient,
+			socketFactory,
+		);
+		const cancellation = new CancellationTokenSource();
+		try {
+			const resultPromise = connector.prepareSelection('token', 'github', 'cancelled-prepare', 'cluster', cancellation.token)
+				.then(result => result, error => error);
+			while (socketFactory.paths.length === 0) {
+				await Promise.resolve();
+			}
+
+			cancellation.cancel();
+			const result = await resultPromise;
+			await Promise.resolve();
+			const immediateCleanup = {
+				socketCloseCalls: socket.closeCalls,
+				socketDisposeCalls: socket.disposeCalls,
+				relayDisposeCalls: relayClient.disposeCalls,
+			};
+			socket.emitMessage(JSON.stringify({ userDataPath: '/data', endpoints: [] }));
+			const settled = await resultPromise;
+			if (!isCancellationError(settled)) {
+				await connector.cancelSelection((settled as ITunnelGatewaySelectionSession).selectionId);
+			}
+
+			assert.deepStrictEqual({
+				cancelled: isCancellationError(result),
+				immediateCleanup,
+			}, {
+				cancelled: true,
+				immediateCleanup: {
+					socketCloseCalls: 1,
+					socketDisposeCalls: 1,
+					relayDisposeCalls: 1,
+				},
+			});
+		} finally {
+			cancellation.dispose();
+			connector.dispose();
+		}
+	});
+
 	test('cleans up when the gateway selection acknowledgement is malformed', async () => {
 		const relayClient = new FakeRelayClient();
 		const socket = new FakeSocket([
@@ -344,6 +435,56 @@ suite('TunnelAgentHostConnector', () => {
 				relayDisposeCalls: 1,
 			});
 		} finally {
+			connector.dispose();
+		}
+	});
+
+	test('cancels gateway completion immediately and disposes its pending socket and relay', async () => {
+		const relayClient = new FakeRelayClient();
+		const socket = new FakeSocket([
+			JSON.stringify({ userDataPath: '/data', endpoints: [] }),
+		]);
+		const { connector } = createConnector(
+			{ tunnelId: 'cancelled-complete', clusterId: 'cluster', labels: ['protocolv6'] },
+			relayClient,
+			new FakeSocketFactory(socket),
+		);
+		const cancellation = new CancellationTokenSource();
+		try {
+			const selection = await connector.prepareSelection('token', 'github', 'cancelled-complete', 'cluster');
+			const resultPromise = connector.completeSelection(selection!.selectionId, { newDedicated: true }, cancellation.token)
+				.then(result => result, error => error);
+			await Promise.resolve();
+
+			cancellation.cancel();
+			const result = await resultPromise;
+			const immediateCleanup = {
+				socketCloseCalls: socket.closeCalls,
+				socketDisposeCalls: socket.disposeCalls,
+				relayDisposeCalls: relayClient.disposeCalls,
+			};
+			socket.emitMessage(JSON.stringify({
+				ok: true,
+				selected: { type: 'standalone', instanceId: 'standalone-1', role: 'primary', lifecycle: 'managed' },
+			}));
+			const settled = await resultPromise;
+			if (!isCancellationError(settled)) {
+				await connector.disconnect((settled as ITunnelConnectResult).connectionId);
+			}
+
+			assert.deepStrictEqual({
+				cancelled: isCancellationError(result),
+				immediateCleanup,
+			}, {
+				cancelled: true,
+				immediateCleanup: {
+					socketCloseCalls: 1,
+					socketDisposeCalls: 1,
+					relayDisposeCalls: 1,
+				},
+			});
+		} finally {
+			cancellation.dispose();
 			connector.dispose();
 		}
 	});

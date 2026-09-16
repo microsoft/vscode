@@ -18,8 +18,9 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, SetClientHostedTunnelExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, SetClientTunnelDismissalsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -28,7 +29,7 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
-import { ActionType, AuthRequiredReason, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type AuthRequiredParams, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -39,6 +40,8 @@ import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SE
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
+import { TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY } from '../../common/tunnelAgentHostDiscovery.js';
+import type { HostedTunnelIdentity } from '../../common/tunnelAgentHost.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
@@ -424,11 +427,11 @@ suite('AgentHostProtocolClient', () => {
 		return { management, request, requests, grants };
 	}
 
-	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, workspaceTrust = createWorkspaceTrustServices(), managedSettingsService: IManagedSettingsService = new NullManagedSettingsService()): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, workspaceTrust = createWorkspaceTrustServices(), managedSettingsService: IManagedSettingsService = new NullManagedSettingsService(), storageService = disposables.add(new InMemoryStorageService())): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
 		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
 			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
 			: undefined;
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, managedSettingsService));
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, managedSettingsService, storageService));
 		return { client, transport, configurationService };
 	}
 
@@ -461,7 +464,7 @@ suite('AgentHostProtocolClient', () => {
 				URI.parse('vscode-remote://ssh-remote+test/ssh/trusted'),
 				URI.parse('vscode-remote://ssh-remote+other/other/trusted'),
 			];
-			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, new NullManagedSettingsService()));
+			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, new NullManagedSettingsService(), disposables.add(new InMemoryStorageService())));
 			await connectClient(client, transport);
 			const path = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? '/local/trusted' : identity === 'test.example:1234' ? '/remote/trusted' : '/ssh/trusted';
 			assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [URI.file(path).toString()] });
@@ -473,7 +476,7 @@ suite('AgentHostProtocolClient', () => {
 		const trustService = new TestWorkspaceTrustManagementService();
 		const changed = disposables.add(new Emitter<void>());
 		trustService.onDidChangeTrustedFolders = changed.event;
-		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, new NullManagedSettingsService()));
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, new NullManagedSettingsService(), disposables.add(new InMemoryStorageService())));
 		await connectClient(client, transport);
 		const states = [findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey)];
 		for (const trustedUris of [[URI.file('/repo')], []]) {
@@ -491,7 +494,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
-		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request, new NullManagedSettingsService()));
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request, new NullManagedSettingsService(), disposables.add(new InMemoryStorageService())));
 		await connectClient(client, transport);
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
 	});
@@ -636,6 +639,34 @@ suite('AgentHostProtocolClient', () => {
 		await bearer;
 
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
+	test('preserves a tunnel revocation tombstone before a newer issuer bearer', async () => {
+		const { client, transport } = createClient();
+		const revocation = client.authenticate({
+			resource: 'https://vscode.dev/agent-host/tunnels/microsoft',
+			scopes: ['tunnel:manage'],
+			token: '',
+		}).catch(error => error);
+		const bearer = client.authenticate({
+			resource: 'https://vscode.dev/agent-host/tunnels/github',
+			scopes: ['tunnel:manage'],
+			token: 'github-token',
+		});
+		const bearerRequest = transport.sentMessages[1] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: bearerRequest.id, result: {} });
+		await bearer;
+
+		assert.deepStrictEqual([...client['_authentication'].values()].map(authentication => ({
+			kind: authentication.kind,
+			resource: authentication.params.resource,
+		})), [
+			{ kind: 'revocation', resource: 'https://vscode.dev/agent-host/tunnels/microsoft' },
+			{ kind: 'bearer', resource: 'https://vscode.dev/agent-host/tunnels/github' },
+		]);
+
+		client.dispose();
+		await revocation;
 	});
 
 	test('retains handshake authentication requirements for late consumers and clears tunnel alternatives on success', async () => {
@@ -1452,6 +1483,7 @@ suite('AgentHostProtocolClient', () => {
 			workspaceTrust.management,
 			workspaceTrust.request,
 			new NullManagedSettingsService(),
+			disposables.add(new InMemoryStorageService()),
 		));
 
 		const connectPromise = client.connect();
@@ -1641,6 +1673,7 @@ suite('AgentHostProtocolClient', () => {
 			workspaceTrust.management,
 			workspaceTrust.request,
 			managedSettingsService,
+			disposables.add(new InMemoryStorageService()),
 		));
 
 		await connectClient(client, transport);
@@ -1668,6 +1701,162 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('forwards existing and live tunnel dismissals before remote Agent Host admission', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(
+			TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY,
+			JSON.stringify(['dismissed-before-connect']),
+			StorageScope.APPLICATION,
+			StorageTarget.USER,
+		);
+		const workspaceTrust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			transport,
+			undefined,
+			new NullLogService(),
+			createPermissionService(),
+			new TestConfigurationService(),
+			NullTelemetryService,
+			workspaceTrustEnablementService,
+			workspaceTrust.management,
+			workspaceTrust.request,
+			new NullManagedSettingsService(),
+			storageService,
+		));
+
+		await connectClient(client, transport);
+
+		const initialDismissals = transport.sentMessages.find(message =>
+			hasKey(message, { method: true }) && message.method === SetClientTunnelDismissalsExtensionMethod
+		);
+		assert.ok(initialDismissals && hasKey(initialDismissals, { params: true }));
+		const policy = findLastRemoteAgentHostsPolicyNotification(transport.sentMessages);
+		const firstRootConfig = transport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+		assert.deepStrictEqual({
+			params: initialDismissals.params,
+			beforePolicy: transport.sentMessages.indexOf(initialDismissals) < transport.sentMessages.indexOf(policy),
+			beforeRootConfig: firstRootConfig !== undefined && transport.sentMessages.indexOf(initialDismissals) < transport.sentMessages.indexOf(firstRootConfig),
+		}, {
+			params: { tunnelIds: ['dismissed-before-connect'] },
+			beforePolicy: true,
+			beforeRootConfig: true,
+		});
+
+		transport.sentMessages.length = 0;
+		storageService.store(
+			TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY,
+			JSON.stringify(['dismissed-after-connect']),
+			StorageScope.APPLICATION,
+			StorageTarget.USER,
+		);
+		await Promise.resolve();
+
+		assert.deepStrictEqual(transport.sentMessages, [{
+			jsonrpc: '2.0',
+			method: SetClientTunnelDismissalsExtensionMethod,
+			params: { tunnelIds: ['dismissed-after-connect'] },
+		}]);
+	});
+
+	test('forwards live hosted tunnel identity before discovery configuration', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const observableOwner = {};
+		const hostedTunnel = observableValue<HostedTunnelIdentity>(observableOwner, {
+			kind: 'hosted',
+			tunnel: {
+				tunnelName: 'hosted-name',
+				tunnelId: 'hosted-id',
+				viaRemoteTunnelAccess: true,
+			},
+		});
+		const workspaceTrust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			transport,
+			{ hostedTunnel },
+			new NullLogService(),
+			createPermissionService(),
+			new TestConfigurationService(),
+			NullTelemetryService,
+			workspaceTrustEnablementService,
+			workspaceTrust.management,
+			workspaceTrust.request,
+			new NullManagedSettingsService(),
+			disposables.add(new InMemoryStorageService()),
+		));
+
+		await connectClient(client, transport);
+
+		const hosted = transport.sentMessages.find(message =>
+			hasKey(message, { method: true }) && message.method === SetClientHostedTunnelExtensionMethod
+		);
+		assert.ok(hosted && hasKey(hosted, { params: true }));
+		const firstRootConfig = transport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+		const initial = {
+			params: hosted.params,
+			beforeRootConfig: firstRootConfig !== undefined && transport.sentMessages.indexOf(hosted) < transport.sentMessages.indexOf(firstRootConfig),
+		};
+
+		transport.sentMessages.length = 0;
+		hostedTunnel.set({ kind: 'unhosted' }, undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			afterStop: transport.sentMessages,
+		}, {
+			initial: {
+				params: {
+					hosting: true,
+					tunnelName: 'hosted-name',
+					tunnelId: 'hosted-id',
+					viaRemoteTunnelAccess: true,
+				},
+				beforeRootConfig: true,
+			},
+			afterStop: [{
+				jsonrpc: '2.0',
+				method: SetClientHostedTunnelExtensionMethod,
+				params: { hosting: false },
+			}],
+		});
+	});
+
+	test('forwards initially known unhosted identity before discovery configuration', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const hostedTunnel = observableValue<HostedTunnelIdentity>({}, { kind: 'unhosted' });
+		const workspaceTrust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			transport,
+			{ hostedTunnel },
+			new NullLogService(),
+			createPermissionService(),
+			new TestConfigurationService(),
+			NullTelemetryService,
+			workspaceTrustEnablementService,
+			workspaceTrust.management,
+			workspaceTrust.request,
+			new NullManagedSettingsService(),
+			disposables.add(new InMemoryStorageService()),
+		));
+
+		await connectClient(client, transport);
+
+		const hosted = transport.sentMessages.find(message =>
+			hasKey(message, { method: true }) && message.method === SetClientHostedTunnelExtensionMethod
+		);
+		const firstRootConfig = transport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+		assert.deepStrictEqual({
+			params: hosted && hasKey(hosted, { params: true }) ? hosted.params : undefined,
+			beforeRootConfig: hosted !== undefined && firstRootConfig !== undefined && transport.sentMessages.indexOf(hosted) < transport.sentMessages.indexOf(firstRootConfig),
+		}, {
+			params: { hosting: false },
+			beforeRootConfig: true,
+		});
+	});
+
 	test('does not allow remote Agent Hosts before managed settings resolve', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
 		const managedSettingsService = disposables.add(new TestManagedSettingsService(undefined, false));
@@ -1684,6 +1873,7 @@ suite('AgentHostProtocolClient', () => {
 			workspaceTrust.management,
 			workspaceTrust.request,
 			managedSettingsService,
+			disposables.add(new InMemoryStorageService()),
 		));
 
 		await connectClient(client, transport);
@@ -2803,7 +2993,7 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, managedSettingsService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, managedSettingsService, disposables.add(new InMemoryStorageService()),
 			));
 			return { client, transports };
 		}
@@ -3233,6 +3423,70 @@ suite('AgentHostProtocolClient', () => {
 				connectedRequest.dispose();
 				client.dispose();
 			}
+		});
+
+		test('preserves pending provider and MCP authentication requirements across reconnect', async function () {
+			this.timeout(10_000);
+			const reconnectPolicy: IRemoteAgentHostReconnectPolicy = {
+				autoRestore: true,
+				initialDelayMs: 0,
+				maxDelayMs: 0,
+				maxAttempts: 2,
+			};
+			const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, reconnectPolicy);
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+			const requirements = [
+				{
+					channel: ROOT_STATE_URI,
+					resource: {
+						resource: 'https://provider.example.com',
+						authorization_servers: ['https://login.example.com'],
+						scopes_supported: ['provider.read'],
+					},
+					reason: AuthRequiredReason.Required,
+				},
+				{
+					channel: ROOT_STATE_URI,
+					resource: {
+						resource: 'https://mcp.example.com',
+						authorization_servers: ['https://mcp.example.com/oauth'],
+						scopes_supported: ['mcp.read'],
+					},
+					reason: AuthRequiredReason.Required,
+				},
+				{
+					channel: ROOT_STATE_URI,
+					resource: {
+						resource: 'https://vscode.dev/agent-host/tunnels/github',
+						scopes_supported: ['tunnel:manage'],
+						required: false,
+					},
+					reason: AuthRequiredReason.Required,
+				},
+			] satisfies AuthRequiredParams[];
+			for (const requirement of requirements) {
+				transports[0].fireMessage({
+					jsonrpc: '2.0',
+					method: 'auth/required',
+					params: requirement,
+				});
+			}
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireExtensionNotification('vscode/authenticationRequirements', { requirements: [] });
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				result: { type: 'replay', actions: [], missing: [] },
+			});
+			await waitForConnectedWithin(client);
+
+			assert.deepStrictEqual(client.authenticationRequirements.get(), requirements.slice(0, 2));
 		});
 
 		test('replays an unacknowledged revocation tombstone after reconnect', async function () {

@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { parseArgs, OPTIONS } from '../../../environment/node/argv.js';
@@ -26,6 +27,7 @@ import { IAgentHostReviewService } from '../../common/agentHostReviewService.js'
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostRemoteAgentsService } from '../../node/agentHostRemoteAgentsService.js';
 import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import type { HostedTunnelIdentity } from '../../common/tunnelAgentHost.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,8 +39,15 @@ suite('agentHostBootstrap', () => {
 		testDisposables.add(toDisposable(() => rmSync(userDataPath, { recursive: true, force: true })));
 		const productService = { _serviceBrand: undefined, ...product };
 		const environmentService = new NativeEnvironmentService(parseArgs(['--user-data-dir', userDataPath, '--force-disable-user-env'], OPTIONS), productService);
+		const hostedTunnel = observableValue<HostedTunnelIdentity>('testHostedTunnel', {
+			kind: 'hosted',
+			tunnel: {
+				tunnelName: 'hosted-tunnel',
+				tunnelId: 'hosted-id',
+			},
+		});
 
-		const runtime = await createAgentHostRuntime({
+		const runtimeOptions = {
 			environmentService,
 			productService,
 			logService: new NullLogService(),
@@ -48,7 +57,9 @@ suite('agentHostBootstrap', () => {
 			hostLaunchKind: AgentHostLaunchKind.Unknown,
 			providerConfigurations: [],
 			byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
-		});
+			hostedTunnel,
+		} as const;
+		const runtime = await createAgentHostRuntime(runtimeOptions);
 		testDisposables.add(runtime);
 
 		// Whole-graph dependency completeness is checked statically in
@@ -61,6 +72,9 @@ suite('agentHostBootstrap', () => {
 			managedSettings: accessor.get(IAgentHostManagedSettingsService),
 			remoteAgents: accessor.get(IAgentHostRemoteAgentsService),
 		}));
+		const connectorHostedTunnel = (services.remoteAgents as unknown as {
+			readonly _tunnelConnector?: { readonly _hostedTunnel: IObservable<HostedTunnelIdentity> };
+		})._tunnelConnector?._hostedTunnel;
 		let remoteAgentsActivationCount = 0;
 		testDisposables.add(services.remoteAgents.registerContribution({
 			activate: () => {
@@ -78,11 +92,13 @@ suite('agentHostBootstrap', () => {
 			checkpoint: services.checkpoint !== undefined,
 			review: services.review !== undefined,
 			remoteAgentsActivationCount,
+			hostedTunnelWired: connectorHostedTunnel === hostedTunnel,
 		}, {
 			sdkDownloader: true,
 			checkpoint: true,
 			review: true,
 			remoteAgentsActivationCount: 1,
+			hostedTunnelWired: true,
 		});
 	});
 

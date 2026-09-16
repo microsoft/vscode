@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
-use crate::commands::agent_host::{ensure_supervisor_running, ActiveAgentHost};
+use crate::commands::agent_host::{
+	ensure_supervisor_running_with_user_data_path, reuse_supervisor_if_running, ActiveAgentHost,
+};
 use crate::constants::{AGENT_HOST_PORT, CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
@@ -43,7 +45,11 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
-use super::agent_host::serve_agent_host_tunnel_connection;
+use super::agent_host::{
+	clear_reused_agent_host_tunnel, serve_agent_host_tunnel_connection, AgentHostTunnelInfo,
+	AgentHostTunnelManagementOutcome,
+};
+use super::agent_host_registry::{self, AgentHostEndpointAddress};
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -79,6 +85,128 @@ type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
 /// port forwarder).
 pub type SharedActiveAgentHost =
 	Shared<BoxFuture<'static, Result<Arc<ActiveAgentHost>, Arc<AnyError>>>>;
+
+#[derive(Clone, Copy)]
+enum HostedTunnelLeaseState {
+	Idle,
+	Requested,
+	Closed,
+}
+
+struct HostedTunnelLease {
+	active_agent_host: SharedActiveAgentHost,
+	tunnel: AgentHostTunnelInfo,
+	user_data_path: PathBuf,
+	state: Arc<std::sync::Mutex<HostedTunnelLeaseState>>,
+}
+
+impl HostedTunnelLease {
+	async fn release(&self, log: &log::Logger) {
+		let requested = {
+			let mut state = self.state.lock().unwrap();
+			match *state {
+				HostedTunnelLeaseState::Idle => {
+					*state = HostedTunnelLeaseState::Closed;
+					false
+				}
+				HostedTunnelLeaseState::Requested => true,
+				HostedTunnelLeaseState::Closed => false,
+			}
+		};
+		if requested {
+			if let Err(error) = self.active_agent_host.clone().await {
+				debug!(
+					log,
+					"Hosted agent host was not available while releasing its tunnel identity: {}",
+					error
+				);
+			}
+		}
+		*self.state.lock().unwrap() = HostedTunnelLeaseState::Closed;
+
+		for endpoint in
+			agent_host_registry::list_live_standalone_endpoints(log, &self.user_data_path).await
+		{
+			let AgentHostEndpointAddress::Tcp { host, port } = endpoint.endpoint else {
+				continue;
+			};
+			let token = (!endpoint.connection_token.is_empty())
+				.then_some(endpoint.connection_token.as_str());
+			match clear_reused_agent_host_tunnel(
+				log,
+				crate::commands::agent_host::dial_host(Some(&host)),
+				port,
+				token,
+				&self.tunnel,
+			)
+			.await
+			{
+				Ok(AgentHostTunnelManagementOutcome::Applied) => {}
+				Ok(AgentHostTunnelManagementOutcome::Unsupported) => {
+					debug!(
+						log,
+						"Agent host {} does not support releasing hosted tunnel identity",
+						endpoint.instance_id
+					);
+				}
+				Err(error) => {
+					warning!(
+						log,
+						"Failed to release hosted tunnel identity from agent host {}: {}",
+						endpoint.instance_id,
+						error
+					);
+				}
+			}
+		}
+	}
+}
+
+fn track_hosted_tunnel_lease(
+	active_agent_host: SharedActiveAgentHost,
+	tunnel: AgentHostTunnelInfo,
+	user_data_path: PathBuf,
+	identity_already_applied: bool,
+) -> (SharedActiveAgentHost, HostedTunnelLease) {
+	let state = Arc::new(std::sync::Mutex::new(if identity_already_applied {
+		HostedTunnelLeaseState::Requested
+	} else {
+		HostedTunnelLeaseState::Idle
+	}));
+	let tracked_state = state.clone();
+	let underlying = active_agent_host;
+	let tracked = async move {
+		{
+			let mut state = tracked_state.lock().unwrap();
+			match *state {
+				HostedTunnelLeaseState::Idle => {
+					*state = HostedTunnelLeaseState::Requested;
+				}
+				HostedTunnelLeaseState::Requested => {}
+				HostedTunnelLeaseState::Closed => {
+					let error: AnyError = wrap(
+						std::io::Error::other(
+							"hosted tunnel closed before the agent host was requested",
+						),
+						"could not resolve agent host for closed tunnel",
+					)
+					.into();
+					return Err(Arc::new(error));
+				}
+			}
+		}
+		underlying.await
+	}
+	.boxed()
+	.shared();
+	let lease = HostedTunnelLease {
+		active_agent_host: tracked.clone(),
+		tunnel,
+		user_data_path,
+		state,
+	};
+	(tracked, lease)
+}
 
 /// Wraps an already-known [`ActiveAgentHost`] into a [`SharedActiveAgentHost`]
 /// that resolves immediately, for callers that already *are* (or already
@@ -172,6 +300,15 @@ pub enum Next {
 pub struct ServerTermination {
 	pub next: Next,
 	pub tunnel: ActiveTunnel,
+	hosted_tunnel_lease: Option<HostedTunnelLease>,
+}
+
+impl ServerTermination {
+	pub async fn release_hosted_tunnel_lease(&mut self, log: &log::Logger) {
+		if let Some(lease) = self.hosted_tunnel_lease.take() {
+			lease.release(log).await;
+		}
+	}
 }
 
 async fn preload_extensions(
@@ -229,6 +366,13 @@ pub async fn serve(
 		agent_host_only,
 		delegate_to_editor,
 	} = agent_host_options;
+	let agent_host_tunnel = AgentHostTunnelInfo {
+		name: tunnel.name.clone(),
+		id: tunnel.id.clone(),
+		via_remote_access: !agent_host_only,
+	};
+	let agent_host_user_data_path =
+		super::user_data_path::resolve_user_data_path(user_data_dir.as_deref());
 	let mut port = if agent_host_only {
 		None
 	} else {
@@ -238,35 +382,45 @@ pub async fn serve(
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
+	let reused_agent_host =
+		reuse_supervisor_if_running(log, &agent_host_user_data_path, Some(&agent_host_tunnel))
+			.await?;
+	let identity_already_applied = reused_agent_host.is_some();
 
-	// The supervisor is the only process that binds the user-facing TCP
-	// listener and publishes the canonical registry entry; we never spawn
-	// an in-process sidecar here. This future is genuinely lazy: nothing
-	// drives it until a consumer that actually needs the legacy (v5)
-	// single-supervisor endpoint awaits a clone of it — currently
-	// `handle_serve`'s `agentHostProxy` bridge, and the root/default route
-	// of the `agent-host` port forwarder below. A tunnel that nobody
-	// connects to must not spawn a standalone supervisor by itself; the
-	// protocol-v6 selection route (also below) consults the registry
-	// directly instead and never touches this future.
-	let active_agent_host: SharedActiveAgentHost = {
-		let launcher_paths = launcher_paths.clone();
-		let log = log.clone();
-		async move {
-			ensure_supervisor_running(&launcher_paths, &log)
+	// Update an existing supervisor before exposing the hosted agent-host
+	// port. If none exists, keep startup lazy so an unused tunnel never
+	// spawns one; the lazy path rechecks for supervisors created meanwhile.
+	let active_agent_host: SharedActiveAgentHost = match reused_agent_host {
+		Some(active) => ready_active_agent_host(active),
+		None => {
+			let launcher_paths = launcher_paths.clone();
+			let log = log.clone();
+			let agent_host_tunnel = agent_host_tunnel.clone();
+			let agent_host_user_data_path = agent_host_user_data_path.clone();
+			async move {
+				ensure_supervisor_running_with_user_data_path(
+					&launcher_paths,
+					&log,
+					&agent_host_user_data_path,
+					Some(&agent_host_tunnel),
+				)
 				.await
 				.map(Arc::new)
 				.map_err(Arc::new)
+			}
+			.boxed()
+			.shared()
 		}
-		.boxed()
-		.shared()
 	};
-	// Resolve once and pass the result to every agent-host connection so the
-	// selection gateway consults the same registry as the editor.
-	let agent_host_user_data_path =
-		super::user_data_path::resolve_user_data_path(user_data_dir.as_deref());
+	let (active_agent_host, hosted_tunnel_lease) = track_hosted_tunnel_lease(
+		active_agent_host,
+		agent_host_tunnel.clone(),
+		agent_host_user_data_path.clone(),
+		identity_already_applied,
+	);
 
-	let code_server_args = code_server_args.clone();
+	let mut code_server_args = code_server_args.clone();
+	code_server_args.agent_host_tunnel = Some(agent_host_tunnel.clone());
 
 	if !code_server_args.install_extensions.is_empty() {
 		info!(
@@ -290,26 +444,28 @@ pub async fn serve(
 
 	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, !agent_host_only);
 
-	loop {
+	let termination = loop {
 		tokio::select! {
 			Ok(reason) = shutdown_rx.wait() => {
 				info!(log, "Shutting down: {}", reason);
 				drop(signal_exit);
-				return Ok(ServerTermination {
+				break ServerTermination {
 					next: match reason {
 						ShutdownSignal::RpcRestartRequested => Next::Restart,
 						_ => Next::Exit,
 					},
 					tunnel,
-				});
+					hosted_tunnel_lease: None,
+				};
 			},
 			c = rx.recv() => {
 				if let Some(ServerSignal::Respawn) = c {
 					drop(signal_exit);
-					return Ok(ServerTermination {
+					break ServerTermination {
 						next: Next::Respawn,
 						tunnel,
-					});
+						hosted_tunnel_lease: None,
+					};
 				}
 			},
 			Some(w) = forwarding.recv() => {
@@ -320,6 +476,7 @@ pub async fn serve(
 				let active_agent_host = active_agent_host.clone();
 				let launcher_paths = launcher_paths.clone();
 				let user_data_path = agent_host_user_data_path.clone();
+				let agent_host_tunnel = agent_host_tunnel.clone();
 				tokio::spawn(async move {
 					serve_agent_host_tunnel_connection(
 						log,
@@ -327,6 +484,7 @@ pub async fn serve(
 						active_agent_host,
 						launcher_paths,
 						user_data_path,
+						Some(agent_host_tunnel),
 						delegate_to_editor,
 					)
 					.await;
@@ -347,10 +505,11 @@ pub async fn serve(
 					Some(p) => p,
 					None => {
 						warning!(log, "ssh tunnel disposed, tearing down");
-						return Ok(ServerTermination {
+						break ServerTermination {
 							next: Next::Restart,
 							tunnel,
-						});
+							hosted_tunnel_lease: None,
+						};
 					}
 				};
 
@@ -378,7 +537,10 @@ pub async fn serve(
 				});
 			}
 		}
-	}
+	};
+	let mut termination = termination;
+	termination.hosted_tunnel_lease = Some(hosted_tunnel_lease);
+	Ok(termination)
 }
 
 #[derive(Clone)]
@@ -1568,6 +1730,7 @@ async fn do_challenge_response_flow(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::sync::atomic::{AtomicUsize, Ordering};
 
 	#[test]
 	fn ensure_auth_allows_only_authenticated_state() {
@@ -1585,5 +1748,31 @@ mod tests {
 			],
 			[false, false, true]
 		);
+	}
+
+	#[tokio::test]
+	async fn releasing_unrequested_hosted_tunnel_lease_preserves_lazy_startup() {
+		let polls = Arc::new(AtomicUsize::new(0));
+		let future_polls = polls.clone();
+		let active_agent_host = async move {
+			future_polls.fetch_add(1, Ordering::SeqCst);
+			Err(Arc::new(AnyError::from(CodeError::NoRunningAgentHost)))
+		}
+		.boxed()
+		.shared();
+		let (_tracked, lease) = track_hosted_tunnel_lease(
+			active_agent_host,
+			AgentHostTunnelInfo {
+				name: "unused".to_string(),
+				id: "unused-id".to_string(),
+				via_remote_access: false,
+			},
+			tempfile::tempdir().unwrap().path().to_path_buf(),
+			false,
+		);
+
+		lease.release(&log::Logger::test()).await;
+
+		assert_eq!(polls.load(Ordering::SeqCst), 0);
 	}
 }

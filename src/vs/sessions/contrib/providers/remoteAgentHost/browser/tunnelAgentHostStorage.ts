@@ -7,12 +7,13 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { type ICachedTunnel } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import {
+	TUNNEL_AGENT_HOST_AUTO_CONNECT_SUPPRESSIONS_STORAGE_KEY as AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY,
+	TUNNEL_AGENT_HOST_CACHED_TUNNELS_STORAGE_KEY as CACHED_TUNNELS_KEY,
+	TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY as DISMISSED_TUNNELS_KEY,
+} from '../../../../../platform/agentHost/common/tunnelAgentHostDiscovery.js';
 import { observableMemento, ObservableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-
-const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
-const DISMISSED_TUNNELS_KEY = 'tunnelAgentHost.dismissedTunnels';
-const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
 
 const cachedTunnelMemento = observableMemento<readonly ICachedTunnel[]>({
 	defaultValue: [],

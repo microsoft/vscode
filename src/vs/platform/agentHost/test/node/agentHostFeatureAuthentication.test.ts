@@ -6,12 +6,18 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import type { AuthenticateParams } from '../../common/agent.js';
 import { AGENT_HOST_GITHUB_TUNNEL_PROTECTED_RESOURCE_ID, AgentHostTunnelAuthenticationIssuer, createAgentHostTunnelProtectedResources } from '../../common/agentHostFeatureAuthentication.js';
+import { AgentHostClientState, AgentHostProtocolClientCore } from '../../common/agentHostProtocolClient.js';
+import { AhpErrorCodes, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostFeatureAuthenticationRegistry } from '../../node/agentHostFeatureAuthentication.js';
@@ -21,6 +27,8 @@ const authenticationProviders = {
 	github: { scopes: ['tunnel:manage', 'user:email'] },
 	microsoft: { scopes: ['https://management.core.windows.net//.default', 'offline_access'] },
 };
+
+type ProtocolRequest = Extract<ProtocolMessage, { readonly id: number; readonly method: string }>;
 
 class RecordingLogService extends NullLogService {
 	readonly entries: string[] = [];
@@ -48,6 +56,28 @@ class OrderedAuthenticationAgent extends MockAgent {
 	}
 }
 
+class AuthenticationProtocolTransport extends Disposable implements IProtocolTransport {
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
+	readonly onMessage = this._onMessage.event;
+
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose = this._onClose.event;
+
+	readonly sentMessages: ProtocolMessage[] = [];
+
+	send(message: ProtocolMessage): void {
+		this.sentMessages.push(message);
+	}
+
+	fireMessage(message: ProtocolMessage): void {
+		this._onMessage.fire(message);
+	}
+
+	fireClose(): void {
+		this._onClose.fire();
+	}
+}
+
 suite('AgentHostFeatureAuthenticationRegistry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -65,6 +95,29 @@ suite('AgentHostFeatureAuthenticationRegistry', () => {
 			registerTargetConnector: () => { },
 		}));
 		return { registry, tunnelDiscoveryEnabled, activation };
+	}
+
+	async function waitForRequest(transport: AuthenticationProtocolTransport, method: string, index = 0): Promise<ProtocolRequest> {
+		const deadline = Date.now() + 5_000;
+		while (true) {
+			const requests = transport.sentMessages.filter(
+				(message): message is ProtocolRequest => 'method' in message && message.method === method && 'id' in message,
+			);
+			if (requests[index]) {
+				return requests[index];
+			}
+			if (Date.now() > deadline) {
+				throw new Error(`Timed out waiting for '${method}' request #${index}.`);
+			}
+			await timeout(0);
+		}
+	}
+
+	function respondToAuthentication(transport: AuthenticationProtocolTransport, registry: AgentHostFeatureAuthenticationRegistry, request: ProtocolRequest): void {
+		const result = registry.authenticate(request.params as AuthenticateParams);
+		transport.fireMessage(result.authenticated
+			? { jsonrpc: '2.0', id: request.id, result: {} }
+			: { jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.AuthRequired, message: 'Authentication failed' } });
 	}
 
 	test('advertises issuer-specific optional requirements only while tunnel discovery needs authentication', () => {
@@ -116,6 +169,106 @@ suite('AgentHostFeatureAuthenticationRegistry', () => {
 			},
 			requirements: [],
 			observedTokens: [undefined, 'github-one', 'github-two'],
+		});
+	});
+
+	test('fresh initialize restores only the tunnel issuer selected after Microsoft to GitHub fallback', async function () {
+		this.timeout(10_000);
+		const registries: AgentHostFeatureAuthenticationRegistry[] = [];
+		const transports: AuthenticationProtocolTransport[] = [];
+		const client = disposables.add(new AgentHostProtocolClientCore(
+			'test://agent-host',
+			() => {
+				const registry = createActiveRegistry().registry;
+				const transport = disposables.add(new AuthenticationProtocolTransport());
+				registries.push(registry);
+				transports.push(transport);
+				return transport;
+			},
+			{
+				reconnectPolicy: {
+					autoRestore: true,
+					initialDelayMs: 0,
+					maxDelayMs: 0,
+					maxAttempts: 2,
+				},
+			},
+			new NullLogService(),
+		));
+		const [github, microsoft] = createAgentHostTunnelProtectedResources(authenticationProviders);
+
+		const connect = client.connect();
+		const initialize = await waitForRequest(transports[0], 'initialize');
+		transports[0].fireMessage({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		await connect;
+
+		const microsoftAuthentication = client.authenticate({
+			resource: microsoft.resource,
+			scopes: microsoft.scopes_supported,
+			token: 'microsoft-token',
+		});
+		respondToAuthentication(transports[0], registries[0], await waitForRequest(transports[0], 'authenticate', 0));
+		await microsoftAuthentication;
+
+		assert.deepStrictEqual(registries[0].authenticate({
+			resource: microsoft.resource,
+			scopes: microsoft.scopes_supported,
+			token: '',
+		}), { handled: true, authenticated: true });
+
+		const githubAuthentication = client.authenticate({
+			resource: github.resource,
+			scopes: github.scopes_supported,
+			token: 'github-token',
+		});
+		respondToAuthentication(transports[0], registries[0], await waitForRequest(transports[0], 'authenticate', 1));
+		await githubAuthentication;
+
+		transports[0].fireClose();
+		while (transports.length < 2) {
+			await timeout(0);
+		}
+		const reconnect = await waitForRequest(transports[1], 'reconnect');
+		transports[1].fireMessage({
+			jsonrpc: '2.0',
+			id: reconnect.id,
+			error: { code: AhpErrorCodes.NotFound, message: 'Client state was lost' },
+		});
+		const freshInitialize = await waitForRequest(transports[1], 'initialize');
+		transports[1].fireMessage({
+			jsonrpc: '2.0',
+			id: freshInitialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+
+		const restoredResources: string[] = [];
+		let handledRequests = 0;
+		const reconnectDeadline = Date.now() + 5_000;
+		while (client.connectionState !== AgentHostClientState.Connected) {
+			const requests = transports[1].sentMessages.filter(
+				(message): message is ProtocolRequest => 'method' in message && message.method === 'authenticate' && 'id' in message,
+			);
+			while (handledRequests < requests.length) {
+				const request = requests[handledRequests++];
+				restoredResources.push((request.params as AuthenticateParams).resource);
+				respondToAuthentication(transports[1], registries[1], request);
+			}
+			if (Date.now() > reconnectDeadline) {
+				throw new Error('Timed out waiting for authentication restore after fresh initialize.');
+			}
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			restoredResources,
+			restoredIssuer: registries[1].credential.get()?.issuer,
+		}, {
+			restoredResources: [github.resource],
+			restoredIssuer: AgentHostTunnelAuthenticationIssuer.GitHub,
 		});
 	});
 

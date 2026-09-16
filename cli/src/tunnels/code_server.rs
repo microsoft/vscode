@@ -11,6 +11,7 @@ use crate::download_cache::DownloadCache;
 use crate::log;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
+use crate::tunnels::agent_host::AgentHostTunnelInfo;
 use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
@@ -83,6 +84,7 @@ pub struct CodeServerArgs {
 	pub agent_host_bridge_host: Option<String>,
 	pub agent_host_bridge_port: Option<u16>,
 	pub agent_host_bridge_connection_token: Option<String>,
+	pub agent_host_tunnel: Option<AgentHostTunnelInfo>,
 }
 
 impl CodeServerArgs {
@@ -183,6 +185,9 @@ impl CodeServerArgs {
 			if let Some(token) = &self.agent_host_bridge_connection_token {
 				command.env(AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV, token);
 			}
+		}
+		if let Some(tunnel) = &self.agent_host_tunnel {
+			tunnel.apply_to_command(command.as_std_mut());
 		}
 	}
 }
@@ -976,6 +981,10 @@ async fn get_should_use_breakaway_from_job() -> bool {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::tunnels::agent_host::{
+		AGENT_HOST_TUNNEL_ID_ENV, AGENT_HOST_TUNNEL_NAME_ENV,
+		AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV,
+	};
 
 	#[test]
 	fn agent_host_bridge_connection_token_is_only_in_command_environment() {
@@ -1012,6 +1021,54 @@ mod tests {
 					AGENT_HOST_BRIDGE_CONNECTION_TOKEN_ENV.to_string(),
 					Some("secret-token".to_string()),
 				)],
+			)
+		);
+	}
+
+	#[test]
+	fn agent_host_tunnel_identity_is_only_in_command_environment() {
+		let args = CodeServerArgs {
+			agent_host_tunnel: Some(AgentHostTunnelInfo {
+				name: "hosted-machine".to_string(),
+				id: "hosted-tunnel-id".to_string(),
+				via_remote_access: true,
+			}),
+			..Default::default()
+		};
+		let mut command = Command::new("code-server");
+		args.apply_to_command(&mut command);
+		let command = command.as_std();
+
+		assert_eq!(
+			(
+				command
+					.get_args()
+					.map(|argument| argument.to_string_lossy().into_owned())
+					.collect::<Vec<_>>(),
+				command
+					.get_envs()
+					.map(|(name, value)| (
+						name.to_string_lossy().into_owned(),
+						value.map(|value| value.to_string_lossy().into_owned())
+					))
+					.collect::<Vec<_>>(),
+			),
+			(
+				Vec::<String>::new(),
+				vec![
+					(
+						AGENT_HOST_TUNNEL_ID_ENV.to_string(),
+						Some("hosted-tunnel-id".to_string()),
+					),
+					(
+						AGENT_HOST_TUNNEL_NAME_ENV.to_string(),
+						Some("hosted-machine".to_string()),
+					),
+					(
+						AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV.to_string(),
+						Some("1".to_string()),
+					),
+				],
 			)
 		);
 	}

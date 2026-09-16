@@ -140,6 +140,12 @@ Current prototype status:
 - [x] PR 3: target contribution boundary and complete Person 2 handoff (pending
   review).
 - [x] PR 4: host-feature authentication.
+- [x] PR 5: headless tunnel discovery, authoritative refresh, and target
+  admission. The service exposes the explicit-refresh seam for the separately
+  owned root-command wiring.
+- [x] PR 6 (headless connection scope): deterministic background gateway
+  selection and relay reconnect. Interactive client selection remains with the
+  client interaction work.
 
 Person 2 can consume
 [`IAgentHostRemoteTargetHandle`](./common/agentHostRemoteAgents.ts) and the
@@ -235,6 +241,12 @@ Add the generic root refresh/discovery command to AHP and route the client
 - A missing tunnel is removed immediately with its providers/catalog entries.
 - The Agent Host never connects to its own hosted tunnel.
 
+**Prototype status:** complete for the headless connector and lifecycle. Tunnel
+enumeration is connect-scoped and authoritative only on success; cached targets,
+dismissals, suppressions, auth loss, and self-host exclusion are reconciled
+without polling. `AgentHostRemoteAgentsService.refreshTunnelDiscovery()` is the
+service seam consumed by the separately owned AHP root refresh command.
+
 ### PR 6: Add gateway selection and resilient tunnel transport
 
 Move or reuse the current gateway-selection logic so the headless host retains
@@ -253,6 +265,12 @@ dedicated-host creation, relay transport, and existing reconnect policy.
 - Transport reconnect uses the target's stable client ID and does not duplicate
   subscriptions or requests.
 - Auth loss and master disable terminate reconnect attempts immediately.
+
+**Prototype status:** complete for automatic headless connections. The
+connector reuses the protocol-neutral gateway selection helpers and the shared
+reconnecting relay transport while retaining the tunnel target handle and AHP
+client identity. Interactive editor/dedicated prompting remains in the client
+interaction work.
 
 ### Integration checkpoint with Person 2
 

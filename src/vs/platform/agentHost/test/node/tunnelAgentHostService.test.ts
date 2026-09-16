@@ -4,22 +4,90 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import type WebSocket from 'ws';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
-import type { ITunnelRelayClient } from '../../common/tunnelAgentHostConnector.js';
-import type { ITunnelMessageSocket } from '../../common/tunnelMessageSocket.js';
+import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME, TUNNEL_LAUNCHER_LABEL } from '../../common/tunnelAgentHost.js';
+import { type ITunnelDescriptor, type ITunnelRelayClient } from '../../common/tunnelAgentHostConnector.js';
+import type { ITunnelDuplexStream, ITunnelMessageSocket } from '../../common/tunnelMessageSocket.js';
 import {
 	PendingGatewaySelection,
 	deletePendingGatewaySelectionForTests,
+	listAgentHostTunnels,
+	NodeTunnelSocketFactory,
 	setPendingGatewaySelectionForTests,
 	TUNNEL_STEP_TIMEOUT_MS,
 	TunnelAgentHostMainService,
 	withTimeout,
 } from '../../node/tunnelAgentHostService.js';
+
+class FakeHandshakeWebSocket {
+	private readonly _openListeners = new Set<() => void>();
+	private readonly _errorListeners = new Set<(error: Error) => void>();
+	private readonly _closeListeners = new Set<() => void>();
+	terminateCalls = 0;
+
+	once(event: 'open', listener: () => void): this;
+	once(event: 'error', listener: (error: Error) => void): this;
+	once(event: 'close', listener: () => void): this;
+	once(event: 'open' | 'error' | 'close', listener: (() => void) | ((error: Error) => void)): this {
+		if (event === 'open') {
+			this._openListeners.add(listener as () => void);
+		} else if (event === 'error') {
+			this._errorListeners.add(listener as (error: Error) => void);
+		} else {
+			this._closeListeners.add(listener as () => void);
+		}
+		return this;
+	}
+
+	on(event: 'error', listener: (error: Error) => void): this {
+		this._errorListeners.add(listener);
+		return this;
+	}
+
+	off(event: 'open', listener: () => void): this;
+	off(event: 'error', listener: (error: Error) => void): this;
+	off(event: 'close', listener: () => void): this;
+	off(event: 'open' | 'error' | 'close', listener: (() => void) | ((error: Error) => void)): this {
+		if (event === 'open') {
+			this._openListeners.delete(listener as () => void);
+		} else if (event === 'error') {
+			this._errorListeners.delete(listener as (error: Error) => void);
+		} else {
+			this._closeListeners.delete(listener as () => void);
+		}
+		return this;
+	}
+
+	terminate(): void {
+		this.terminateCalls++;
+	}
+
+	emitError(error: Error): void {
+		if (this._errorListeners.size === 0) {
+			throw error;
+		}
+		for (const listener of [...this._errorListeners]) {
+			listener(error);
+		}
+	}
+
+	emitClose(): void {
+		for (const listener of [...this._closeListeners]) {
+			listener();
+		}
+	}
+
+	listenerCount(event: 'error' | 'close'): number {
+		return event === 'error' ? this._errorListeners.size : this._closeListeners.size;
+	}
+}
 
 /**
  * Minimal message-socket double for gateway selection tests.
@@ -126,6 +194,137 @@ suite('TunnelAgentHostService - withTimeout', () => {
 		// healthy-but-slow connections. Keep it in a sensible range.
 		assert.ok(TUNNEL_STEP_TIMEOUT_MS >= 10_000, 'must be at least 10s');
 		assert.ok(TUNNEL_STEP_TIMEOUT_MS <= 120_000, 'must be at most 2min');
+	});
+});
+
+suite('TunnelAgentHostService - WebSocket handshake', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retains an error listener until a cancelled handshake closes', async () => {
+		const socket = new FakeHandshakeWebSocket();
+		const socketCreated = new DeferredPromise<void>();
+		const factory = new NodeTunnelSocketFactory(() => {
+			socketCreated.complete();
+			return socket as unknown as WebSocket;
+		});
+		const cancellation = new CancellationTokenSource();
+		try {
+			const resultPromise = factory.open({} as ITunnelDuplexStream, '/agent-host', cancellation.token)
+				.then(() => undefined, error => error);
+			await socketCreated.p;
+
+			cancellation.cancel();
+			const result = await resultPromise;
+			const listenersAfterCancellation = {
+				error: socket.listenerCount('error'),
+				close: socket.listenerCount('close'),
+			};
+			assert.doesNotThrow(() => socket.emitError(new Error('terminated during handshake')));
+			const errorListenersAfterError = socket.listenerCount('error');
+			socket.emitClose();
+
+			assert.deepStrictEqual({
+				cancelled: isCancellationError(result),
+				terminateCalls: socket.terminateCalls,
+				listenersAfterCancellation,
+				errorListenersAfterError,
+				listenersAfterClose: {
+					error: socket.listenerCount('error'),
+					close: socket.listenerCount('close'),
+				},
+			}, {
+				cancelled: true,
+				terminateCalls: 1,
+				listenersAfterCancellation: {
+					error: 1,
+					close: 1,
+				},
+				errorListenersAfterError: 1,
+				listenersAfterClose: {
+					error: 0,
+					close: 0,
+				},
+			});
+		} finally {
+			cancellation.dispose();
+		}
+	});
+});
+
+suite('TunnelAgentHostService - discovery', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('requests connect-scoped launcher tunnels and filters unsupported results', async () => {
+		const requests: object[] = [];
+		const tunnels: readonly ITunnelDescriptor[] = [
+			{ tunnelId: 'eligible', clusterId: 'west', name: 'eligible', labels: [TUNNEL_LAUNCHER_LABEL, 'protocolv6'] },
+			{ tunnelId: 'wrong-label', clusterId: 'west', name: 'wrong-label', labels: ['protocolv6'] },
+			{ tunnelId: 'old', clusterId: 'west', name: 'old', labels: [TUNNEL_LAUNCHER_LABEL, 'protocolv4'] },
+		];
+		const result = await listAgentHostTunnels({
+			async listTunnels(_clusterId, _domain, options) {
+				requests.push(options ?? {});
+				return tunnels;
+			},
+		}, undefined, new NullLogService());
+
+		assert.deepStrictEqual({
+			requests,
+			tunnels: result.map(tunnel => tunnel.tunnelId),
+		}, {
+			requests: [{
+				labels: [TUNNEL_LAUNCHER_LABEL],
+				requireAllLabels: true,
+				includePorts: true,
+				tokenScopes: ['connect'],
+			}],
+			tunnels: ['eligible'],
+		});
+	});
+
+	test('rejects a failed authoritative enumeration', async () => {
+		const failure = new Error('enumeration failed');
+
+		await assert.rejects(
+			() => listAgentHostTunnels({
+				async listTunnels() {
+					throw failure;
+				},
+			}, undefined, new NullLogService()),
+			error => error === failure,
+		);
+	});
+
+	test('propagates cancellation to tunnel management enumeration', async () => {
+		const enumeration = new DeferredPromise<readonly ITunnelDescriptor[]>();
+		const cancellation = new CancellationTokenSource();
+		let receivedCancellation: CancellationToken | undefined;
+		try {
+			const resultPromise = listAgentHostTunnels({
+				async listTunnels(_clusterId, _domain, _options, token) {
+					receivedCancellation = token;
+					return token ? raceCancellationError(enumeration.p, token) : enumeration.p;
+				},
+			}, undefined, new NullLogService(), cancellation.token).then(
+				() => undefined,
+				error => error,
+			);
+			await Promise.resolve();
+
+			cancellation.cancel();
+			const result = await resultPromise;
+			enumeration.complete([]);
+
+			assert.deepStrictEqual({
+				cancelled: isCancellationError(result),
+				sameToken: receivedCancellation === cancellation.token,
+			}, {
+				cancelled: true,
+				sameToken: true,
+			});
+		} finally {
+			cancellation.dispose();
+		}
 	});
 });
 

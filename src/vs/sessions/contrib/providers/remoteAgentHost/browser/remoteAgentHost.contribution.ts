@@ -741,6 +741,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			agentHost: { key: TunnelAgentHostsSettingId },
 		},
 		[AgentHostLocalFilePermissionsSettingId]: {
 			type: 'object',

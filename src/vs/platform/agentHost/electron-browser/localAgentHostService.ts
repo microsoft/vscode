@@ -21,6 +21,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { INotificationService } from '../../notification/common/notification.js';
+import { IRemoteTunnelService, type TunnelStatus } from '../../remoteTunnel/common/remoteTunnel.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
@@ -31,6 +32,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { HostedTunnelIdentity } from '../common/tunnelAgentHost.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -157,6 +159,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
 	private _startupTelemetry: AgentHostStartupTelemetry | undefined;
+	private readonly _hostedTunnel = observableValue<HostedTunnelIdentity>(this, { kind: 'unknown' });
+	private readonly _hostedTunnelStatusLoaded: Promise<void>;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
@@ -181,8 +185,21 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IRemoteTunnelService remoteTunnelService: IRemoteTunnelService,
 	) {
 		super();
+		let receivedLiveStatus = false;
+		this._register(remoteTunnelService.onDidChangeTunnelStatus(status => {
+			receivedLiveStatus = true;
+			this._acceptTunnelStatus(status);
+		}));
+		this._hostedTunnelStatusLoaded = remoteTunnelService.getTunnelStatus().then(status => {
+			if (!receivedLiveStatus) {
+				this._acceptTunnelStatus(status);
+			}
+		}, error => {
+			this._logService.error(`${LOG_PREFIX} Failed to resolve hosted tunnel identity`, error);
+		});
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
@@ -217,7 +234,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				{ clientId: this.clientId, clientInfo: this._clientInfo },
+				{ clientId: this.clientId, clientInfo: this._clientInfo, hostedTunnel: this._hostedTunnel },
 			));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
@@ -237,7 +254,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return;
 		}
 		this._connectStarted = true;
+		await this._hostedTunnelStatusLoaded;
 		await this._requireClient().connect();
+	}
+
+	private _acceptTunnelStatus(status: TunnelStatus): void {
+		if (status.type === 'connected') {
+			this._hostedTunnel.set({
+				kind: 'hosted',
+				tunnel: {
+					tunnelName: status.info.tunnelName,
+					tunnelId: status.info.tunnelId,
+					viaRemoteTunnelAccess: true,
+				},
+			}, undefined);
+		} else if (status.type === 'disconnected') {
+			this._hostedTunnel.set({ kind: 'unhosted' }, undefined);
+		}
 	}
 
 	private _createTransport(): AgentHostIpcChannelTransport {

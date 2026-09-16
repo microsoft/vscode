@@ -22,6 +22,8 @@ export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAg
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const SetClientRemoteAgentHostsPolicyExtensionMethod = 'vscode/setClientRemoteAgentHostsPolicy';
+export const SetClientHostedTunnelExtensionMethod = 'vscode/setClientHostedTunnel';
+export const SetClientTunnelDismissalsExtensionMethod = 'vscode/setClientTunnelDismissals';
 export const AgentHostAuthenticationRequirementsExtensionMethod = 'vscode/authenticationRequirements';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
@@ -101,6 +103,17 @@ export type CollectAgentHostDebugLogsParams = ValidatorType<typeof collectAgentH
 export const removeSessionArtifactParamsValidator = vObj({
 	session: vString(),
 	artifactId: vString(),
+});
+
+export const setClientTunnelDismissalsParamsValidator = vObj({
+	tunnelIds: vArray(vString()),
+});
+
+export const setClientHostedTunnelParamsValidator = vObj({
+	hosting: vBoolean(),
+	tunnelName: vOptionalProp(vString()),
+	tunnelId: vOptionalProp(vString()),
+	viaRemoteTunnelAccess: vOptionalProp(vBoolean()),
 });
 
 export interface IAgentHostExtensionCommandMap {

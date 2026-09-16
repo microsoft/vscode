@@ -6,11 +6,14 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { type IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { autorun, constObservable, type IObservable } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostRemoteAgentsEnabledConfigKey, AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { TunnelAgentHostDiscoveryNeedsAuthenticationError } from '../../common/tunnelAgentHostDiscovery.js';
+import { TunnelAgentHostsSettingId } from '../../common/tunnelAgentHost.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostFeatureAuthenticationRegistry } from '../../node/agentHostFeatureAuthentication.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostRemoteAgentsService, type IAgentHostRemoteAgentsActivationContext } from '../../node/agentHostRemoteAgentsService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -25,7 +28,9 @@ suite('AgentHostRemoteAgentsService', () => {
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
+		const featureAuthenticationRegistry = disposables.add(new AgentHostFeatureAuthenticationRegistry(undefined));
 		const service = disposables.add(new AgentHostRemoteAgentsService(configurationService, managedSettingsService, storageService, logService));
+		disposables.add(service.registerTunnelDiscovery(featureAuthenticationRegistry));
 		return { configurationService, managedSettingsService, service };
 	}
 
@@ -51,6 +56,7 @@ suite('AgentHostRemoteAgentsService', () => {
 		const beforeMaster = {
 			enabled: service.enabled.get(),
 			tunnelDiscoveryEnabled: service.tunnelDiscoveryEnabled.get(),
+			tunnelDiscoveryState: service.tunnelDiscoveryState.get().kind,
 			activationCount: contexts.length,
 		};
 
@@ -59,6 +65,7 @@ suite('AgentHostRemoteAgentsService', () => {
 		const beforePolicy = {
 			enabled: service.enabled.get(),
 			tunnelDiscoveryEnabled: service.tunnelDiscoveryEnabled.get(),
+			tunnelDiscoveryState: service.tunnelDiscoveryState.get().kind,
 			activationCount: contexts.length,
 		};
 
@@ -67,9 +74,14 @@ suite('AgentHostRemoteAgentsService', () => {
 		const enabled = {
 			enabled: service.enabled.get(),
 			tunnelDiscoveryEnabled: service.tunnelDiscoveryEnabled.get(),
+			tunnelDiscoveryState: service.tunnelDiscoveryState.get().kind,
 			activationCount: contexts.length,
 			contextTunnelDiscoveryEnabled: contexts[0]?.tunnelDiscoveryEnabled.get(),
 		};
+		await assert.rejects(
+			() => service.refreshTunnelDiscovery(),
+			error => error instanceof TunnelAgentHostDiscoveryNeedsAuthenticationError,
+		);
 
 		configurationService.updateRootConfig({ unrelated: true });
 		configurationService.updateRootConfig({ [AgentHostRemoteAgentsTunnelDiscoveryEnabledConfigKey]: false });
@@ -77,6 +89,7 @@ suite('AgentHostRemoteAgentsService', () => {
 		const discoveryDisabled = {
 			activationCount: contexts.length,
 			tunnelDiscoveryEnabled: contexts[0]?.tunnelDiscoveryEnabled.get(),
+			tunnelDiscoveryState: service.tunnelDiscoveryState.get().kind,
 			disposalCount,
 		};
 
@@ -97,22 +110,26 @@ suite('AgentHostRemoteAgentsService', () => {
 			beforeMaster: {
 				enabled: false,
 				tunnelDiscoveryEnabled: false,
+				tunnelDiscoveryState: 'disabled',
 				activationCount: 0,
 			},
 			beforePolicy: {
 				enabled: false,
 				tunnelDiscoveryEnabled: false,
+				tunnelDiscoveryState: 'disabled',
 				activationCount: 0,
 			},
 			enabled: {
 				enabled: true,
 				tunnelDiscoveryEnabled: true,
+				tunnelDiscoveryState: 'needsAuthentication',
 				activationCount: 1,
 				contextTunnelDiscoveryEnabled: true,
 			},
 			discoveryDisabled: {
 				activationCount: 1,
 				tunnelDiscoveryEnabled: false,
+				tunnelDiscoveryState: 'disabled',
 				disposalCount: 0,
 			},
 			afterMasterDisabled: {
@@ -169,6 +186,27 @@ suite('AgentHostRemoteAgentsService', () => {
 				disposalCount: 1,
 			},
 		});
+	});
+
+	test('publishes live additional tunnel names from root configuration without polling', () => {
+		const { configurationService, service } = createService();
+		const additionalTunnelNames = (service as unknown as {
+			readonly _additionalTunnelNames: IObservable<readonly string[]>;
+		})._additionalTunnelNames;
+		const observed: string[][] = [];
+		disposables.add(autorun(reader => {
+			observed.push([...additionalTunnelNames.read(reader)]);
+		}));
+
+		configurationService.updateRootConfig({ [TunnelAgentHostsSettingId]: ['first'] });
+		configurationService.updateRootConfig({ unrelated: true });
+		configurationService.updateRootConfig({ [TunnelAgentHostsSettingId]: ['second', 'third'] });
+
+		assert.deepStrictEqual(observed, [
+			[],
+			['first'],
+			['second', 'third'],
+		]);
 	});
 
 	test('cancels disabled activation and disposes its late result', async () => {

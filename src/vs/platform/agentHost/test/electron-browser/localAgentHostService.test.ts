@@ -17,6 +17,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { INotificationService } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
+import { IRemoteTunnelService, TunnelStates, type TunnelStatus } from '../../../remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
@@ -27,6 +28,7 @@ import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../comm
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { HostedTunnelIdentity } from '../../common/tunnelAgentHost.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
 class CapturingNotificationService extends TestNotificationService {
@@ -143,6 +145,10 @@ suite('registerAgentHostClientChannels', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(INotificationService, notifications);
+		instantiationService.stub(IRemoteTunnelService, {
+			onDidChangeTunnelStatus: Event.None,
+			getTunnelStatus: async () => TunnelStates.disconnected(),
+		} as Partial<IRemoteTunnelService>);
 		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
 		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
 		instantiationService.set(IInstantiationService, instantiationService);
@@ -156,6 +162,67 @@ suite('registerAgentHostClientChannels', () => {
 		assert.deepStrictEqual(notifications.errors, [
 			'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
 		]);
+	});
+
+	test('maps the live Remote Tunnel Access status to hosted tunnel identity', async () => {
+		const statusChanged = disposables.add(new Emitter<TunnelStatus>());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, new CapturingNotificationService());
+		instantiationService.stub(IRemoteTunnelService, {
+			onDidChangeTunnelStatus: statusChanged.event,
+			getTunnelStatus: async () => TunnelStates.connected({
+				tunnelName: 'hosted-name',
+				tunnelId: 'hosted-id',
+				isAttached: false,
+			}, false),
+		} as Partial<IRemoteTunnelService>);
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		await Promise.resolve();
+		const hostedTunnel = (service as unknown as {
+			readonly _hostedTunnel: { get(): HostedTunnelIdentity };
+		})._hostedTunnel;
+		const connected = hostedTunnel.get();
+
+		statusChanged.fire(TunnelStates.disconnected());
+
+		assert.deepStrictEqual({
+			connected,
+			disconnected: hostedTunnel.get(),
+		}, {
+			connected: {
+				kind: 'hosted',
+				tunnel: {
+					tunnelName: 'hosted-name',
+					tunnelId: 'hosted-id',
+					viaRemoteTunnelAccess: true,
+				},
+			},
+			disconnected: { kind: 'unhosted' },
+		});
+	});
+
+	test('records an initially disconnected Remote Tunnel Access status as known unhosted', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, new CapturingNotificationService());
+		instantiationService.stub(IRemoteTunnelService, {
+			onDidChangeTunnelStatus: Event.None,
+			getTunnelStatus: async () => TunnelStates.disconnected(),
+		} as Partial<IRemoteTunnelService>);
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+
+		await Promise.resolve();
+
+		assert.deepStrictEqual((service as unknown as {
+			readonly _hostedTunnel: { get(): HostedTunnelIdentity };
+		})._hostedTunnel.get(), { kind: 'unhosted' });
 	});
 
 	suite('LocalAgentHostManagementConnection', () => {

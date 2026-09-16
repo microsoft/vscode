@@ -14,6 +14,7 @@ import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKey
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
+import { TunnelAgentHostsSettingId } from './tunnelAgentHost.js';
 
 // ---- Schema builder --------------------------------------------------------
 
@@ -822,6 +823,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.remoteAgentsTunnelDiscoveryEnabled.title', "Remote Agent Tunnel Discovery"),
 		description: localize('agentHost.config.remoteAgentsTunnelDiscoveryEnabled.description', "Whether this Agent Host discovers and connects to eligible remote Agent Hosts through tunnels when remote agents are enabled."),
 		default: false,
+	}),
+	[TunnelAgentHostsSettingId]: schemaProperty<readonly string[]>({
+		type: 'array',
+		title: localize('agentHost.config.remoteAgentTunnels.title', "Remote Agent Tunnels"),
+		description: localize('agentHost.config.remoteAgentTunnels.description', "Additional dev tunnel names to include when discovering remote Agent Hosts."),
+		items: { type: 'string', title: localize('agentHost.config.remoteAgentTunnels.item.title', "Tunnel Name") },
+		default: [],
 	}),
 	[AgentHostByokModelsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

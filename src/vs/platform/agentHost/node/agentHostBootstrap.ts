@@ -35,6 +35,7 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import type { HostedTunnelIdentity } from '../common/tunnelAgentHost.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -51,6 +52,7 @@ export interface ICreateAgentHostRuntimeOptions {
 	readonly transientProxyConfiguration: boolean;
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly providerConfigurations: readonly IAgentCustomizationSettingsRegistration[];
+	readonly hostedTunnel: IObservable<HostedTunnelIdentity>;
 	/**
 	 * The utility-process host has a renderer bridge; standalone hosts use the
 	 * unavailable variant but still register the same complete service graph.
@@ -191,6 +193,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			sessionDataService,
 			foundation,
 			localTurns,
+			[],
+			options.hostedTunnel,
 		));
 		agentService = agentServiceComposition.agentService;
 		services.set(IAgentService, agentService);

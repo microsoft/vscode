@@ -10,6 +10,7 @@ import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -59,6 +60,7 @@ import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { readAgentHostTunnelInfo, toKnownHostedTunnelIdentity, type HostedTunnelIdentity, type ITunnelHostInfo } from '../common/tunnelAgentHost.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -117,6 +119,12 @@ async function startAgentHost(): Promise<void> {
 	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
 	let proxyResolver!: IAgentHostProxyResolver;
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
+	const initialHostedTunnel = readAgentHostTunnelInfo(process.env);
+	const hostedTunnel = observableValue<HostedTunnelIdentity>(
+		process,
+		initialHostedTunnel ? { kind: 'hosted', tunnel: initialHostedTunnel } : { kind: 'unknown' },
+	);
+	const updateHostedTunnel = (tunnel: ITunnelHostInfo | undefined) => hostedTunnel.set(toKnownHostedTunnelIdentity(tunnel), undefined);
 	try {
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		runtime = await createAgentHostRuntime({
@@ -127,6 +135,7 @@ async function startAgentHost(): Promise<void> {
 			transientProxyConfiguration: true,
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
+			hostedTunnel,
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
 		});
 		disposables.add(runtime);
@@ -245,6 +254,7 @@ async function startAgentHost(): Promise<void> {
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 			allowExtensionMethods: false,
+			updateHostedTunnel,
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.
@@ -389,6 +399,7 @@ async function startAgentHost(): Promise<void> {
 					completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
 					otlpLogEmitter,
+					updateHostedTunnel,
 				},
 				clientFileSystemProvider,
 			));
@@ -472,6 +483,7 @@ async function startAgentHost(): Promise<void> {
 		otlpLogEmitter,
 		protocolIngressDisposables,
 		hostLaunchKind,
+		updateHostedTunnel,
 		count => connectionCountEmitter.fire(count),
 		handler => protocolHandlers.push(handler),
 	);
@@ -569,6 +581,7 @@ async function startWebSocketServer(
 	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
 	hostLaunchKind: AgentHostLaunchKind,
+	updateHostedTunnel: (tunnel: ITunnelHostInfo | undefined) => void,
 	onConnectionCountChanged: (count: number) => void,
 	onProtocolHandlerCreated: (handler: ProtocolServerHandler) => void,
 ): Promise<void> {
@@ -617,6 +630,7 @@ async function startWebSocketServer(
 			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
+			updateHostedTunnel,
 		},
 		clientFileSystemProvider,
 	));

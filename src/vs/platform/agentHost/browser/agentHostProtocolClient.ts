@@ -9,25 +9,29 @@ import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
+import { autorun } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY, IManagedSettingsService } from '../../policy/common/copilotManagedSettings.js';
+import { IStorageService, StorageScope } from '../../storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import type { IAgentCreateSessionConfig } from '../common/agent.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
-import { RequestAgentHostWorkspaceTrustExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { RequestAgentHostWorkspaceTrustExtensionMethod, SetClientHostedTunnelExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, SetClientTunnelDismissalsExtensionMethod, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostProtocolClientCore, AgentHostClientState, InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../common/agentHostProtocolClient.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { parseTunnelIds, TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY } from '../common/tunnelAgentHostDiscovery.js';
+import { equalsHostedTunnelIdentity, type HostedTunnelIdentity, type ITunnelHostInfo } from '../common/tunnelAgentHost.js';
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { ActionType, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { MessageAttachmentKind, type ClientPluginCustomization, type Message } from '../common/state/sessionState.js';
@@ -42,7 +46,11 @@ export type { IAgentHostProtocolClientOptions };
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	[SetClientHostedTunnelExtensionMethod]: {
+		params: { hosting: false } | ({ hosting: true } & ITunnelHostInfo);
+	};
 	[SetClientRemoteAgentHostsPolicyExtensionMethod]: { params: { enabled: boolean } };
+	[SetClientTunnelDismissalsExtensionMethod]: { params: { tunnelIds: readonly string[] } };
 }
 
 /**
@@ -54,6 +62,7 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 	private readonly _connectionAuthority: string;
 	private readonly _grantedImplicitReadUris = new ResourceSet();
 	private readonly _implicitReadGrants = this._register(new DisposableStore());
+	private _hostedTunnelIdentity: HostedTunnelIdentity = { kind: 'unknown' };
 
 	constructor(
 		identity: AgentHostResourceIdentity,
@@ -67,6 +76,7 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		const address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		const connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
@@ -129,6 +139,29 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 				this._updateRemoteAgentHostsPolicy();
 			}
 		}));
+		const storageListeners = this._register(new DisposableStore());
+		storageListeners.add(this._storageService.onDidChangeValue(
+			StorageScope.APPLICATION,
+			TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY,
+			storageListeners,
+		)(() => {
+			if (this.connectionState === AgentHostClientState.Connected) {
+				this._updateTunnelDismissals();
+			}
+		}));
+		if (options?.hostedTunnel) {
+			const hostedTunnel = options.hostedTunnel;
+			this._register(autorun(reader => {
+				const identity = hostedTunnel.read(reader);
+				if (equalsHostedTunnelIdentity(this._hostedTunnelIdentity, identity)) {
+					return;
+				}
+				this._hostedTunnelIdentity = identity;
+				if (identity.kind !== 'unknown' && this.connectionState === AgentHostClientState.Connected) {
+					this._updateHostedTunnel();
+				}
+			}));
+		}
 	}
 
 	protected override _clientMeta(): Record<string, unknown> {
@@ -143,6 +176,8 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 	}
 
 	protected override _forwardClientConfig(includeManagedSettings = true): void {
+		this._updateHostedTunnel(!includeManagedSettings);
+		this._updateTunnelDismissals(!includeManagedSettings);
 		this._updateRemoteAgentHostsPolicy(!includeManagedSettings);
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
 		this._updateTelemetryLevel();
@@ -162,6 +197,39 @@ export class AgentHostProtocolClient extends AgentHostProtocolClientCore impleme
 		}
 		const managedValue = this._managedSettingsService.getManagedSettingValue(COPILOT_REMOTE_AGENT_HOSTS_ENABLED_KEY);
 		this._sendExtensionNotification(SetClientRemoteAgentHostsPolicyExtensionMethod, { enabled: managedValue !== false }, sendDuringReconnect);
+	}
+
+	private _updateHostedTunnel(sendDuringReconnect = false): void {
+		if (this._hostedTunnelIdentity.kind === 'unknown') {
+			return;
+		}
+		this._sendExtensionNotification(
+			SetClientHostedTunnelExtensionMethod,
+			this._hostedTunnelIdentity.kind === 'hosted'
+				? { hosting: true, ...this._hostedTunnelIdentity.tunnel }
+				: { hosting: false },
+			sendDuringReconnect,
+		);
+	}
+
+	private _updateTunnelDismissals(sendDuringReconnect = false): void {
+		const stored = this._storageService.get(TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY, StorageScope.APPLICATION);
+		if (stored === undefined) {
+			this._sendExtensionNotification(SetClientTunnelDismissalsExtensionMethod, { tunnelIds: [] }, sendDuringReconnect);
+			return;
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(stored);
+		} catch {
+			this._logService.warn('[RemoteAgentHostProtocol] Ignoring invalid tunnel dismissal storage.');
+			return;
+		}
+		if (!Array.isArray(parsed) || parsed.some(tunnelId => typeof tunnelId !== 'string')) {
+			this._logService.warn('[RemoteAgentHostProtocol] Ignoring invalid entries in tunnel dismissal storage.');
+			return;
+		}
+		this._sendExtensionNotification(SetClientTunnelDismissalsExtensionMethod, { tunnelIds: parseTunnelIds(parsed) }, sendDuringReconnect);
 	}
 
 	protected override _updateManagedSettingsPermissions(sendDuringReconnect = false): void {

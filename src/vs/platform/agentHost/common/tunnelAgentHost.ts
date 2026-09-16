@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -381,10 +382,10 @@ export interface ITunnelAgentHostMainService {
 	 * @param additionalTunnelNames Optional tunnel names to look up
 	 *   in addition to the account-wide enumeration.
 	 */
-	listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[]): Promise<ITunnelInfo[]>;
+	listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[], cancellationToken?: CancellationToken): Promise<ITunnelInfo[]>;
 
 	/** Delete a dev tunnel and close any associated relay connections. */
-	deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void>;
+	deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken?: CancellationToken): Promise<void>;
 
 	/**
 	 * Connect to a tunnel's agent host via the dev tunnels relay and
@@ -395,7 +396,7 @@ export interface ITunnelAgentHostMainService {
 	 * @param tunnelId The tunnel ID to connect to.
 	 * @param clusterId The cluster region of the tunnel.
 	 */
-	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult>;
+	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken?: CancellationToken): Promise<ITunnelConnectResult>;
 
 	/**
 	 * Prepare a protocol-v6 registry-based endpoint selection: connects the
@@ -415,7 +416,7 @@ export interface ITunnelAgentHostMainService {
 	 * @param tunnelId The tunnel ID to connect to.
 	 * @param clusterId The cluster region of the tunnel.
 	 */
-	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined>;
+	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken?: CancellationToken): Promise<ITunnelGatewaySelectionSession | undefined>;
 
 	/**
 	 * Complete a selection previously started with {@link prepareSelection}:
@@ -429,7 +430,7 @@ export interface ITunnelAgentHostMainService {
 	 * pending session is consumed and disposed, so retrying requires a fresh
 	 * {@link prepareSelection}.
 	 */
-	completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult>;
+	completeSelection(selectionId: string, selection: ITunnelGatewaySelection, cancellationToken?: CancellationToken): Promise<ITunnelConnectResult>;
 
 	/**
 	 * Cancel and dispose a pending selection without completing it (e.g.
@@ -541,6 +542,53 @@ export interface ITunnelHostInfo {
 	readonly tunnelId?: string;
 	/** Set when remote session access is being provided by full Remote Tunnel Access rather than a dedicated agent host tunnel. */
 	readonly viaRemoteTunnelAccess?: boolean;
+}
+
+/** Whether hosted-tunnel identity is pending, authoritatively absent, or present. */
+export type HostedTunnelIdentity =
+	| { readonly kind: 'unknown' }
+	| { readonly kind: 'unhosted' }
+	| { readonly kind: 'hosted'; readonly tunnel: ITunnelHostInfo };
+
+/** Converts an authoritative hosted-tunnel result into an explicit known identity. */
+export function toKnownHostedTunnelIdentity(tunnel: ITunnelHostInfo | undefined): HostedTunnelIdentity {
+	return tunnel ? { kind: 'hosted', tunnel } : { kind: 'unhosted' };
+}
+
+/** Returns hosted tunnel details only when the identity is known and present. */
+export function getHostedTunnelInfo(identity: HostedTunnelIdentity): ITunnelHostInfo | undefined {
+	return identity.kind === 'hosted' ? identity.tunnel : undefined;
+}
+
+/** Compares both identity knowledge and hosted tunnel details. */
+export function equalsHostedTunnelIdentity(first: HostedTunnelIdentity, second: HostedTunnelIdentity): boolean {
+	if (first.kind !== second.kind) {
+		return false;
+	}
+	if (first.kind !== 'hosted' || second.kind !== 'hosted') {
+		return true;
+	}
+	return first.tunnel.tunnelName === second.tunnel.tunnelName
+		&& first.tunnel.tunnelId === second.tunnel.tunnelId
+		&& first.tunnel.viaRemoteTunnelAccess === second.tunnel.viaRemoteTunnelAccess;
+}
+
+export const AGENT_HOST_TUNNEL_NAME_ENV = 'VSCODE_AGENT_HOST_TUNNEL_NAME';
+export const AGENT_HOST_TUNNEL_ID_ENV = 'VSCODE_AGENT_HOST_TUNNEL_ID';
+export const AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV = 'VSCODE_AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS';
+
+/** Reads the hosted tunnel identity forwarded by the Agent Host launcher. */
+export function readAgentHostTunnelInfo(environment: Readonly<Record<string, string | undefined>>): ITunnelHostInfo | undefined {
+	const tunnelName = environment[AGENT_HOST_TUNNEL_NAME_ENV]?.trim();
+	if (!tunnelName) {
+		return undefined;
+	}
+	const tunnelId = environment[AGENT_HOST_TUNNEL_ID_ENV]?.trim() || undefined;
+	return {
+		tunnelName,
+		tunnelId,
+		viaRemoteTunnelAccess: environment[AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV] === '1' || undefined,
+	};
 }
 
 /** Whether a discovered tunnel is the hosted tunnel, preferring its stable identity over its display name. */

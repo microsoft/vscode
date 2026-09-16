@@ -18,8 +18,9 @@ use crate::log;
 use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
-	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
-	AgentHostReuseDecision, AgentHostSidecar, LoopbackAuth,
+	classify_agent_host, serve_agent_host_tunnel_connection, update_reused_agent_host_tunnel,
+	AgentHostConfig, AgentHostManager, AgentHostReuseDecision, AgentHostSidecar,
+	AgentHostTunnelInfo, AgentHostTunnelManagementOutcome, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
 use crate::tunnels::code_server::CodeServerArgs;
@@ -283,6 +284,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		}
 	}
 
+	let inherited_agent_host_tunnel = AgentHostTunnelInfo::from_environment();
 	let manager = AgentHostManager::new(
 		ctx.log.clone(),
 		platform,
@@ -303,6 +305,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			without_connection_token: true,
 			connection_token: None,
 			connection_token_file: None,
+			agent_host_tunnel: inherited_agent_host_tunnel.clone(),
 		},
 	);
 
@@ -342,8 +345,14 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		}?;
 
 		tunnel_name = Some(tunnel.name.clone());
+		let agent_host_tunnel = AgentHostTunnelInfo {
+			name: tunnel.name.clone(),
+			id: tunnel.id.clone(),
+			via_remote_access: false,
+		};
+		manager.set_agent_host_tunnel(Some(agent_host_tunnel.clone()));
 		let tunnel_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
-		pending_tunnel = Some((tunnel, tunnel_port));
+		pending_tunnel = Some((tunnel, tunnel_port, agent_host_tunnel));
 	}
 
 	let listen_addr = resolve_listen_addr(&args)?;
@@ -379,7 +388,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	let bound_port = sidecar.bound_addr().port();
 
 	let mut tunnel_handle: Option<crate::tunnels::dev_tunnels::ActiveTunnel> = None;
-	if let Some((tunnel, mut tunnel_port)) = pending_tunnel {
+	if let Some((tunnel, mut tunnel_port, agent_host_tunnel)) = pending_tunnel {
 		// Route each tunneled connection through the same protocol-v6
 		// selection-gateway request router `code tunnel`'s control_server
 		// uses (`serve_agent_host_tunnel_connection`), instead of the
@@ -422,6 +431,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 				let active_agent_host = active_agent_host.clone();
 				let launcher_paths = launcher_paths.clone();
 				let user_data_path = gateway_user_data_path.clone();
+				let agent_host_tunnel = agent_host_tunnel.clone();
 				let rw = idle_timeout::GuardedStream::new(
 					socket.into_rw(),
 					tunnel_activity.as_ref().map(|a| a.client_connected()),
@@ -433,6 +443,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 						active_agent_host,
 						launcher_paths,
 						user_data_path,
+						Some(agent_host_tunnel),
 						false,
 					)
 					.await;
@@ -638,7 +649,7 @@ fn detect_config_conflict(
 /// `(standalone, pid, instanceId)` entry from the shared local agent-host
 /// endpoint registry, so the subsequent supervisor start publishes a
 /// clean one.
-async fn replace_existing(
+pub(crate) async fn replace_existing(
 	log: &log::Logger,
 	user_data_path: &Path,
 	pid: u32,
@@ -674,7 +685,7 @@ async fn daemonize_supervisor() -> Result<i32, AnyError> {
 	// `--host`/`--port`/`--without-connection-token`/etc. flags the user
 	// passed in foreground.
 	cmd.args(std::env::args_os().skip(1));
-	cmd.env(SUPERVISOR_ENV, "1");
+	apply_supervisor_environment(&mut cmd, AgentHostTunnelInfo::from_environment().as_ref());
 	#[cfg(windows)]
 	cmd.env(
 		output::PARENT_STDOUT_SUPPORTS_UTF8_ENV,
@@ -731,29 +742,54 @@ async fn daemonize_supervisor() -> Result<i32, AnyError> {
 	}
 }
 
+fn apply_supervisor_environment(
+	command: &mut tokio::process::Command,
+	tunnel: Option<&AgentHostTunnelInfo>,
+) {
+	command.env(SUPERVISOR_ENV, "1");
+	if let Some(tunnel) = tunnel {
+		tunnel.apply_to_command(command.as_std_mut());
+	}
+}
+
+fn supervisor_user_data_dir_args(user_data_path: &Path) -> [String; 2] {
+	[
+		"--user-data-dir".to_string(),
+		user_data_path.to_string_lossy().into_owned(),
+	]
+}
+
 /// Ensure an agent host supervisor is running on this machine and return
 /// the live endpoint to dial. Used by callers that want to reuse the
 /// supervisor regardless of who started it (e.g. `code tunnel`'s
-/// SpawnFresh branch).
+/// SpawnFresh branch). A reused supervisor receives the current hosted
+/// tunnel identity before this function returns.
 pub async fn ensure_supervisor_running(
 	launcher_paths: &LauncherPaths,
 	log: &log::Logger,
+	agent_host_tunnel: Option<&AgentHostTunnelInfo>,
 ) -> Result<ActiveAgentHost, AnyError> {
 	let user_data_path = resolve_user_data_path(None);
-	if let AgentHostReuseDecision::Reuse {
-		pid,
-		host,
-		port,
-		token,
-		..
-	} = classify_agent_host(log, &user_data_path).await
+	ensure_supervisor_running_with_user_data_path(
+		launcher_paths,
+		log,
+		&user_data_path,
+		agent_host_tunnel,
+	)
+	.await
+}
+
+/// Reuses or starts a supervisor in the specified endpoint-registry directory.
+pub(crate) async fn ensure_supervisor_running_with_user_data_path(
+	launcher_paths: &LauncherPaths,
+	log: &log::Logger,
+	user_data_path: &Path,
+	agent_host_tunnel: Option<&AgentHostTunnelInfo>,
+) -> Result<ActiveAgentHost, AnyError> {
+	if let Some(active) =
+		reuse_supervisor_if_running(log, user_data_path, agent_host_tunnel).await?
 	{
-		return Ok(ActiveAgentHost {
-			pid,
-			host,
-			port,
-			token,
-		});
+		return Ok(active);
 	}
 
 	info!(
@@ -761,9 +797,10 @@ pub async fn ensure_supervisor_running(
 		"No agent host supervisor running; starting one in the background"
 	);
 
-	spawn_supervisor_and_wait_ready(launcher_paths, log, &[]).await?;
+	let extra_args = supervisor_user_data_dir_args(user_data_path);
+	spawn_supervisor_and_wait_ready(launcher_paths, log, &extra_args, agent_host_tunnel).await?;
 
-	match classify_agent_host(log, &user_data_path).await {
+	match classify_agent_host(log, user_data_path).await {
 		AgentHostReuseDecision::Reuse {
 			pid,
 			host,
@@ -785,6 +822,51 @@ pub async fn ensure_supervisor_running(
 	}
 }
 
+/// Updates and returns a live supervisor, or returns `None` without starting one.
+pub(crate) async fn reuse_supervisor_if_running(
+	log: &log::Logger,
+	user_data_path: &Path,
+	agent_host_tunnel: Option<&AgentHostTunnelInfo>,
+) -> Result<Option<ActiveAgentHost>, AnyError> {
+	if let AgentHostReuseDecision::Reuse {
+		pid,
+		host,
+		port,
+		token,
+		instance_id,
+		..
+	} = classify_agent_host(log, &user_data_path).await
+	{
+		let active = ActiveAgentHost {
+			pid,
+			host,
+			port,
+			token,
+		};
+		if let Some(tunnel) = agent_host_tunnel {
+			let outcome = update_reused_agent_host_tunnel(
+				log,
+				active.dial_host(),
+				active.port,
+				active.token.as_deref(),
+				tunnel,
+			)
+			.await?;
+			if outcome == AgentHostTunnelManagementOutcome::Unsupported {
+				info!(
+					log,
+					"Replacing agent host supervisor from an older CLI that cannot manage hosted tunnel identity"
+				);
+				replace_existing(log, user_data_path, active.pid, instance_id).await?;
+				return Ok(None);
+			}
+		}
+		return Ok(Some(active));
+	}
+
+	Ok(None)
+}
+
 /// Spawns a brand-new standalone agent host supervisor dedicated to one
 /// protocol-v6 tunnel gateway `newDedicated` selection, equivalent to
 /// running `code agent host --new-instance --idle-timeout
@@ -800,6 +882,7 @@ pub async fn spawn_dedicated_supervisor(
 	log: &log::Logger,
 	user_data_path: &Path,
 	idle_timeout_secs: u64,
+	agent_host_tunnel: Option<&AgentHostTunnelInfo>,
 ) -> Result<agent_host_registry::AgentHostEndpointMetadata, AnyError> {
 	info!(
 		log,
@@ -807,15 +890,17 @@ pub async fn spawn_dedicated_supervisor(
 	);
 
 	let idle_timeout_arg = idle_timeout_secs.to_string();
-	let user_data_dir_arg = user_data_path.to_string_lossy().to_string();
+	let [user_data_dir_flag, user_data_dir_arg] = supervisor_user_data_dir_args(user_data_path);
 	let extra_args = [
 		"--new-instance".to_string(),
 		"--idle-timeout".to_string(),
 		idle_timeout_arg,
-		"--user-data-dir".to_string(),
+		user_data_dir_flag,
 		user_data_dir_arg,
 	];
-	let child_pid = spawn_supervisor_and_wait_ready(launcher_paths, log, &extra_args).await?;
+	let child_pid =
+		spawn_supervisor_and_wait_ready(launcher_paths, log, &extra_args, agent_host_tunnel)
+			.await?;
 
 	agent_host_registry::list_live_standalone_endpoints(log, user_data_path)
 		.await
@@ -840,13 +925,14 @@ async fn spawn_supervisor_and_wait_ready(
 	launcher_paths: &LauncherPaths,
 	log: &log::Logger,
 	extra_args: &[String],
+	agent_host_tunnel: Option<&AgentHostTunnelInfo>,
 ) -> Result<u32, AnyError> {
 	let exe = std::env::current_exe().map_err(|e| wrap(e, "could not resolve current_exe"))?;
 	let mut cmd = tokio::process::Command::new(&exe);
 	cmd.arg("--cli-data-dir").arg(launcher_paths.root());
 	cmd.arg("agent").arg("host");
 	cmd.args(extra_args);
-	cmd.env(SUPERVISOR_ENV, "1");
+	apply_supervisor_environment(&mut cmd, agent_host_tunnel);
 	cmd.stdin(std::process::Stdio::null());
 	cmd.stdout(std::process::Stdio::piped());
 	cmd.stderr(std::process::Stdio::piped());
@@ -1022,8 +1108,19 @@ fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::
 mod tests {
 	use super::*;
 	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
+	use crate::tunnels::agent_host::{
+		AGENT_HOST_TUNNEL_ID_ENV, AGENT_HOST_TUNNEL_NAME_ENV,
+		AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV,
+	};
+	use http_body_util::{BodyExt, Empty};
+	use hyper::service::service_fn;
+	use hyper_util::rt::{TokioExecutor, TokioIo};
+	use hyper_util::server::conn::auto::Builder as ServerBuilder;
 	use std::fs;
+	use std::process::{Child, Command, Stdio};
+	use std::sync::Mutex;
 	use tokio::net::TcpListener;
+	use tokio::sync::oneshot;
 
 	#[test]
 	fn mint_connection_token_generates_and_persists() {
@@ -1062,6 +1159,225 @@ mod tests {
 		let token = mint_connection_token(&path, Some("override".to_string())).unwrap();
 		assert_eq!(token, "override");
 		assert_eq!(fs::read_to_string(&path).unwrap(), "override");
+	}
+
+	#[test]
+	fn supervisor_environment_forwards_tunnel_identity_without_token() {
+		let tunnel = AgentHostTunnelInfo {
+			name: "remote-machine".to_string(),
+			id: "remote-tunnel-id".to_string(),
+			via_remote_access: true,
+		};
+		let mut command = tokio::process::Command::new("code");
+		apply_supervisor_environment(&mut command, Some(&tunnel));
+
+		assert_eq!(
+			command
+				.as_std()
+				.get_envs()
+				.map(|(name, value)| (
+					name.to_string_lossy().into_owned(),
+					value.map(|value| value.to_string_lossy().into_owned())
+				))
+				.collect::<Vec<_>>(),
+			vec![
+				(SUPERVISOR_ENV.to_string(), Some("1".to_string())),
+				(
+					AGENT_HOST_TUNNEL_ID_ENV.to_string(),
+					Some("remote-tunnel-id".to_string()),
+				),
+				(
+					AGENT_HOST_TUNNEL_NAME_ENV.to_string(),
+					Some("remote-machine".to_string()),
+				),
+				(
+					AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV.to_string(),
+					Some("1".to_string()),
+				),
+			]
+		);
+	}
+
+	#[test]
+	fn replacement_supervisor_spawn_forwards_custom_user_data_dir() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("custom-user-data");
+
+		assert_eq!(
+			supervisor_user_data_dir_args(&user_data_path),
+			[
+				"--user-data-dir".to_string(),
+				user_data_path.to_string_lossy().into_owned(),
+			]
+		);
+	}
+
+	#[tokio::test]
+	async fn tunnel_reuse_updates_plain_supervisor_identity_before_returning() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let log = log::Logger::test();
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		let endpoint = agent_host_registry::AgentHostEndpointMetadata::new_standalone(
+			std::process::id(),
+			"plain-supervisor".to_string(),
+			"127.0.0.1".to_string(),
+			port,
+			"plain-token".to_string(),
+			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			None,
+			None,
+		);
+		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &endpoint).unwrap();
+
+		let (request_tx, request_rx) = oneshot::channel();
+		let request_tx = Arc::new(Mutex::new(Some(request_tx)));
+		let server_task = tokio::spawn(async move {
+			let (probe, _) = listener.accept().await.unwrap();
+			drop(probe);
+			let (stream, _) = listener.accept().await.unwrap();
+			let service = service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+				let request_tx = request_tx.clone();
+				async move {
+					let path = req.uri().path().to_string();
+					let query = req.uri().query().map(str::to_string);
+					let body = req.into_body().collect().await.unwrap().to_bytes();
+					if let Some(request_tx) = request_tx.lock().unwrap().take() {
+						let _ = request_tx.send((path, query, body));
+					}
+					Ok::<_, std::convert::Infallible>(
+						hyper::Response::builder()
+							.status(204)
+							.body(Empty::<bytes::Bytes>::new())
+							.unwrap(),
+					)
+				}
+			});
+			let _ = ServerBuilder::new(TokioExecutor::new())
+				.serve_connection(TokioIo::new(stream), service)
+				.await;
+		});
+
+		let tunnel = AgentHostTunnelInfo {
+			name: "newly-hosted".to_string(),
+			id: "newly-hosted-id".to_string(),
+			via_remote_access: false,
+		};
+		let active = reuse_supervisor_if_running(&log, &user_data_path, Some(&tunnel))
+			.await
+			.unwrap()
+			.unwrap();
+		let received = tokio::time::timeout(Duration::from_secs(2), request_rx).await;
+		server_task.abort();
+		let (path, query, body) = received
+			.expect("reused supervisor did not receive hosted tunnel identity")
+			.unwrap();
+
+		assert_eq!(
+			(
+				active.pid,
+				active.port,
+				path,
+				query,
+				serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+			),
+			(
+				std::process::id(),
+				port,
+				"/_vscode/agent-host/hosted-tunnel".to_string(),
+				Some("tkn=plain-token".to_string()),
+				serde_json::json!({
+					"name": "newly-hosted",
+					"id": "newly-hosted-id",
+					"viaRemoteAccess": false,
+				}),
+			)
+		);
+	}
+
+	fn spawn_test_process() -> Child {
+		#[cfg(windows)]
+		let mut command = {
+			let mut command = Command::new("ping");
+			command.args(["-t", "127.0.0.1"]);
+			command
+		};
+		#[cfg(not(windows))]
+		let mut command = {
+			let mut command = Command::new("sleep");
+			command.arg("30");
+			command
+		};
+		command
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
+			.unwrap()
+	}
+
+	#[tokio::test]
+	async fn tunnel_reuse_retires_older_supervisor_without_identity_route() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let log = log::Logger::test();
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		let mut old_supervisor = spawn_test_process();
+		let endpoint = agent_host_registry::AgentHostEndpointMetadata::new_standalone(
+			old_supervisor.id(),
+			"old-supervisor".to_string(),
+			"127.0.0.1".to_string(),
+			port,
+			String::new(),
+			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			None,
+			None,
+		);
+		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &endpoint).unwrap();
+
+		let server_task = tokio::spawn(async move {
+			let (probe, _) = listener.accept().await.unwrap();
+			drop(probe);
+			let (stream, _) = listener.accept().await.unwrap();
+			let service = service_fn(|_: hyper::Request<hyper::body::Incoming>| async {
+				Ok::<_, std::convert::Infallible>(
+					hyper::Response::builder()
+						.status(404)
+						.body(Empty::<bytes::Bytes>::new())
+						.unwrap(),
+				)
+			});
+			let _ = ServerBuilder::new(TokioExecutor::new())
+				.serve_connection(TokioIo::new(stream), service)
+				.await;
+		});
+
+		let tunnel = AgentHostTunnelInfo {
+			name: "newly-hosted".to_string(),
+			id: "newly-hosted-id".to_string(),
+			via_remote_access: false,
+		};
+		let result = reuse_supervisor_if_running(&log, &user_data_path, Some(&tunnel)).await;
+		server_task.abort();
+		let _ = old_supervisor.kill();
+		let _ = old_supervisor.wait();
+		let outcome = match result {
+			Ok(None) => "no reusable supervisor",
+			Ok(Some(_)) => "reused old supervisor",
+			Err(_) => "aborted",
+		};
+
+		assert_eq!(
+			(
+				outcome,
+				agent_host_registry::read_registry(&log, &user_data_path)
+					.unwrap()
+					.is_empty(),
+			),
+			("no reusable supervisor", true)
+		);
 	}
 
 	fn reusable_decision() -> AgentHostReuseDecision {

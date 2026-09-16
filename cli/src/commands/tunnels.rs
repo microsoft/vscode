@@ -163,7 +163,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		let paths = ctx.paths.clone();
 		let log = ctx.log.clone();
 		async move {
-			ensure_supervisor_running(&paths, &log)
+			ensure_supervisor_running(&paths, &log, None)
 				.await
 				.map(Arc::new)
 				.map_err(Arc::new)
@@ -706,6 +706,7 @@ async fn serve_with_csa(
 		})
 		.await?;
 		r.tunnel.close().await.ok();
+		r.release_hosted_tunnel_lease(&log).await;
 
 		match r.next {
 			Next::Respawn => {

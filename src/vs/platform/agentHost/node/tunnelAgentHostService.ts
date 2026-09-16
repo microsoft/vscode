@@ -6,13 +6,17 @@
 import type { Tunnel } from '@microsoft/dev-tunnels-contracts';
 import type { TunnelManagementHttpClient } from '@microsoft/dev-tunnels-management';
 import type WebSocket from 'ws';
+import { raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	PendingGatewaySelection,
 	TunnelAgentHostConnector,
 	parseTunnelInfo,
+	type ITunnelDescriptor,
 	type ITunnelRelayClient,
 	type ITunnelRelayClientFactory,
 	type ITunnelRelayClientSession,
@@ -22,7 +26,6 @@ import {
 	ITunnelAgentHostMainService,
 	TUNNEL_AGENT_HOST_PORT,
 	TUNNEL_LAUNCHER_LABEL,
-	TUNNEL_MIN_PROTOCOL_VERSION,
 	type ITunnelConnectResult,
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
@@ -35,12 +38,68 @@ const LOG_PREFIX = '[TunnelAgentHost]';
 
 export { PendingGatewaySelection, TUNNEL_STEP_TIMEOUT_MS, withTimeout } from '../common/tunnelAgentHostConnector.js';
 
+export interface ITunnelManagementListOptions {
+	readonly labels?: string[];
+	readonly requireAllLabels?: boolean;
+	readonly includePorts?: boolean;
+	readonly tokenScopes?: string[];
+	readonly limit?: number;
+}
+
+export interface ITunnelManagementClient {
+	listTunnels(clusterId?: string, domain?: string, options?: ITunnelManagementListOptions, cancellationToken?: CancellationToken): Promise<readonly ITunnelDescriptor[]>;
+}
+
+export async function listAgentHostTunnels(
+	client: ITunnelManagementClient,
+	additionalTunnelNames: readonly string[] | undefined,
+	logService: ILogService,
+	cancellationToken: CancellationToken = CancellationToken.None,
+): Promise<ITunnelInfo[]> {
+	const results: ITunnelInfo[] = [];
+	const seen = new Set<string>();
+	const tunnels = await client.listTunnels(undefined, undefined, {
+		labels: [TUNNEL_LAUNCHER_LABEL],
+		requireAllLabels: true,
+		includePorts: true,
+		tokenScopes: ['connect'],
+	}, cancellationToken);
+	for (const tunnel of tunnels) {
+		const info = parseTunnelInfo(tunnel);
+		if (info && !seen.has(info.tunnelId)) {
+			results.push(info);
+			seen.add(info.tunnelId);
+		}
+	}
+
+	for (const tunnelName of additionalTunnelNames ?? []) {
+		const [tunnel] = await client.listTunnels(undefined, undefined, {
+			labels: [tunnelName, TUNNEL_LAUNCHER_LABEL],
+			requireAllLabels: true,
+			includePorts: true,
+			tokenScopes: ['connect'],
+			limit: 1,
+		}, cancellationToken);
+		if (!tunnel) {
+			continue;
+		}
+		const info = parseTunnelInfo(tunnel);
+		if (info && !seen.has(info.tunnelId)) {
+			results.push(info);
+			seen.add(info.tunnelId);
+		}
+	}
+
+	logService.info(`${LOG_PREFIX} Found ${results.length} tunnel(s) with agent host support`);
+	return results;
+}
+
 interface INodeTunnelRelayClient {
 	acceptLocalConnectionsForForwardedPorts: boolean;
 	endpoints?: Tunnel['endpoints'];
-	connect(tunnel: Tunnel): Promise<void>;
-	waitForForwardedPort(port: number): Promise<void>;
-	connectToForwardedPort(port: number): Promise<NodeJS.ReadWriteStream>;
+	connect(tunnel: Tunnel, options?: undefined, cancellationToken?: CancellationToken): Promise<void>;
+	waitForForwardedPort(port: number, cancellationToken?: CancellationToken): Promise<void>;
+	connectToForwardedPort(port: number, cancellationToken?: CancellationToken): Promise<NodeJS.ReadWriteStream>;
 	dispose(): void;
 }
 
@@ -51,16 +110,16 @@ class NodeTunnelRelayClient implements ITunnelRelayClient {
 	) {
 	}
 
-	connect(): Promise<void> {
-		return this._relayClient.connect(this._tunnel);
+	connect(cancellationToken?: CancellationToken): Promise<void> {
+		return this._relayClient.connect(this._tunnel, undefined, cancellationToken);
 	}
 
-	waitForForwardedPort(port: number): Promise<void> {
-		return this._relayClient.waitForForwardedPort(port);
+	waitForForwardedPort(port: number, cancellationToken?: CancellationToken): Promise<void> {
+		return this._relayClient.waitForForwardedPort(port, cancellationToken);
 	}
 
-	async connectToForwardedPort(port: number): Promise<ITunnelDuplexStream> {
-		return await this._relayClient.connectToForwardedPort(port) as unknown as ITunnelDuplexStream;
+	async connectToForwardedPort(port: number, cancellationToken?: CancellationToken): Promise<ITunnelDuplexStream> {
+		return await this._relayClient.connectToForwardedPort(port, cancellationToken) as unknown as ITunnelDuplexStream;
 	}
 
 	dispose(): void {
@@ -74,12 +133,12 @@ class NodeTunnelRelayClientFactory implements ITunnelRelayClientFactory {
 	) {
 	}
 
-	async getTunnel(tunnelId: string, clusterId: string, authProvider: 'github' | 'microsoft', token: string): Promise<ITunnelRelayClientSession | undefined> {
-		const managementClient = await this._createManagementClient(token, authProvider);
+	async getTunnel(tunnelId: string, clusterId: string, authProvider: 'github' | 'microsoft', token: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelRelayClientSession | undefined> {
+		const managementClient = await raceCancellationError(this._createManagementClient(token, authProvider), cancellationToken);
 		const resolved = await managementClient.getTunnel({ tunnelId, clusterId }, {
 			includePorts: true,
 			tokenScopes: ['connect'],
-		});
+		}, cancellationToken);
 		if (!resolved) {
 			return undefined;
 		}
@@ -136,23 +195,75 @@ class NodeTunnelMessageSocket extends Disposable implements ITunnelMessageSocket
 	}
 }
 
-class NodeTunnelSocketFactory implements ITunnelSocketFactory {
-	async open(stream: ITunnelDuplexStream, path: string): Promise<ITunnelMessageSocket> {
-		const WS = await import('ws');
+/** Opens WebSocket message sockets over Node tunnel streams. */
+export class NodeTunnelSocketFactory implements ITunnelSocketFactory {
+	constructor(
+		private readonly _createSocket?: (url: string, options: WebSocket.ClientOptions) => WebSocket,
+	) {
+	}
+
+	async open(stream: ITunnelDuplexStream, path: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelMessageSocket> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const WS = await raceCancellationError(import('ws'), cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		return new Promise((resolve, reject) => {
-			const socket = new WS.WebSocket(`ws://localhost:${TUNNEL_AGENT_HOST_PORT}${path}`, {
+			const url = `ws://localhost:${TUNNEL_AGENT_HOST_PORT}${path}`;
+			const options = {
 				createConnection: (() => stream) as unknown as WebSocket.ClientOptions['createConnection'],
-			});
-			const onError = (error: Error) => {
+			};
+			const socket = this._createSocket?.(url, options) ?? new WS.WebSocket(url, options);
+			let settled = false;
+			let cancellationListener: IDisposable | undefined;
+			const cleanupHandshake = () => {
 				socket.off('open', onOpen);
+				cancellationListener?.dispose();
+				cancellationListener = undefined;
+			};
+			const cleanupTerminal = () => {
+				cleanupHandshake();
+				socket.off('error', onError);
+				socket.off('close', onClose);
+			};
+			const onError = (error: Error) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cleanupHandshake();
 				reject(error);
 			};
+			const onClose = () => {
+				if (!settled) {
+					settled = true;
+					reject(new Error(`${LOG_PREFIX} WebSocket closed during handshake`));
+				}
+				cleanupTerminal();
+			};
 			const onOpen = () => {
-				socket.off('error', onError);
-				resolve(new NodeTunnelMessageSocket(socket));
+				if (settled) {
+					return;
+				}
+				settled = true;
+				const messageSocket = new NodeTunnelMessageSocket(socket);
+				cleanupTerminal();
+				resolve(messageSocket);
 			};
 			socket.once('open', onOpen);
-			socket.once('error', onError);
+			socket.on('error', onError);
+			socket.once('close', onClose);
+			cancellationListener = cancellationToken.onCancellationRequested(() => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cleanupHandshake();
+				socket.terminate();
+				reject(new CancellationError());
+			});
 		});
 	}
 }
@@ -187,74 +298,29 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		this.onDidRelayClose = this._connector.onDidRelayClose;
 	}
 
-	async listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[]): Promise<ITunnelInfo[]> {
-		const client = await this._createManagementClient(token, authProvider);
-		const results: ITunnelInfo[] = [];
-		const seen = new Set<string>();
-
-		try {
-			const tunnels = await client.listTunnels(undefined, undefined, {
-				labels: [TUNNEL_LAUNCHER_LABEL],
-				requireAllLabels: true,
-				includePorts: true,
-				tokenScopes: ['connect'],
-			});
-			for (const tunnel of tunnels) {
-				const info = parseTunnelInfo(tunnel);
-				if (info && info.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION) {
-					results.push(info);
-					seen.add(info.tunnelId);
-				}
-			}
-		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to enumerate tunnels`, err);
-		}
-
-		if (additionalTunnelNames) {
-			for (const tunnelName of additionalTunnelNames) {
-				try {
-					const [tunnel] = await client.listTunnels(undefined, undefined, {
-						labels: [tunnelName, TUNNEL_LAUNCHER_LABEL],
-						requireAllLabels: true,
-						includePorts: true,
-						tokenScopes: ['connect'],
-						limit: 1,
-					});
-					if (tunnel) {
-						const info = parseTunnelInfo(tunnel);
-						if (info && info.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION && !seen.has(info.tunnelId)) {
-							results.push(info);
-							seen.add(info.tunnelId);
-						}
-					}
-				} catch (err) {
-					this._logService.warn(`${LOG_PREFIX} Failed to look up tunnel '${tunnelName}'`, err);
-				}
-			}
-		}
-
-		this._logService.info(`${LOG_PREFIX} Found ${results.length} tunnel(s) with agent host support`);
-		return results;
+	async listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[], cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelInfo[]> {
+		const client = await raceCancellationError(this._createManagementClient(token, authProvider), cancellationToken);
+		return listAgentHostTunnels(client, additionalTunnelNames, this._logService, cancellationToken);
 	}
 
-	async deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void> {
-		const client = await this._createManagementClient(token, authProvider);
+	async deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
+		const client = await raceCancellationError(this._createManagementClient(token, authProvider), cancellationToken);
 		this._logService.info(`${LOG_PREFIX} Deleting tunnel ${tunnelId} in cluster ${clusterId}...`);
-		await client.deleteTunnel({ tunnelId, clusterId });
+		await client.deleteTunnel({ tunnelId, clusterId }, undefined, cancellationToken);
 		this._connector.closeTunnelConnections(tunnelId, 'deleting');
 		this._logService.info(`${LOG_PREFIX} Deleted tunnel ${tunnelId}`);
 	}
 
-	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult> {
-		return this._connector.connect(token, authProvider, tunnelId, clusterId);
+	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelConnectResult> {
+		return this._connector.connect(token, authProvider, tunnelId, clusterId, cancellationToken);
 	}
 
-	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined> {
-		return this._connector.prepareSelection(token, authProvider, tunnelId, clusterId);
+	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelGatewaySelectionSession | undefined> {
+		return this._connector.prepareSelection(token, authProvider, tunnelId, clusterId, cancellationToken);
 	}
 
-	completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult> {
-		return this._connector.completeSelection(selectionId, selection);
+	completeSelection(selectionId: string, selection: ITunnelGatewaySelection, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelConnectResult> {
+		return this._connector.completeSelection(selectionId, selection, cancellationToken);
 	}
 
 	cancelSelection(selectionId: string): Promise<void> {

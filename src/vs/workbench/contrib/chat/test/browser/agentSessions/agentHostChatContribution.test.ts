@@ -45,6 +45,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, ty
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { AgentHostTunnelAuthenticationIssuer, createAgentHostTunnelProtectedResources } from '../../../../../../platform/agentHost/common/agentHostFeatureAuthentication.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -177,9 +178,16 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._authenticationRequirements.set(requirements, undefined);
 	}
 
-	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
+	private _authenticationSettled = false;
 	override setAuthenticationPending(pending: boolean): void {
+		if (this._authenticationSettled) {
+			return;
+		}
+		if (!pending) {
+			this._authenticationSettled = true;
+		}
 		this._authenticationPending.set(pending, undefined);
 	}
 
@@ -15091,6 +15099,149 @@ suite('AgentHostChatContribution', () => {
 				scopes: ['tunnel:manage'],
 				token: 'tunnel-token',
 			}]);
+		});
+
+		test('does not settle sticky initial authentication while required provider authentication is pending', async () => {
+			const requiredSessions = new DeferredPromise<readonly AuthenticationSession[]>();
+			const requiredLookupStarted = new DeferredPromise<void>();
+			const authService: Partial<IAuthenticationService> = {
+				getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+				getSessions: (async (providerId: string, scopes?: ReadonlyArray<string>) => {
+					if (!scopes) {
+						return [];
+					}
+					if (providerId === 'provider-1') {
+						requiredLookupStarted.complete();
+						return requiredSessions.p;
+					}
+					if (providerId === AgentHostTunnelAuthenticationIssuer.Microsoft) {
+						return [{
+							id: 'microsoft-session',
+							account: { id: 'microsoft-account', label: 'Microsoft Account' },
+							scopes,
+							accessToken: 'microsoft-token',
+						}];
+					}
+					return [];
+				}) as IAuthenticationService['getSessions'],
+			};
+			const { instantiationService, agentHostService } = createTestServices(disposables, undefined, authService);
+			const [, microsoft] = createAgentHostTunnelProtectedResources({
+				github: { scopes: ['github-scope'] },
+				microsoft: { scopes: ['microsoft-scope'] },
+			});
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			agentHostService.setAuthenticationRequirements([{
+				channel: 'ahp-root://',
+				resource: microsoft,
+				reason: AuthRequiredReason.Required,
+			}]);
+
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			await requiredLookupStarted.p;
+			await timeout(0);
+			const pendingAfterOptionalAuthentication = agentHostService.authenticationPending.get();
+
+			requiredSessions.complete([{
+				id: 'provider-session',
+				account: { id: 'provider-account', label: 'Provider Account' },
+				scopes: ['read:user'],
+				accessToken: 'provider-token',
+			}]);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				pendingAfterOptionalAuthentication,
+				pendingAfterRequiredAuthentication: agentHostService.authenticationPending.get(),
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				pendingAfterOptionalAuthentication: true,
+				pendingAfterRequiredAuthentication: false,
+				authenticateCalls: [
+					{
+						resource: microsoft.resource,
+						scopes: ['microsoft-scope'],
+						token: 'microsoft-token',
+					},
+					{
+						resource: 'https://api.github.com',
+						scopes: ['read:user'],
+						token: 'provider-token',
+					},
+				],
+			});
+		});
+
+		test('keeps retained provider authentication current when a tunnel requirement is removed', async () => {
+			const providerSessions = new DeferredPromise<readonly AuthenticationSession[]>();
+			const providerLookupStarted = new DeferredPromise<void>();
+			let providerLookups = 0;
+			let tunnelLookups = 0;
+			const authService: Partial<IAuthenticationService> = {
+				getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+				getSessions: (async (providerId: string, scopes?: ReadonlyArray<string>) => {
+					if (!scopes) {
+						return [];
+					}
+					if (providerId === 'provider-1') {
+						providerLookups++;
+						providerLookupStarted.complete();
+						return providerSessions.p;
+					}
+					if (providerId === AgentHostTunnelAuthenticationIssuer.GitHub) {
+						tunnelLookups++;
+					}
+					return [];
+				}) as IAuthenticationService['getSessions'],
+			};
+			const { instantiationService, agentHostService } = createTestServices(disposables, undefined, authService);
+			const providerRequirement: AuthRequiredParams = {
+				channel: 'ahp-root://',
+				resource: protectedResource(),
+				reason: AuthRequiredReason.Required,
+			};
+			const [tunnelResource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['tunnel:manage'] } });
+			const tunnelRequirement: AuthRequiredParams = {
+				channel: 'ahp-root://',
+				resource: tunnelResource,
+				reason: AuthRequiredReason.Required,
+			};
+			agentHostService.setAuthenticationRequirements([providerRequirement, tunnelRequirement]);
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			await providerLookupStarted.p;
+
+			agentHostService.setAuthenticationRequirements([providerRequirement]);
+			await timeout(0);
+			const pendingBeforeProviderResolution = agentHostService.authenticationPending.get();
+			const authenticateCallsBeforeProviderResolution = [...agentHostService.authenticateCalls];
+
+			providerSessions.complete([{
+				id: 'provider-session',
+				account: { id: 'provider-account', label: 'Provider Account' },
+				scopes: ['read:user'],
+				accessToken: 'provider-token',
+			}]);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				pendingBeforeProviderResolution,
+				pendingAfterProviderResolution: agentHostService.authenticationPending.get(),
+				providerLookups,
+				tunnelLookups,
+				authenticateCallsBeforeProviderResolution,
+				authenticateCallsAfterProviderResolution: agentHostService.authenticateCalls,
+			}, {
+				pendingBeforeProviderResolution: true,
+				pendingAfterProviderResolution: false,
+				providerLookups: 1,
+				tunnelLookups: 0,
+				authenticateCallsBeforeProviderResolution: [],
+				authenticateCallsAfterProviderResolution: [{
+					resource: providerRequirement.resource.resource,
+					scopes: ['read:user'],
+					token: 'provider-token',
+				}],
+			});
 		});
 
 		test('retries a retained optional requirement when an authentication session is added', async () => {

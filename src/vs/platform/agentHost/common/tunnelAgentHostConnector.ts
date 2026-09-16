@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -15,6 +17,7 @@ import {
 	TUNNEL_AGENT_HOST_PORT,
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_GATEWAY_SELECT_PATH,
+	TUNNEL_LAUNCHER_LABEL,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelNotFoundError,
 	TunnelTags,
@@ -52,9 +55,9 @@ export interface ITunnelDescriptor {
  * The relay client used to connect a resolved dev tunnel to its agent-host port.
  */
 export interface ITunnelRelayClient extends IDisposable {
-	connect(): Promise<void>;
-	waitForForwardedPort(port: number): Promise<void>;
-	connectToForwardedPort(port: number): Promise<ITunnelDuplexStream>;
+	connect(cancellationToken?: CancellationToken): Promise<void>;
+	waitForForwardedPort(port: number, cancellationToken?: CancellationToken): Promise<void>;
+	connectToForwardedPort(port: number, cancellationToken?: CancellationToken): Promise<ITunnelDuplexStream>;
 }
 
 /**
@@ -69,14 +72,14 @@ export interface ITunnelRelayClientSession {
  * Resolves a dev tunnel before its relay client is created.
  */
 export interface ITunnelRelayClientFactory {
-	getTunnel(tunnelId: string, clusterId: string, authProvider: 'github' | 'microsoft', token: string): Promise<ITunnelRelayClientSession | undefined>;
+	getTunnel(tunnelId: string, clusterId: string, authProvider: 'github' | 'microsoft', token: string, cancellationToken?: CancellationToken): Promise<ITunnelRelayClientSession | undefined>;
 }
 
 /**
  * Opens a message socket over a tunnel relay stream.
  */
 export interface ITunnelSocketFactory {
-	open(stream: ITunnelDuplexStream, path: string): Promise<ITunnelMessageSocket>;
+	open(stream: ITunnelDuplexStream, path: string, cancellationToken?: CancellationToken): Promise<ITunnelMessageSocket>;
 }
 
 /**
@@ -94,13 +97,36 @@ export async function withTimeout<T>(
 	op: () => Promise<T>,
 	timeoutMs: number,
 	stepName: string,
+	cancellationToken: CancellationToken = CancellationToken.None,
 ): Promise<T> {
+	if (cancellationToken.isCancellationRequested) {
+		throw new CancellationError();
+	}
 	let timedOut = false;
-	const result = await raceTimeout(op(), timeoutMs, () => { timedOut = true; });
+	const result = await raceTimeout(raceCancellationError(op(), cancellationToken), timeoutMs, () => { timedOut = true; });
 	if (timedOut) {
 		throw new Error(`${LOG_PREFIX} ${stepName} timed out after ${timeoutMs}ms`);
 	}
 	return result as T;
+}
+
+async function acquireDisposableWithCancellation<T extends IDisposable>(
+	create: () => Promise<T>,
+	cancellationToken: CancellationToken,
+	dispose: (resource: T) => void = resource => resource.dispose(),
+): Promise<T> {
+	if (cancellationToken.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	const resourcePromise = create();
+	try {
+		return await raceCancellationError(resourcePromise, cancellationToken);
+	} catch (error) {
+		if (cancellationToken.isCancellationRequested) {
+			void resourcePromise.then(resource => dispose(resource), () => undefined);
+		}
+		throw error;
+	}
 }
 
 /**
@@ -134,7 +160,7 @@ export async function deriveConnectionToken(tunnelId: string): Promise<string> {
 export function parseTunnelInfo(tunnel: ITunnelDescriptor): ITunnelInfo | undefined {
 	const labels = tunnel.labels ?? [];
 	const tags = new TunnelTags(labels);
-	if (tags.protocolVersion < TUNNEL_MIN_PROTOCOL_VERSION) {
+	if (!labels.includes(TUNNEL_LAUNCHER_LABEL) || tags.protocolVersion < TUNNEL_MIN_PROTOCOL_VERSION) {
 		return undefined;
 	}
 
@@ -160,6 +186,7 @@ export function parseTunnelInfo(tunnel: ITunnelDescriptor): ITunnelInfo | undefi
 export class PendingGatewaySelection implements IDisposable {
 	private _disposed = false;
 	private readonly _onSocketClosedListener: IDisposable;
+	private _onCancellationRequestedListener: IDisposable | undefined;
 
 	constructor(
 		readonly address: string,
@@ -179,12 +206,22 @@ export class PendingGatewaySelection implements IDisposable {
 	/** Transfers socket ownership to an active connection. */
 	detach(): void {
 		this._onSocketClosedListener.dispose();
+		this._onCancellationRequestedListener?.dispose();
+		this._onCancellationRequestedListener = undefined;
+	}
+
+	/** Disposes this selection when its owning connection attempt is cancelled. */
+	cancelOn(cancellationToken: CancellationToken, cancel: () => void): void {
+		this._onCancellationRequestedListener?.dispose();
+		this._onCancellationRequestedListener = cancellationToken.onCancellationRequested(cancel);
 	}
 
 	dispose(): void {
 		if (!this._disposed) {
 			this._disposed = true;
 			this._onSocketClosedListener.dispose();
+			this._onCancellationRequestedListener?.dispose();
+			this._onCancellationRequestedListener = undefined;
 			try {
 				this.socket.close();
 			} catch {
@@ -264,57 +301,91 @@ export class TunnelAgentHostConnector extends Disposable {
 		super();
 	}
 
-	async connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult> {
+	async connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelConnectResult> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		this.closeTunnelConnections(tunnelId, 'reconnecting');
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel ${tunnelId} in cluster ${clusterId}...`);
 
-		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
+		const session = await raceCancellationError(
+			this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token, cancellationToken),
+			cancellationToken,
+		);
 		if (!session) {
 			throw new TunnelNotFoundError(tunnelId);
 		}
 
 		const { tunnel } = session;
-		const relayClient = await session.createRelayClient();
-		let portStream: ITunnelDuplexStream;
+		const relayClient = await acquireDisposableWithCancellation(() => session.createRelayClient(), cancellationToken);
+		let relayDisposed = false;
+		const disposeRelayClient = () => {
+			if (!relayDisposed) {
+				relayDisposed = true;
+				this._disposeRelayClient(relayClient);
+			}
+		};
+		let socket: ITunnelMessageSocket | undefined;
+		let socketDisposed = false;
+		const disposeSocket = () => {
+			if (socket && !socketDisposed) {
+				socketDisposed = true;
+				this._disposeSocket(socket);
+			}
+		};
+		const cancellationListener = cancellationToken.onCancellationRequested(() => {
+			disposeSocket();
+			disposeRelayClient();
+		});
 		try {
-			await withTimeout(() => relayClient.connect(), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect');
+			await withTimeout(() => relayClient.connect(cancellationToken), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect', cancellationToken);
 			this._logService.info(`${LOG_PREFIX} Tunnel relay connected, waiting for port ${TUNNEL_AGENT_HOST_PORT}...`);
-			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-			portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
+			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT, cancellationToken), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`, cancellationToken);
+			const portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT, cancellationToken), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`, cancellationToken);
 			this._logService.info(`${LOG_PREFIX} Connected to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-		} catch (err) {
-			this._disposeRelayClient(relayClient);
-			throw err;
-		}
-
-		const connectionToken = await deriveConnectionToken(tunnelId);
-		const name = new TunnelTags(tunnel.labels).name || tunnel.name || tunnelId;
-		const connectionId = generateUuid();
-		let socket: ITunnelMessageSocket;
-		try {
+			const connectionToken = await raceCancellationError(deriveConnectionToken(tunnelId), cancellationToken);
 			socket = await withTimeout(
-				() => this._socketFactory.open(portStream, `/?tkn=${encodeURIComponent(connectionToken)}`),
+				() => acquireDisposableWithCancellation(
+					() => this._socketFactory.open(portStream, `/?tkn=${encodeURIComponent(connectionToken)}`, cancellationToken),
+					cancellationToken,
+					socket => this._disposeSocket(socket),
+				),
 				TUNNEL_STEP_TIMEOUT_MS,
 				'WebSocket relay open',
+				cancellationToken,
 			);
 			this._logService.info(`${LOG_PREFIX} WebSocket relay connected to agent host via tunnel`);
+			if (cancellationToken.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const name = new TunnelTags(tunnel.labels).name || tunnel.name || tunnelId;
+			const connectionId = generateUuid();
+			cancellationListener.dispose();
+			this._createConnection(connectionId, `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`, name, connectionToken, socket, relayClient);
+			return {
+				connectionId,
+				address: `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`,
+				name,
+				connectionToken,
+				selected: { serverType: 'unknown', instanceId: '', role: 'primary', lifecycle: 'external' },
+			};
 		} catch (err) {
-			this._disposeRelayClient(relayClient);
+			disposeSocket();
+			disposeRelayClient();
 			throw err;
+		} finally {
+			cancellationListener.dispose();
 		}
-
-		this._createConnection(connectionId, `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`, name, connectionToken, socket, relayClient);
-		return {
-			connectionId,
-			address: `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`,
-			name,
-			connectionToken,
-			selected: { serverType: 'unknown', instanceId: '', role: 'primary', lifecycle: 'external' },
-		};
 	}
 
-	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelGatewaySelectionSession | undefined> {
-		const session = await this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token);
+	async prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelGatewaySelectionSession | undefined> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const session = await raceCancellationError(
+			this._relayClientFactory.getTunnel(tunnelId, clusterId, authProvider, token, cancellationToken),
+			cancellationToken,
+		);
 		if (!session) {
 			throw new TunnelNotFoundError(tunnelId);
 		}
@@ -326,24 +397,54 @@ export class TunnelAgentHostConnector extends Disposable {
 		}
 
 		this._logService.info(`${LOG_PREFIX} Preparing gateway selection for tunnel ${tunnelId} in cluster ${clusterId}...`);
-		const relayClient = await session.createRelayClient();
-		let socket: ITunnelMessageSocket;
+		const relayClient = await acquireDisposableWithCancellation(() => session.createRelayClient(), cancellationToken);
+		let relayDisposed = false;
+		const disposeRelayClient = () => {
+			if (!relayDisposed) {
+				relayDisposed = true;
+				this._disposeRelayClient(relayClient);
+			}
+		};
+		let socket: ITunnelMessageSocket | undefined;
+		let socketDisposed = false;
+		const disposeSocket = () => {
+			if (socket && !socketDisposed) {
+				socketDisposed = true;
+				this._disposeSocket(socket);
+			}
+		};
+		const cancellationListener = cancellationToken.onCancellationRequested(() => {
+			disposeSocket();
+			disposeRelayClient();
+		});
 		try {
-			await withTimeout(() => relayClient.connect(), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect');
-			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-			const portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`);
-			socket = await withTimeout(() => this._socketFactory.open(portStream, TUNNEL_GATEWAY_SELECT_PATH), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection WebSocket open');
+			await withTimeout(() => relayClient.connect(cancellationToken), TUNNEL_STEP_TIMEOUT_MS, 'tunnel relay connect', cancellationToken);
+			await withTimeout(() => relayClient.waitForForwardedPort(TUNNEL_AGENT_HOST_PORT, cancellationToken), TUNNEL_STEP_TIMEOUT_MS, `wait for forwarded port ${TUNNEL_AGENT_HOST_PORT}`, cancellationToken);
+			const portStream = await withTimeout(() => relayClient.connectToForwardedPort(TUNNEL_AGENT_HOST_PORT, cancellationToken), TUNNEL_STEP_TIMEOUT_MS, `connect to forwarded port ${TUNNEL_AGENT_HOST_PORT}`, cancellationToken);
+			socket = await withTimeout(
+				() => acquireDisposableWithCancellation(
+					() => this._socketFactory.open(portStream, TUNNEL_GATEWAY_SELECT_PATH, cancellationToken),
+					cancellationToken,
+					socket => this._disposeSocket(socket),
+				),
+				TUNNEL_STEP_TIMEOUT_MS,
+				'gateway selection WebSocket open',
+				cancellationToken,
+			);
 		} catch (err) {
-			this._disposeRelayClient(relayClient);
+			disposeSocket();
+			disposeRelayClient();
+			cancellationListener.dispose();
 			throw err;
 		}
 
 		let inventoryText: string;
 		try {
-			inventoryText = await withTimeout(() => this._readNextGatewayMessage(socket), TUNNEL_STEP_TIMEOUT_MS, 'gateway inventory message');
+			inventoryText = await withTimeout(() => this._readNextGatewayMessage(socket, cancellationToken), TUNNEL_STEP_TIMEOUT_MS, 'gateway inventory message', cancellationToken);
 		} catch (err) {
-			this._disposeSocket(socket);
-			this._disposeRelayClient(relayClient);
+			disposeSocket();
+			disposeRelayClient();
+			cancellationListener.dispose();
 			throw err;
 		}
 
@@ -351,15 +452,16 @@ export class TunnelAgentHostConnector extends Disposable {
 		let connectionToken: string;
 		try {
 			inventory = parseTunnelGatewayInventory(inventoryText);
-			connectionToken = await deriveConnectionToken(tunnelId);
+			connectionToken = await raceCancellationError(deriveConnectionToken(tunnelId), cancellationToken);
 		} catch (err) {
-			this._disposeSocket(socket);
-			this._disposeRelayClient(relayClient);
+			disposeSocket();
+			disposeRelayClient();
+			cancellationListener.dispose();
 			throw err;
 		}
 
 		const selectionId = generateUuid();
-		this._pendingSelections.set(selectionId, new PendingGatewaySelection(
+		const pending = new PendingGatewaySelection(
 			`${TUNNEL_ADDRESS_PREFIX}${tunnelId}`,
 			tags.name || tunnel.name || tunnelId,
 			connectionToken,
@@ -369,31 +471,42 @@ export class TunnelAgentHostConnector extends Disposable {
 				this._logService.warn(`${LOG_PREFIX} Gateway selection WebSocket for ${selectionId} closed before a selection was made`);
 				this._pendingSelections.deleteAndDispose(selectionId);
 			},
-		));
+		);
+		this._pendingSelections.set(selectionId, pending);
+		cancellationListener.dispose();
+		pending.cancelOn(cancellationToken, () => this._pendingSelections.deleteAndDispose(selectionId));
+		if (cancellationToken.isCancellationRequested) {
+			this._pendingSelections.deleteAndDispose(selectionId);
+			throw new CancellationError();
+		}
 		return { selectionId, inventory };
 	}
 
-	async completeSelection(selectionId: string, selection: ITunnelGatewaySelection): Promise<ITunnelConnectResult> {
+	async completeSelection(selectionId: string, selection: ITunnelGatewaySelection, cancellationToken: CancellationToken = CancellationToken.None): Promise<ITunnelConnectResult> {
 		const pending = this._pendingSelections.deleteAndLeak(selectionId);
 		if (!pending) {
 			throw new Error(`${LOG_PREFIX} No pending gateway selection with id ${selectionId}`);
 		}
 		pending.detach();
+		const cancellationListener = cancellationToken.onCancellationRequested(() => pending.dispose());
 
 		let response: ReturnType<typeof parseTunnelGatewaySelectionResponse>;
 		try {
+			if (cancellationToken.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			pending.socket.send(JSON.stringify(selection));
-			const responseText = await withTimeout(() => this._readNextGatewayMessage(pending.socket), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection acknowledgement');
+			const responseText = await withTimeout(() => this._readNextGatewayMessage(pending.socket, cancellationToken), TUNNEL_STEP_TIMEOUT_MS, 'gateway selection acknowledgement', cancellationToken);
 			response = parseTunnelGatewaySelectionResponse(responseText);
 		} catch (err) {
-			this._disposeSocket(pending.socket);
-			this._disposeRelayClient(pending.relayClient);
+			pending.dispose();
 			throw err;
+		} finally {
+			cancellationListener.dispose();
 		}
 
 		if (!response.ok) {
-			this._disposeSocket(pending.socket);
-			this._disposeRelayClient(pending.relayClient);
+			pending.dispose();
 			throw createTunnelGatewaySelectionRejectedError(`${LOG_PREFIX} ${response.error}`);
 		}
 
@@ -417,6 +530,12 @@ export class TunnelAgentHostConnector extends Disposable {
 
 	closeTunnelConnections(tunnelId: string, operation: 'deleting' | 'reconnecting'): void {
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
+		for (const [selectionId, selection] of this._pendingSelections) {
+			if (selection.address === address) {
+				this._logService.info(`${LOG_PREFIX} Closing pending gateway selection for tunnel ${tunnelId} before ${operation}`);
+				this._pendingSelections.deleteAndDispose(selectionId);
+			}
+		}
 		for (const [connectionId, connection] of this._connections) {
 			if (connection.address === address) {
 				this._logService.info(`${LOG_PREFIX} Closing existing relay for tunnel ${tunnelId} before ${operation}`);
@@ -454,7 +573,7 @@ export class TunnelAgentHostConnector extends Disposable {
 		this._connections.set(connectionId, connection);
 	}
 
-	private _readNextGatewayMessage(socket: ITunnelMessageSocket): Promise<string> {
+	private _readNextGatewayMessage(socket: ITunnelMessageSocket, cancellationToken: CancellationToken = CancellationToken.None): Promise<string> {
 		return new Promise((resolve, reject) => {
 			const subscriptions: IDisposable[] = [];
 			let settled = false;
@@ -492,6 +611,19 @@ export class TunnelAgentHostConnector extends Disposable {
 				onClose.dispose();
 			} else {
 				subscriptions.push(onClose);
+			}
+			const onCancellationRequested = cancellationToken.onCancellationRequested(() => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cleanup();
+				reject(new CancellationError());
+			});
+			if (settled) {
+				onCancellationRequested.dispose();
+			} else {
+				subscriptions.push(onCancellationRequested);
 			}
 		});
 	}

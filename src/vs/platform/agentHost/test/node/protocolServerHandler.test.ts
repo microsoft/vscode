@@ -17,7 +17,9 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetClientHostedTunnelExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, SetClientTunnelDismissalsExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY } from '../../common/tunnelAgentHostDiscovery.js';
+import type { ITunnelHostInfo } from '../../common/tunnelAgentHost.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -37,6 +39,7 @@ import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLog
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 
@@ -387,12 +390,14 @@ suite('ProtocolServerHandler', () => {
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let managedSettingsService: AgentHostManagedSettingsService;
+	let storageService: AgentHostStorageService;
 	let handler: ProtocolServerHandler;
 	let fileSystemProvider: AgentHostFileSystemProvider;
 	let logService: CountingLogService;
 	let telemetryService: TestTelemetryService;
 	let agentHostTelemetryService: AgentHostTelemetryService;
 	let clientConnections: AgentHostClientConnectionService;
+	let hostedTunnelUpdates: Array<ITunnelHostInfo | undefined>;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -432,21 +437,28 @@ suite('ProtocolServerHandler', () => {
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
 		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
+		storageService = disposables.add(new AgentHostStorageService(undefined, new NullLogService()));
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
 		agentHostTelemetryService = disposables.add(new AgentHostTelemetryService(telemetryService));
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		hostedTunnelUpdates = [];
 		disposables.add(agentService);
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
 			stateManager,
 			server,
-			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, defaultDirectory: URI.file('/home/testuser').toString() },
+			{
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				defaultDirectory: URI.file('/home/testuser').toString(),
+				updateHostedTunnel: tunnel => hostedTunnelUpdates.push(tunnel),
+			},
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
 			agentHostTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 	});
 
@@ -1361,6 +1373,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -2725,6 +2738,7 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				storageService,
 			)));
 		}
 
@@ -2770,6 +2784,7 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				storageService,
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -2818,6 +2833,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2867,6 +2883,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2908,6 +2925,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2957,6 +2975,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4219,6 +4238,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -4274,6 +4294,37 @@ suite('ProtocolServerHandler', () => {
 			permissions: {},
 			remoteAgentHostsEnabled: undefined,
 		});
+	});
+
+	test('stores synchronized tunnel dismissals before discovery admission', () => {
+		const transport = connectClient('client-tunnel-dismissals');
+
+		transport.simulateMessage(notification(SetClientTunnelDismissalsExtensionMethod, {
+			tunnelIds: ['dismissed-before-connect'],
+		}));
+
+		assert.deepStrictEqual(
+			storageService.get<readonly string[]>(TUNNEL_AGENT_HOST_DISMISSALS_STORAGE_KEY),
+			['dismissed-before-connect'],
+		);
+	});
+
+	test('updates the live hosted tunnel bootstrap input', () => {
+		const transport = connectClient('client-hosted-tunnel');
+
+		transport.simulateMessage(notification(SetClientHostedTunnelExtensionMethod, {
+			hosting: true,
+			tunnelName: 'hosted-name',
+			tunnelId: 'hosted-id',
+			viaRemoteTunnelAccess: true,
+		}));
+		transport.simulateMessage(notification(SetClientHostedTunnelExtensionMethod, { hosting: false }));
+
+		assert.deepStrictEqual(hostedTunnelUpdates, [{
+			tunnelName: 'hosted-name',
+			tunnelId: 'hosted-id',
+			viaRemoteTunnelAccess: true,
+		}, undefined]);
 	});
 
 	test('removes a managed settings contribution after disconnect grace expires', () => {
@@ -4345,6 +4396,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			storageService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4484,6 +4536,7 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				storageService,
 			));
 		});
 
@@ -4656,6 +4709,7 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				storageService,
 			));
 		});
 

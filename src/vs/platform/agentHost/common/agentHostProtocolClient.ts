@@ -29,6 +29,7 @@ import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolErr
 import { type IVscodeUpgradeResult } from './state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from './state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from './state/protocol/errors.js';
+import type { HostedTunnelIdentity } from './tunnelAgentHost.js';
 import { ChatSourceKind, ContentEncoding, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { decodeBase64 } from '../../../base/common/buffer.js';
@@ -190,6 +191,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
 	/** Resolves authentication to restore immediately after every fresh initialize. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+	/** Live hosted-tunnel identity for this Agent Host, when supplied by its local bootstrap. */
+	readonly hostedTunnel?: IObservable<HostedTunnelIdentity>;
 }
 
 /** Optional configuration for an {@link AgentHostProtocolClientCore}. */
@@ -736,7 +739,6 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 		if (this._state.kind !== AgentHostClientState.Reconnecting || !this._transportFactory) {
 			return;
 		}
-		this._clearAuthenticationRequirements();
 		const reconnect = this._state.reconnect;
 		reconnect.attempt++;
 		let transport: IProtocolTransport | undefined;
@@ -1373,7 +1375,7 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 		}
 		this._authenticationOperations.delete(key);
 		if (params.token) {
-			this._authentication.set(key, { kind: 'bearer', params: normalizedParams, expiresAt });
+			this._storeSuccessfulAuthentication(key, normalizedParams, expiresAt);
 			this._clearSatisfiedAuthenticationRequirements(normalizedParams);
 		} else if (this._authentication.get(key) === revocation) {
 			this._authentication.delete(key);
@@ -1390,6 +1392,19 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 
 	private _authenticationKey(params: AuthenticateParams): string {
 		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+	}
+
+	private _storeSuccessfulAuthentication(key: string, params: AuthenticateParams, expiresAt: number | undefined): void {
+		if (isAgentHostTunnelProtectedResource(params.resource)) {
+			for (const [candidateKey, authentication] of this._authentication) {
+				if (candidateKey !== key
+					&& authentication.kind === 'bearer'
+					&& isAgentHostTunnelProtectedResource(authentication.params.resource)) {
+					this._authentication.delete(candidateKey);
+				}
+			}
+		}
+		this._authentication.set(key, { kind: 'bearer', params, expiresAt });
 	}
 
 	private _recordAuthenticationRequirement(requirement: AuthRequiredParams): void {

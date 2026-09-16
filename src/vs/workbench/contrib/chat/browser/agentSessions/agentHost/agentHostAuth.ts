@@ -232,7 +232,7 @@ export function areAuthenticationRequirementsEqual(first: readonly AuthRequiredP
  * Coordinates recovery from authentication challenges for one agent-host connection.
  */
 export class AgentHostAuthenticationRecovery implements IDisposable {
-	private readonly _resentTokens = new Map<string, string>();
+	private readonly _resentTokens = new Map<string, { readonly resource: string; readonly token: string }>();
 	private readonly _pendingRecoveries = new Map<string, IPendingAuthenticationRecovery>();
 	private readonly _reconcilableResources = new Map<string, ProtectedResourceMetadata>();
 	private _hostFeatureRecovery = Promise.resolve();
@@ -263,7 +263,7 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 		return this._queueRecovery(resource, options, reason, true);
 	}
 
-	async retry(requirements: readonly AuthRequiredParams[], options: IAgentHostAuthenticationOptions): Promise<void> {
+	async retry(requirements: readonly AuthRequiredParams[], options: IAgentHostAuthenticationRetryOptions): Promise<void> {
 		if (this._isDisposed) {
 			throw new CancellationError();
 		}
@@ -275,9 +275,16 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 			]
 			: requirements;
 		for (const requirement of ordered) {
+			const isResourceCurrent = options.isResourceCurrent;
+			const recoveryOptions: IAgentHostAuthenticationOptions = isResourceCurrent
+				? {
+					...options,
+					isCurrent: () => options.isCurrent?.() !== false && isResourceCurrent(requirement.resource),
+				}
+				: options;
 			await this._queueRecovery(
 				requirement.resource,
-				options,
+				recoveryOptions,
 				requirement.reason ?? AuthRequiredReason.Required,
 				false,
 			);
@@ -345,10 +352,11 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 				throw new CancellationError();
 			}
 			if (result === 'resolved') {
-				this._reconcilableResources.set(key, resource);
 				if (issuer) {
+					this._evictAlternativeTunnelAuthenticationState(key);
 					this._activeHostFeatureResource = resource.resource;
 				}
+				this._reconcilableResources.set(key, resource);
 			} else if (result === 'signedOut') {
 				this._reconcilableResources.delete(key);
 				if (issuer && this._activeHostFeatureResource === resource.resource) {
@@ -367,6 +375,19 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 			this._hostFeatureRecovery = recovery.then(() => undefined, () => undefined);
 		}
 		return recovery;
+	}
+
+	private _evictAlternativeTunnelAuthenticationState(key: string): void {
+		for (const [candidateKey, authentication] of this._resentTokens) {
+			if (candidateKey !== key && getAgentHostTunnelAuthenticationIssuer(authentication.resource)) {
+				this._resentTokens.delete(candidateKey);
+			}
+		}
+		for (const [candidateKey, resource] of this._reconcilableResources) {
+			if (candidateKey !== key && getAgentHostTunnelAuthenticationIssuer(resource.resource)) {
+				this._reconcilableResources.delete(candidateKey);
+			}
+		}
 	}
 
 	private _trackPendingRecovery(key: string, recovery: Promise<void>, isChallenge: boolean, reason: AuthRequiredReason): Promise<void> {
@@ -409,7 +430,7 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 		}
 		const session = resolution.session;
 
-		const previousToken = this._resentTokens.get(key);
+		const previousToken = this._resentTokens.get(key)?.token;
 		if (previousToken !== undefined && previousToken === session.accessToken) {
 			if (!forceSameToken) {
 				return 'unchanged';
@@ -428,7 +449,7 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 			const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
 			throwIfAuthenticationStale(options);
 			if (interactiveSession) {
-				this._resentTokens.set(key, interactiveSession.accessToken);
+				this._resentTokens.set(key, { resource: resource.resource, token: interactiveSession.accessToken });
 				if (interactiveSession.accessToken === session.accessToken) {
 					logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 				}
@@ -439,7 +460,7 @@ export class AgentHostAuthenticationRecovery implements IDisposable {
 
 		options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
 		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], session)) {
-			this._resentTokens.set(key, session.accessToken);
+			this._resentTokens.set(key, { resource: resource.resource, token: session.accessToken });
 			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 			return 'resolved';
 		}
@@ -594,6 +615,10 @@ export interface IAgentHostAuthenticationOptions {
 	readonly logPrefix: string;
 	readonly isCurrent?: () => boolean;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
+}
+
+interface IAgentHostAuthenticationRetryOptions extends IAgentHostAuthenticationOptions {
+	readonly isResourceCurrent?: (resource: ProtectedResourceMetadata) => boolean;
 }
 
 export interface IAgentHostMcpAuthenticationOptionsBase {

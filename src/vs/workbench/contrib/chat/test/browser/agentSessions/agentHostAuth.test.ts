@@ -903,6 +903,51 @@ suite('AgentHostAuthenticationRecovery', () => {
 		]);
 	});
 
+	test('evicts the previous tunnel resend state when a fallback issuer succeeds', async () => {
+		const tokens: Record<string, string | undefined> = {
+			github: undefined,
+			microsoft: 'microsoft-token',
+		};
+		const authService = createMockAuthService({
+			getSessions: (providerId, scopes) => Promise.resolve(tokens[providerId] && scopes ? [{
+				scopes,
+				accessToken: tokens[providerId]!,
+			}] : []),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resources = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const requirements = resources.map(resource => ({ channel: 'ahp-root://' as const, resource, reason: AuthRequiredReason.Required }));
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		};
+
+		await recovery.retry(requirements, options);
+		await recovery.recover(resources[1], options, AuthRequiredReason.Expired);
+		tokens.github = 'github-token';
+		await recovery.retry(requirements, options);
+		tokens.github = undefined;
+		await recovery.recover(resources[0], options);
+		await recovery.retry(requirements, options);
+
+		assert.deepStrictEqual({
+			authenticateCalls,
+			reconcilableResources: recovery.reconcilableProtectedResources,
+		}, {
+			authenticateCalls: [
+				`${resources[1].resource}:microsoft-token`,
+				`${resources[0].resource}:github-token`,
+				`${resources[1].resource}:microsoft-token`,
+			],
+			reconcilableResources: [resources[1]],
+		});
+	});
+
 	test('runs a challenge after an equivalent retained recovery already in flight', async () => {
 		const retainedResolution = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
 		const retainedResolutionStarted = new DeferredPromise<void>();

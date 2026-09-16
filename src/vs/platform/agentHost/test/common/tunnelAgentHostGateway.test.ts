@@ -9,6 +9,10 @@ import {
 	parseTunnelGatewayInventory,
 	parseTunnelGatewaySelectionResponse,
 	isTunnelHosted,
+	readAgentHostTunnelInfo,
+	AGENT_HOST_TUNNEL_ID_ENV,
+	AGENT_HOST_TUNNEL_NAME_ENV,
+	AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV,
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_GATEWAY_SELECT_PATH,
 	TUNNEL_MIN_PROTOCOL_VERSION,
@@ -26,6 +30,22 @@ suite('tunnelAgentHost - gateway wire protocol', () => {
 		assert.strictEqual(TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION, 6);
 		assert.ok(TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION > TUNNEL_MIN_PROTOCOL_VERSION, 'gateway selection requires a newer protocol than legacy direct connect');
 		assert.strictEqual(TUNNEL_GATEWAY_SELECT_PATH, '/agent-host/select');
+	});
+
+	test('reads hosted tunnel identity without carrying connection tokens', () => {
+		assert.deepStrictEqual(readAgentHostTunnelInfo({
+			[AGENT_HOST_TUNNEL_NAME_ENV]: ' hosted-name ',
+			[AGENT_HOST_TUNNEL_ID_ENV]: ' hosted-id ',
+			[AGENT_HOST_TUNNEL_VIA_REMOTE_ACCESS_ENV]: '1',
+			VSCODE_AGENT_HOST_CONNECTION_TOKEN: 'secret-token',
+		}), {
+			tunnelName: 'hosted-name',
+			tunnelId: 'hosted-id',
+			viaRemoteTunnelAccess: true,
+		});
+		assert.strictEqual(readAgentHostTunnelInfo({
+			[AGENT_HOST_TUNNEL_ID_ENV]: 'orphan-id',
+		}), undefined);
 	});
 
 	suite('parseTunnelGatewayInventory', () => {
