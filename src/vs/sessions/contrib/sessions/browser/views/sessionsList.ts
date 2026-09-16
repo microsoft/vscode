@@ -431,6 +431,11 @@ interface ISessionChatItemTemplate {
 	readonly elementDisposables: DisposableStore;
 }
 
+interface IInlineRenameValueState {
+	readonly initialValue: string;
+	value: string;
+}
+
 class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionChatItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-chat-item';
 	readonly templateId = SessionChatItemRenderer.TEMPLATE_ID;
@@ -444,6 +449,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly editingChat = observableValue<ISessionChatItem | undefined>(this, undefined);
 	private activeRenameInput: { readonly item: ISessionChatItem; readonly input: InputBox } | undefined;
+	private renameState: (IInlineRenameValueState & { readonly item: ISessionChatItem }) | undefined;
 
 	constructor(
 		private readonly hoverService: IHoverService,
@@ -539,9 +545,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const editing = this.editingChat.read(reader);
-			const isEditing = !!editing
-				&& editing.session.sessionId === element.session.sessionId
-				&& isEqual(editing.chat.resource, element.chat.resource);
+			const isEditing = !!editing && this.isSameChat(editing, element);
 			template.container.classList.toggle('renaming', isEditing);
 			if (isEditing) {
 				this.renderRenameInput(element, template, reader.store);
@@ -554,44 +558,64 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	}
 
 	beginRename(item: ISessionChatItem): boolean {
-		if (!this.canRename(item)) {
+		const target = this.resolveRenameTarget(item);
+		if (!target) {
 			return false;
 		}
-		if (this.activeRenameInput
-			&& this.activeRenameInput.item.session.sessionId === item.session.sessionId
-			&& isEqual(this.activeRenameInput.item.chat.resource, item.chat.resource)
-		) {
+		if (this.activeRenameInput && this.isSameChat(this.activeRenameInput.item, target)) {
 			this.activeRenameInput.input.focus();
 			this.activeRenameInput.input.select();
 			return true;
 		}
-		this.editingChat.set(undefined, undefined);
-		this.editingChat.set(item, undefined);
+		if (!this.renameState || !this.isSameChat(this.renameState.item, target)) {
+			const initialValue = getChatTitle(target.chat);
+			this.renameState = { item: target, initialValue, value: initialValue };
+		}
+		this.editingChat.set(target, undefined);
 		return true;
 	}
 
 	private canRename(item: ISessionChatItem): boolean {
-		const currentChat = item.session.chats.get().find(chat => isEqual(chat.resource, item.chat.resource));
-		return !!currentChat
-			&& !isEqual(currentChat.resource, item.session.mainChat.get().resource)
-			&& currentChat.status.get() !== SessionStatus.Untitled
-			&& getChatCapabilities(currentChat, item.session, undefined).canRename;
+		return !!this.resolveRenameTarget(item);
+	}
+
+	private isSameChat(first: ISessionChatItem, second: ISessionChatItem): boolean {
+		return isEqual(first.session.resource, second.session.resource) && isEqual(first.chat.resource, second.chat.resource);
+	}
+
+	private resolveRenameTarget(item: ISessionChatItem): ISessionChatItem | undefined {
+		const session = this.sessionsManagementService.getSessions().find(session => isEqual(session.resource, item.session.resource));
+		const chat = session?.chats.get().find(chat => isEqual(chat.resource, item.chat.resource));
+		if (!session
+			|| !chat
+			|| isEqual(chat.resource, session.mainChat.get().resource)
+			|| chat.status.get() === SessionStatus.Untitled
+			|| !getChatCapabilities(chat, session, undefined).canRename
+		) {
+			return undefined;
+		}
+		return { session, chat };
 	}
 
 	private renderRenameInput(item: ISessionChatItem, template: ISessionChatItemTemplate, disposables: DisposableStore): void {
+		const renameState = this.renameState;
+		if (!renameState || !this.isSameChat(renameState.item, item)) {
+			return;
+		}
 		const input = renderInlineRenameInput(
 			template.titleInputContainer,
-			getChatTitle(item.chat),
+			renameState,
 			localize('renameChat.inputAriaLabel', "Rename chat. Press Enter to confirm or Escape to cancel."),
 			disposables,
 			(title, restoreListFocus) => {
 				this.editingChat.set(undefined, undefined);
+				this.renameState = undefined;
 				if (restoreListFocus) {
 					this.onDidFinishRename();
 				}
-				const currentChat = item.session.chats.get().find(chat => isEqual(chat.resource, item.chat.resource));
-				if (title && currentChat && this.canRename({ session: item.session, chat: currentChat })) {
-					this.sessionsManagementService.renameChat(item.session, currentChat.resource, title).catch(onUnexpectedError);
+				const target = this.resolveRenameTarget(item);
+				if (title && target) {
+					this.sessionsManagementService.renameChat(target.session, target.chat.resource, title).catch(onUnexpectedError);
 				}
 			},
 		);
@@ -644,7 +668,11 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}));
 	}
 
-	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
+		if (isSessionChatItem(node.element) && this.renameState && this.isSameChat(this.renameState.item, node.element) && !this.resolveRenameTarget(node.element)) {
+			this.editingChat.set(undefined, undefined);
+			this.renameState = undefined;
+		}
 		template.elementDisposables.clear();
 	}
 
@@ -773,7 +801,7 @@ const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
 
 function renderInlineRenameInput(
 	container: HTMLElement,
-	initialValue: string,
+	state: IInlineRenameValueState,
 	ariaLabel: string,
 	disposables: DisposableStore,
 	onFinish: (title: string | undefined, restoreListFocus: boolean) => void,
@@ -792,7 +820,7 @@ function renderInlineRenameInput(
 		input.hideMessage();
 		input.dispose();
 	}));
-	input.value = initialValue;
+	input.value = state.value;
 	input.focus();
 	input.select();
 
@@ -814,9 +842,10 @@ function renderInlineRenameInput(
 
 		done = true;
 		input.hideMessage();
-		onFinish(commit && title !== initialValue.trim() ? title : undefined, restoreListFocus);
+		onFinish(commit && title !== state.initialValue.trim() ? title : undefined, restoreListFocus);
 	};
 
+	disposables.add(DOM.addDisposableListener(input.inputElement, DOM.EventType.INPUT, () => state.value = input.value));
 	disposables.add(DOM.addStandardDisposableListener(input.inputElement, DOM.EventType.KEY_DOWN, event => {
 		if (event.equals(KeyCode.Enter)) {
 			event.preventDefault();
@@ -918,6 +947,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly editingSession = observableValue<ISession | undefined>(this, undefined);
 	private activeRenameInput: { readonly session: ISession; readonly input: InputBox } | undefined;
+	private renameState: (IInlineRenameValueState & { readonly session: ISession }) | undefined;
 
 	constructor(
 		private readonly options: {
@@ -1207,7 +1237,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.title.set(titleText, matches);
 		}));
 		template.elementDisposables.add(autorun(reader => {
-			const editing = this.editingSession.read(reader) === element;
+			const editingSession = this.editingSession.read(reader);
+			const editing = !!editingSession && isEqual(editingSession.resource, element.resource);
 			template.container.classList.toggle('renaming', editing);
 			if (editing) {
 				this.renderRenameInput(element, template, reader.store);
@@ -1434,32 +1465,42 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	}
 
 	beginRename(session: ISession): boolean {
-		if (!this.options.inlineRename || !session.capabilities.get().supportsRename) {
+		const target = this.resolveRenameTarget(session);
+		if (!target) {
 			return false;
 		}
-		if (this.activeRenameInput?.session === session) {
+		if (this.activeRenameInput && isEqual(this.activeRenameInput.session.resource, target.resource)) {
 			this.activeRenameInput.input.focus();
 			this.activeRenameInput.input.select();
 			return true;
 		}
-		this.editingSession.set(undefined, undefined);
-		this.editingSession.set(session, undefined);
+		if (!this.renameState || !isEqual(this.renameState.session.resource, target.resource)) {
+			const initialValue = target.title.get();
+			this.renameState = { session: target, initialValue, value: initialValue };
+		}
+		this.editingSession.set(target, undefined);
 		return true;
 	}
 
 	private renderRenameInput(session: ISession, template: ISessionItemTemplate, disposables: DisposableStore): void {
+		const renameState = this.renameState;
+		if (!renameState || !isEqual(renameState.session.resource, session.resource)) {
+			return;
+		}
 		const input = renderInlineRenameInput(
 			template.titleInputContainer,
-			session.title.get(),
+			renameState,
 			localize('renameSession.inputAriaLabel', "Rename session. Press Enter to confirm or Escape to cancel."),
 			disposables,
 			(title, restoreListFocus) => {
 				this.editingSession.set(undefined, undefined);
+				this.renameState = undefined;
 				if (restoreListFocus) {
 					this.options.onDidFinishRename?.();
 				}
-				if (title) {
-					this.sessionsManagementService.renameSession(session, title).catch(onUnexpectedError);
+				const target = this.resolveRenameTarget(session);
+				if (title && target) {
+					this.sessionsManagementService.renameSession(target, title).catch(onUnexpectedError);
 				}
 			},
 		);
@@ -1471,7 +1512,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	private resolveRenameTarget(session: ISession): ISession | undefined {
+		if (!this.options.inlineRename) {
+			return undefined;
+		}
+		const target = this.sessionsManagementService.getSessions().find(candidate => isEqual(candidate.resource, session.resource));
+		return target?.capabilities.get().supportsRename ? target : undefined;
+	}
+
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+		if (isSessionItem(node.element) && this.renameState && isEqual(this.renameState.session.resource, node.element.resource) && !this.resolveRenameTarget(node.element)) {
+			this.editingSession.set(undefined, undefined);
+			this.renameState = undefined;
+		}
 		template.elementDisposables.clear();
 	}
 
@@ -2912,7 +2965,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
 				inlineRename: true,
-				handleToolbarAction: (action, session) => this.handleSessionListAction(action, session),
 				onDidFinishRename: () => this.tree.domFocus(),
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
@@ -4213,10 +4265,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private getMultiSelectedSessions(session: ISession): ISession[] {
 		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && isSessionItem(s));
 		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
-	}
-
-	private handleSessionListAction(action: IAction, session: ISession): boolean {
-		return action.id === RENAME_SESSION_COMMAND_ID && this.beginRenameSession(session);
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {

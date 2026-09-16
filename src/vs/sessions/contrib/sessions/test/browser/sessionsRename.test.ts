@@ -219,6 +219,84 @@ suite('Sessions rename', () => {
 			});
 		});
 
+		test('preserves rename drafts across rerenders and clears removed targets', () => {
+			const sessionData = createTestSession('Session');
+			const sessionHarness = createListHarness(disposables, [sessionData.session]);
+			const sessionContainer = sessionHarness.createContainer();
+			const sessionList = sessionHarness.store.add(sessionHarness.instantiationService.createInstance(SessionsList, sessionContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			sessionList.layout(300, 400);
+			assert.strictEqual(sessionList.beginRenameSession(sessionData.session), true);
+			const sessionInput = sessionContainer.querySelector<HTMLInputElement>('.session-title-input input');
+			assert.ok(sessionInput);
+			sessionInput.value = 'Session draft';
+			sessionInput.dispatchEvent(new Event('input', { bubbles: true }));
+			sessionList.refresh();
+			sessionList.layout(300, 400);
+			const rerenderedSessionInput = sessionContainer.querySelector<HTMLInputElement>('.session-title-input input');
+
+			sessionHarness.managementService.sessions = [];
+			sessionList.refresh();
+			sessionHarness.managementService.sessions = [sessionData.session];
+			sessionList.refresh();
+
+			const baseSession = createTestSession('Session with chat').session;
+			const mainChat = baseSession.mainChat.get();
+			const peerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///peer-draft');
+				override readonly title = constObservable('Peer chat');
+				override readonly updatedAt = constObservable(new Date());
+				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly capabilities = constObservable({ canRename: true, canDelete: true });
+			}();
+			const chats = observableValue<readonly IChat[]>('renameDraftChats', [mainChat, peerChat]);
+			const chatSession: ISession = { ...baseSession, chats, mainChat: constObservable(mainChat) };
+			const chatHarness = createListHarness(disposables, [chatSession]);
+			const chatContainer = chatHarness.createContainer();
+			const chatList = chatHarness.store.add(chatHarness.instantiationService.createInstance(SessionsList, chatContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				onChatOpen: () => { },
+			}));
+			chatList.layout(300, 400);
+			const chatTitle = chatContainer.querySelector<HTMLElement>('.session-chat-title');
+			assert.ok(chatTitle);
+			dispatchDoubleClick(chatTitle);
+			const chatInput = chatContainer.querySelector<HTMLInputElement>('.session-chat-title-input input');
+			assert.ok(chatInput);
+			chatInput.value = 'Chat draft';
+			chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+			chatList.refresh();
+			chatList.layout(300, 400);
+			const rerenderedChatInput = chatContainer.querySelector<HTMLInputElement>('.session-chat-title-input input');
+
+			chats.set([mainChat], undefined);
+			chatList.refresh();
+			chats.set([mainChat, peerChat], undefined);
+			chatList.refresh();
+
+			assert.deepStrictEqual({
+				sessionDraft: rerenderedSessionInput?.value,
+				sessionInputRecreated: rerenderedSessionInput !== sessionInput,
+				sessionRenameClearedAfterRemoval: sessionContainer.querySelector('.session-title-input input') === null,
+				chatDraft: rerenderedChatInput?.value,
+				chatInputRecreated: rerenderedChatInput !== chatInput,
+				chatRenameClearedAfterRemoval: chatContainer.querySelector('.session-chat-title-input input') === null,
+			}, {
+				sessionDraft: 'Session draft',
+				sessionInputRecreated: true,
+				sessionRenameClearedAfterRemoval: true,
+				chatDraft: 'Chat draft',
+				chatInputRecreated: true,
+				chatRenameClearedAfterRemoval: true,
+			});
+		});
+
 		test('chat title double-click renames inline with aligned input text', () => {
 			const baseSession = createTestSession('Session').session;
 			const mainChat = baseSession.mainChat.get();
