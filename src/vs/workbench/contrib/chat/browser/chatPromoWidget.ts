@@ -75,6 +75,7 @@ export class ChatPromoIconPopup extends Disposable {
 
 	private pendingPayload: IChatPromoCardInput | undefined;
 	private pipAnchor: HTMLElement | undefined;
+	private pipLabeledElements: HTMLElement[] = [];
 	private readonly iconHoverBlock = this._register(new MutableDisposable());
 	private readonly pipRetry = this._register(new MutableDisposable());
 	private readonly pipObserver = this._register(new MutableDisposable());
@@ -267,9 +268,9 @@ export class ChatPromoIconPopup extends Disposable {
 
 	private applyPipIcon(anchor: HTMLElement): void {
 		const icon = findCopilotIcon(anchor);
-		if (icon instanceof HTMLElement && !icon.classList.contains('codicon-copilot-dot')) {
-			if (!icon.dataset['chatPromoBaseClass']) {
-				icon.dataset['chatPromoBaseClass'] = icon.className;
+		if (dom.isHTMLElement(icon) && !icon.classList.contains('codicon-copilot-dot')) {
+			if (!icon.dataset.chatPromoBaseClass) {
+				icon.dataset.chatPromoBaseClass = icon.className;
 			}
 			icon.classList.remove('codicon-copilot', 'codicon-copilot-warning', 'codicon-copilot-unavailable', 'codicon-copilot-snooze');
 			for (const cls of ThemeIcon.asClassNameArray(Codicon.copilotDot)) {
@@ -284,47 +285,59 @@ export class ChatPromoIconPopup extends Disposable {
 			return;
 		}
 		const promoLabel = localize('chat.promo.pipAria', "{0}. Open the sale offer.", this.pendingPayload.title);
-		for (const el of [anchor, ...anchor.querySelectorAll<HTMLElement>('[aria-label]')]) {
-			if (el.dataset['chatPromoBaseAriaLabel'] === undefined) {
-				el.dataset['chatPromoBaseAriaLabel'] = el.getAttribute('aria-label') ?? '';
+		const labeled: HTMLElement[] = [anchor];
+		// Status-bar entry children are owned by the status bar; walk them without selectors.
+		for (let child = anchor.firstElementChild; child; child = child.nextElementSibling) {
+			this.collectAriaLabeledElements(child, labeled);
+		}
+		this.pipLabeledElements = labeled;
+		for (const el of labeled) {
+			if (el.dataset.chatPromoBaseAriaLabel === undefined) {
+				el.dataset.chatPromoBaseAriaLabel = el.getAttribute('aria-label') ?? '';
 			}
 			el.setAttribute('aria-label', promoLabel);
 		}
 	}
 
-	private restorePipAccessibleName(anchor: HTMLElement): void {
-		const restore = (el: HTMLElement) => {
-			if (el.dataset['chatPromoBaseAriaLabel'] === undefined) {
-				return;
+	private collectAriaLabeledElements(node: Element, labeled: HTMLElement[]): void {
+		if (dom.isHTMLElement(node) && node.hasAttribute('aria-label')) {
+			labeled.push(node);
+		}
+		for (let child = node.firstElementChild; child; child = child.nextElementSibling) {
+			this.collectAriaLabeledElements(child, labeled);
+		}
+	}
+
+	private restorePipAccessibleName(): void {
+		for (const el of this.pipLabeledElements) {
+			if (el.dataset.chatPromoBaseAriaLabel === undefined) {
+				continue;
 			}
-			const base = el.dataset['chatPromoBaseAriaLabel'];
+			const base = el.dataset.chatPromoBaseAriaLabel;
 			if (base) {
 				el.setAttribute('aria-label', base);
 			} else {
 				el.removeAttribute('aria-label');
 			}
-			delete el.dataset['chatPromoBaseAriaLabel'];
-		};
-		restore(anchor);
-		for (const el of anchor.querySelectorAll<HTMLElement>('[data-chat-promo-base-aria-label]')) {
-			restore(el);
+			delete el.dataset.chatPromoBaseAriaLabel;
 		}
+		this.pipLabeledElements = [];
 	}
 
 	private clearPip(): void {
 		this.pipObserver.clear();
 		if (this.pipAnchor) {
 			const icon = findCopilotIcon(this.pipAnchor);
-			if (icon instanceof HTMLElement) {
-				const base = icon.dataset['chatPromoBaseClass'];
+			if (dom.isHTMLElement(icon)) {
+				const base = icon.dataset.chatPromoBaseClass;
 				if (base) {
 					icon.className = base;
-					delete icon.dataset['chatPromoBaseClass'];
+					delete icon.dataset.chatPromoBaseClass;
 				} else {
 					icon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.copilotDot));
 				}
 			}
-			this.restorePipAccessibleName(this.pipAnchor);
+			this.restorePipAccessibleName();
 		}
 		this.pipAnchor = undefined;
 	}
@@ -450,24 +463,30 @@ export class ChatPromoIconPopup extends Disposable {
 	}
 }
 
-function findCopilotIcon(anchor: HTMLElement): Element | null {
-	return anchor.querySelector('.codicon-copilot-dot, .codicon-copilot, .codicon-copilot-warning, .codicon-copilot-unavailable, .codicon-copilot-snooze');
+function findCopilotIcon(anchor: HTMLElement): HTMLElement | undefined {
+	// eslint-disable-next-line no-restricted-syntax
+	const icon = anchor.querySelector('.codicon-copilot-dot, .codicon-copilot, .codicon-copilot-warning, .codicon-copilot-unavailable, .codicon-copilot-snooze');
+	return dom.isHTMLElement(icon) ? icon : undefined;
 }
 
 export function findChatIconAnchor(container: HTMLElement): HTMLElement | undefined {
 	const doc = container.ownerDocument;
-	const statusEntry = doc.getElementById('chat.statusBarEntry') ?? doc.getElementById('status.chat.statusBarEntry');
-	if (statusEntry instanceof HTMLElement) {
+	// Status bar entries are not owned by this widget; look them up by the ids the status bar assigns.
+	// eslint-disable-next-line no-restricted-syntax
+	const primaryEntry = doc.getElementById('chat.statusBarEntry');
+	// eslint-disable-next-line no-restricted-syntax
+	const legacyEntry = doc.getElementById('status.chat.statusBarEntry');
+	const statusEntry = primaryEntry ?? legacyEntry;
+	if (dom.isHTMLElement(statusEntry)) {
 		return statusEntry;
 	}
 
+	// eslint-disable-next-line no-restricted-syntax
 	const statusIcon = doc.querySelector('.part.statusbar .codicon-copilot, .part.statusbar .codicon-copilot-warning, .part.statusbar .codicon-copilot-unavailable');
-	if (statusIcon instanceof HTMLElement) {
-		return statusIcon.closest('.statusbar-item') instanceof HTMLElement
-			? statusIcon.closest('.statusbar-item') as HTMLElement
-			: statusIcon;
+	if (!dom.isHTMLElement(statusIcon)) {
+		return undefined;
 	}
-
-	return undefined;
+	const item = statusIcon.closest('.statusbar-item');
+	return dom.isHTMLElement(item) ? item : statusIcon;
 }
 

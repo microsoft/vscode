@@ -1474,11 +1474,11 @@ suite('ChatPromoNotificationContribution', () => {
 		const hover = dom.append(container, dom.$('.monaco-hover.workbench-hover.chat-promo-widget-hover'));
 		const contents = dom.append(dom.append(hover, dom.$('.hover-row.markdown-hover')), dom.$('.hover-contents.html-hover-contents'));
 		dom.append(contents, card!);
-		const icon = card!.querySelector('.provider-icon') as HTMLElement;
+		const icon = card!.getElementsByClassName('provider-icon')[0] as HTMLElement;
 
 		assert.deepStrictEqual({
 			className: icon.className,
-			fontSize: getComputedStyle(icon).fontSize,
+			fontSize: dom.getWindow(icon).getComputedStyle(icon).fontSize,
 		}, {
 			className: 'codicon codicon-chat-model-provider-claude provider-icon',
 			fontSize: '24px',
