@@ -29,6 +29,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { constObservable } from '../../../../../base/common/observable.js';
 import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_CUSTOM_VIEW_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../../common/projectBoard.js';
 import { Menus } from '../../../../browser/menus.js';
+import { KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext } from '../../../../common/contextkeys.js';
 import '../../browser/projectBoard.contribution.js';
 
 suite('Project Board Agents routing', () => {
@@ -129,12 +130,14 @@ suite('Project Board Agents routing', () => {
 			actions: registered?.actions,
 			primaryActionId,
 			horizontalScrolling: registered?.horizontalScrolling,
+			supportsAuxiliaryBar: registered?.supportsAuxiliaryBar,
 		}, {
 			id: KANBAN_CUSTOM_VIEW_ID,
 			hasConstructor: true,
 			actions: { style: 'buttonBar', menuId: Menus.CustomViewKanban },
 			primaryActionId: KANBAN_NEW_SESSION_COMMAND_ID,
 			horizontalScrolling: true,
+			supportsAuxiliaryBar: true,
 		});
 	});
 
@@ -173,6 +176,7 @@ suite('Project Board Agents routing', () => {
 				order: 5,
 			},
 			settingActions: [
+				'projectBoard.settings.openChatInSidePanel',
 				'projectBoard.settings.autoIncludeSessions',
 				'projectBoard.settings.stateDuration',
 				'projectBoard.settings.credits',
@@ -191,6 +195,7 @@ suite('Project Board Agents routing', () => {
 			toggleArchived: () => { calls.push('archived'); },
 			createSession: async () => { calls.push('session'); },
 			toggleAutoIncludeSessions: () => { calls.push('autoInclude'); },
+			toggleOpenChatInSidePanel: () => { calls.push('sidePanel'); },
 			toggleDisplayOption: key => { calls.push(`display:${key}`); },
 		}));
 
@@ -201,10 +206,35 @@ suite('Project Board Agents routing', () => {
 			KANBAN_NEW_SESSION_COMMAND_ID,
 			'projectBoard.settings.autoIncludeSessions',
 			'projectBoard.settings.credits',
+			'projectBoard.settings.openChatInSidePanel',
 		]) {
 			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
 		}
 
-		assert.deepStrictEqual(calls, ['add:row', 'add:column', 'archived', 'session', 'autoInclude', 'display:showCredits']);
+		assert.deepStrictEqual(calls, ['add:row', 'add:column', 'archived', 'session', 'autoInclude', 'display:showCredits', 'sidePanel']);
+	});
+
+	test('side-panel setting exposes checked state and respects AI and board editability gates', () => {
+		const item = MenuRegistry.getMenuItems(Menus.CustomViewKanbanSettings).filter(isIMenuItem)
+			.find(item => item.command.id === 'projectBoard.settings.openChatInSidePanel')!;
+		const context = new Context(0, null);
+		context.setValue(ChatContextKeys.enabled.key, true);
+		context.setValue(KanbanBoardEditableContext.key, true);
+		context.setValue(KanbanOpenChatInSidePanelContext.key, true);
+		assert.deepStrictEqual({
+			label: item.command.title,
+			visible: item.when?.evaluate(context),
+			enabled: item.command.precondition?.evaluate(context),
+			toggled: item.command.toggled,
+		}, {
+			label: { value: 'Open Chat in Side Panel', original: 'Open Chat in Side Panel' },
+			visible: true,
+			enabled: true,
+			toggled: KanbanOpenChatInSidePanelContext,
+		});
+		context.setValue(KanbanBoardEditableContext.key, false);
+		assert.strictEqual(item.command.precondition?.evaluate(context), false);
+		context.setValue(ChatContextKeys.enabled.key, false);
+		assert.strictEqual(item.when?.evaluate(context), false);
 	});
 });

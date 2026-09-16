@@ -8,6 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -29,7 +30,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -180,7 +181,7 @@ class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
+export class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostAgentPicker';
 
@@ -425,7 +426,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		}
 	}
 
-	private _selectMode(mode: IChatMode, session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): void {
+	private _selectMode(mode: IChatMode, session: IActiveSession | undefined, sessionsProvidersService: ISessionsProvidersService): void {
 		if (!session) {
 			return;
 		}
@@ -434,21 +435,21 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			return;
 		}
 		if (mode.id === ChatMode.Agent.id) {
-			this._setAgent(session, provider, undefined);
+			this._setAgent(session, provider, undefined, session.activeChat.get().resource);
 		} else {
 			const rawAgentUri = mode.id;
-			this._setAgent(session, provider, { uri: rawAgentUri, name: mode.name.get() });
+			this._setAgent(session, provider, { uri: rawAgentUri, name: mode.name.get() }, session.activeChat.get().resource);
 		}
 	}
 
-	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined): void {
+	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined, chatResource?: URI): void {
 		const key = agentHostAgentPickerStorageKey(session.resource.scheme);
 		if (agent) {
 			this.storageService.store(key, agent.uri, StorageScope.PROFILE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(key, StorageScope.PROFILE);
 		}
-		provider.setAgent?.(session.sessionId, agent ? { uri: agent.uri, name: agent.name } : undefined);
+		provider.setAgent?.(session.sessionId, agent ? { uri: agent.uri, name: agent.name } : undefined, chatResource);
 	}
 }
 
