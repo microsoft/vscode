@@ -17,16 +17,21 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { TestChatEntitlementService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { Memento } from '../../../../../workbench/common/memento.js';
+import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
+import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
-import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenario, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
+import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -35,12 +40,15 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
+import { SESSION_ARCHIVE_TOUR_ID } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
 suite('SessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => Memento.clear(StorageScope.APPLICATION));
 
 	function artifact(number: number, overrides: Partial<ISessionArtifact> = {}): ISessionArtifact {
 		return {
@@ -170,7 +178,6 @@ suite('SessionArchiveNudge', () => {
 		const onboardingPayloads: ISpotlightPayload[] = [];
 		const onboardingStarted = new DeferredPromise<void>();
 		let onboardingResult = Promise.resolve(OnboardingOutcome.Completed);
-		let onboardingShown = false;
 		let viewAvailable = true;
 		const view = upcastPartial<SessionsView>({
 			setExpanded: expanded => { onboardingEvents.push(`expanded:${expanded}`); return true; },
@@ -188,18 +195,33 @@ suite('SessionArchiveNudge', () => {
 			return viewAvailable ? view : null;
 		});
 		const viewsService = instantiationService.get(IViewsService);
-		const onboardingService = new class extends mock<IOnboardingScenarioService>() {
-			override hasBeenShown(): boolean { return onboardingShown; }
-			override reset(): void { onboardingShown = false; }
-			override async runScenario(id: string): Promise<OnboardingOutcome> {
-				const scenario = onboardingScenarioRegistry.getScenario(id) as IOnboardingScenario<ISpotlightPayload>;
-				onboardingShown = true;
-				onboardingPayloads.push(scenario.presentation.payload);
-				await scenario.presentation.payload.steps[0].onBeforeShow?.();
+		store.add(onboardingPresentationRegistry.register({
+			kind: SPOTLIGHT_PRESENTATION_KIND,
+			async run(scenario) {
+				const payload = scenario.presentation.payload as ISpotlightPayload;
+				onboardingPayloads.push(payload);
+				await payload.steps[0].onBeforeShow?.();
 				onboardingStarted.complete();
-				return onboardingResult;
-			}
-		}();
+				const outcome = await onboardingResult;
+				return {
+					outcome,
+					shown: true,
+					dismissReason: outcome === OnboardingOutcome.Aborted ? OnboardingDismissReason.Aborted
+						: outcome === OnboardingOutcome.Skipped ? OnboardingDismissReason.EscapeKey
+							: OnboardingDismissReason.Completed,
+					lastStepIndex: 0,
+					stepCount: payload.steps.length,
+				};
+			},
+		}));
+		const onboardingService = store.add(new OnboardingScenarioService(
+			storage,
+			store.add(new ContextKeyService(configuration)),
+			configuration,
+			store.add(new TestLifecycleService()),
+			new NullWorkbenchAssignmentService(),
+			NullTelemetryService,
+		));
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
 		function createNudge() {
@@ -232,6 +254,7 @@ suite('SessionArchiveNudge', () => {
 			async setEnabled(value: boolean) {
 				await configuration.setUserConfiguration(SESSION_ARCHIVE_NUDGE_SETTING, value);
 				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([SESSION_ARCHIVE_NUDGE_SETTING]),
 					affectsConfiguration: key => key === SESSION_ARCHIVE_NUDGE_SETTING,
 				}));
 			},
@@ -759,25 +782,28 @@ suite('SessionArchiveNudge', () => {
 	});
 
 	for (const outcome of [OnboardingOutcome.Aborted, OnboardingOutcome.Dismissed]) {
-		test(`archives when onboarding is ${outcome} and allows the introduction to retry later`, async () => {
-			const session = createSession();
-			const context = setup([session], true, undefined, true);
-			context.setPullRequest(1, GitHubPullRequestState.Merged);
-			const nudge = context.createNudge();
-			context.onboarding.setResult(Promise.resolve(outcome));
-			await nudge.options.get()!.onArchive();
-			assert.deepStrictEqual({
-				targets: context.archiveTargets,
-				archived: session.isArchived.get(),
-				visible: !!nudge.options.get(),
-				released: context.onboarding.events.at(-1),
-			}, { targets: [session], archived: true, visible: false, released: 'released' });
+		for (const developerMode of [false, true]) {
+			test(`archives when onboarding is ${outcome} and allows a retry in the same window (developer mode: ${developerMode})`, async () => {
+				const session = createSession();
+				const context = setup([session], true, undefined, true);
+				await context.configuration.setUserConfiguration(ONBOARDING_DEVELOPER_MODE_CONFIG, { [SESSION_ARCHIVE_TOUR_ID]: developerMode });
+				context.setPullRequest(1, GitHubPullRequestState.Merged);
+				const nudge = context.createNudge();
+				context.onboarding.setResult(Promise.resolve(outcome));
+				await nudge.options.get()!.onArchive();
+				assert.deepStrictEqual({
+					targets: context.archiveTargets,
+					archived: session.isArchived.get(),
+					visible: !!nudge.options.get(),
+					released: context.onboarding.events.at(-1),
+				}, { targets: [session], archived: true, visible: false, released: 'released' });
 
-			context.reloadService();
-			context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
-			await context.service.showArchiveOnboarding(createSession('another'));
-			assert.strictEqual(context.onboarding.payloads.length, 2);
-		});
+				context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
+				await context.service.showArchiveOnboarding(createSession('another'));
+				await context.service.showArchiveOnboarding(createSession('after-completion'));
+				assert.strictEqual(context.onboarding.payloads.length, 2);
+			});
+		}
 	}
 
 	test('still reports archive failures after onboarding aborts', async () => {
