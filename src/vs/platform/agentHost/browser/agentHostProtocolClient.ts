@@ -56,6 +56,7 @@ import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectA
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
+import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type IConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 // AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
@@ -264,6 +265,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
 	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
 	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
+	private readonly _onDidConnectionDiagnostic = this._register(new Emitter<IConnectionDiagnosticEvent>());
+	readonly onDidConnectionDiagnostic = this._onDidConnectionDiagnostic.event;
+	private _diagnosticAttemptId = generateUuid();
+
+	private _diagnostic(phase: string, detail: string): void {
+		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase, outcome: 'info', timestamp: Date.now(), detail });
+	}
+
+	private _traceConnection<T>(phase: string, operation: () => Promise<T>): Promise<T> {
+		const attemptId = this._diagnosticAttemptId;
+		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId }), phase, operation);
+	}
 
 	/**
 	 * Discriminated state union. Read via narrowing (`_state.kind === ...`);
@@ -558,13 +571,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	async connect(): Promise<void> {
 		try {
 			if (isClientTransport(this._transport)) {
-				await this._raceClose(this._transport.connect());
+				const transport = this._transport;
+				await this._traceConnection('transport.connect', () => this._raceClose(transport.connect()));
 			}
 			if (this._state.kind !== AgentHostClientState.Connecting) {
 				throw transportLostError(this._address);
 			}
 
-			const result = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
+			const result = await this._traceConnection('protocol.initialize', () => this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 				channel: ROOT_STATE_URI,
 				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
@@ -574,10 +588,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
-			}, { bypassInitializeQueue: true });
+			}, { bypassInitializeQueue: true }));
 			this._applyInitializeResult(result);
 			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
-				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting);
+				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
 					throw transportLostError(this._address);
 				}
@@ -597,6 +611,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._state.outbox.length = 0;
 			}
 			this._transitionTo({ kind: AgentHostClientState.Connected });
+			this._diagnostic('connection.ready', `clientId=${this._clientId}`);
 			this._resetLivenessTimers();
 		} catch (error) {
 			const protocolError = error instanceof ProtocolError
@@ -651,6 +666,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * and let the service decide whether to spin up a fresh client.
 	 */
 	private _handleTransportClose(): void {
+		if (this._state.kind !== AgentHostClientState.Closed) {
+			const close = this._transport.closeDetails;
+			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastMessageMs=${Date.now() - this._lastReadTime}; code=${close?.code ?? 'unavailable'}; wasClean=${close?.wasClean ?? 'unavailable'}; reason=${sanitizeConnectionDiagnosticText(close?.reason ?? '(unavailable)')}`);
+		}
 		switch (this._state.kind) {
 			case AgentHostClientState.Closed:
 				return;
@@ -770,6 +789,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		if (!userInitiated && hasExhaustedReconnectAttempts(this._reconnectPolicy, reconnect.attempt)) {
+			this._diagnostic('reconnect.exhausted', `attempts=${reconnect.attempt}`);
 			const error = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Automatic reconnect gave up after ${reconnect.attempt} attempts.`);
 			this._logService.warn(`[RemoteAgentHostProtocol] Automatic reconnect to ${this._address} gave up after ${reconnect.attempt} attempts.`);
 			this._handleFatalClose(error);
@@ -777,6 +797,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const attempt = reconnect.attempt + 1;
 		const delay = computeReconnectDelay(this._reconnectPolicy, attempt);
+		this._diagnostic('reconnect.scheduled', `attempt=${attempt}; delayMs=${delay}`);
 		this._logService.info(`[RemoteAgentHostProtocol] Reconnecting to ${this._address} in ${delay}ms (attempt ${attempt}).`);
 		reconnect.nextAttemptAt = Date.now() + delay;
 		reconnect.timeoutHandle = setTimeout(() => {
@@ -795,12 +816,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const reconnect = this._state.reconnect;
 		reconnect.attempt++;
+		this._diagnosticAttemptId = generateUuid();
+		this._diagnostic('reconnect.started', `attempt=${reconnect.attempt}; clientId=${this._clientId}`);
 		let transport: IProtocolTransport | undefined;
 		try {
 			transport = this._transportFactory();
 			this._installTransport(transport);
 			if (isClientTransport(transport)) {
-				await transport.connect();
+				const clientTransport = transport;
+				await this._traceConnection('transport.reconnect', () => clientTransport.connect());
 			}
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
@@ -812,7 +836,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				subscriptions.unshift(ROOT_STATE_URI);
 			}
 			const lastSeenServerSeq = this._serverSeq;
-			const { result, freshInitialize } = await this._reconnectOrInitialize(lastSeenServerSeq, subscriptions);
+			const { result, freshInitialize } = await this._traceConnection('protocol.reconnect', () => this._reconnectOrInitialize(lastSeenServerSeq, subscriptions));
+			this._diagnostic('protocol.reconnect.result', `mode=${freshInitialize ? 'freshInitialize' : result.type}`);
 
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
 				return;
@@ -828,7 +853,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
 					this._markSubscriptionsAwaitingRestore(result.snapshots);
 				}
-				await this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Reconnecting);
+				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Reconnecting));
 				if (this._state.kind !== AgentHostClientState.Reconnecting) {
 					return;
 				}
@@ -837,7 +862,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// restore an earlier one started but never completed, in which case
 			// the reconnect above resolved to a snapshot-less `replay`.
 			if (this._subscriptionsAwaitingRestore.size > 0) {
-				await this._restoreSubscriptionsAwaitingRestore();
+				await this._traceConnection('protocol.subscriptions', () => this._restoreSubscriptionsAwaitingRestore());
 				if (this._state.kind !== AgentHostClientState.Reconnecting) {
 					return;
 				}
@@ -861,7 +886,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._transitionTo({ kind: AgentHostClientState.Connected });
 			gate.complete();
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
+			this._diagnostic('reconnect.succeeded', `attempt=${reconnect.attempt}`);
 		} catch (err) {
+			this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase: 'reconnect', outcome: 'failed', timestamp: Date.now(), error: getConnectionDiagnosticError(err) });
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
 			transport?.dispose();
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
@@ -1889,6 +1916,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return;
 		}
+		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase: 'connection.closed', outcome: 'info', timestamp: Date.now(), error: getConnectionDiagnosticError(error), detail: reason });
 		// Stop the liveness timers so they don't keep ticking on a dead
 		// connection (the client may outlive the close, waiting to be replaced).
 		this._cancelLivenessTimers();
@@ -2374,6 +2402,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// WebSocketClientTransport.dispose() disposes its emitters
 		// synchronously before the native close event arrives, so this
 		// won't re-enter {@link _handleTransportClose}.
+		this._diagnostic('watchdog.timeout', `sinceLastMessageMs=${silence}`);
 		this._transportListeners.clear();
 		if (this._transportFactory) {
 			// In factory mode, route directly through the soft-reconnect path.

@@ -40,6 +40,7 @@ import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConf
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -2588,6 +2589,8 @@ suite('AgentHostProtocolClient', () => {
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new Error('initial transport failed'));
 			await assert.rejects(connectPromise, /initial transport failed/);
@@ -2614,9 +2617,15 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
+				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
+				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
+				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
+				transportFailure: 'initial transport failed',
+				handshakeMode: 'mode=freshInitialize',
+				retrySucceeded: true,
 			});
 		});
 

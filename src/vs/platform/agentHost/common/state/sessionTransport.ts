@@ -33,6 +33,8 @@ export class NonReconnectableTransportError extends Error {
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Last observed close metadata, when the underlying transport exposes it. */
+	readonly closeDetails?: { readonly code?: number; readonly reason?: string; readonly wasClean?: boolean };
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 

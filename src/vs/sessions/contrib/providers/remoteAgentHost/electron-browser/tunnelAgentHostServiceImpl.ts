@@ -37,11 +37,13 @@ import {
 	type ITunnelGatewaySelection,
 	type ITunnelGatewaySelectionSession,
 	type ITunnelInfo,
+	type ITunnelDiscoveryOptions,
 	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { traceConnectionOperation } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import {
 	resolveGatewaySelection,
@@ -196,24 +198,27 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 	}
 
-	async listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	async listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			return [];
 		}
 
 		const silent = options?.silent ?? false;
-		const auth = await this._getToken(silent);
-		if (!auth) {
-			if (silent) {
-				this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
-			} else {
-				this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+		const auth = await traceConnectionOperation(options?.onDiagnostic, 'discovery.authentication', async () => {
+			const auth = await this._getToken(silent);
+			if (!auth) {
+				if (silent) {
+					this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
+				} else {
+					this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+				}
+				throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 			}
-			throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
-		}
+			return auth;
+		});
 
 		const additionalNames = this._configurationService.getValue<string[]>(TunnelAgentHostsSettingId) ?? [];
-		return this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined);
+		return traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', () => this._mainService.listTunnels(auth.token, auth.provider, additionalNames.length > 0 ? additionalNames : undefined));
 	}
 
 	getAutoConnectMode(tunnel: ITunnelInfo): TunnelAutoConnectMode {

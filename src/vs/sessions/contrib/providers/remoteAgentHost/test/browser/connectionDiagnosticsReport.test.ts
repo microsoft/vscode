@@ -71,7 +71,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		let rediscoveries = 0;
 		const service = new class extends mock<IConnectionDiagnosticsService>() {
 			override readonly onDidChangeHostManagement = Event.None;
-			override getSnapshot(): IConnectionDiagnosticsSnapshot { return current; }
+			override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return current; }
 			override getHostManagementState(): IConnectionHostManagementState { return { hosts: [], isDiscovering: false }; }
 			override async runHostAction(): Promise<void> { }
 			override async rediscover(): Promise<boolean> { rediscoveries++; return options.discoverySucceeded !== false; }
@@ -123,6 +123,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			store.add(toDisposable(() => container.remove()));
 			const contribution = createContribution(service, clipboard, () => container, false, web);
 			const closed = contribution.show();
+			await Promise.resolve();
 			const help = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);
 			const text = help.provideContent();
 			await closed;
@@ -204,6 +205,64 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({ copied, snapshot: report.getSnapshot(), rediscoveries: rediscoveries() }, { copied: [snapshot.text, next.text], snapshot: next, rediscoveries: 1 });
 	});
 
+	test('a late snapshot cannot overwrite a newer refresh', async () => {
+		const { report, service } = createReport(async () => { }, undefined, { rediscoverOnRefresh: false });
+		const first = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		const second = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		let calls = 0;
+		service.getSnapshot = () => ++calls === 1 ? first.p : second.p;
+		const older = report.refresh();
+		const newer = report.refresh();
+		const latest = { ...snapshot, text: 'Newer captured evidence' };
+		await second.complete(latest);
+		await newer;
+		await first.complete({ ...snapshot, text: 'Older captured evidence' });
+		await older;
+		assert.strictEqual(report.getSnapshot(), latest);
+	});
+
+	test('disposing while collecting a snapshot does not render it', async () => {
+		const { report, service } = createReport(async () => { }, undefined, { rediscoverOnRefresh: false });
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		let renders = 0;
+		store.add(report.onDidChangeFocusTargets(() => renders++));
+		const refreshing = report.refresh();
+		report.dispose();
+		await pending.complete({ ...snapshot, text: 'Late evidence' });
+		await refreshing;
+		assert.deepStrictEqual({ renders, snapshot: report.getSnapshot() }, { renders: 0, snapshot });
+	});
+
+	test('concurrent opens share one modal after asynchronous capture', async () => {
+		const { service, clipboard } = createReport(async () => { });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contribution = createContribution(service, clipboard, () => container);
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		const first = contribution.show();
+		const second = contribution.show();
+		await pending.complete(snapshot);
+		assert.strictEqual(container.querySelectorAll('[role="dialog"]').length, 1);
+		container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+		await Promise.all([first, second]);
+	});
+
+	test('disposing during initial capture does not open a modal', async () => {
+		const { service, clipboard } = createReport(async () => { });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contribution = createContribution(service, clipboard, () => container);
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		const opening = contribution.show();
+		contribution.dispose();
+		await pending.complete(snapshot);
+		await opening;
+		assert.strictEqual(container.querySelectorAll('[role="dialog"]').length, 0);
+	});
+
 	test('refresh reports discovery failure without failing the local snapshot refresh', async () => {
 		const { container, report, rediscoveries } = createReport(async () => { }, () => { }, { discoverySucceeded: false });
 		await report.refresh();
@@ -249,7 +308,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		};
 		const service = new class extends mock<IConnectionDiagnosticsService>() {
 			override readonly onDidChangeHostManagement = Event.None;
-			override getSnapshot(): IConnectionDiagnosticsSnapshot { return hostSnapshot; }
+			override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return hostSnapshot; }
 			override getHostManagementState() {
 				return {
 					hosts: [{
@@ -588,6 +647,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			background.focus();
 			const contribution = createContribution(service, clipboard, () => container, verbosity);
 			const closed = contribution.show();
+			await Promise.resolve();
 			const liveRegion = container.querySelector<HTMLElement>('[role="dialog"] [role="status"]')!;
 			assert.deepStrictEqual({
 				backgroundInert: background.inert,
@@ -628,6 +688,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			const contribution = createContribution(service, clipboard, () => activeContainer);
 
 			const auxiliaryClosed = contribution.show();
+			await Promise.resolve();
 			if (lifecycle === 'unregister') {
 				registration.dispose();
 			} else {
@@ -635,6 +696,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			}
 			activeContainer = mainContainer;
 			const mainClosed = contribution.show();
+			await Promise.resolve();
 			assert.deepStrictEqual({
 				auxiliaryDialogs: auxiliaryContainer.querySelectorAll('[role="dialog"]').length,
 				auxiliaryBackgroundInert: background.inert,
@@ -655,6 +717,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			store.add(toDisposable(() => container.remove()));
 			const contribution = createContribution(service, clipboard, () => container);
 			const closed = contribution.show();
+			await Promise.resolve();
 			const provider = store.add(contribution.getAccessibleProvider(type)!);
 			await closed;
 			update({ ...snapshot, text: 'Current connection state' });
@@ -676,6 +739,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		store.add(toDisposable(() => container.remove()));
 		const contribution = createContribution(service, clipboard, () => container);
 		const closed = contribution.show();
+		await Promise.resolve();
 		const previous = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);
 		await closed;
 		previous.onClose();

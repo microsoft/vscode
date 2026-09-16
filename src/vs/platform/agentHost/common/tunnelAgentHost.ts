@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
@@ -455,6 +456,11 @@ export interface ITunnelVisibility {
 	readonly autoConnectSuppressed: readonly string[];
 }
 
+export interface ITunnelDiscoveryOptions {
+	readonly silent?: boolean;
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
+}
+
 /**
  * Renderer-side service that manages dev tunnel agent host connections.
  * Uses the shared-process {@link ITunnelAgentHostMainService} for
@@ -475,7 +481,7 @@ export interface ITunnelAgentHostService {
 	 * authentication is unavailable. {@link options.silent} suppresses
 	 * authentication prompts but does not convert failures to empty results.
 	 */
-	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
+	listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]>;
 
 	/**
 	 * Determine whether startup auto-connect can run silently or must first ask

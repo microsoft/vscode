@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -73,14 +74,25 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		if (this._store.isDisposed || this.entitlementService.sentiment.hidden) {
 			return;
 		}
-		if (this.active) {
-			this.active.report.focus();
+		if (this.focusActiveReport()) {
 			return;
 		}
 		const container = this.layoutService.activeContainer;
 		const previouslyFocused = returnFocus ?? dom.getActiveElement();
+		try {
+			snapshot ??= await this.diagnosticsService.getSnapshot();
+		} catch (error) {
+			this.notificationService.warn(localize('connectionDiagnostics.captureFailed', "Could not capture connection information. {0}", toErrorMessage(error)));
+			return;
+		}
+		if (this._store.isDisposed || this.entitlementService.sentiment.hidden || dom.getWindow(container).closed) {
+			return;
+		}
+		if (this.focusActiveReport()) {
+			return;
+		}
 		let active: IActiveConnectionDiagnostics | undefined;
-		await showConnectionDiagnosticsSheet(container, snapshot ?? this.diagnosticsService.getSnapshot(), this.instantiationService, {
+		await showConnectionDiagnosticsSheet(container, snapshot, this.instantiationService, {
 			autoFocus: false,
 			enableHostManagement: this.isWebPlatform,
 			rediscoverOnRefresh: this.isWebPlatform,
@@ -92,6 +104,14 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		if (active?.restoreFocus && !this.active && dom.isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
 			previouslyFocused.focus();
 		}
+	}
+
+	private focusActiveReport(): boolean {
+		if (!this.active) {
+			return false;
+		}
+		this.active.report.focus();
+		return true;
 	}
 
 	private attachModal(container: HTMLElement, report: ConnectionDiagnosticsReport, api: IMobileContentSheetApi): DisposableStore {
@@ -138,7 +158,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 			return this.active.report.copy();
 		}
 		try {
-			await this.clipboardService.writeText((this.accessibleView?.snapshot ?? this.diagnosticsService.getSnapshot()).text);
+			await this.clipboardService.writeText((this.accessibleView?.snapshot ?? await this.diagnosticsService.getSnapshot()).text);
 			status(localize('connectionDiagnostics.copied', "Diagnostics copied."));
 		} catch {
 			this.notificationService.warn(localize('connectionDiagnostics.copyFailed', "Could not copy diagnostics. Open Show Connection Diagnostics and try again."));
@@ -167,6 +187,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 				? localize('connectionDiagnostics.help.webCopy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh re-runs host discovery and then captures current local state.")
 				: localize('connectionDiagnostics.help.copy', "Copy Diagnostics and Download Diagnostics include the entire displayed snapshot, including collapsed sections. Review host names and addresses before sharing. Refresh reads current local state without discovery, authentication, or connection changes."),
 			localize('connectionDiagnostics.help.view', "Open the report as plain text with {0}.", '<keybinding:editor.action.accessibleView>'),
+			localize('connectionDiagnostics.help.logs', "Snapshots include recorded connection stages and a bounded excerpt of the local Window log. Copy and Download use the captured text without collecting new logs. Known credentials are redacted; review messages before sharing."),
 			localize('connectionDiagnostics.help.close', "Escape or Close dismisses diagnostics. Closing this accessible view returns to the diagnostics snapshot."),
 		].join('\n\n');
 		const provider = new AccessibleContentProvider(

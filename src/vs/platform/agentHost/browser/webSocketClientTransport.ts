@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IClientTransport } from '../common/state/sessionTransport.js';
+import type { IClientTransport, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 // ---- Client transport -------------------------------------------------------
@@ -40,6 +40,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 
 	/** Guards against firing onClose more than once. */
 	private _closeFired = false;
+	closeDetails: IProtocolTransport['closeDetails'];
 
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
@@ -153,7 +154,8 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				this._onMessage.fire(message);
 			});
 
-			ws.addEventListener('close', () => {
+			ws.addEventListener('close', event => {
+				this.closeDetails = { code: event.code, reason: event.reason, wasClean: event.wasClean };
 				if (!this._closeFired) {
 					this._closeFired = true;
 					this._onClose.fire();
