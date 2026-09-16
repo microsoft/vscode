@@ -72,14 +72,39 @@ function harnessKey(providerId: string, sessionTypeId: string): string {
 	return `${providerId}\0${sessionTypeId}`;
 }
 
-export function getSessionComparisonModelPickerPresentationOptions(): IModelPickerPresentationOptions {
+export function getSessionComparisonModelPickerPresentationOptions(showAutoModel: boolean): IModelPickerPresentationOptions {
 	return {
 		useGroupedModelPicker: false,
 		showFeatured: false,
 		showUnavailableFeatured: false,
 		showManageModelsAction: false,
-		showAutoModel: true,
+		showAutoModel,
 		showModelIcon: false,
+	};
+}
+
+export function resolveSessionComparisonHarnessModel(
+	harness: ISessionComparisonHarness,
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+): { readonly harness: ISessionComparisonHarness; readonly selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined; readonly hadUnavailableModel: boolean } {
+	const requestedModel = harness.modelId ? models.find(model => model.identifier === harness.modelId) : undefined;
+	const hadUnavailableModel = harness.modelId !== undefined && !requestedModel;
+	const autoModel = models.find(model => model.metadata.id === 'auto');
+	const selectedModel = requestedModel ?? (harness.modelId === undefined || hadUnavailableModel ? autoModel ?? models[0] : undefined);
+	const selectedModelId = selectedModel?.metadata.id === 'auto' ? undefined : selectedModel?.identifier;
+	const selectedModelLabel = selectedModelId ? selectedModel?.metadata.name : undefined;
+	if (harness.modelId === selectedModelId && harness.modelLabel === selectedModelLabel) {
+		return { harness, selectedModel, hadUnavailableModel };
+	}
+	return {
+		harness: {
+			...harness,
+			modelId: selectedModelId,
+			modelLabel: selectedModelLabel,
+			modelConfiguration: harness.modelId === selectedModelId ? harness.modelConfiguration : undefined,
+		},
+		selectedModel,
+		hadUnavailableModel,
 	};
 }
 
@@ -616,12 +641,15 @@ export class SessionComparisonSetupDialog extends Disposable {
 					}
 				}
 				const models = provider?.getModelsSnapshotForCreation?.(workspace, harness.sessionTypeId).models ?? [];
-				if (harness.modelId && !models.some(model => model.identifier === harness.modelId)) {
-					harness = { ...harness, modelId: undefined, modelLabel: undefined, modelConfiguration: undefined };
+				const modelResolution = resolveSessionComparisonHarnessModel(harness, models);
+				if (modelResolution.harness !== harness) {
+					harness = modelResolution.harness;
 					onChange(harness);
+				}
+				if (modelResolution.hadUnavailableModel) {
 					status(unavailableModelMessage);
 				}
-				const selectedModel = harness.modelId ? models.find(model => model.identifier === harness.modelId) : undefined;
+				const selectedModel = modelResolution.selectedModel;
 				const reasoningEffortSchema = provider?.supportsModelConfigurationForCreation
 					? selectedModel?.metadata.configurationSchema?.properties?.[ReasoningEffortConfigKey]
 					: undefined;
@@ -759,7 +787,7 @@ export class SessionComparisonSetupDialog extends Disposable {
 						onChange(harness);
 					},
 					getModels: () => [...pickerModels],
-					getPresentationOptions: getSessionComparisonModelPickerPresentationOptions,
+					getPresentationOptions: () => getSessionComparisonModelPickerPresentationOptions(autoModel !== undefined),
 					isCacheWarm: () => false,
 				};
 				const modelPicker = rowsDisposables.add(this.instantiationService.createInstance(

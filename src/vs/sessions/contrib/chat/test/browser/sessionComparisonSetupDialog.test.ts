@@ -7,10 +7,12 @@ import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
 import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
@@ -158,13 +160,82 @@ suite('SessionComparisonDialogResizeController', () => {
 
 	suite('setup behavior', () => {
 		test('shows the actual comparison models without an Other Models reveal step', () => {
-			assert.deepStrictEqual(getSessionComparisonModelPickerPresentationOptions(), {
-				useGroupedModelPicker: false,
-				showFeatured: false,
-				showUnavailableFeatured: false,
-				showManageModelsAction: false,
-				showAutoModel: true,
-				showModelIcon: false,
+			assert.deepStrictEqual({
+				withAuto: getSessionComparisonModelPickerPresentationOptions(true),
+				withoutAuto: getSessionComparisonModelPickerPresentationOptions(false),
+			}, {
+				withAuto: {
+					useGroupedModelPicker: false,
+					showFeatured: false,
+					showUnavailableFeatured: false,
+					showManageModelsAction: false,
+					showAutoModel: true,
+					showModelIcon: false,
+				},
+				withoutAuto: {
+					useGroupedModelPicker: false,
+					showFeatured: false,
+					showUnavailableFeatured: false,
+					showManageModelsAction: false,
+					showAutoModel: false,
+					showModelIcon: false,
+				},
+			});
+		});
+
+		test('selects a concrete default model for harnesses without Auto', () => {
+			const auto = upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+				identifier: 'copilot/auto',
+				metadata: upcastPartial<ILanguageModelChatMetadata>({ id: 'auto', name: 'Auto' }),
+			});
+			const claude = upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+				identifier: 'claude/opus',
+				metadata: upcastPartial<ILanguageModelChatMetadata>({ id: 'opus', name: 'Claude Opus' }),
+			});
+			const harness: ISessionComparisonHarness = {
+				providerId: 'provider',
+				sessionTypeId: 'claude',
+				label: 'Claude',
+			};
+			const withAuto = resolveSessionComparisonHarnessModel(harness, [auto, claude]);
+			const withoutAuto = resolveSessionComparisonHarnessModel(harness, [claude]);
+			const unavailable = resolveSessionComparisonHarnessModel({
+				...harness,
+				modelId: 'claude/removed',
+				modelLabel: 'Removed',
+				modelConfiguration: { thinkingLevel: 'high' },
+			}, [claude]);
+
+			assert.deepStrictEqual({
+				withAuto: {
+					modelId: withAuto.harness.modelId,
+					selected: withAuto.selectedModel?.identifier,
+				},
+				withoutAuto: {
+					modelId: withoutAuto.harness.modelId,
+					modelLabel: withoutAuto.harness.modelLabel,
+					selected: withoutAuto.selectedModel?.identifier,
+				},
+				unavailable: {
+					modelId: unavailable.harness.modelId,
+					modelConfiguration: unavailable.harness.modelConfiguration,
+					hadUnavailableModel: unavailable.hadUnavailableModel,
+				},
+			}, {
+				withAuto: {
+					modelId: undefined,
+					selected: 'copilot/auto',
+				},
+				withoutAuto: {
+					modelId: 'claude/opus',
+					modelLabel: 'Claude Opus',
+					selected: 'claude/opus',
+				},
+				unavailable: {
+					modelId: 'claude/opus',
+					modelConfiguration: undefined,
+					hadUnavailableModel: true,
+				},
 			});
 		});
 
