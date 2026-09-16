@@ -55,7 +55,17 @@
 	min-height: 0;
 }
 
+.agent-diagnostics-panel:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
 .agent-diagnostics-panel[hidden] {
+	display: none;
+}
+
+.agent-diagnostics-agent-debug-panel > .chat-debug-logs > .chat-debug-breadcrumb {
 	display: none;
 }
 

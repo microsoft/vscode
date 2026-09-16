@@ -9,15 +9,24 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
+import { ChatDebugFilterState } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugFilters.js';
+import { ChatDebugLogsView } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugLogsView.js';
+import { IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
+import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
 
 export const AgentDiagnosticsFocusedContext = new RawContextKey<boolean>('agentDiagnosticsFocused', false, localize('agentDiagnosticsFocused', "Whether the Agents Diagnostics editor is focused"));
 
@@ -35,6 +44,9 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private selectedTab = DiagnosticsTab.SessionInsights;
 	private root: HTMLElement | undefined;
 	private _scopedContextKeyService: IContextKeyService | undefined;
+	private debugEmptyState: HTMLElement | undefined;
+	private debugLogsView: ChatDebugLogsView | undefined;
+	private currentChatResource: URI | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -46,6 +58,9 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -71,13 +86,22 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			localize('agentDiagnostics.sessionInsights', "Session Insights"),
 			localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.")
 		);
-		this.createPanel(
+		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
 			'agent-diagnostics-agent-debug',
 			localize('agentDiagnostics.agentDebug', "Agent Debug"),
 			localize('agentDiagnostics.agentDebugPlaceholder', "Focused-chat debug events will appear here.")
 		);
+		debugPanel.panel.classList.add('agent-diagnostics-agent-debug-panel');
+		this.debugEmptyState = debugPanel.emptyState;
+
+		const filterState = this._register(new ChatDebugFilterState());
+		this.debugLogsView = this._register(this.instantiationService.createInstance(ChatDebugLogsView, debugPanel.panel, filterState));
+		this._register(autorun(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			this.setDebugSession(activeSession?.activeChat.read(reader).resource);
+		}));
 
 		this._register(DOM.addDisposableListener(tabList, DOM.EventType.KEY_DOWN, event => this.handleTabKeyDown(event)));
 		this.selectTab(this.selectedTab, false);
@@ -93,7 +117,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.tabs.set(tab, button);
 	}
 
-	private createPanel(parent: HTMLElement, tab: DiagnosticsTab, id: string, title: string, placeholder: string): void {
+	private createPanel(parent: HTMLElement, tab: DiagnosticsTab, id: string, title: string, placeholder: string): { panel: HTMLElement; emptyState: HTMLElement } {
 		const panel = DOM.append(parent, DOM.$('.agent-diagnostics-panel'));
 		panel.id = id;
 		panel.setAttribute('role', 'tabpanel');
@@ -105,6 +129,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		const description = DOM.append(emptyState, DOM.$('p.agent-diagnostics-description'));
 		description.textContent = placeholder;
 		this.panels.set(tab, panel);
+		return { panel, emptyState };
 	}
 
 	private handleTabKeyDown(event: KeyboardEvent): void {
@@ -145,6 +170,43 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		if (focus) {
 			this.tabs.get(tab)?.focus();
 		}
+		this.updateDebugView();
+	}
+
+	private setDebugSession(chatResource: URI | undefined): void {
+		if (isEqual(this.currentChatResource, chatResource)) {
+			return;
+		}
+		if (this.currentChatResource) {
+			this.chatDebugService.endSession(this.currentChatResource);
+		}
+		this.currentChatResource = chatResource;
+		this.chatDebugService.activeSessionResource = chatResource;
+		if (chatResource) {
+			this.debugLogsView?.setSession(chatResource);
+			if (!this.chatDebugService.hasInvokedProviders(chatResource)) {
+				void this.chatDebugService.invokeProviders(chatResource);
+			}
+		}
+		this.updateDebugView();
+	}
+
+	private updateDebugView(): void {
+		const visible = this.selectedTab === DiagnosticsTab.AgentDebug && !!this.currentChatResource;
+		this.debugEmptyState?.toggleAttribute('hidden', !!this.currentChatResource);
+		if (visible) {
+			this.debugLogsView?.show();
+			this.layoutDebugView();
+		} else {
+			this.debugLogsView?.hide();
+		}
+	}
+
+	private layoutDebugView(): void {
+		const panel = this.panels.get(DiagnosticsTab.AgentDebug);
+		if (panel && !panel.hidden) {
+			this.debugLogsView?.layout(new Dimension(panel.clientWidth, panel.clientHeight));
+		}
 	}
 
 	getAccessibleContent(): string {
@@ -155,7 +217,9 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			].join('\n')
 			: [
 				localize('agentDiagnostics.accessible.agentDebug', "Agent Debug"),
-				localize('agentDiagnostics.agentDebugPlaceholder', "Focused-chat debug events will appear here."),
+				this.currentChatResource
+					? localize('agentDiagnostics.accessible.agentDebugEvents', "{0} debug events for {1}.", this.chatDebugService.getEvents(this.currentChatResource).length, this.currentChatResource.toString())
+					: localize('agentDiagnostics.agentDebugPlaceholder', "Focused-chat debug events will appear here."),
 			].join('\n');
 	}
 
@@ -163,5 +227,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.tabs.get(this.selectedTab)?.focus();
 	}
 
-	override layout(_dimension: Dimension): void { }
+	override layout(_dimension: Dimension): void {
+		this.layoutDebugView();
+	}
 }
