@@ -276,29 +276,35 @@ function createWidget(
 		hoverService?: IHoverService;
 		telemetryService?: ITelemetryService;
 	} = {},
-) {
+): ChatPromoWidgetContribution {
 	const configurationService = options.configurationService ?? new TestConfigurationService(
 		options.closedPromoNotification === undefined ? {} : {
 			[ChatConfiguration.ChatClosedPromoNotification]: options.closedPromoNotification,
 		},
 	);
-	return new ChatPromoWidgetContribution(
-		options.commandService ?? createMockCommandService().service,
-		options.hoverService ?? mockHoverService(),
-		options.layoutService ?? { mainContainer: document.body, onDidLayoutMainContainer: Event.None } as ILayoutService,
-		options.telemetryService ?? NullTelemetryService,
-		lmService,
-		storageService,
-		configurationService,
-		options.viewsService ?? {
-			_serviceBrand: undefined,
-			onDidChangeViewVisibility: Event.None,
-			isViewVisible: () => false,
-		} as unknown as IViewsService,
-		options.assignmentService ?? new NullWorkbenchAssignmentService(),
-		options.logService ?? new NullLogService(),
-		options.widgetService ?? createMockWidgetService().service,
-	);
+	const instantiation = new TestInstantiationService();
+	instantiation.stub(ICommandService, options.commandService ?? createMockCommandService().service);
+	instantiation.stub(IHoverService, options.hoverService ?? mockHoverService());
+	instantiation.stub(ILayoutService, options.layoutService ?? { mainContainer: document.body, onDidLayoutMainContainer: Event.None } as ILayoutService);
+	instantiation.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
+	instantiation.stub(ILanguageModelsService, lmService);
+	instantiation.stub(IStorageService, storageService);
+	instantiation.stub(IChatWidgetService, options.widgetService ?? createMockWidgetService().service);
+	instantiation.stub(IConfigurationService, configurationService);
+	instantiation.stub(IViewsService, options.viewsService ?? {
+		_serviceBrand: undefined,
+		onDidChangeViewVisibility: Event.None,
+		isViewVisible: () => false,
+	} as unknown as IViewsService);
+	instantiation.stub(IWorkbenchAssignmentService, options.assignmentService ?? new NullWorkbenchAssignmentService());
+	instantiation.stub(ILogService, options.logService ?? new NullLogService());
+	const widget = instantiation.createInstance(ChatPromoWidgetContribution);
+	const originalDispose = widget.dispose.bind(widget);
+	widget.dispose = () => {
+		originalDispose();
+		instantiation.dispose();
+	};
+	return widget;
 }
 
 function stubPromoWidgetServices(instantiation: TestInstantiationService, container: HTMLElement, store: Pick<DisposableStore, 'add'>, hoverService: IHoverService = mockHoverService(), models: { identifier: string; metadata: Partial<ILanguageModelChatMetadata> }[] = []): void {

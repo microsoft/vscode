@@ -15,30 +15,28 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
-import { ChatClosedPromoNotification, ChatConfiguration } from '../common/constants.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { ChatClosedPromoNotification } from '../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from './chat.js';
-import { DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY } from './chatPromoNotification.js';
-import { addDismissedNotificationId, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
+import { IChatWidget, IChatWidgetService } from './chat.js';
+import { ChatClosedPromoEligibility, ChatClosedPromoTreatmentResolver, CHAT_CLOSED_PROMO_TREATMENT } from './chatClosedPromoEligibility.js';
+import { DISMISSED_PROMOS_STORAGE_KEY } from './chatPromoNotification.js';
+import { addDismissedNotificationId } from './widget/input/chatInputNotificationService.js';
 import { getModelProviderIcon } from './widget/input/modelPicker/modelProviderIcons.js';
 import './media/chatPromoWidget.css';
 
-export const CHAT_CLOSED_PROMO_TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
+export { CHAT_CLOSED_PROMO_TREATMENT };
 
 export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
@@ -84,13 +82,12 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 
 	private pendingPayload: IChatPromoCardInput | undefined;
 	private pipAnchor: HTMLElement | undefined;
-	private _popupTreatment: boolean | undefined;
-	private _popupTreatmentPending = false;
-	private _popupTreatmentGeneration = 0;
 	private readonly iconHoverBlock = this._register(new MutableDisposable());
 	private readonly pipRetry = this._register(new MutableDisposable());
 	private readonly pipObserver = this._register(new MutableDisposable());
 	private readonly pipInput = this._register(new MutableDisposable());
+	private readonly eligibility: ChatClosedPromoEligibility;
+	private readonly treatmentResolver: ChatClosedPromoTreatmentResolver;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -99,13 +96,13 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
-		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.eligibility = this._register(instantiationService.createInstance(ChatClosedPromoEligibility));
+		this.treatmentResolver = this._register(instantiationService.createInstance(ChatClosedPromoTreatmentResolver));
 
 		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier?: string) => {
 			await this.openChatAndSwitchModel(typeof modelIdentifier === 'string' ? modelIdentifier : undefined);
@@ -118,33 +115,34 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		}));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'click', e => this.onWorkbenchClick(e), true));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'keydown', e => this.onWorkbenchKeyDown(e), true));
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.syncPip()));
 		this._register(this.layoutService.onDidLayoutMainContainer(() => this.syncPip()));
-		this._register(this.assignmentService.onDidRefetchAssignments(() => {
-			this._popupTreatmentGeneration++;
-			this._popupTreatment = undefined;
-			this._popupTreatmentPending = false;
-			this.syncPip();
-		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
-				this.syncPip();
-			}
-		}));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_PROMOS_STORAGE_KEY, this._store)(() => this.syncPip()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, SEEN_PROMOS_STORAGE_KEY, this._store)(() => this.syncPip()));
-		this._register(this.viewsService.onDidChangeViewVisibility(e => {
-			if (e.id === ChatViewId) {
-				this.syncPip();
-			}
-		}));
-		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this.syncPip()));
-		this._register(this.chatWidgetService.onDidChangeFocusedWidget(() => this.syncPip()));
+		this._register(this.eligibility.onDidChange(() => this.syncPip()));
+		this._register(this.treatmentResolver.onDidChange(() => this.syncPip()));
 		this.syncPip();
 	}
 
+	/**
+	 * Arms a closed-Chat treatment when an opportunity exists. Treatment is only
+	 * resolved after eligibility so ExP is not queried for ineligible surfaces.
+	 */
 	private syncPip(): void {
-		const payload = this.eligiblePipPayload();
+		const opportunity = this.eligibility.getOpportunity();
+		if (!opportunity) {
+			if (this.pendingPayload) {
+				this.disarmChatPromo();
+			}
+			return;
+		}
+
+		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
+		const treatment = this.treatmentResolver.getTreatment(!!anchor?.getClientRects().length);
+
+		// Branch on treatment as additional closed-Chat surfaces are added.
+		let payload: IChatPromoCardInput | undefined;
+		if (treatment === ChatClosedPromoNotification.CopilotIconPopup) {
+			payload = this.promoCardPayload(opportunity.model);
+		}
+
 		if (payload) {
 			if (!equals(this.pendingPayload, payload)) {
 				this.armChatPromo(payload);
@@ -154,76 +152,6 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		if (this.pendingPayload) {
 			this.disarmChatPromo();
 		}
-	}
-
-	private eligiblePipPayload(): IChatPromoCardInput | undefined {
-		if (this.isLocalChatVisible()) {
-			return undefined;
-		}
-		const dismissed = readDismissedNotificationIds(this.storageService, DISMISSED_PROMOS_STORAGE_KEY);
-		const seen = readDismissedNotificationIds(this.storageService, SEEN_PROMOS_STORAGE_KEY);
-		let candidate: ILanguageModelChatMetadataAndIdentifier | undefined;
-		for (const id of this.languageModelsService.getLanguageModelIds()) {
-			const meta = this.languageModelsService.lookupLanguageModel(id);
-			if (!meta || !ILanguageModelChatMetadata.hasPromoBanner(meta) || !ILanguageModelChatMetadata.hasPromoDiscount(meta) || dismissed.has(meta.promo.id) || seen.has(meta.promo.id) || !this.isGitHubCopilotPromo({ identifier: id, metadata: meta })) {
-				continue;
-			}
-			candidate = { identifier: id, metadata: meta };
-			break;
-		}
-		if (!candidate || !this.isPopupEnabled()) {
-			return undefined;
-		}
-		return this.promoCardPayload(candidate);
-	}
-
-	private isLocalChatVisible(): boolean {
-		if (!this.viewsService.isViewVisible(ChatViewId)) {
-			return false;
-		}
-		const resource = this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-		return !resource || getChatSessionType(resource) === localChatSessionType;
-	}
-
-	private isPopupEnabled(): boolean {
-		const config = this.configurationService.inspect<ChatClosedPromoNotification>(ChatConfiguration.ChatClosedPromoNotification);
-		if (isConfigured(config) || config.policyValue !== undefined || config.memoryValue !== undefined) {
-			return config.value === ChatClosedPromoNotification.CopilotIconPopup;
-		}
-		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
-		if (!anchor?.getClientRects().length) {
-			return false;
-		}
-		if (this._popupTreatment === undefined && !this._popupTreatmentPending) {
-			void this.resolvePopupTreatment();
-		}
-		return this._popupTreatment === true;
-	}
-
-	private async resolvePopupTreatment(): Promise<void> {
-		const generation = this._popupTreatmentGeneration;
-		this._popupTreatmentPending = true;
-		let enabled = false;
-		try {
-			enabled = await this.assignmentService.getTreatment<ChatClosedPromoNotification>(CHAT_CLOSED_PROMO_TREATMENT) === ChatClosedPromoNotification.CopilotIconPopup;
-		} catch (error) {
-			this.logService.warn('[ChatPromo] Failed to resolve promo treatment', error);
-		}
-		if (this._store.isDisposed || generation !== this._popupTreatmentGeneration) {
-			return;
-		}
-		this._popupTreatmentPending = false;
-		this._popupTreatment = enabled;
-		this.syncPip();
-	}
-
-	private isGitHubCopilotPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		const harness = model.metadata.targetChatSessionType ?? localChatSessionType;
-		if (harness !== localChatSessionType) {
-			return false;
-		}
-		const vendor = model.metadata.vendor;
-		return !vendor || vendor === COPILOT_VENDOR_ID;
 	}
 
 	private promoCardPayload(model: ILanguageModelChatMetadataAndIdentifier): IChatPromoCardInput | undefined {
