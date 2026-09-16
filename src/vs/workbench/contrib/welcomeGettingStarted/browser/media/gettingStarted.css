@@ -1117,6 +1117,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link {
 	border: inherit;
+	user-select: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner {
