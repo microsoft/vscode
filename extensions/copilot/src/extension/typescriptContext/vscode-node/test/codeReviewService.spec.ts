@@ -25,6 +25,7 @@ vi.mock('vscode', () => ({
 	Uri: { file: (fsPath: string) => ({ fsPath }) },
 }));
 
+import { TypeScriptChangeClassification } from '../../common/serverProtocol';
 import { TS6CodeReviewProvider } from '../ts6/codeReviewService';
 
 suite('TypeScript 6 code review service', () => {
@@ -85,7 +86,11 @@ suite('TypeScript 6 code review service', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 2, end: 5 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [{
+						classification: TypeScriptChangeClassification.Statement,
+						ranges: [{ start: 3, end: 4 }],
+						tags: [],
+					}],
 					changeType: 'changed',
 					range: { start: 3, end: 4 },
 				}],

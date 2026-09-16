@@ -5,7 +5,7 @@
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 
-import { ICodeReviewService, type TypeScriptChangeClassificationInput } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { ICodeReviewService, type TypeScriptChangeBucket, type TypeScriptChangeClassificationInput } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
@@ -60,7 +60,7 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 			&& Number.isInteger(range.end) && range.end > range.start);
 	}
 
-	private serializeBucket<T extends { readonly path: readonly string[]; readonly pathKinds: readonly string[]; readonly entityLink?: vscode.Uri; readonly changes: readonly { readonly classifications: readonly string[] }[] }>(bucket: T): object {
+	private serializeBucket(bucket: TypeScriptChangeBucket): object {
 		return {
 			...bucket,
 			path: bucket.path.slice(),
@@ -68,7 +68,11 @@ export class TypeScriptChangeClassificationTool implements vscode.LanguageModelT
 			entityLink: bucket.entityLink?.toString(true),
 			changes: bucket.changes.map(change => ({
 				...change,
-				classifications: change.classifications.slice(),
+				classifications: change.classifications.map(classification => ({
+					...classification,
+					ranges: classification.ranges.map(range => ({ ...range })),
+					tags: classification.tags.slice(),
+				})),
 			})),
 		};
 	}

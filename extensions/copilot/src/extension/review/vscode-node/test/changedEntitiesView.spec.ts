@@ -47,8 +47,9 @@ vi.mock('vscode', async importOriginal => {
 
 import type { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import type { API, Change, Repository } from '../../../../platform/git/vscode/git';
-import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptChangeExplanation, TypeScriptChangeExplanationInput, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import { TypeScriptChangeClassification, type ICodeReviewService, type TypeScriptChangeClassificationCoverage, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeTag, type TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import type { ILogService } from '../../../../platform/log/common/logService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
 import { ChangedEntitiesTreeDataProvider } from '../changedEntitiesView';
 
@@ -114,8 +115,8 @@ suite('Changed entities view', () => {
 					range: { start: 1, end: 5 },
 					entityLink,
 					changes: [
-						{ changeType: 'changed', range: { start: 1, end: 2 }, classifications: ['structural'] },
-						{ changeType: 'added', range: { start: 3, end: 4 }, classifications: ['code'] },
+						{ changeType: 'changed', range: { start: 1, end: 2 }, classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })] },
+						{ changeType: 'added', range: { start: 3, end: 4 }, classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 })] },
 					],
 				},
 				{
@@ -125,7 +126,7 @@ suite('Changed entities view', () => {
 					range: { start: 5, end: 8 },
 					entityLink: closeEntityLink,
 					changes: [
-						{ changeType: 'added', range: { start: 5, end: 8 }, classifications: ['structural'] },
+						{ changeType: 'added', range: { start: 5, end: 8 }, classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 5, end: 8 })] },
 					],
 				},
 			],
@@ -137,7 +138,7 @@ suite('Changed entities view', () => {
 					range: { start: 0, end: 1 },
 					entityLink: namespaceEntityLink,
 					changes: [
-						{ changeType: 'deleted', range: { start: 0, end: 1 }, classifications: ['code'] },
+						{ changeType: 'deleted', range: { start: 0, end: 1 }, classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 0, end: 1 }, ['test'])] },
 					],
 				},
 				{
@@ -147,7 +148,7 @@ suite('Changed entities view', () => {
 					range: { start: 8, end: 10 },
 					entityLink: readEntityLink,
 					changes: [
-						{ changeType: 'deleted', range: { start: 8, end: 10 }, classifications: ['code'] },
+						{ changeType: 'deleted', range: { start: 8, end: 10 }, classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 8, end: 10 })] },
 					],
 				},
 			],
@@ -196,13 +197,13 @@ suite('Changed entities view', () => {
 					},
 				],
 			}],
-		]), [
-			'Removed the decoder registration logic.',
-			'Added an optional options parameter.',
-			'Added logging when listening starts.',
-			'Added a close method.',
-			'Removed the read logic.',
-		]);
+		]), new Map([
+			['change-0', 'Removed the decoder registration logic.'],
+			['change-1', 'Added an optional options parameter.'],
+			['change-2', 'Added logging when listening starts.'],
+			['change-3', 'Added a close method.'],
+			['change-4', 'Removed the read logic.'],
+		]));
 		const logService = { error: vi.fn() } as unknown as ILogService;
 		const provider = new ChangedEntitiesTreeDataProvider(gitExtensionService, codeReviewService, logService);
 		const refreshEvents: unknown[] = [];
@@ -214,6 +215,16 @@ suite('Changed entities view', () => {
 			const entities = await provider.getChildren(files[0]);
 			const namespaceMembers = await provider.getChildren(entities[0]);
 			const members = await provider.getChildren(entities[1]);
+			const initialEntityState = [...namespaceMembers, ...members].map(member => ({
+				label: member.treeItem.label,
+				tooltip: member.treeItem.tooltip,
+				accessibilityLabel: member.treeItem.accessibilityInformation?.label,
+			}));
+			const explanationInputsBeforeHover = [...codeReviewService.explanationInputs];
+			await provider.resolveTreeItem(namespaceMembers[0].treeItem, namespaceMembers[0], CancellationToken.None);
+			for (const member of members) {
+				await provider.resolveTreeItem(member.treeItem, member, CancellationToken.None);
+			}
 
 			assert.deepStrictEqual({
 				fileCount: files.length,
@@ -225,6 +236,8 @@ suite('Changed entities view', () => {
 				fileRefreshEvents: refreshEvents.map(element => element === files[0]),
 				inputs: codeReviewService.inputs,
 				metricInputs: codeReviewService.metricInputs,
+				explanationInputsBeforeHover,
+				initialEntityState,
 				explanationInputs: codeReviewService.explanationInputs.map(input => ({
 					filePath: input.filePath,
 					changes: input.changes.map(change => ({
@@ -284,51 +297,85 @@ suite('Changed entities view', () => {
 					{ filePath: uri.fsPath, content: modified },
 					{ filePath: uri.fsPath, content: original },
 				],
-				explanationInputs: [{
-					filePath: uri.fsPath,
-					changes: [
-						{
+				explanationInputsBeforeHover: [],
+				initialEntityState: [
+					{
+						label: 'fromOptions',
+						tooltip: undefined,
+						accessibilityLabel: 'ReaderOptions.fromOptions, function, Statement deletion (Test), cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
+					},
+					{
+						label: 'listen',
+						tooltip: undefined,
+						accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n). Open diff',
+					},
+					{
+						label: 'close',
+						tooltip: undefined,
+						accessibilityLabel: 'Reader.close, method, Declaration addition. Open diff',
+					},
+					{
+						label: 'read',
+						tooltip: undefined,
+						accessibilityLabel: 'Reader.read, method, Statement deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1). Open diff',
+					},
+				],
+				explanationInputs: [
+					{
+						filePath: uri.fsPath,
+						changes: [{
 							id: 'change-0',
 							path: ['ReaderOptions', 'fromOptions'],
 							changeType: 'deleted',
-							classifications: ['code'],
+							classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 0, end: 1 }, ['test'])],
 							original: 'class Reader {',
 							modified: undefined,
-						},
-						{
+						}],
+					},
+					{
+						filePath: uri.fsPath,
+						changes: [
+							{
 							id: 'change-1',
 							path: ['Reader', 'listen'],
 							changeType: 'changed',
-							classifications: ['structural'],
+							classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })],
 							original: '\tlisten(): void {',
 							modified: '\tlisten(options?: object): void {',
-						},
-						{
+							},
+							{
 							id: 'change-2',
 							path: ['Reader', 'listen'],
 							changeType: 'added',
-							classifications: ['code'],
+							classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 })],
 							original: undefined,
 							modified: '\t\tlog();',
-						},
-						{
+							},
+						],
+					},
+					{
+						filePath: uri.fsPath,
+						changes: [{
 							id: 'change-3',
 							path: ['Reader', 'close'],
 							changeType: 'added',
-							classifications: ['structural'],
+							classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 5, end: 8 })],
 							original: undefined,
 							modified: '}',
-						},
-						{
+						}],
+					},
+					{
+						filePath: uri.fsPath,
+						changes: [{
 							id: 'change-4',
 							path: ['Reader', 'read'],
 							changeType: 'deleted',
-							classifications: ['code'],
+							classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 8, end: 10 })],
 							original: '',
 							modified: undefined,
-						},
-					],
-				}],
+						}],
+					},
+				],
 				entityGroups: [
 					{
 						label: 'ReaderOptions',
@@ -352,17 +399,17 @@ suite('Changed entities view', () => {
 				namespaceMembers: [{
 					label: 'fromOptions',
 					icon: 'symbol-function',
-					description: 'Code deletion — Cognitive -4, Cyclomatic -5, Runtime O(n log n)',
-					tooltip: 'ReaderOptions.fromOptions — Code deletion — Cognitive -4, Cyclomatic -5, Runtime O(n log n)\n\nCode deletion: Removed the decoder registration logic.',
-					accessibilityLabel: 'ReaderOptions.fromOptions, function, Code deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n), explanation: Code deletion: Removed the decoder registration logic. Open diff',
+					description: 'Statement deletion (Test) — Cognitive -4, Cyclomatic -5, Runtime O(n log n)',
+					tooltip: 'ReaderOptions.fromOptions — Statement deletion (Test) — Cognitive -4, Cyclomatic -5, Runtime O(n log n)\n\nRemoved the decoder registration logic.',
+					accessibilityLabel: 'ReaderOptions.fromOptions, function, Statement deletion (Test), cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
 				}],
 				members: [
 					{
 						label: 'listen',
 						icon: 'symbol-method',
-						description: 'Structural change, Code addition — Cognitive +2, Cyclomatic +3, Runtime O(n)',
-						tooltip: 'Reader.listen — Structural change, Code addition — Cognitive +2, Cyclomatic +3, Runtime O(n)\n\nStructural change: Added an optional options parameter.\n\nCode addition: Added logging when listening starts.',
-						accessibilityLabel: 'Reader.listen, method, Structural change, Code addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n), explanation: Structural change: Added an optional options parameter; Code addition: Added logging when listening starts. Open diff',
+						description: 'Signature change, Statement addition — Cognitive +2, Cyclomatic +3, Runtime O(n)',
+						tooltip: 'Reader.listen — Signature change, Statement addition — Cognitive +2, Cyclomatic +3, Runtime O(n)\n\nAdded an optional options parameter.\n\nAdded logging when listening starts.',
+						accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n). Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -372,9 +419,9 @@ suite('Changed entities view', () => {
 					{
 						label: 'close',
 						icon: 'symbol-method',
-						description: 'Structural addition',
-						tooltip: 'Reader.close — Structural addition\n\nStructural addition: Added a close method.',
-						accessibilityLabel: 'Reader.close, method, Structural addition, explanation: Structural addition: Added a close method. Open diff',
+						description: 'Declaration addition',
+						tooltip: 'Reader.close — Declaration addition\n\nAdded a close method.',
+						accessibilityLabel: 'Reader.close, method, Declaration addition. Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -384,9 +431,9 @@ suite('Changed entities view', () => {
 					{
 						label: 'read',
 						icon: 'symbol-method',
-						description: 'Code deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)',
-						tooltip: 'Reader.read — Code deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)\n\nCode deletion: Removed the read logic.',
-						accessibilityLabel: 'Reader.read, method, Code deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1), explanation: Code deletion: Removed the read logic. Open diff',
+						description: 'Statement deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)',
+						tooltip: 'Reader.read — Statement deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)\n\nRemoved the read logic.',
+						accessibilityLabel: 'Reader.read, method, Statement deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1). Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -411,7 +458,7 @@ class TestCodeReviewService implements ICodeReviewService {
 	constructor(
 		private readonly result: TypeScriptChangeClassificationResult,
 		private readonly metricsByContent: ReadonlyMap<string, TypeScriptMetricsResult> = new Map(),
-		private readonly explanations: readonly string[] = [],
+		private readonly explanations: ReadonlyMap<string, string> = new Map(),
 	) { }
 
 	async computeMetrics(filePath: string, content?: string): Promise<TypeScriptMetricsResult | undefined> {
@@ -421,10 +468,11 @@ class TestCodeReviewService implements ICodeReviewService {
 
 	async explainChanges(input: TypeScriptChangeExplanationInput): Promise<readonly TypeScriptChangeExplanation[]> {
 		this.explanationInputs.push(input);
-		return input.changes.map((change, index) => ({
-			id: change.id,
-			explanation: this.explanations[index],
-		}));
+		return input.changes.map(change => {
+			const explanation = this.explanations.get(change.id);
+			assert.ok(explanation !== undefined);
+			return { id: change.id, explanation };
+		});
 	}
 
 	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult> {
@@ -435,4 +483,12 @@ class TestCodeReviewService implements ICodeReviewService {
 	async openDiff(): Promise<void> { }
 
 	dispose(): void { }
+}
+
+function coverage(classification: TypeScriptChangeClassification, range: { readonly start: number; readonly end: number }, tags: readonly TypeScriptChangeTag[] = []): TypeScriptChangeClassificationCoverage {
+	return {
+		classification,
+		ranges: [range],
+		tags,
+	};
 }

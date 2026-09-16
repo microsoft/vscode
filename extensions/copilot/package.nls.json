@@ -291,7 +291,7 @@
 	"copilot.tools.applyPatch.description": "Edit text files in the workspace",
 	"copilot.tools.findTestFiles.description": "For a source code file, find the file that contains the tests. For a test file, find the file that contains the code under test",
 	"copilot.tools.changes.description": "Get diffs of changed files",
-	"copilot.tools.typeScriptChangeClassification.description": "Classify TypeScript or JavaScript changes as structural or code changes",
+	"copilot.tools.typeScriptChangeClassification.description": "Classify TypeScript or JavaScript declaration, signature, statement, import, and other changes",
 	"copilot.tools.typeScriptMetrics.description": "Compute cognitive, cyclomatic, and estimated runtime complexity for a TypeScript or JavaScript file",
 	"copilot.tools.newJupyterNotebook.description": "Create a new Jupyter Notebook",
 	"copilot.tools.editNotebook.description": "Edit a notebook file in the workspace",

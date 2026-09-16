@@ -49,8 +49,10 @@ vi.mock('vscode', async importOriginal => {
 });
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { TypeScriptChangeClassification } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { TypeScriptChangeClassification as ProtocolTypeScriptChangeClassification } from '../../common/serverProtocol';
 import { CodeReviewDiffUriPath, CodeReviewService } from '../codeReviewService';
 
 suite('Code review service', () => {
@@ -64,7 +66,11 @@ suite('Code review service', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 20, end: 30 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [{
+						classification: ProtocolTypeScriptChangeClassification.Statement,
+						ranges: [{ start: 24, end: 25 }],
+						tags: [],
+					}],
 					changeType: 'changed',
 					range: { start: 24, end: 25 },
 				}],
@@ -75,7 +81,11 @@ suite('Code review service', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 18, end: 28 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [{
+						classification: ProtocolTypeScriptChangeClassification.Signature,
+						ranges: [{ start: 19, end: 20 }],
+						tags: [],
+					}],
 					changeType: 'deleted',
 					range: { start: 19, end: 20 },
 				}],
@@ -183,7 +193,11 @@ suite('Code review service', () => {
 					kind: 'method',
 					path: ['Reader', 'read'],
 					changeType: 'changed',
-					classifications: ['code'],
+					classifications: [{
+						classification: TypeScriptChangeClassification.Statement,
+						ranges: [{ start: 1, end: 2 }],
+						tags: [],
+					}],
 					original: 'return 1;',
 					modified: 'return 2;',
 				}],
@@ -212,7 +226,11 @@ suite('Code review service', () => {
 						kind: 'method',
 						path: ['Reader', 'read'],
 						changeType: 'changed',
-						classifications: ['code'],
+						classifications: [{
+							classification: TypeScriptChangeClassification.Statement,
+							ranges: [{ start: 1, end: 2 }],
+							tags: [],
+						}],
 						original: 'return 1;',
 						modified: 'return 2;',
 					}],

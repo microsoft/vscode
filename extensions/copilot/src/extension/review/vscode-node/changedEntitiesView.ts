@@ -9,9 +9,8 @@ import * as vscode from 'vscode';
 
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import type { Change, Repository } from '../../../platform/git/vscode/git';
-import { ICodeReviewService, type TypeScriptChangeBucket, type TypeScriptChangeToExplain, type TypeScriptClassifiedModifiedLines, type TypeScriptClassifiedOriginalLines, type TypeScriptMetrics, type TypeScriptMetricsResult } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { ICodeReviewService, TypeScriptChangeClassification, type TypeScriptChangeBucket, type TypeScriptChangeToExplain, type TypeScriptClassifiedModifiedLines, type TypeScriptClassifiedOriginalLines, type TypeScriptMetrics, type TypeScriptMetricsResult } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
 import { computeLineChangeRanges } from '../node/lineChangeRanges';
@@ -70,6 +69,21 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 
 	getTreeItem(element: ChangedEntitiesTreeElement): vscode.TreeItem {
 		return element.treeItem;
+	}
+
+	async resolveTreeItem(item: vscode.TreeItem, element: ChangedEntitiesTreeElement, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
+		if (!(element instanceof ChangedEntityItem) || !element.canExplain) {
+			return item;
+		}
+		try {
+			item.tooltip = await element.resolveTooltip(this.codeReviewService, token);
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				this.logService.error(error instanceof Error ? error : String(error), 'Failed to generate TypeScript change explanations');
+			}
+			item.tooltip = element.fallbackTooltip;
+		}
+		return item;
 	}
 
 	async getChildren(element?: ChangedEntitiesTreeElement): Promise<ChangedEntitiesTreeElement[]> {
@@ -188,9 +202,9 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			if (entities.length === 0) {
 				return [MessageItem.empty()];
 			}
-			await this.addExplanations(file.uri.fsPath, entities, original, modified, ranges.changed, ranges.originalChanged);
+			this.prepareExplanations(entities, original, modified, ranges.changed, ranges.originalChanged);
 
-			const entityItems = createEntityTreeItems(file.id, entities);
+			const entityItems = createEntityTreeItems(file.id, file.uri.fsPath, entities);
 			const fileComplexity = rollUpComplexity(undefined, entityItems);
 			if (fileComplexity !== undefined) {
 				file.setComplexityRollup(fileComplexity);
@@ -234,7 +248,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 					entityLink: bucket.entityLink,
 					changes: [...bucket.changes],
 					metrics: undefined,
-					explanations: [],
+					explanationRequests: [],
 				});
 			} else {
 				existing.entityLink ??= bucket.entityLink;
@@ -255,49 +269,37 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 		return Array.from(result.values()).sort((left, right) => left.rangeStart - right.rangeStart);
 	}
 
-	private async addExplanations(
-		filePath: string,
+	private prepareExplanations(
 		entities: readonly EntityViewModel[],
 		original: string,
 		modified: string,
 		changed: readonly { start: number; end: number }[],
 		originalChanged: readonly { start: number; end: number }[],
-	): Promise<void> {
+	): void {
 		const originalChangedByModifiedRange = new Map(changed.map((range, index) => [getRangeKey(range), originalChanged[index]]));
-		const targets = new Map<string, { readonly entity: EntityViewModel; readonly change: ClassifiedChange }>();
-		const changes: TypeScriptChangeToExplain[] = [];
+		let changeIndex = 0;
 		for (const entity of entities) {
 			for (const change of entity.changes) {
-				const id = `change-${changes.length}`;
+				const id = `change-${changeIndex++}`;
 				const originalRange = change.changeType === 'deleted'
 					? change.range
 					: change.changeType === 'changed'
 						? originalChangedByModifiedRange.get(getRangeKey(change.range))
 						: undefined;
 				const modifiedRange = change.changeType === 'deleted' ? undefined : change.range;
-				changes.push({
-					id,
-					kind: entity.kind,
-					path: entity.path,
-					changeType: change.changeType,
-					classifications: change.classifications,
-					original: originalRange === undefined ? undefined : getLines(original, originalRange),
-					modified: modifiedRange === undefined ? undefined : getLines(modified, modifiedRange),
+				entity.explanationRequests.push({
+					change,
+					request: {
+						id,
+						kind: entity.kind,
+						path: entity.path,
+						changeType: change.changeType,
+						classifications: change.classifications,
+						original: originalRange === undefined ? undefined : getLines(original, originalRange),
+						modified: modifiedRange === undefined ? undefined : getLines(modified, modifiedRange),
+					},
 				});
-				targets.set(id, { entity, change });
 			}
-		}
-
-		try {
-			const explanations = await this.codeReviewService.explainChanges({ filePath, changes }, CancellationToken.None);
-			for (const explanation of explanations ?? []) {
-				const target = targets.get(explanation.id);
-				if (target !== undefined) {
-					target.entity.explanations.push({ change: target.change, explanation: explanation.explanation });
-				}
-			}
-		} catch (error) {
-			this.logService.error(error instanceof Error ? error : String(error), 'Failed to generate TypeScript change explanations');
 		}
 	}
 }
@@ -364,7 +366,7 @@ interface EntityViewModel {
 	entityLink: vscode.Uri | undefined;
 	readonly changes: ClassifiedChange[];
 	metrics: EntityChangeMetrics | undefined;
-	readonly explanations: EntityChangeExplanation[];
+	readonly explanationRequests: EntityExplanationRequest[];
 }
 
 interface MutableEntityTreeNode {
@@ -391,16 +393,28 @@ interface EntityChangeExplanation {
 	readonly explanation: string;
 }
 
+interface EntityExplanationRequest {
+	readonly change: ClassifiedChange;
+	readonly request: TypeScriptChangeToExplain;
+}
+
 class ChangedEntityItem {
 	readonly treeItem: vscode.TreeItem;
 
 	readonly children: readonly ChangedEntityItem[];
 	readonly complexityRollup: ComplexityDelta | undefined;
+	readonly fallbackTooltip: string;
+	private readonly explanationRequests: readonly EntityExplanationRequest[];
+	private readonly filePath: string;
+	private readonly tooltipLabel: string;
+	private readonly tooltipDescription: string | undefined;
 
-	constructor(fileId: string, node: MutableEntityTreeNode) {
+	constructor(fileId: string, filePath: string, node: MutableEntityTreeNode) {
+		this.filePath = filePath;
+		this.explanationRequests = node.entity?.explanationRequests ?? [];
 		this.children = Array.from(node.children.values())
 			.sort(compareEntityTreeNodes)
-			.map(child => new ChangedEntityItem(fileId, child));
+			.map(child => new ChangedEntityItem(fileId, filePath, child));
 		this.complexityRollup = rollUpComplexity(node.entity?.metrics, this.children);
 		this.treeItem = new vscode.TreeItem(
 			node.label,
@@ -410,6 +424,7 @@ class ChangedEntityItem {
 		this.treeItem.iconPath = new vscode.ThemeIcon(getEntityIcon(node.kind));
 
 		const fullLabel = node.path.length === 0 ? node.label : node.path.join('.');
+		this.tooltipLabel = fullLabel;
 		const kindLabel = getEntityKindLabel(node.kind);
 		const metricsDescription = this.complexityRollup === undefined
 			? undefined
@@ -420,6 +435,8 @@ class ChangedEntityItem {
 		if (node.entity === undefined) {
 			this.treeItem.description = metricsDescription;
 			this.treeItem.tooltip = metricsDescription === undefined ? fullLabel : l10n.t`${fullLabel} — ${metricsDescription}`;
+			this.fallbackTooltip = this.treeItem.tooltip;
+			this.tooltipDescription = undefined;
 			this.treeItem.contextValue = 'copilotChangedEntityGroup';
 			this.treeItem.accessibilityInformation = {
 				label: accessibleMetricsDescription === undefined
@@ -437,13 +454,13 @@ class ChangedEntityItem {
 			? changesDescription
 			: l10n.t`${changesDescription}, ${accessibleMetricsDescription}`;
 		this.treeItem.description = description;
-		this.treeItem.tooltip = formatEntityTooltip(fullLabel, description, node.entity.explanations);
-		const accessibleExplanations = formatAccessibleExplanations(node.entity.explanations);
+		this.fallbackTooltip = formatEntityTooltip(fullLabel, description, []);
+		this.tooltipDescription = description;
 		this.treeItem.contextValue = 'copilotChangedEntity';
 		this.treeItem.accessibilityInformation = {
 			label: node.entity.entityLink === undefined
-				? l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}${accessibleExplanations}`
-				: l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}${accessibleExplanations}. Open diff`,
+				? l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}`
+				: l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}. Open diff`,
 		};
 		if (node.entity.entityLink !== undefined) {
 			this.treeItem.command = {
@@ -453,9 +470,36 @@ class ChangedEntityItem {
 			};
 		}
 	}
+
+	get canExplain(): boolean {
+		return this.explanationRequests.length > 0;
+	}
+
+	async resolveTooltip(codeReviewService: ICodeReviewService, token: vscode.CancellationToken): Promise<string> {
+		const explanations = await codeReviewService.explainChanges({
+			filePath: this.filePath,
+			changes: this.explanationRequests.map(request => request.request),
+		}, token);
+		if (explanations === undefined) {
+			return this.fallbackTooltip;
+		}
+		if (this.tooltipDescription === undefined) {
+			return this.fallbackTooltip;
+		}
+
+		const explanationsById = new Map(explanations.map(explanation => [explanation.id, explanation.explanation]));
+		return formatEntityTooltip(
+			this.tooltipLabel,
+			this.tooltipDescription,
+			this.explanationRequests.flatMap(request => {
+				const explanation = explanationsById.get(request.request.id);
+				return explanation === undefined ? [] : [{ change: request.change, explanation }];
+			}),
+		);
+	}
 }
 
-function createEntityTreeItems(fileId: string, entities: readonly EntityViewModel[]): ChangedEntityItem[] {
+function createEntityTreeItems(fileId: string, filePath: string, entities: readonly EntityViewModel[]): ChangedEntityItem[] {
 	const roots = new Map<string, MutableEntityTreeNode>();
 	for (const entity of entities) {
 		if (entity.path.length === 0) {
@@ -499,7 +543,7 @@ function createEntityTreeItems(fileId: string, entities: readonly EntityViewMode
 
 	return Array.from(roots.values())
 		.sort(compareEntityTreeNodes)
-		.map(root => new ChangedEntityItem(fileId, root));
+		.map(root => new ChangedEntityItem(fileId, filePath, root));
 }
 
 function compareEntityTreeNodes(left: MutableEntityTreeNode, right: MutableEntityTreeNode): number {
@@ -534,7 +578,7 @@ function affectsCode(bucket: TypeScriptChangeBucket): boolean {
 }
 
 function changesAffectCode(changes: readonly ClassifiedChange[]): boolean {
-	return changes.some(change => change.classifications.includes('code'));
+	return changes.some(change => change.classifications.some(classification => classification.classification === TypeScriptChangeClassification.Statement));
 }
 
 function computeChangeMetrics(modified: TypeScriptMetrics | undefined, original: TypeScriptMetrics | undefined): EntityChangeMetrics | undefined {
@@ -597,19 +641,8 @@ function formatEntityTooltip(fullLabel: string, description: string, explanation
 	if (explanations.length === 0) {
 		return l10n.t`${fullLabel} — ${description}`;
 	}
-	const explanationLines = explanations.map(explanation =>
-		l10n.t`${formatChanges([explanation.change])}: ${explanation.explanation}`);
+	const explanationLines = explanations.map(explanation => explanation.explanation);
 	return [l10n.t`${fullLabel} — ${description}`, ...explanationLines].join('\n\n');
-}
-
-function formatAccessibleExplanations(explanations: readonly EntityChangeExplanation[]): string {
-	if (explanations.length === 0) {
-		return '';
-	}
-	const explanationText = explanations
-		.map(explanation => l10n.t`${formatChanges([explanation.change])}: ${explanation.explanation.replace(/[.!?]+$/, '')}`)
-		.join('; ');
-	return l10n.t`, explanation: ${explanationText}`;
 }
 
 class MessageItem {
@@ -620,7 +653,7 @@ class MessageItem {
 	}
 
 	static empty(): MessageItem {
-		return MessageItem.create(l10n.t`No structural or code changes found`, 'info');
+		return MessageItem.create(l10n.t`No classified changes found`, 'info');
 	}
 
 	static error(): MessageItem {
@@ -656,24 +689,45 @@ function formatChanges(changes: readonly ClassifiedChange[]): string {
 	const labels = new Set<string>();
 	for (const change of changes) {
 		for (const classification of change.classifications) {
-			labels.add(formatChange(classification, change.changeType));
+			const label = formatChange(classification.classification, change.changeType);
+			labels.add(classification.tags.includes('test') ? l10n.t`${label} (Test)` : label);
 		}
 	}
 	return Array.from(labels).join(', ');
 }
 
-function formatChange(classification: 'code' | 'structural', changeType: 'added' | 'changed' | 'deleted'): string {
-	if (classification === 'code') {
-		switch (changeType) {
-			case 'added': return l10n.t`Code addition`;
-			case 'changed': return l10n.t`Code change`;
-			case 'deleted': return l10n.t`Code deletion`;
-		}
-	}
-	switch (changeType) {
-		case 'added': return l10n.t`Structural addition`;
-		case 'changed': return l10n.t`Structural change`;
-		case 'deleted': return l10n.t`Structural deletion`;
+function formatChange(classification: TypeScriptChangeClassification, changeType: 'added' | 'changed' | 'deleted'): string {
+	switch (classification) {
+		case TypeScriptChangeClassification.Declaration:
+			switch (changeType) {
+				case 'added': return l10n.t`Declaration addition`;
+				case 'changed': return l10n.t`Declaration change`;
+				case 'deleted': return l10n.t`Declaration deletion`;
+			}
+		case TypeScriptChangeClassification.Signature:
+			switch (changeType) {
+				case 'added': return l10n.t`Signature addition`;
+				case 'changed': return l10n.t`Signature change`;
+				case 'deleted': return l10n.t`Signature deletion`;
+			}
+		case TypeScriptChangeClassification.Statement:
+			switch (changeType) {
+				case 'added': return l10n.t`Statement addition`;
+				case 'changed': return l10n.t`Statement change`;
+				case 'deleted': return l10n.t`Statement deletion`;
+			}
+		case TypeScriptChangeClassification.Import:
+			switch (changeType) {
+				case 'added': return l10n.t`Import addition`;
+				case 'changed': return l10n.t`Import change`;
+				case 'deleted': return l10n.t`Import deletion`;
+			}
+		case TypeScriptChangeClassification.Other:
+			switch (changeType) {
+				case 'added': return l10n.t`Other addition`;
+				case 'changed': return l10n.t`Other change`;
+				case 'deleted': return l10n.t`Other deletion`;
+			}
 	}
 }
 

@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { suite, test } from 'vitest';
 
 import { packageJson } from '../../../../platform/env/common/packagejson';
-import type { ICodeReviewService, TypeScriptChangeClassificationInput, TypeScriptChangeClassificationResult, TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import { TypeScriptChangeClassification, type ICodeReviewService, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart, Uri } from '../../../../vscodeTypes';
 import { getContributedToolName, ToolName } from '../../common/toolNames';
@@ -25,9 +25,12 @@ suite('TypeScript change classification tool', () => {
 			'original content',
 			'mapped to the modified AST',
 			'direct modified and original arrays',
+			'declaration, signature, statement, import, or other',
+			'portions of its change range',
+			'tags such as test',
+			'complete named declaration addition or deletion has one declaration classification',
 			'pathKinds aligned positionally with path',
 			'always render the joined entity path as a Markdown link',
-			'Code addition, Code change, or Code deletion',
 		];
 		assert.deepStrictEqual({
 			registered: ToolRegistry.getTools().some(tool => tool.toolName === ToolName.TypeScriptChangeClassification),
@@ -53,12 +56,20 @@ suite('TypeScript change classification tool', () => {
 					entityLink: modifiedLink,
 					changes: [
 						{
-							classifications: ['structural'],
+							classifications: [{
+								classification: TypeScriptChangeClassification.Signature,
+								ranges: [{ start: 1, end: 2 }],
+								tags: [],
+							}],
 							changeType: 'changed',
 							range: { start: 1, end: 2 },
 						},
 						{
-							classifications: ['code'],
+							classifications: [{
+								classification: TypeScriptChangeClassification.Statement,
+								ranges: [{ start: 2, end: 4 }],
+								tags: ['test'],
+							}],
 							changeType: 'changed',
 							range: { start: 2, end: 4 },
 						},
@@ -73,7 +84,11 @@ suite('TypeScript change classification tool', () => {
 					range: { start: 0, end: 10 },
 					entityLink: originalLink,
 					changes: [{
-						classifications: ['structural'],
+						classifications: [{
+							classification: TypeScriptChangeClassification.Declaration,
+							ranges: [{ start: 8, end: 10 }],
+							tags: [],
+						}],
 						changeType: 'deleted',
 						range: { start: 8, end: 10 },
 					}],

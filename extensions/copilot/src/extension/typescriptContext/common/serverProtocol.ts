@@ -91,7 +91,20 @@ export interface TypeScriptMetricsResult {
 	entities: TypeScriptMetricEntity[];
 }
 
-export type TypeScriptChangeClassification = 'code' | 'structural';
+export enum TypeScriptChangeClassification {
+	Declaration = 'declaration',
+	Signature = 'signature',
+	Statement = 'statement',
+	Import = 'import',
+	Other = 'other',
+}
+export type TypeScriptChangeTag = 'test';
+
+export interface TypeScriptChangeClassificationCoverage {
+	classification: TypeScriptChangeClassification;
+	ranges: LineRange[];
+	tags: TypeScriptChangeTag[];
+}
 
 export interface TypeScriptModifiedChangeInput {
 	content?: string;
@@ -105,7 +118,7 @@ export interface TypeScriptOriginalChangeInput {
 }
 
 interface TypeScriptClassifiedChangeBase {
-	classifications: TypeScriptChangeClassification[];
+	classifications: TypeScriptChangeClassificationCoverage[];
 }
 
 export interface TypeScriptClassifiedModifiedLines extends TypeScriptClassifiedChangeBase {
@@ -638,12 +651,30 @@ export namespace TypeScriptChangeClassificationResponse {
 			&& typeof bucket.range.end === 'number'
 			&& Array.isArray(bucket.changes)
 			&& bucket.changes.every((change: TypeScriptClassifiedModifiedLines | TypeScriptClassifiedOriginalLines) =>
-				Array.isArray(change.classifications)
-				&& change.classifications.every((classification: TypeScriptChangeClassification) => classification === 'code' || classification === 'structural')
-				&& typeof change.range?.start === 'number'
+				typeof change.range?.start === 'number'
 				&& typeof change.range.end === 'number'
+				&& Array.isArray(change.classifications)
+				&& change.classifications.every(coverage => isChangeClassificationCoverage(coverage, change.range))
 				&& (original ? change.changeType === 'deleted' : change.changeType === 'added' || change.changeType === 'changed'))
 		);
+	}
+
+	function isChangeClassificationCoverage(coverage: TypeScriptChangeClassificationCoverage, changeRange: LineRange): boolean {
+		return (coverage.classification === TypeScriptChangeClassification.Declaration
+			|| coverage.classification === TypeScriptChangeClassification.Signature
+			|| coverage.classification === TypeScriptChangeClassification.Statement
+			|| coverage.classification === TypeScriptChangeClassification.Import
+			|| coverage.classification === TypeScriptChangeClassification.Other)
+			&& Array.isArray(coverage.ranges)
+			&& coverage.ranges.length > 0
+			&& coverage.ranges.every(range =>
+				typeof range?.start === 'number'
+				&& typeof range.end === 'number'
+				&& range.start < range.end
+				&& changeRange.start <= range.start
+				&& changeRange.end >= range.end)
+			&& Array.isArray(coverage.tags)
+			&& coverage.tags.every(tag => tag === 'test');
 	}
 
 	export function isError(response: TypeScriptChangeClassificationResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {

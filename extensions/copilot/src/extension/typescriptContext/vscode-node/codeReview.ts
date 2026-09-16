@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { TypeScriptChangeClassificationResult, TypeScriptMetricsResult, TypeScriptModifiedChangeBucket, TypeScriptOriginalChangeBucket } from '../../../platform/languageContextProvider/common/codeReviewService';
-import type * as protocol from '../common/serverProtocol';
+import { TypeScriptChangeClassification, type TypeScriptChangeClassificationResult, type TypeScriptMetricsResult, type TypeScriptModifiedChangeBucket, type TypeScriptOriginalChangeBucket } from '../../../platform/languageContextProvider/common/codeReviewService';
+import * as protocol from '../common/serverProtocol';
 
 export function toTypeScriptMetricsResult(result: protocol.TypeScriptMetricsResult): TypeScriptMetricsResult {
 	return {
@@ -35,7 +35,12 @@ function toModifiedChangeBucket(bucket: protocol.TypeScriptModifiedChangeBucket)
 		pathKinds: bucket.pathKinds.slice(),
 		changes: bucket.changes.map(change => ({
 			...change,
-			classifications: change.classifications.slice(),
+			classifications: change.classifications.map(classification => ({
+				...classification,
+				classification: toTypeScriptChangeClassification(classification.classification),
+				ranges: classification.ranges.map(range => ({ ...range })),
+				tags: classification.tags.slice(),
+			})),
 		})),
 	};
 }
@@ -47,7 +52,27 @@ function toOriginalChangeBucket(bucket: protocol.TypeScriptOriginalChangeBucket)
 		pathKinds: bucket.pathKinds.slice(),
 		changes: bucket.changes.map(change => ({
 			...change,
-			classifications: change.classifications.slice(),
+			classifications: change.classifications.map(classification => ({
+				...classification,
+				classification: toTypeScriptChangeClassification(classification.classification),
+				ranges: classification.ranges.map(range => ({ ...range })),
+				tags: classification.tags.slice(),
+			})),
 		})),
 	};
+}
+
+function toTypeScriptChangeClassification(classification: protocol.TypeScriptChangeClassification): TypeScriptChangeClassification {
+	switch (classification) {
+		case protocol.TypeScriptChangeClassification.Declaration:
+			return TypeScriptChangeClassification.Declaration;
+		case protocol.TypeScriptChangeClassification.Signature:
+			return TypeScriptChangeClassification.Signature;
+		case protocol.TypeScriptChangeClassification.Statement:
+			return TypeScriptChangeClassification.Statement;
+		case protocol.TypeScriptChangeClassification.Import:
+			return TypeScriptChangeClassification.Import;
+		case protocol.TypeScriptChangeClassification.Other:
+			return TypeScriptChangeClassification.Other;
+	}
 }

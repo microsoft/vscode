@@ -9,6 +9,7 @@ import path from 'node:path';
 import { API } from '@typescript/native/unstable/async';
 import { afterAll, beforeAll, suite, test } from 'vitest';
 
+import { TypeScriptChangeClassification, type TypeScriptChangeTag } from '../../../../../platform/languageContextProvider/common/codeReviewService';
 import type { LineRange } from '../../../../../platform/languageContextProvider/common/regionContextProvider';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { TS7CodeReviewProvider } from '../codeReviewService';
@@ -60,7 +61,7 @@ suite('TypeScript 7 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Signature, { start: signatureLine, end: signatureLine + 1 })],
 					changeType: 'changed',
 					range: { start: signatureLine, end: signatureLine + 1 },
 				}],
@@ -71,7 +72,7 @@ suite('TypeScript 7 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: bodyLine, end: bodyLine + 1 })],
 					changeType: 'changed',
 					range: { start: bodyLine, end: bodyLine + 1 },
 				}],
@@ -82,7 +83,10 @@ suite('TypeScript 7 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['structural', 'code'],
+					classifications: [
+						coverage(TypeScriptChangeClassification.Signature, { start: signatureLine, end: signatureLine + 1 }),
+						coverage(TypeScriptChangeClassification.Statement, { start: bodyLine, end: bodyLine + 1 }),
+					],
 					changeType: 'changed',
 					range: { start: signatureLine, end: bodyLine + 1 },
 				}],
@@ -94,12 +98,12 @@ suite('TypeScript 7 change classifier', () => {
 				range: { start: 12, end: 16 },
 				changes: [
 					{
-						classifications: ['structural'],
+						classifications: [coverage(TypeScriptChangeClassification.Signature, { start: signatureLine, end: signatureLine + 1 })],
 						changeType: 'changed',
 						range: { start: signatureLine, end: signatureLine + 1 },
 					},
 					{
-						classifications: ['code'],
+						classifications: [coverage(TypeScriptChangeClassification.Statement, { start: bodyLine, end: bodyLine + 1 })],
 						changeType: 'added',
 						range: { start: bodyLine, end: bodyLine + 1 },
 					},
@@ -130,7 +134,7 @@ suite('TypeScript 7 change classifier', () => {
 			pathKinds: ['class'],
 			range: { start, end: start + 6 },
 			changes: [{
-				classifications: ['structural'],
+				classifications: [coverage(TypeScriptChangeClassification.Declaration, { start, end: start + 6 })],
 				changeType: 'added',
 				range: { start, end: start + 6 },
 			}],
@@ -143,12 +147,12 @@ suite('TypeScript 7 change classifier', () => {
 		const methodStart = lineAt(source, 'public add(x: number): Calculator');
 
 		assert.deepStrictEqual({
-			structural: await classify({
+			declaration: await classify({
 				added: [],
 				changed: [],
 				deleted: [{ start: propertyLine, end: propertyLine + 1 }],
 			}),
-			code: await classify({
+			statement: await classify({
 				added: [],
 				changed: [],
 				deleted: [{ start: bodyLine, end: bodyLine + 1 }],
@@ -159,24 +163,24 @@ suite('TypeScript 7 change classifier', () => {
 				deleted: [{ start: methodStart, end: methodStart + 4 }],
 			}),
 		}, {
-			structural: [{
+			declaration: [{
 				kind: 'property',
 				path: ['Calculator', 'result'],
 				pathKinds: ['class', 'property'],
 				range: { start: propertyLine, end: propertyLine + 1 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: propertyLine, end: propertyLine + 1 })],
 					changeType: 'deleted',
 					range: { start: propertyLine, end: propertyLine + 1 },
 				}],
 			}],
-			code: [{
+			statement: [{
 				kind: 'method',
 				path: ['Calculator', 'add'],
 				pathKinds: ['class', 'method'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: bodyLine, end: bodyLine + 1 })],
 					changeType: 'deleted',
 					range: { start: bodyLine, end: bodyLine + 1 },
 				}],
@@ -187,7 +191,7 @@ suite('TypeScript 7 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 12, end: 16 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: methodStart, end: methodStart + 4 })],
 					changeType: 'deleted',
 					range: { start: methodStart, end: methodStart + 4 },
 				}],
@@ -218,7 +222,7 @@ suite('TypeScript 7 change classifier', () => {
 				pathKinds: ['class', 'getter'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 })],
 					changeType: 'changed',
 					range: { start: 2, end: 3 },
 				}],
@@ -229,12 +233,91 @@ suite('TypeScript 7 change classifier', () => {
 				pathKinds: ['class', 'setter'],
 				range: { start: 4, end: 7 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 5, end: 6 })],
 					changeType: 'changed',
 					range: { start: 5, end: 6 },
 				}],
 			},
 		]);
+	});
+
+	test('classifies imports, class signatures, statements, fallback syntax, and test changes', async () => {
+		const content = [
+			'import { value } from \'./value\';',
+			'class Box<T> {',
+			'\ttestRun(input: T): T {',
+			'\t\treturn input;',
+			'\t}',
+			'}',
+			'// changed comment',
+			'test(\'runs\', () => {',
+			'\texecute();',
+			'});',
+		].join('\n');
+
+		assert.deepStrictEqual({
+			importChange: await classify({ added: [], changed: [{ start: 0, end: 1 }], deleted: [] }, content),
+			classTypeParameter: await classify({ added: [], changed: [{ start: 1, end: 2 }], deleted: [] }, content),
+			testMethodStatement: await classify({ added: [], changed: [{ start: 3, end: 4 }], deleted: [] }, content),
+			other: await classify({ added: [], changed: [{ start: 6, end: 7 }], deleted: [] }, content),
+			testCallbackStatement: await classify({ added: [], changed: [{ start: 8, end: 9 }], deleted: [] }, content),
+		}, {
+			importChange: [{
+				kind: 'sourceFile',
+				path: [],
+				pathKinds: [],
+				range: { start: 0, end: 10 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Import, { start: 0, end: 1 })],
+					changeType: 'changed',
+					range: { start: 0, end: 1 },
+				}],
+			}],
+			classTypeParameter: [{
+				kind: 'class',
+				path: ['Box'],
+				pathKinds: ['class'],
+				range: { start: 1, end: 6 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })],
+					changeType: 'changed',
+					range: { start: 1, end: 2 },
+				}],
+			}],
+			testMethodStatement: [{
+				kind: 'method',
+				path: ['Box', 'testRun'],
+				pathKinds: ['class', 'method'],
+				range: { start: 2, end: 5 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 }, ['test'])],
+					changeType: 'changed',
+					range: { start: 3, end: 4 },
+				}],
+			}],
+			other: [{
+				kind: 'sourceFile',
+				path: [],
+				pathKinds: [],
+				range: { start: 0, end: 10 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Other, { start: 6, end: 7 })],
+					changeType: 'changed',
+					range: { start: 6, end: 7 },
+				}],
+			}],
+			testCallbackStatement: [{
+				kind: 'sourceFile',
+				path: [],
+				pathKinds: [],
+				range: { start: 0, end: 10 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 8, end: 9 }, ['test'])],
+					changeType: 'changed',
+					range: { start: 8, end: 9 },
+				}],
+			}],
+		});
 	});
 
 	interface TestChanges {
@@ -280,4 +363,12 @@ function lineAt(source: string, text: string): number {
 	const offset = source.indexOf(text);
 	assert.notStrictEqual(offset, -1, `Expected to find ${JSON.stringify(text)} in source`);
 	return source.substring(0, offset).split(/\r?\n/).length - 1;
+}
+
+function coverage(classification: TypeScriptChangeClassification, ranges: LineRange | readonly LineRange[], tags: readonly TypeScriptChangeTag[] = []): object {
+	return {
+		classification,
+		ranges: Array.isArray(ranges) ? ranges : [ranges],
+		tags,
+	};
 }

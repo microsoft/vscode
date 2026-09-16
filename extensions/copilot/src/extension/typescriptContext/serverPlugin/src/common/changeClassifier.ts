@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type tt from 'typescript/lib/tsserverlibrary';
 
-import type * as protocol from './protocol';
+import * as protocol from './protocol';
 import TS from './typescript';
 const ts = TS();
 
@@ -34,9 +34,15 @@ interface StructuralEntity {
 	readonly path: readonly string[];
 	readonly pathKinds: readonly string[];
 	readonly range: LineSpan;
-	readonly structuralRange: LineSpan;
-	readonly bodyRange: LineSpan | undefined;
+	readonly signatureRange: LineSpan | undefined;
+	readonly statementRanges: readonly LineSpan[];
 	readonly depth: number;
+}
+
+interface ClassificationContext {
+	readonly importRanges: readonly LineSpan[];
+	readonly testRanges: readonly LineSpan[];
+	readonly isTestFile: boolean;
 }
 
 interface BucketInfo {
@@ -57,12 +63,13 @@ interface OriginalBucketInfo extends BucketInfo {
 interface ClassifiedBucket<T extends BucketInfo> {
 	readonly bucket: T;
 	readonly entity: StructuralEntity;
-	readonly classifications: protocol.TypeScriptChangeClassification[];
+	readonly classifications: protocol.TypeScriptChangeClassificationCoverage[];
 }
 
 export class TypeScriptChangeClassifier {
 	classifyModified(sourceFile: SourceFile, changes: protocol.TypeScriptModifiedChangeInput): protocol.TypeScriptModifiedChangeBucket[] {
 		const entities = this.collectEntities(sourceFile);
+		const context = ChangeAst.createClassificationContext(sourceFile);
 		let order = 0;
 		const buckets: ModifiedBucketInfo[] = [
 			...changes.added.map(range => ({
@@ -79,13 +86,14 @@ export class TypeScriptChangeClassifier {
 			})),
 		];
 		const classified = buckets
-			.map(bucket => this.classifyBucket(bucket, entities))
+			.map(bucket => this.classifyBucket(bucket, entities, context))
 			.sort((left, right) => left.bucket.span.start - right.bucket.span.start || left.bucket.order - right.bucket.order);
 		return this.groupModifiedByPath(classified);
 	}
 
 	classifyOriginal(sourceFile: SourceFile, deleted: readonly protocol.LineRange[]): protocol.TypeScriptOriginalChangeBucket[] {
 		const entities = this.collectEntities(sourceFile);
+		const context = ChangeAst.createClassificationContext(sourceFile);
 		const buckets: OriginalBucketInfo[] = deleted.map((range, order) => ({
 			changeType: 'deleted',
 			span: range,
@@ -93,7 +101,7 @@ export class TypeScriptChangeClassifier {
 			order,
 		}));
 		const classified = buckets
-			.map(bucket => this.classifyBucket(bucket, entities))
+			.map(bucket => this.classifyBucket(bucket, entities, context))
 			.sort((left, right) => left.bucket.span.start - right.bucket.span.start || left.bucket.order - right.bucket.order);
 		return this.groupOriginalByPath(classified);
 	}
@@ -144,8 +152,8 @@ export class TypeScriptChangeClassifier {
 			path: [],
 			pathKinds: [],
 			range: { start: 0, end: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1 },
-			structuralRange: { start: 0, end: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1 },
-			bodyRange: undefined,
+			signatureRange: undefined,
+			statementRanges: ChangeAst.getSourceStatementRanges(sourceFile),
 			depth: 0,
 		};
 		const entities: StructuralEntity[] = [sourceEntity];
@@ -178,7 +186,7 @@ export class TypeScriptChangeClassifier {
 		node.forEachChild(child => this.collectEntity(child, sourceFile, childPath, childPathKinds, childParent, result));
 	}
 
-	private classifyBucket<T extends BucketInfo>(bucket: T, entities: readonly StructuralEntity[]): ClassifiedBucket<T> {
+	private classifyBucket<T extends BucketInfo>(bucket: T, entities: readonly StructuralEntity[], context: ClassificationContext): ClassifiedBucket<T> {
 		const containing = entities
 			.filter(entity => this.contains(entity.range, bucket.span))
 			.sort((left, right) => right.depth - left.depth);
@@ -197,33 +205,129 @@ export class TypeScriptChangeClassifier {
 			isCompleteEntity = true;
 		}
 
-		const classifications: protocol.TypeScriptChangeClassification[] = [];
 		if (isCompleteEntity && bucket.changeType !== 'changed') {
-			classifications.push('structural');
-		} else {
-			if (this.intersects(entity.structuralRange, bucket.span)) {
-				classifications.push('structural');
-			}
-			if (entity.bodyRange !== undefined && this.intersects(entity.bodyRange, bucket.span)) {
-				classifications.push('code');
-			}
+			return {
+				bucket,
+				entity,
+				classifications: [this.createClassification(protocol.TypeScriptChangeClassification.Declaration, [bucket.span], entity, context)],
+			};
 		}
-		if (classifications.length === 0) {
-			classifications.push(entity.bodyRange === undefined ? 'structural' : 'code');
+
+		const classifications: protocol.TypeScriptChangeClassificationCoverage[] = [];
+		const importRanges = ClassificationRanges.intersect(bucket.span, context.importRanges);
+		if (importRanges.length > 0) {
+			classifications.push(this.createClassification(protocol.TypeScriptChangeClassification.Import, importRanges, entity, context));
 		}
+		const signatureRanges = entity.signatureRange === undefined
+			? []
+			: ClassificationRanges.intersect(bucket.span, [entity.signatureRange]);
+		if (signatureRanges.length > 0) {
+			classifications.push(this.createClassification(protocol.TypeScriptChangeClassification.Signature, signatureRanges, entity, context));
+		}
+		const statementRanges = ClassificationRanges.intersect(bucket.span, entity.statementRanges);
+		if (statementRanges.length > 0) {
+			classifications.push(this.createClassification(protocol.TypeScriptChangeClassification.Statement, statementRanges, entity, context));
+		}
+		const classifiedRanges = classifications.flatMap(classification => classification.ranges);
+		const otherRanges = ClassificationRanges.subtract(bucket.span, classifiedRanges);
+		if (otherRanges.length > 0) {
+			classifications.push(this.createClassification(protocol.TypeScriptChangeClassification.Other, otherRanges, entity, context));
+		}
+
 		return { bucket, entity, classifications };
+	}
+
+	private createClassification(
+		classification: protocol.TypeScriptChangeClassification,
+		ranges: readonly LineSpan[],
+		entity: StructuralEntity,
+		context: ClassificationContext,
+	): protocol.TypeScriptChangeClassificationCoverage {
+		const isTest = context.isTestFile
+			|| ChangeAst.isTestEntity(entity)
+			|| ranges.some(range => context.testRanges.some(testRange => ClassificationRanges.intersects(range, testRange)));
+		return {
+			classification,
+			ranges: ranges.map(range => ({ ...range })),
+			tags: isTest ? ['test'] : [],
+		};
 	}
 
 	private contains(container: LineSpan, contained: LineSpan): boolean {
 		return container.start <= contained.start && container.end >= contained.end;
 	}
+}
 
-	private intersects(left: LineSpan, right: LineSpan): boolean {
+namespace ClassificationRanges {
+	export function intersect(change: LineSpan, regions: readonly LineSpan[]): LineSpan[] {
+		return merge(regions
+			.map(region => ({
+				start: Math.max(change.start, region.start),
+				end: Math.min(change.end, region.end),
+			}))
+			.filter(range => range.start < range.end));
+	}
+
+	export function subtract(change: LineSpan, covered: readonly LineSpan[]): LineSpan[] {
+		const result: LineSpan[] = [];
+		let start = change.start;
+		for (const range of merge(covered)) {
+			if (range.end <= start) {
+				continue;
+			}
+			if (range.start > start) {
+				result.push({ start, end: Math.min(range.start, change.end) });
+			}
+			start = Math.max(start, range.end);
+			if (start >= change.end) {
+				break;
+			}
+		}
+		if (start < change.end) {
+			result.push({ start, end: change.end });
+		}
+		return result.filter(range => range.start < range.end);
+	}
+
+	export function intersects(left: LineSpan, right: LineSpan): boolean {
 		return left.start < right.end && right.start < left.end;
+	}
+
+	function merge(ranges: readonly LineSpan[]): LineSpan[] {
+		const sorted = ranges
+			.filter(range => range.start < range.end)
+			.map(range => ({ ...range }))
+			.sort((left, right) => left.start - right.start || left.end - right.end);
+		const result: Array<{ start: number; end: number }> = [];
+		for (const range of sorted) {
+			const previous = result[result.length - 1];
+			if (previous !== undefined && range.start <= previous.end) {
+				previous.end = Math.max(previous.end, range.end);
+			} else {
+				result.push(range);
+			}
+		}
+		return result;
 	}
 }
 
 namespace ChangeAst {
+	export function createClassificationContext(sourceFile: SourceFile): ClassificationContext {
+		return {
+			importRanges: getImportRanges(sourceFile),
+			testRanges: getTestRanges(sourceFile),
+			isTestFile: isTestFile(sourceFile.fileName),
+		};
+	}
+
+	export function getSourceStatementRanges(sourceFile: SourceFile): readonly LineSpan[] {
+		return getStatementRanges(sourceFile.statements, sourceFile);
+	}
+
+	export function isTestEntity(entity: StructuralEntity): boolean {
+		return entity.path.some(segment => /^(?:it|test|spec)(?:$|[\s_.:-]|[A-Z])/.test(segment));
+	}
+
 	export function getEntity(node: Node, sourceFile: SourceFile): EntityInfo | undefined {
 		if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
 			const pathSegment = node.name?.getText(sourceFile) ?? (ts.isClassExpression(node) ? getAssignedEntityName(node, sourceFile) : undefined);
@@ -274,7 +378,15 @@ namespace ChangeAst {
 		if (ts.isSetAccessorDeclaration(node)) {
 			return { kind: 'setter', pathSegment: `set ${node.name.getText(sourceFile)}`, body: node.body, containsEntities: true };
 		}
-		if (ts.isPropertyDeclaration(node) || ts.isPropertySignature(node) || ts.isPropertyAssignment(node)) {
+		if (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) {
+			return {
+				kind: 'property',
+				pathSegment: node.name.getText(sourceFile),
+				body: node.initializer,
+				containsEntities: false,
+			};
+		}
+		if (ts.isPropertySignature(node)) {
 			return { kind: 'property', pathSegment: node.name.getText(sourceFile), containsEntities: false };
 		}
 		if (ts.isEnumMember(node)) {
@@ -299,8 +411,10 @@ namespace ChangeAst {
 			path,
 			pathKinds,
 			range,
-			structuralRange: { start: range.start, end: structuralEnd },
-			bodyRange: info.body === undefined ? undefined : getBodyLineSpan(info.body, sourceFile),
+			signatureRange: { start: range.start, end: structuralEnd },
+			statementRanges: info.body === undefined
+				? getContainerStatementRanges(node, sourceFile)
+				: [getBodyLineSpan(info.body, sourceFile)].filter((value): value is LineSpan => value !== undefined),
 			depth: parent.depth + 1,
 		};
 	}
@@ -330,6 +444,72 @@ namespace ChangeAst {
 				start: sourceFile.getLineAndCharacterOfPosition(firstStatement.getStart(sourceFile)).line,
 				end: sourceFile.getLineAndCharacterOfPosition(lastStatement.getEnd()).line + 1,
 			};
+	}
+
+	function getImportRanges(sourceFile: SourceFile): readonly LineSpan[] {
+		const result: LineSpan[] = [];
+		const visit = (node: Node): void => {
+			if (isImportLike(node)) {
+				result.push(getLineSpan(node, sourceFile));
+				return;
+			}
+			node.forEachChild(visit);
+		};
+		sourceFile.forEachChild(visit);
+		return result;
+	}
+
+	function getContainerStatementRanges(node: Node, sourceFile: SourceFile): readonly LineSpan[] {
+		if (ts.isModuleDeclaration(node) && node.body !== undefined && ts.isModuleBlock(node.body)) {
+			return getStatementRanges(node.body.statements, sourceFile);
+		}
+		return [];
+	}
+
+	function getStatementRanges(statements: readonly tt.Statement[], sourceFile: SourceFile): readonly LineSpan[] {
+		return statements
+			.filter(statement => !isImportLike(statement) && getEntity(statement, sourceFile) === undefined)
+			.map(statement => getLineSpan(statement, sourceFile));
+	}
+
+	function isImportLike(node: Node): boolean {
+		return ts.isImportDeclaration(node)
+			|| ts.isImportEqualsDeclaration(node)
+			|| (ts.isExportDeclaration(node) && node.moduleSpecifier !== undefined);
+	}
+
+	function getTestRanges(sourceFile: SourceFile): readonly LineSpan[] {
+		const result: LineSpan[] = [];
+		const visit = (node: Node): void => {
+			if (ts.isCallExpression(node) && isTestCallee(node.expression)) {
+				for (const argument of node.arguments) {
+					if (ts.isFunctionExpression(argument) || ts.isArrowFunction(argument)) {
+						result.push(getLineSpan(argument, sourceFile));
+					}
+				}
+			}
+			node.forEachChild(visit);
+		};
+		sourceFile.forEachChild(visit);
+		return result;
+	}
+
+	function isTestCallee(node: Node): boolean {
+		if (ts.isIdentifier(node)) {
+			return node.text === 'test' || node.text === 'it' || node.text === 'describe' || node.text === 'suite';
+		}
+		if (ts.isPropertyAccessExpression(node)) {
+			return isTestCallee(node.expression);
+		}
+		return ts.isCallExpression(node) && isTestCallee(node.expression);
+	}
+
+	function isTestFile(fileName: string): boolean {
+		const normalized = fileName.replace(/\\/g, '/');
+		const basename = normalized.slice(normalized.lastIndexOf('/') + 1);
+		return /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)/i.test(normalized)
+			|| /(?:^|[._-])(?:test|spec)(?=\.[^.]+$)/i.test(basename)
+			|| /^(?:test|spec)[._-]/i.test(basename);
 	}
 
 	function getLineSpan(node: Node, sourceFile: SourceFile): LineSpan {

@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { beforeAll, suite, test } from 'vitest';
 
 import type * as changeClassifier from '../../common/changeClassifier';
-import type { LineRange } from '../../common/protocol';
+import { TypeScriptChangeClassification, type LineRange, type TypeScriptChangeTag } from '../../common/protocol';
 
 let TypeScriptChangeClassifier: typeof changeClassifier.TypeScriptChangeClassifier;
 
@@ -56,7 +56,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })],
 					changeType: 'changed',
 					range: { start: 1, end: 2 },
 				}],
@@ -67,7 +67,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 })],
 					changeType: 'changed',
 					range: { start: 2, end: 3 },
 				}],
@@ -78,7 +78,10 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['structural', 'code'],
+					classifications: [
+						coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 }),
+						coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 }),
+					],
 					changeType: 'changed',
 					range: { start: 1, end: 3 },
 				}],
@@ -90,12 +93,12 @@ suite('TypeScript 6 change classifier', () => {
 				range: { start: 1, end: 4 },
 				changes: [
 					{
-						classifications: ['structural'],
+						classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })],
 						changeType: 'changed',
 						range: { start: 1, end: 2 },
 					},
 					{
-						classifications: ['code'],
+						classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 })],
 						changeType: 'added',
 						range: { start: 2, end: 3 },
 					},
@@ -104,7 +107,7 @@ suite('TypeScript 6 change classifier', () => {
 		});
 	});
 
-	test('classifies added properties and whole methods as structural buckets', () => {
+	test('classifies complete added declarations once', () => {
 		const source = [
 			'class Calculator {',
 			'\tvalue = 1;',
@@ -126,7 +129,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'property'],
 				range: { start: 1, end: 2 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 1, end: 2 })],
 					changeType: 'added',
 					range: { start: 1, end: 2 },
 				}],
@@ -137,7 +140,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'method'],
 				range: { start: 3, end: 6 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 3, end: 6 })],
 					changeType: 'added',
 					range: { start: 3, end: 6 },
 				}],
@@ -180,7 +183,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class'],
 				range: { start: 0, end: 6 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 0, end: 6 })],
 					changeType: 'added',
 					range: { start: 0, end: 6 },
 				}],
@@ -191,7 +194,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['module'],
 				range: { start: 0, end: 5 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 0, end: 5 })],
 					changeType: 'added',
 					range: { start: 0, end: 5 },
 				}],
@@ -210,35 +213,35 @@ suite('TypeScript 6 change classifier', () => {
 		].join('\n');
 
 		assert.deepStrictEqual({
-			structural: classify(source, {
+			declaration: classify(source, {
 				added: [],
 				changed: [],
 				deleted: [{ start: 2, end: 5 }],
 			}),
-			code: classify(source, {
+			statement: classify(source, {
 				added: [],
 				changed: [],
 				deleted: [{ start: 3, end: 4 }],
 			}),
 		}, {
-			structural: [{
+			declaration: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
 				pathKinds: ['class', 'method'],
 				range: { start: 2, end: 5 },
 				changes: [{
-					classifications: ['structural'],
+					classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 2, end: 5 })],
 					changeType: 'deleted',
 					range: { start: 2, end: 5 },
 				}],
 			}],
-			code: [{
+			statement: [{
 				kind: 'method',
 				path: ['Calculator', 'calculate'],
 				pathKinds: ['class', 'method'],
 				range: { start: 2, end: 5 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 })],
 					changeType: 'deleted',
 					range: { start: 3, end: 4 },
 				}],
@@ -269,7 +272,7 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'getter'],
 				range: { start: 1, end: 4 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 })],
 					changeType: 'changed',
 					range: { start: 2, end: 3 },
 				}],
@@ -280,12 +283,93 @@ suite('TypeScript 6 change classifier', () => {
 				pathKinds: ['class', 'setter'],
 				range: { start: 4, end: 7 },
 				changes: [{
-					classifications: ['code'],
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 5, end: 6 })],
 					changeType: 'changed',
 					range: { start: 5, end: 6 },
 				}],
 			},
 		]);
+	});
+
+	test('classifies imports, class signatures, statements, fallback syntax, and test changes', () => {
+		const source = [
+			'import { value } from \'./value\';',
+			'class Box<T> {',
+			'\ttestRun(input: T): T {',
+			'\t\treturn input;',
+			'\t}',
+			'}',
+			'// changed comment',
+		].join('\n');
+		const callbackSource = [
+			'test(\'runs\', () => {',
+			'\texecute();',
+			'});',
+		].join('\n');
+
+		assert.deepStrictEqual({
+			testFileImport: classify(source, { added: [], changed: [{ start: 0, end: 1 }], deleted: [] }, 'box.test.ts'),
+			classTypeParameter: classify(source, { added: [], changed: [{ start: 1, end: 2 }], deleted: [] }),
+			testMethodStatement: classify(source, { added: [], changed: [{ start: 3, end: 4 }], deleted: [] }),
+			other: classify(source, { added: [], changed: [{ start: 6, end: 7 }], deleted: [] }),
+			testCallbackStatement: classify(callbackSource, { added: [], changed: [{ start: 1, end: 2 }], deleted: [] }),
+		}, {
+			testFileImport: [{
+				kind: 'sourceFile',
+				path: [],
+				pathKinds: [],
+				range: { start: 0, end: 7 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Import, { start: 0, end: 1 }, ['test'])],
+					changeType: 'changed',
+					range: { start: 0, end: 1 },
+				}],
+			}],
+			classTypeParameter: [{
+				kind: 'class',
+				path: ['Box'],
+				pathKinds: ['class'],
+				range: { start: 1, end: 6 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })],
+					changeType: 'changed',
+					range: { start: 1, end: 2 },
+				}],
+			}],
+			testMethodStatement: [{
+				kind: 'method',
+				path: ['Box', 'testRun'],
+				pathKinds: ['class', 'method'],
+				range: { start: 2, end: 5 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 }, ['test'])],
+					changeType: 'changed',
+					range: { start: 3, end: 4 },
+				}],
+			}],
+			other: [{
+				kind: 'sourceFile',
+				path: [],
+				pathKinds: [],
+				range: { start: 0, end: 7 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Other, { start: 6, end: 7 })],
+					changeType: 'changed',
+					range: { start: 6, end: 7 },
+				}],
+			}],
+			testCallbackStatement: [{
+				kind: 'sourceFile',
+				path: [],
+				pathKinds: [],
+				range: { start: 0, end: 3 },
+				changes: [{
+					classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 1, end: 2 }, ['test'])],
+					changeType: 'changed',
+					range: { start: 1, end: 2 },
+				}],
+			}],
+		});
 	});
 });
 
@@ -295,12 +379,20 @@ interface TestChanges {
 	readonly deleted: readonly LineRange[];
 }
 
-function classify(source: string, changes: TestChanges): object[] {
-	const sourceFile = ts.createSourceFile('changes.ts', source, ts.ScriptTarget.Latest, true);
+function classify(source: string, changes: TestChanges, fileName: string = 'changes.ts'): object[] {
+	const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
 	const classifier = new TypeScriptChangeClassifier();
 	if (changes.deleted.length > 0) {
 		assert.deepStrictEqual({ added: changes.added, changed: changes.changed }, { added: [], changed: [] });
 		return classifier.classifyOriginal(sourceFile, changes.deleted);
 	}
 	return classifier.classifyModified(sourceFile, changes);
+}
+
+function coverage(classification: TypeScriptChangeClassification, ranges: LineRange | readonly LineRange[], tags: readonly TypeScriptChangeTag[] = []): object {
+	return {
+		classification,
+		ranges: Array.isArray(ranges) ? ranges : [ranges],
+		tags,
+	};
 }

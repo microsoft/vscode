@@ -32,7 +32,23 @@ export interface TypeScriptMetricsResult {
 	readonly entities: readonly TypeScriptMetricEntity[];
 }
 
-export type TypeScriptChangeClassification = 'code' | 'structural';
+export enum TypeScriptChangeClassification {
+	Declaration = 'declaration',
+	Signature = 'signature',
+	Statement = 'statement',
+	Import = 'import',
+	Other = 'other',
+}
+export type TypeScriptChangeTag = 'test';
+
+export interface TypeScriptChangeClassificationCoverage {
+	readonly classification: TypeScriptChangeClassification;
+	/**
+	 * Portions of the enclosing change range covered by this classification.
+	 */
+	readonly ranges: readonly LineRange[];
+	readonly tags: readonly TypeScriptChangeTag[];
+}
 
 export interface TypeScriptModifiedChangeInput {
 	/**
@@ -55,7 +71,7 @@ export interface TypeScriptChangeClassificationInput {
 }
 
 interface TypeScriptClassifiedChangeBase {
-	readonly classifications: readonly TypeScriptChangeClassification[];
+	readonly classifications: readonly TypeScriptChangeClassificationCoverage[];
 }
 
 export interface TypeScriptClassifiedModifiedLines extends TypeScriptClassifiedChangeBase {
@@ -108,7 +124,7 @@ export interface TypeScriptChangeToExplain {
 	readonly kind: string;
 	readonly path: readonly string[];
 	readonly changeType: 'added' | 'changed' | 'deleted';
-	readonly classifications: readonly TypeScriptChangeClassification[];
+	readonly classifications: readonly TypeScriptChangeClassificationCoverage[];
 	readonly original?: string;
 	readonly modified?: string;
 }
