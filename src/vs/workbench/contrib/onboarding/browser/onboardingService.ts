@@ -172,7 +172,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	reset(id: string): void {
 		const scenario = onboardingScenarioRegistry.getScenario(id);
-		delete this._state[scenario ? this._seenKey(scenario) : id];
+		const key = scenario ? this._seenKey(scenario) : id;
+		delete this._state[key];
+		this._shownSinceStart.delete(key);
 		this._memento.saveMemento();
 	}
 
