@@ -110,11 +110,11 @@ if (shouldSpawnCli) {
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
 
-	const host = sanitizeStringArg(parsedArgs['host']) || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
+	const host = sanitizeStringArg(parsedArgs.host) || (parsedArgs.compatibility !== '1.63' ? 'localhost' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
 			? { path: sanitizeStringArg(parsedArgs['socket-path']) }
-			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs['port'])) }
+			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs.port)) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		let output = Array.isArray(product.serverGreeting) && product.serverGreeting.length ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
@@ -187,7 +187,7 @@ function installServerProcessExitDiagnostics(): void {
 	// so the exit-time lines we care about most were being dropped. A synchronous
 	// `fs.appendFileSync` survives teardown. We target the server's `--logsPath`
 	// directory because it is captured as a smoke test artifact.
-	const logsPath = sanitizeStringArg(parsedArgs['logsPath']) || os.tmpdir();
+	const logsPath = sanitizeStringArg(parsedArgs.logsPath) || os.tmpdir();
 	const diagnosticsFile = path.join(logsPath, 'server-exit-diagnostics.log');
 	try {
 		fs.mkdirSync(logsPath, { recursive: true });

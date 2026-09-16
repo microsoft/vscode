@@ -191,8 +191,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			}
 
 			// Allow cross origin requests from the web worker extension host
-			responseHeaders['Vary'] = 'Origin';
-			const requestOrigin = req.headers['origin'];
+			responseHeaders.Vary = 'Origin';
+			const requestOrigin = req.headers.origin;
 			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
 				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
 			}

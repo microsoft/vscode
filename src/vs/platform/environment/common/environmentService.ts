@@ -93,7 +93,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get argvResource(): URI {
-		const vscodePortable = env['VSCODE_PORTABLE'];
+		const vscodePortable = env.VSCODE_PORTABLE;
 		if (vscodePortable) {
 			return URI.file(join(vscodePortable, 'argv.json'));
 		}
@@ -134,12 +134,12 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return resolve(cliExtensionsDir);
 		}
 
-		const vscodeExtensions = env['VSCODE_EXTENSIONS'];
+		const vscodeExtensions = env.VSCODE_EXTENSIONS;
 		if (vscodeExtensions) {
 			return vscodeExtensions;
 		}
 
-		const vscodePortable = env['VSCODE_PORTABLE'];
+		const vscodePortable = env.VSCODE_PORTABLE;
 		if (vscodePortable) {
 			return join(vscodePortable, 'extensions');
 		}
@@ -154,7 +154,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return URI.file(resolve(cliSharedDataDir));
 		}
 
-		const vscodePortable = env['VSCODE_PORTABLE'];
+		const vscodePortable = env.VSCODE_PORTABLE;
 		if (vscodePortable) {
 			return URI.file(join(vscodePortable, 'shared-data'));
 		}
@@ -217,7 +217,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	get skipBuiltinExtensions(): readonly string[] {
-		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
+		const value = env.VSCODE_SKIP_BUILTIN_EXTENSIONS;
 		if (!value) {
 			return [];
 		}
@@ -228,7 +228,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostDebugPort(this.args, this.isBuilt); }
 	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
 
-	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
+	get isBuilt(): boolean { return !env.VSCODE_DEV; }
 	get verbose(): boolean { return !!this.args.verbose; }
 
 	@memoize
@@ -266,7 +266,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	@memoize
 	get policyFile(): URI | undefined {
 		if (this.args['__enable-file-policy']) {
-			const vscodePortable = env['VSCODE_PORTABLE'];
+			const vscodePortable = env.VSCODE_PORTABLE;
 			if (vscodePortable) {
 				return URI.file(join(vscodePortable, 'policy.json'));
 			}
@@ -281,7 +281,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
 	}
 
-	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+	get editSessionId(): string | undefined { return this.args.editSessionId; }
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
@@ -292,11 +292,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	get continueOn(): string | undefined {
-		return this.args['continueOn'];
+		return this.args.continueOn;
 	}
 
 	set continueOn(value: string | undefined) {
-		this.args['continueOn'] = value;
+		this.args.continueOn = value;
 	}
 
 	get args(): NativeParsedArgs { return this._args; }

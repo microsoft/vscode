@@ -57,8 +57,8 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'disable-experiments': OPTIONS['disable-experiments'],
 	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
 	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
-	'log': OPTIONS['log'],
-	'logsPath': OPTIONS['logsPath'],
+	'log': OPTIONS.log,
+	'logsPath': OPTIONS.logsPath,
 	'force-disable-user-env': OPTIONS['force-disable-user-env'],
 	'enable-proposed-api': OPTIONS['enable-proposed-api'],
 
@@ -87,8 +87,8 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'locate-extension': OPTIONS['locate-extension'],
 
 	'show-versions': OPTIONS['show-versions'],
-	'category': OPTIONS['category'],
-	'force': OPTIONS['force'],
+	'category': OPTIONS.category,
+	'force': OPTIONS.force,
 	'do-not-sync': OPTIONS['do-not-sync'],
 	'do-not-include-pack-dependencies': OPTIONS['do-not-include-pack-dependencies'],
 	'pre-release': OPTIONS['pre-release'],
@@ -114,13 +114,13 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	/* ----- server cli ----- */
 
-	'help': OPTIONS['help'],
-	'version': OPTIONS['version'],
+	'help': OPTIONS.help,
+	'version': OPTIONS.version,
 	'locate-shell-integration-path': OPTIONS['locate-shell-integration-path'],
 
 	'compatibility': { type: 'string' },
 
-	_: OPTIONS['_']
+	_: OPTIONS._
 };
 
 export interface ServerParsedArgs {
