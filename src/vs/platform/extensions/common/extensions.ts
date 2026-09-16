@@ -12,9 +12,13 @@ import { ExtensionKind } from '../../environment/common/environment.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { getRemoteName } from '../../remote/common/remoteHosts.js';
 
-export const USER_MANIFEST_CACHE_FILE_PREFIX = 'extensions.user';
-export const BUILTIN_MANIFEST_CACHE_FILE_PREFIX = 'extensions.builtin';
+const USER_MANIFEST_CACHE_FILE_PREFIX = 'extensions.user';
+const BUILTIN_MANIFEST_CACHE_FILE_PREFIX = 'extensions.builtin';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
+
+function getManifestCacheFilePrefix(type: ExtensionType): string {
+	return type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
+}
 
 /**
  * Returns the name of the manifest cache file for the given extension type and scan language.
@@ -23,7 +27,7 @@ export const UNDEFINED_PUBLISHER = 'undefined_publisher';
  * therefore identify the language as precisely as `ExtensionScannerInput` compares it.
  */
 export function getManifestCacheFileName(type: ExtensionType, language: string | undefined): string {
-	const prefix = type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
+	const prefix = getManifestCacheFilePrefix(type);
 	if (!language) {
 		return `${prefix}.cache`;
 	}
@@ -31,6 +35,16 @@ export function getManifestCacheFileName(type: ExtensionType, language: string |
 	// value keeps languages that only differ in case or in separators in separate files
 	const readable = language.toLowerCase().replace(/[^a-z0-9]/g, '-');
 	return `${prefix}.${readable}-${(hash(language) >>> 0).toString(16)}.cache`;
+}
+
+/**
+ * Whether `name` is a manifest cache file of the given extension type, for any scan language.
+ * Pass the `ignorePathCasing` of the containing location so that a differently cased name is
+ * recognized on file systems where it refers to the same file.
+ */
+export function isManifestCacheFileName(name: string, type: ExtensionType, ignorePathCasing: boolean): boolean {
+	const candidate = ignorePathCasing ? name.toLowerCase() : name;
+	return candidate.startsWith(`${getManifestCacheFilePrefix(type)}.`) && candidate.endsWith('.cache');
 }
 
 export interface ICommand {

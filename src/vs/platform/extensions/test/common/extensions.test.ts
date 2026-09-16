@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ExtensionType, getManifestCacheFileName, parseEnabledApiProposalNames } from '../../common/extensions.js';
+import { ExtensionType, getManifestCacheFileName, isManifestCacheFileName, parseEnabledApiProposalNames } from '../../common/extensions.js';
 
 suite('Parsing Enabled Api Proposals', () => {
 
@@ -50,6 +50,33 @@ suite('Manifest Cache File Name', () => {
 		const names = ['zh-cn', 'zh-CN', 'zh_CN', 'ZH-CN'].map(language => getManifestCacheFileName(ExtensionType.System, language));
 
 		assert.deepStrictEqual(new Set(names.map(name => name.toLowerCase())).size, names.length, `expected distinct names, got ${names.join(', ')}`);
+	});
+
+	test('generated names are recognized, and only for their own extension type', () => {
+		const names = [undefined, 'en', 'zh-CN'].map(language => getManifestCacheFileName(ExtensionType.System, language));
+
+		assert.deepStrictEqual([
+			names.every(name => isManifestCacheFileName(name, ExtensionType.System, false)),
+			names.some(name => isManifestCacheFileName(name, ExtensionType.User, false)),
+		], [true, false]);
+	});
+
+	test('a differently cased name is only recognized when path casing is ignored', () => {
+		const name = 'Extensions.User.EN-88F0E12.Cache';
+
+		assert.deepStrictEqual([
+			isManifestCacheFileName(name, ExtensionType.User, true),
+			isManifestCacheFileName(name, ExtensionType.User, false),
+		], [true, false]);
+	});
+
+	test('unrelated file names are not recognized', () => {
+		assert.deepStrictEqual([
+			'extensions.json',
+			'extensions.builtin.cache',
+			'extensions.user.en-88f0e12.cache.bak',
+			'my.extensions.user.en-88f0e12.cache',
+		].map(name => isManifestCacheFileName(name, ExtensionType.User, false)), [false, false, false, false]);
 	});
 
 });
