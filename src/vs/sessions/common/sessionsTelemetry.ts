@@ -79,7 +79,7 @@ type SessionComparisonAttemptCompletedClassification = {
 	comment: 'Tracks the elapsed time of a comparison attempt before its first turn becomes terminal.';
 	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to join this attempt with its Judge model outcome.' };
 	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of this attempt among the attempts reviewed by the Judge.' };
-	elapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds from session creation until the first turn became terminal.' };
+	elapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider-reported elapsed milliseconds for the terminal first turn.' };
 };
 
 export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetryService, data: ISessionComparisonAttemptCompletedTelemetry): void {

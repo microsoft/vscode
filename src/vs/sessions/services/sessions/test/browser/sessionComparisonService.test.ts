@@ -184,7 +184,7 @@ suite('SessionComparisonService', () => {
 		}));
 		sessionsManagementService.enqueue(stubSession('attempt-two', secondStatus, {
 			createdAt: new Date(2_000),
-			updatedAt: new Date(122_000),
+			updatedAt: new Date(1_000),
 		}));
 		sessionsManagementService.enqueue(stubSession('judge'));
 		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{
@@ -192,12 +192,12 @@ suite('SessionComparisonService', () => {
 			promptTokens: 10,
 			completionTokens: 2,
 			modelTotals: [{ model: 'model-one', inputTokens: 30, cachedTokens: 12, outputTokens: 8 }],
-		}]);
+		}], 95_000);
 		chatService.setUsage(URI.parse('test-chat:/attempt-two'), [{
 			kind: 'usage',
 			promptTokens: 20,
 			completionTokens: 5,
-		}]);
+		}], 120_000);
 
 		const comparison = await service.startComparison(startOptions());
 		firstStatus.set(SessionStatus.Completed, undefined);
@@ -212,7 +212,7 @@ suite('SessionComparisonService', () => {
 		const completionEvents = telemetryService.events.filter(event => event.name === 'agents/sessionComparisonAttemptCompleted');
 		const outcomeEvents = telemetryService.events.filter(event => event.name === 'agents/sessionComparisonModelOutcome');
 		const storedComparisons = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]') as Array<{
-			participants: Array<{ role: SessionComparisonParticipantRole; completion?: { elapsedMs: number; tokenCount?: number } }>;
+			participants: Array<{ role: SessionComparisonParticipantRole; completion?: { elapsedMs?: number; tokenCount?: number } }>;
 		}>;
 		assert.deepStrictEqual({
 			completions: completionEvents.map(event => ({
@@ -789,17 +789,20 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 }
 
 class TestChatService extends mock<IChatService>() {
-	private readonly _usages = new Map<string, readonly IChatUsage[]>();
+	private readonly _responses = new Map<string, readonly { usage: IChatUsage; elapsedMs?: number }[]>();
 
-	setUsage(resource: URI, usages: readonly IChatUsage[]): void {
-		this._usages.set(resource.toString(), usages);
+	setUsage(resource: URI, usages: readonly IChatUsage[], firstTurnElapsedMs?: number): void {
+		this._responses.set(resource.toString(), usages.map((usage, index) => ({
+			usage,
+			elapsedMs: index === 0 ? firstTurnElapsedMs : undefined,
+		})));
 	}
 
 	override getSession(resource: URI): IChatModel | undefined {
-		const usages = this._usages.get(resource.toString());
-		return usages ? upcastPartial<IChatModel>({
-			getRequests: () => usages.map(usage => upcastPartial<IChatRequestModel>({
-				response: upcastPartial<IChatResponseModel>({ usage }),
+		const responses = this._responses.get(resource.toString());
+		return responses ? upcastPartial<IChatModel>({
+			getRequests: () => responses.map(response => upcastPartial<IChatRequestModel>({
+				response: upcastPartial<IChatResponseModel>(response),
 			})),
 		}) : undefined;
 	}

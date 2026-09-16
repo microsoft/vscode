@@ -56,7 +56,7 @@ export interface ISessionComparisonParticipant {
 	readonly sessionResource?: URI;
 	readonly launchError?: string;
 	readonly completion?: {
-		readonly elapsedMs: number;
+		readonly elapsedMs?: number;
 		readonly tokenCount?: number;
 	};
 }

@@ -401,17 +401,23 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (!session || (status !== SessionStatus.Completed && status !== SessionStatus.Error)) {
 				continue;
 			}
-			const usage = participant.completion ? undefined : aggregateChatUsage(this.chatService.getSession(session.mainChat.get().resource)?.getRequests().map(request => request.response?.usage) ?? []);
-			const completion = participant.completion ?? {
-				elapsedMs: Math.max(0, session.updatedAt.get().getTime() - session.createdAt.getTime()),
-				tokenCount: usage ? usage.inputTokens + usage.outputTokens : undefined,
+			const requests = this.chatService.getSession(session.mainChat.get().resource)?.getRequests() ?? [];
+			const firstTurnElapsedMs = requests[0]?.response?.elapsedMs;
+			const storedElapsedMs = participant.completion?.elapsedMs;
+			const elapsedMs = typeof firstTurnElapsedMs === 'number' && Number.isFinite(firstTurnElapsedMs) && firstTurnElapsedMs >= 0
+				? firstTurnElapsedMs
+				: typeof storedElapsedMs === 'number' && storedElapsedMs > 0 ? storedElapsedMs : undefined;
+			const usage = participant.completion?.tokenCount === undefined ? aggregateChatUsage(requests.map(request => request.response?.usage)) : undefined;
+			const completion = {
+				elapsedMs,
+				tokenCount: participant.completion?.tokenCount ?? (usage ? usage.inputTokens + usage.outputTokens : undefined),
 			};
 			completions.set(participant.id, completion);
-			if (!participant.completion) {
+			if (participant.completion?.elapsedMs !== completion.elapsedMs || participant.completion?.tokenCount !== completion.tokenCount) {
 				comparisonChanged = true;
 			}
 			const key = `${comparison.id}/${participant.id}`;
-			if (this._reportedAttemptTelemetry.has(key)) {
+			if (this._reportedAttemptTelemetry.has(key) || completion.elapsedMs === undefined) {
 				continue;
 			}
 			logSessionComparisonAttemptCompleted(this.telemetryService, {
@@ -432,7 +438,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			...comparison,
 			participants: comparison.participants.map(participant => {
 				const completion = completions.get(participant.id);
-				return completion && !participant.completion ? { ...participant, completion } : participant;
+				return completion && (participant.completion?.elapsedMs !== completion.elapsedMs || participant.completion?.tokenCount !== completion.tokenCount)
+					? { ...participant, completion }
+					: participant;
 			}),
 		};
 		this._replaceComparison(updated);

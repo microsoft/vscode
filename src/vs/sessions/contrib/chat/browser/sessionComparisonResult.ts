@@ -216,7 +216,7 @@ export class SessionComparisonResult extends Disposable {
 		this.renderStore.add(dom.addDisposableListener(details, 'toggle', () => this.onDidChangeLayout()));
 
 		const description = dom.append(details, dom.$('p.session-comparison-result-metrics-description'));
-		description.textContent = localize('sessionComparisonResult.attemptMetricsDescription', "Time runs from session creation through the terminal first turn. Total tokens are provider-reported input plus output tokens.");
+		description.textContent = localize('sessionComparisonResult.attemptMetricsDescription', "Time is the provider-reported duration of the terminal first turn. Total tokens are provider-reported input plus output tokens.");
 
 		const scrollContainer = dom.append(details, dom.$('.session-comparison-result-metrics-scroll'));
 		const table = dom.append(scrollContainer, dom.$('table.session-comparison-result-metrics-table'));
@@ -239,9 +239,9 @@ export class SessionComparisonResult extends Disposable {
 			const attemptHeader = dom.append(row, dom.$('th'));
 			attemptHeader.setAttribute('scope', 'row');
 			attemptHeader.textContent = getSessionComparisonHarnessLabel(attempt);
-			dom.append(row, dom.$('td')).textContent = attempt.completion
-				? formatElapsedTime(attempt.completion.elapsedMs)
-				: localize('sessionComparisonResult.unavailable', "Unavailable");
+			dom.append(row, dom.$('td')).textContent = attempt.completion?.elapsedMs === undefined
+				? localize('sessionComparisonResult.unavailable', "Unavailable")
+				: formatElapsedTime(attempt.completion.elapsedMs);
 			dom.append(row, dom.$('td')).textContent = attempt.completion?.tokenCount === undefined
 				? localize('sessionComparisonResult.unavailable', "Unavailable")
 				: attempt.completion.tokenCount.toLocaleString();

@@ -19,7 +19,7 @@ Session comparisons run the same task through multiple Sessions providers and pr
 | Targeted transcript follow-up | existing Agent Host `get_session_context` tool |
 | Structured recommendation | visible grouped Judge session and `completeAttemptComparison` tool |
 
-Comparison records are persisted in profile storage. Session and chat resources remain provider-owned identities. Each terminal attempt snapshots only the elapsed time and provider-reported input-plus-output token total used by the Judge result; cost is not recorded. Comparison telemetry records elapsed time, while analytical token totals come from provider-native OTel chat spans correlated by the same hashed comparison identifier and attempt index.
+Comparison records are persisted in profile storage. Session and chat resources remain provider-owned identities. Each terminal attempt snapshots the producer-measured first-turn duration from the Agent Host protocol and the provider-reported input-plus-output token total used by the Judge result; cost is not recorded. Comparison telemetry records that duration, while analytical token totals come from provider-native OTel chat spans correlated by the same hashed comparison identifier and attempt index.
 The Sessions group service persists the comparison's session membership so the hierarchy survives window reloads.
 
 ## Participant hierarchy
