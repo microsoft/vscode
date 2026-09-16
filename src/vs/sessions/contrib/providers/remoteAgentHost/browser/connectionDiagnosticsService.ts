@@ -230,7 +230,8 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 	}
 
 	async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> {
-		const capturedAt = new Date().toISOString();
+		const capturedAtMs = Date.now();
+		const capturedAt = new Date(capturedAtMs).toISOString();
 		const sections: IConnectionDiagnosticsSection[] = [];
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 		const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
@@ -283,7 +284,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 					{ label: localize('diagnostics.pendingAttempt', "Connection attempt"), value: localize('diagnostics.pending', "Pending") },
 					{ label: localize('diagnostics.attemptPhase', "Attempt phase"), value: connection?.clientId ? localize('diagnostics.protocolPending', "Protocol connection") : localize('diagnostics.setupPending', "Connection setup (before protocol client)") },
 					{ label: localize('diagnostics.attemptStarted', "Attempt started at"), value: new Date(attempt.startedAt).toISOString() },
-					{ label: localize('diagnostics.attemptElapsed', "Attempt elapsed at capture (ms)"), value: String(Math.max(0, Date.parse(capturedAt) - attempt.startedAt)) },
+					{ label: localize('diagnostics.attemptElapsed', "Attempt elapsed at capture (ms)"), value: String(Math.max(0, capturedAtMs - attempt.startedAt)) },
 					{ label: localize('diagnostics.attemptTrigger', "Attempt trigger"), value: attempt.userInitiated ? localize('diagnostics.user', "user") : localize('diagnostics.automatic', "automatic") },
 					{ label: localize('diagnostics.connectionEntryPresent', "Connection entry present"), value: yesNo(!!connection) },
 				);

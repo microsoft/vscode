@@ -22,7 +22,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IMobileContentSheetApi } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
@@ -77,6 +77,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		}
 		const container = this.layoutService.activeContainer;
 		const previouslyFocused = returnFocus ?? dom.getActiveElement();
+		const returnPart = this.isWebPlatform ? [Parts.TITLEBAR_PART, Parts.SIDEBAR_PART].find(part => this.layoutService.hasFocus(part)) : undefined;
 		try {
 			snapshot ??= await this.diagnosticsService.getSnapshot();
 		} catch (error) {
@@ -99,8 +100,12 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 				return this.attachModal(container, report, api);
 			},
 		});
-		if (active?.restoreFocus && !this.active && dom.isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
-			previouslyFocused.focus();
+		if (active?.restoreFocus && !this.active) {
+			if (dom.isHTMLElement(previouslyFocused) && previouslyFocused.isConnected) {
+				previouslyFocused.focus();
+			} else if (returnPart !== undefined) {
+				this.layoutService.focusPart(returnPart, dom.getWindow(container));
+			}
 		}
 	}
 
@@ -160,7 +165,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		active.overlay.remove();
 		active.close();
 		const help = [
-			...(this.isWebPlatform ? [localize('connectionDiagnostics.help.hostPicker', "On phones, Open Connection Information beside the Hosts sheet title closes the picker and opens this report. Closing the report returns focus to the host picker control.")] : []),
+			...(this.isWebPlatform ? [localize('connectionDiagnostics.help.hostPicker', "On phones, Open Connection Information beside the Hosts sheet title closes the picker and opens this report. Closing the report returns focus to the host picker control, or its toolbar if that control was replaced.")] : []),
 			this.isWebPlatform
 				? localize('connectionDiagnostics.help.webOverview', "Connection information shows live host summaries with Connect and Disconnect beside each host. Expand a host to read its captured diagnostic details. Actions use current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. The separate Hidden hosts section has Restore actions that return hosts to discovery; restoration does not guarantee a connection.")
 				: localize('connectionDiagnostics.help.overview', "Connection diagnostics shows a read-only snapshot of local connection state."),

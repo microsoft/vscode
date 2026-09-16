@@ -36,7 +36,7 @@ import { KeyCodeChord } from '../../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -90,12 +90,14 @@ suite('ConnectionDiagnosticsReport', () => {
 		return { container, report, service, clipboard, update: (next: IConnectionDiagnosticsSnapshot) => { current = next; }, rediscoveries: () => rediscoveries };
 	}
 
-	function createContribution(service: IConnectionDiagnosticsService, clipboard: IClipboardService, getContainer: () => HTMLElement, verbosity = false, web = true): ConnectionDiagnosticsContribution {
+	function createContribution(service: IConnectionDiagnosticsService, clipboard: IClipboardService, getContainer: () => HTMLElement, verbosity = false, web = true, returnFocusToPart?: (part: Parts) => void): ConnectionDiagnosticsContribution {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConnectionDiagnosticsService, service);
 		instantiationService.stub(IClipboardService, clipboard);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidLayoutMainContainer: Event.None,
+			hasFocus: (part: Parts) => returnFocusToPart !== undefined && part === Parts.TITLEBAR_PART,
+			focusPart: (part: Parts) => returnFocusToPart?.(part),
 			get activeContainer() { return getContainer(); },
 			get mainContainer() { return getContainer(); },
 		});
@@ -118,6 +120,22 @@ suite('ConnectionDiagnosticsReport', () => {
 			priorityAboveChat: help.priority > new SessionsChatAccessibilityHelp().priority,
 			context: help.when?.serialize(),
 		}, { priorityAboveChat: true, context: 'connectionDiagnosticsFocused' });
+	});
+
+	test('closing diagnostics returns to the originating toolbar if its control was replaced', async () => {
+		const { service, clipboard } = createReport(async () => { });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const trigger = dom.append(container, dom.$('button'));
+		trigger.focus();
+		const focusedParts: Parts[] = [];
+		const contribution = createContribution(service, clipboard, () => container, false, true, part => focusedParts.push(part));
+		const closed = contribution.show();
+		await Promise.resolve();
+		trigger.remove();
+		container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+		await closed;
+		assert.deepStrictEqual(focusedParts, [Parts.TITLEBAR_PART]);
 	});
 
 	for (const web of [false, true]) {

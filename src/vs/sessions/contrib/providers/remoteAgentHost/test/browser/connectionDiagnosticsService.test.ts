@@ -41,9 +41,10 @@ suite('ConnectionDiagnosticsService', () => {
 
 	function createService(web = true) {
 		const changes = store.add(new Emitter<void>());
+		const pendingChanges = store.add(new Emitter<void>());
 		const remote = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = changes.event;
-			override readonly onDidChangePendingConnections = changes.event;
+			override readonly onDidChangePendingConnections = pendingChanges.event;
 			override pendingConnections: IRemoteAgentHostPendingConnection[] = [];
 			override connections: IRemoteAgentHostConnectionInfo[] = [];
 			override configuredEntries: IRemoteAgentHostEntry[] = [];
@@ -104,7 +105,7 @@ suite('ConnectionDiagnosticsService', () => {
 		const service = store.add(instantiation.createInstance(class extends ConnectionDiagnosticsService {
 			protected override get isWebPlatform(): boolean { return web; }
 		}));
-		return { service, remote, tunnels, changes, configuration, instantiation, filter, files, logFile };
+		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile };
 	}
 
 	function values(snapshot: IConnectionDiagnosticsSnapshot, title: string): Record<string, string> {
@@ -114,17 +115,20 @@ suite('ConnectionDiagnosticsService', () => {
 	}
 
 	test('exports authoritative pending automatic setup and updates live host status before a connection exists', async () => {
-		const { service, remote, filter, changes } = createService();
+		const { service, remote, filter, pendingChanges, files, logFile } = createService();
 		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Disconnected }];
 		remote.pendingConnections = [{ address: 'tunnel:mock', startedAt: Date.now() - 5000, userInitiated: false }];
+		remote.diagnostics.push({ address: 'tunnel:mock', operationId: 'setup', phase: 'relay.connect', outcome: 'started', timestamp: remote.pendingConnections[0].startedAt });
+		await files.writeFile(logFile, VSBuffer.fromString('2026-09-16 12:00:00.000 [info] [RemoteAgentHost] Connecting to mock host'));
 		let notifications = 0;
 		store.add(service.onDidChangeHostManagement(() => notifications++));
-		changes.fire();
+		pendingChanges.fire();
 		const snapshot = await service.getSnapshot();
 		const details = values(snapshot, 'Mock host');
 		const pendingStatus = service.getHostManagementState().hosts[0].status;
 		remote.pendingConnections = [];
-		changes.fire();
+		pendingChanges.fire();
+		const completedSnapshot = await service.getSnapshot();
 		assert.deepStrictEqual({
 			pendingStatus,
 			statusAfterCompletion: service.getHostManagementState().hosts[0].status,
@@ -134,10 +138,15 @@ suite('ConnectionDiagnosticsService', () => {
 			entry: details['Connection entry present'],
 			elapsed: Number(details['Attempt elapsed at capture (ms)']) >= 5000,
 			exported: snapshot.text.includes('Connection attempt: Pending'),
-			notified: notifications > 0,
+			stage: details['Last observed connection stage'],
+			logs: snapshot.text.includes('[RemoteAgentHost] Connecting to mock host'),
+			completedStatus: values(completedSnapshot, 'Mock host')['Connection status'],
+			historicalStartRetained: completedSnapshot.text.includes('relay.connect: started'),
+			notified: notifications,
 		}, {
 			pendingStatus: 'connecting', statusAfterCompletion: 'disconnected', status: 'connecting',
-			attempt: 'Pending', trigger: 'automatic', entry: 'No', elapsed: true, exported: true, notified: true,
+			attempt: 'Pending', trigger: 'automatic', entry: 'No', elapsed: true, exported: true,
+			stage: 'relay.connect: started', logs: true, completedStatus: 'No connection entry', historicalStartRetained: true, notified: 2,
 		});
 	});
 

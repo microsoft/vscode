@@ -692,8 +692,9 @@ export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[];
 
-	/** In-flight attempts, including setup before a protocol connection entry exists. */
+	/** In-flight setup and protocol connection attempts for enabled, configured hosts; excludes removed or disposed hosts even if setup has not settled. */
 	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[];
+	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
 	readonly onDidChangePendingConnections: Event<void>;
 
 	/** Fires when a remote connection is established or lost. */
@@ -802,6 +803,7 @@ export interface IRemoteAgentHostConnectionInfo {
 }
 
 export interface IRemoteAgentHostPendingConnection {
+	/** Normalized host address, matching the connection catalog. */
 	readonly address: string;
 	readonly startedAt: number;
 	readonly userInitiated: boolean;
