@@ -228,6 +228,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		const editorAreaVisibleObs = observableSignalFromEvent(this, this._layoutService.onDidChangePartVisibility);
 		this._register(autorun(reader => {
 			editorAreaVisibleObs.read(reader);
+			if (this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+				return;
+			}
 			const visible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 			if (this._editorAreaVisible === undefined) {
 				this._editorAreaVisible = visible;
@@ -319,7 +322,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	/** Queues coordinator-owned work, dropping tasks and failures that outlive disposal. */
 	private _queue(task: () => Promise<void>): void {
-		void this._sequencer.queue(() => this._store.isDisposed ? Promise.resolve() : task()).catch(error => {
+		void this._sequencer.queue(() => this._store.isDisposed || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART) ? Promise.resolve() : task()).catch(error => {
 			if (!this._store.isDisposed) {
 				onUnexpectedError(error);
 			}

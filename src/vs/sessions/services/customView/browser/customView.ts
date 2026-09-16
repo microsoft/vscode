@@ -31,6 +31,9 @@ export interface ICustomViewDescriptor {
 	readonly actions?: ICustomViewActions;
 
 	readonly horizontalScrolling?: boolean;
+
+	/** Allows the real auxiliary bar to be presented beside this view. */
+	readonly supportsAuxiliaryBar?: boolean;
 }
 
 /**

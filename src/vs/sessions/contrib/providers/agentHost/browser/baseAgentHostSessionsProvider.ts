@@ -5207,7 +5207,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	setAgent(sessionId: string, agent: ISessionAgentRef | undefined): void {
+	setAgent(sessionId: string, agent: ISessionAgentRef | undefined, chatResource?: URI): void {
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			newSession.setSelectedAgent(agent);
@@ -5221,9 +5221,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			const chatResource = this._activeChatResource(cached);
-			cached.setChatAgent(chatResource, agent);
-			this._updateChatSessionState(chatResource, cached.getChatModelId(chatResource), agent?.uri).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${chatResource.toString()}`, err));
+			const targetChatResource = chatResource ?? this._activeChatResource(cached);
+			cached.setChatAgent(targetChatResource, agent);
+			this._updateChatSessionState(targetChatResource, cached.getChatModelId(targetChatResource), agent?.uri).catch(err => this._logService.error(`[${this.id}] Failed to update chat model state for ${targetChatResource.toString()}`, err));
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}

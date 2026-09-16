@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -25,6 +25,11 @@ import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setN
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../platform/storage/common/storage.js';
+import { AbstractCustomView } from '../../services/customView/browser/customView.js';
+import { CustomViewService, ICustomViewService } from '../../services/customView/browser/customViewService.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -32,6 +37,12 @@ interface IViewSize { width: number; height: number }
 class TestDockedEditorInput extends DockedEditorInput {
 	override get typeId(): string { return 'test.dockedEditor'; }
 	override get resource(): undefined { return undefined; }
+}
+
+class TestCustomView extends AbstractCustomView {
+	readonly title = constObservable('test');
+	render(): void { }
+	layout(): void { }
 }
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
@@ -49,7 +60,7 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 }
 
 suite('Sessions - Workbench', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Real Workbench methods invoked against a prototype-chained fake harness so
 	// the protected layout hooks dispatch to the base (grid) or SinglePaneWorkbench
@@ -79,7 +90,7 @@ suite('Sessions - Workbench', () => {
 	const isSecondarySideBarVisibleSinglePane = SinglePaneWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 	const toggleSidePane = SinglePaneWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
 	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
-	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
+	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined, auxiliaryBarVisible?: boolean) => void;
 	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const updateMobileCustomViewNavigation = Reflect.get(Workbench.prototype, '_updateMobileCustomViewNavigation') as (this: ITestWorkbench) => void;
@@ -124,6 +135,7 @@ suite('Sessions - Workbench', () => {
 		readonly focusedSessions: number;
 		readonly customViewTransitionSteps: string[];
 		readonly sidePaneToggleEvents: ('will' | { readonly did: ISidePaneToggleEvent })[];
+		customViewService?: ICustomViewService;
 		layoutPolicy: { viewportClass: { get(): string } };
 		sessionsPartView: object;
 		panelPartView: object;
@@ -131,6 +143,7 @@ suite('Sessions - Workbench', () => {
 		editorPartView: object;
 		workbenchGrid: {
 			getViewSize(view: object): IViewSize;
+			getViewCachedVisibleSize(view: object): number | undefined;
 			isViewVisible(view: object): boolean;
 			resizeView(view: object, size: IViewSize): void;
 		};
@@ -261,6 +274,7 @@ suite('Sessions - Workbench', () => {
 				width: options.windowWidth ?? 1000,
 				layout: () => { },
 				getViewSize: (view: object) => viewSizes.get(view) ?? { width: 0, height: 0 },
+				getViewCachedVisibleSize: (view: object) => viewSizes.get(view)?.width,
 				isViewVisible: (view: object) => view === editorPartView ? editorNodeVisible : true,
 				hasMaximizedView: () => false,
 				exitMaximizedView: () => { },
@@ -315,6 +329,7 @@ suite('Sessions - Workbench', () => {
 			_editorPartAutoVisibilitySuppressionCount: options.suppressionCount ?? 0,
 			_restoreAttachedEditorMaximizedOnShow: false,
 			_restoreSidePaneEditorMaximizedOnShow: false,
+			_customViewAuxiliaryBarVisible: false,
 			editorGroupService: options.editorGroupService,
 			paneCompositeService: {
 				getActivePaneComposite: () => undefined,
@@ -740,7 +755,7 @@ suite('Sessions - Workbench', () => {
 		const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 		const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 		const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
-		const editorNode = topRightSection.data[1] as { size: number; visible: boolean };
+		const editorNode = topRightSection.data[2] as { size: number; visible: boolean };
 
 		assert.deepStrictEqual({ size: editorNode.size, visible: editorNode.visible }, { size: 300, visible: true });
 	});
@@ -836,7 +851,7 @@ suite('Sessions - Workbench', () => {
 		const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 		const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 		const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
-		const editorNode = topRightSection.data[1] as { size: number; visible: boolean };
+		const editorNode = topRightSection.data[2] as { size: number; visible: boolean };
 
 		assert.deepStrictEqual({ size: editorNode.size, visible: editorNode.visible }, { size: 220, visible: true });
 	});
@@ -857,7 +872,7 @@ suite('Sessions - Workbench', () => {
 		const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 		const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 		const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
-		const editorNode = topRightSection.data[1] as { size: number; visible: boolean };
+		const editorNode = topRightSection.data[2] as { size: number; visible: boolean };
 
 		assert.deepStrictEqual({ size: editorNode.size, visible: editorNode.visible }, { size: 900, visible: true });
 	});
@@ -879,7 +894,7 @@ suite('Sessions - Workbench', () => {
 			const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 			const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 			const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
-			return (topRightSection.data[1] as { size: number }).size;
+			return (topRightSection.data[2] as { size: number }).size;
 		};
 
 		assert.deepStrictEqual({
@@ -2836,6 +2851,161 @@ suite('Sessions - Workbench', () => {
 	});
 
 	// --- Custom view grid ---------------------------------------------------
+
+	function attachCustomViewService(host: ITestWorkbench): CustomViewService {
+		const service = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
+		disposables.add(service.registerCustomView({ id: 'board', ctor: new SyncDescriptor(TestCustomView), supportsAuxiliaryBar: true }));
+		disposables.add(service.registerCustomView({ id: 'exclusive', ctor: new SyncDescriptor(TestCustomView) }));
+		host.customViewService = service;
+		disposables.add(autorun(reader => {
+			applyCustomViewGridVisibility.call(host, service.activeCustomView.read(reader), service.auxiliaryBarVisible.read(reader));
+		}));
+		return service;
+	}
+
+	for (const single of [false, true]) {
+		const mode = single ? 'single-pane' : 'classic';
+
+		test(`custom-view auxiliary observable updates the same descriptor without changing desired visibility (${mode})`, () => {
+			const host = createHost({ single, editorWidth: 900, partVisibility: { editor: true, auxiliaryBar: false, panel: true } });
+			const desired = { ...host.partVisibility };
+			const service = attachCustomViewService(host);
+			service.showCustomView('board');
+			const focusedAfterShow = host.focusedParts.length;
+			service.setAuxiliaryBarVisible(true);
+			const opened = {
+				auxiliaryBar: isVisible.call(host, Parts.AUXILIARYBAR_PART),
+				editor: isVisible.call(host, Parts.EDITOR_PART),
+				editorNode: host.gridVisibility.get(host.editorPartView),
+				sessions: isVisible.call(host, Parts.SESSIONS_PART),
+				panel: isVisible.call(host, Parts.PANEL_PART),
+				focusChanges: host.focusedParts.length - focusedAfterShow,
+			};
+			service.setAuxiliaryBarVisible(false);
+			const closed = {
+				auxiliaryBar: isVisible.call(host, Parts.AUXILIARYBAR_PART),
+				editorNode: host.gridVisibility.get(host.editorPartView),
+			};
+			service.hideCustomView();
+
+			assert.deepStrictEqual({ opened, closed, restored: host.partVisibility, saved: host.counts.save }, {
+				opened: { auxiliaryBar: true, editor: false, editorNode: single, sessions: false, panel: false, focusChanges: 0 },
+				closed: { auxiliaryBar: false, editorNode: false },
+				restored: desired,
+				saved: 0,
+			});
+		});
+
+		test(`opening the covered auxiliary part and toggling it only changes custom-view presentation (${mode})`, () => {
+			const host = createHost({ single, partVisibility: { editor: true, auxiliaryBar: true } });
+			const desired = { ...host.partVisibility };
+			const service = attachCustomViewService(host);
+			service.showCustomView('board');
+
+			// PaneCompositePart opens a covered view through this visibility API.
+			Workbench.prototype.setPartHidden.call(host as unknown as Workbench, false, Parts.AUXILIARYBAR_PART);
+			const opened = service.auxiliaryBarVisible.get();
+			if (single) {
+				toggleSecondarySideBarSinglePane.call(host);
+			} else {
+				toggleSecondarySideBar.call(host);
+			}
+			const toggledClosed = service.auxiliaryBarVisible.get();
+			toggleSidePane.call(host);
+			const toggledOpen = service.auxiliaryBarVisible.get();
+			service.showCustomView('exclusive');
+			toggleSidePane.call(host);
+			const exclusive = isVisible.call(host, Parts.AUXILIARYBAR_PART);
+			service.hideCustomView();
+
+			assert.deepStrictEqual({ opened, toggledClosed, toggledOpen, exclusive, restored: host.partVisibility, saved: host.counts.save }, {
+				opened: true, toggledClosed: false, toggledOpen: true, exclusive: false, restored: desired, saved: 0,
+			});
+		});
+
+		test(`custom view precedes the real auxiliary node in the desktop grid (${mode})`, () => {
+			const host = createHost({ single, partVisibility: { editor: true, auxiliaryBar: false } }) as IGridDescriptorTestHarness;
+			host.layoutPolicy = {
+				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 300, panelSize: 300 }),
+				viewportClass: { get: () => 'desktop' },
+			};
+			host.titleBarPartView = { minimumHeight: 30 };
+			const service = attachCustomViewService(host);
+			service.showCustomView('board');
+			service.setAuxiliaryBarVisible(true);
+			const descriptor = createDesktopGridDescriptor.call(host, 1200, 800);
+			const content = descriptor.root.data[1] as { data: { data: { data: { data: { type: Parts }; visible: boolean }[] }[] }[] };
+			const visibleParts = content.data[1].data[0].data.filter(node => node.visible).map(node => node.data.type);
+
+			assert.deepStrictEqual(visibleParts, [
+				Parts.CUSTOM_VIEW_GRID_PART,
+				single ? Parts.EDITOR_PART : Parts.AUXILIARYBAR_PART,
+			]);
+		});
+
+		test(`custom-view auxiliary resizing does not replace restored or persisted part widths (${mode})`, () => {
+			const host = createHost({ single, editorWidth: 900, dockedWidth: 300, partVisibility: { editor: true, auxiliaryBar: true } });
+			const service = attachCustomViewService(host);
+			const stored: Record<string, string> = {};
+			Object.assign(host, { storageService: { store: (key: string, value: string) => { stored[key] = value; } } });
+			service.showCustomView('board');
+			service.setAuxiliaryBarVisible(true);
+			if (single) {
+				SinglePaneWorkbench.prototype.setDockedAuxiliaryBarWidth.call(host as unknown as SinglePaneWorkbench, 420);
+				onEditorNodeResized.call(host, 420);
+			} else {
+				host.workbenchGrid.resizeView(host.auxiliaryBarPartView, { width: 420, height: 800 });
+			}
+			savePartSizes.call(host as unknown as ISavePartSizesTestHarness);
+			const saved = JSON.parse(stored['workbench.sessions.partSizes']);
+			service.hideCustomView();
+
+			assert.deepStrictEqual({
+				saved: { editor: saved.editor, auxiliaryBar: saved.auxiliaryBar },
+				editorWidth: host.workbenchGrid.getViewSize(host.editorPartView).width,
+				auxiliaryBarWidth: single ? host._dockedAuxiliaryBarWidth : host.workbenchGrid.getViewSize(host.auxiliaryBarPartView).width,
+				editorVisible: host.partVisibility.editor,
+				auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			}, {
+				saved: { editor: single ? 600 : 900, auxiliaryBar: 300 },
+				editorWidth: 900,
+				auxiliaryBarWidth: 300,
+				editorVisible: true,
+				auxiliaryBarVisible: true,
+			});
+		});
+	}
+
+	test('single-pane custom view keeps auxiliary host height while hiding editor content', () => {
+		const layoutDockedAuxiliaryBar = SinglePaneMainEditorPart.prototype.layoutDockedAuxiliaryBar;
+		let customViewVisible = true;
+		const editorNode = mainWindow.document.createElement('div');
+		disposables.add(toDisposable(() => editorNode.remove()));
+		const container = mainWindow.document.createElement('div');
+		container.style.height = '600px';
+		editorNode.appendChild(container);
+		mainWindow.document.body.appendChild(editorNode);
+		const auxiliaryHeights: number[] = [];
+		const host = {
+			container,
+			agentWorkbenchLayoutService: { isVisible: () => customViewVisible },
+			_dockedAuxBar: { layout: () => auxiliaryHeights.push(editorNode.getBoundingClientRect().height) },
+		};
+		layoutDockedAuxiliaryBar.call(host as unknown as SinglePaneMainEditorPart);
+		const hidden = { visibility: container.style.visibility, inert: container.inert };
+		customViewVisible = false;
+		layoutDockedAuxiliaryBar.call(host as unknown as SinglePaneMainEditorPart);
+
+		assert.deepStrictEqual({
+			hidden,
+			restored: { visibility: container.style.visibility, inert: container.inert },
+			auxiliaryHeights,
+		}, {
+			hidden: { visibility: 'hidden', inert: true },
+			restored: { visibility: '', inert: false },
+			auxiliaryHeights: [600, 600],
+		});
+	});
 
 	test('showing a custom view hides the sessions grid, editor, side panel and panel', () => {
 		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, panel: true, sessions: true } });

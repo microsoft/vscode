@@ -154,7 +154,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
-				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
+				getTabsHeight: () => layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART) ? 0 : (this.activeGroup as EditorGroupView).titleHeight.offset,
 			},
 		));
 
@@ -211,11 +211,15 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		// sidebar toggle). Otherwise the aux bar keeps sticking to the right edge
 		// while the sash's absolute position goes stale and drifts off the border.
 		// The header lays out with its group (flow), so it needs no repositioning here.
-		this._dockedAuxBar?.layout();
+		this.layoutDockedAuxiliaryBar();
 	}
 
 	/** Re-layouts the docked auxiliary bar. Called by the workbench on layout changes. */
 	layoutDockedAuxiliaryBar(): void {
+		const customViewVisible = this.agentWorkbenchLayoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
+		// The absolutely positioned auxiliary bar needs the hidden editor content to preserve its host's height.
+		this.container.style.visibility = customViewVisible ? 'hidden' : '';
+		this.container.inert = customViewVisible;
 		this._dockedAuxBar?.layout();
 	}
 }

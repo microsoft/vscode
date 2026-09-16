@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -80,6 +80,81 @@ suite('Sessions - CustomViewService', () => {
 		disposables.add(service.registerCustomView(descriptor('first')));
 
 		assert.throws(() => service.registerCustomView(descriptor('first')));
+	});
+
+	test('auxiliary bar presentation requires an opted-in active view', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView(descriptor('exclusive')));
+		disposables.add(service.registerCustomView({ ...descriptor('board'), supportsAuxiliaryBar: true }));
+
+		service.setAuxiliaryBarVisible(true);
+		const withoutView = service.auxiliaryBarVisible.get();
+		service.showCustomView('exclusive');
+		service.setAuxiliaryBarVisible(true);
+		const exclusive = service.auxiliaryBarVisible.get();
+		service.showCustomView('board');
+		service.setAuxiliaryBarVisible(true);
+		const opened = service.auxiliaryBarVisible.get();
+		service.showCustomView('board');
+		const shownAgain = service.auxiliaryBarVisible.get();
+		service.setAuxiliaryBarVisible(false);
+
+		assert.deepStrictEqual({ withoutView, exclusive, opened, shownAgain, closed: service.auxiliaryBarVisible.get() }, {
+			withoutView: false, exclusive: false, opened: true, shownAgain: true, closed: false,
+		});
+	});
+
+	test('resets auxiliary presentation atomically on replacement, hide and unregister', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView({ ...descriptor('first'), supportsAuxiliaryBar: true }));
+		const registration = disposables.add(service.registerCustomView({ ...descriptor('second'), supportsAuxiliaryBar: true }));
+		const states: { id: string | undefined; auxiliaryBar: boolean }[] = [];
+		disposables.add(autorun(reader => {
+			states.push({ id: service.activeCustomView.read(reader)?.id, auxiliaryBar: service.auxiliaryBarVisible.read(reader) });
+		}));
+
+		service.showCustomView('first');
+		service.setAuxiliaryBarVisible(true);
+		service.showCustomView('second');
+		service.setAuxiliaryBarVisible(true);
+		service.hideCustomView();
+		service.showCustomView('second');
+		service.setAuxiliaryBarVisible(true);
+		registration.dispose();
+
+		assert.deepStrictEqual(states, [
+			{ id: undefined, auxiliaryBar: false },
+			{ id: 'first', auxiliaryBar: false },
+			{ id: 'first', auxiliaryBar: true },
+			{ id: 'second', auxiliaryBar: false },
+			{ id: 'second', auxiliaryBar: true },
+			{ id: undefined, auxiliaryBar: false },
+			{ id: 'second', auxiliaryBar: false },
+			{ id: 'second', auxiliaryBar: true },
+			{ id: undefined, auxiliaryBar: false },
+		]);
+	});
+
+	test('does not restore auxiliary bar presentation on reload or registration', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const service = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		const board = { ...descriptor('board'), supportsAuxiliaryBar: true };
+		const registration = disposables.add(service.registerCustomView(board));
+		service.showCustomView('board');
+		service.setAuxiliaryBarVisible(true);
+
+		const restored = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(restored.registerCustomView(board));
+		registration.dispose();
+		disposables.add(service.registerCustomView(board));
+
+		assert.deepStrictEqual({
+			reloaded: [restored.activeCustomView.get()?.id, restored.auxiliaryBarVisible.get()],
+			reregistered: [service.activeCustomView.get()?.id, service.auxiliaryBarVisible.get()],
+		}, {
+			reloaded: ['board', false],
+			reregistered: ['board', false],
+		});
 	});
 
 	test('restores the active custom view after reload', () => {

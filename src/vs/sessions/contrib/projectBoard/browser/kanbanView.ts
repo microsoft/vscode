@@ -70,6 +70,7 @@ export class KanbanCustomViewContribution extends Disposable {
 			ctor: new SyncDescriptor(KanbanCustomView),
 			actions: { style: 'buttonBar', menuId: Menus.CustomViewKanban },
 			horizontalScrolling: true,
+			supportsAuxiliaryBar: true,
 		}));
 		this._register(actionViewItemService.register(Menus.CustomViewKanban, KANBAN_NEW_SESSION_COMMAND_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {

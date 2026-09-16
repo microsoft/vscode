@@ -47,6 +47,7 @@ import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/cha
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePanel.js';
 
 class TestChat extends mock<IChat>() {
 	override readonly capabilities = observableValue('capabilities', { canRename: false, canDelete: true });
@@ -110,6 +111,8 @@ suite('ProjectBoardService', () => {
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
 		const opened: URI[] = [];
+		const sidePanelOpened: URI[] = [];
+		let sidePanelFocusRestorer: (() => void) | undefined;
 		const openedDrafts: string[] = [];
 		const drafts = observableValue<readonly IProjectBoardDraft[]>('drafts', []);
 		const contextMenu = new class extends mock<IContextMenuService>() {
@@ -196,6 +199,22 @@ suite('ProjectBoardService', () => {
 				onOpened.fire(card.chat.resource);
 			}
 		});
+		instantiationService.stubInstance(ProjectBoardChatSidePanel, {
+			dispose() { },
+			async open(card: IProjectBoardCard, onClose: () => void): Promise<void> {
+				if (state.navigationError) {
+					throw state.navigationError;
+				}
+				sidePanelOpened.push(card.chat.resource);
+				sidePanelFocusRestorer = onClose;
+				onOpened.fire(card.chat.resource);
+			},
+			close(): void {
+				const restore = sidePanelFocusRestorer;
+				sidePanelFocusRestorer = undefined;
+				restore?.();
+			},
+		});
 		let auxiliaryWindow: IAuxiliaryWindow | undefined;
 		instantiationService.stubInstance(ProjectBoardWindow, {
 			get content() { return auxiliaryWindow?.container ?? container; },
@@ -266,7 +285,7 @@ suite('ProjectBoardService', () => {
 			contextMenu,
 		));
 		return {
-			service, container, state, opened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
+			service, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -331,6 +350,57 @@ suite('ProjectBoardService', () => {
 			hasBoard: true,
 			hasInlineHeader: false,
 			inlineControls: 0,
+		});
+	});
+
+	test('embedded card activation follows the side-panel preference and disabling returns focus', async () => {
+		const chat = new TestChat('child');
+		const { document } = createBoardDocument();
+		const h = createBoard(document, [chat]);
+		store.add(h.service.createView(h.container));
+		const activate = (keyCode?: number) => h.container.querySelector<HTMLElement>('.project-board-card')!.dispatchEvent(keyCode
+			? new mainWindow.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true })
+			: new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		activate();
+		h.service.toggleOpenChatInSidePanel();
+		activate();
+		activate(13);
+		activate(32);
+		h.service.toggleOpenChatInSidePanel();
+		assert.strictEqual(document.activeElement, h.container.querySelector('.project-board-card'));
+		activate();
+		assert.deepStrictEqual({ windows: h.opened, sidePanel: h.sidePanelOpened }, {
+			windows: [chat.resource, chat.resource],
+			sidePanel: [chat.resource, chat.resource, chat.resource],
+		});
+	});
+
+	test('side-panel preference persists across embedded views but never changes the separate board', async () => {
+		const chat = new TestChat('child');
+		const h = createBoard(mainWindow.document, [chat]);
+		const embeddedContainer = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(embeddedContainer);
+		store.add(toDisposable(() => embeddedContainer.remove()));
+		const embedded = store.add(h.service.createView(embeddedContainer));
+		h.service.toggleOpenChatInSidePanel();
+		embedded.dispose();
+		embeddedContainer.replaceChildren();
+		store.add(h.service.createView(embeddedContainer));
+		embeddedContainer.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		await h.service.open();
+		h.currentContainer.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		assert.deepStrictEqual({ windows: h.opened, sidePanel: h.sidePanelOpened }, { windows: [chat.resource], sidePanel: [chat.resource] });
+	});
+
+	test('embedded side-panel opening failures notify without opening a standalone fallback', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('child')]);
+		store.add(h.service.createView(h.container));
+		h.service.toggleOpenChatInSidePanel();
+		h.state.navigationError = new Error('Sidebar unavailable');
+		const notification = Event.toPromise(h.errors.event);
+		h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		assert.deepStrictEqual({ error: await notification, windows: h.opened, sidePanel: h.sidePanelOpened }, {
+			error: 'The chat could not be opened.', windows: [], sidePanel: [],
 		});
 	});
 

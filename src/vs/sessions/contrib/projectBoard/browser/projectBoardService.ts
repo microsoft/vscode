@@ -52,9 +52,10 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardSubmittedAt, IProjectBoardMetadata, ProjectBoardMetadata } from './projectBoardMetadata.js';
-import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 import { IProjectBoardDisplayOptions } from '../common/projectBoardConfiguration.js';
 import { ProjectBoardWindow } from './projectBoardWindow.js';
+import { ProjectBoardChatSidePanel } from './projectBoardChatSidePanel.js';
 import { getSessionDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
 import './media/projectBoard.css';
 
@@ -74,6 +75,7 @@ export interface IProjectBoardService {
 	toggleArchived(): void;
 	createSession(): Promise<void>;
 	toggleAutoIncludeSessions(): void;
+	toggleOpenChatInSidePanel(): void;
 	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void;
 }
 
@@ -144,9 +146,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly logService: ILogService;
 	private readonly contextMenuService: IContextMenuService;
 	private readonly instantiationService: IInstantiationService;
+	private readonly chatSidePanel: ProjectBoardChatSidePanel;
 	private readonly customViewContexts: {
 		readonly editable: IContextKey<boolean>;
 		readonly autoIncludeSessions: IContextKey<boolean>;
+		readonly openChatInSidePanel: IContextKey<boolean>;
 		readonly showArchived: IContextKey<boolean>;
 		readonly showStateDuration: IContextKey<boolean>;
 		readonly showCredits: IContextKey<boolean>;
@@ -166,6 +170,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			logService: ILogService;
 			contextMenuService: IContextMenuService;
 			instantiationService: IInstantiationService;
+			chatSidePanel: ProjectBoardChatSidePanel;
 		},
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -182,10 +187,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.logService = services.logService;
 		this.contextMenuService = services.contextMenuService;
 		this.instantiationService = services.instantiationService;
+		this.chatSidePanel = services.chatSidePanel;
 		if (!showHeader) {
 			this.customViewContexts = {
 				editable: KanbanBoardEditableContext.bindTo(contextKeyService),
 				autoIncludeSessions: KanbanAutoIncludeSessionsContext.bindTo(contextKeyService),
+				openChatInSidePanel: KanbanOpenChatInSidePanelContext.bindTo(contextKeyService),
 				showArchived: KanbanShowArchivedContext.bindTo(contextKeyService),
 				showStateDuration: KanbanShowStateDurationContext.bindTo(contextKeyService),
 				showCredits: KanbanShowCreditsContext.bindTo(contextKeyService),
@@ -280,6 +287,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	toggleAutoIncludeSessions(): void {
 		const configuration = this.boardState.configuration.get();
 		this.changeBoard(() => this.boardState.setAutoIncludeSessions(!configuration.autoIncludeSessions));
+	}
+
+	toggleOpenChatInSidePanel(): void {
+		this.changeBoard(() => this.boardState.setOpenChatInSidePanel(!this.boardState.configuration.get().openChatInSidePanel));
 	}
 
 	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void {
@@ -836,6 +847,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const display = this.boardState.configuration.get().display;
 		this.customViewContexts.editable.set(this.boardState.canEdit);
 		this.customViewContexts.autoIncludeSessions.set(this.boardState.configuration.get().autoIncludeSessions);
+		this.customViewContexts.openChatInSidePanel.set(!!this.boardState.configuration.get().openChatInSidePanel);
 		this.customViewContexts.showArchived.set(this.showArchived);
 		this.customViewContexts.showStateDuration.set(!!display?.showStateDuration);
 		this.customViewContexts.showCredits.set(!!display?.showCredits);
@@ -1847,7 +1859,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private async openCard(card: IProjectBoardCard): Promise<void> {
 		try {
-			await this.chatWindows.open(card);
+			if (!this.showHeader && this.boardState.configuration.get().openChatInSidePanel) {
+				await this.chatSidePanel.open(card, () => {
+					if (!this._store.isDisposed) {
+						this.focusChat(card.chat.resource);
+					}
+				});
+			} else {
+				await this.chatWindows.open(card);
+			}
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Failed to open chat', error);
 			this.notificationService.error(localize('projectBoard.openFailed', "The chat could not be opened."));
@@ -1894,6 +1914,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	private opening: Promise<void> | undefined;
 	private readonly boardDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly chatWindows: ProjectBoardChatWindows;
+	private readonly chatSidePanel: ProjectBoardChatSidePanel;
 	private readonly boardState: ProjectBoardState;
 
 	constructor(
@@ -1907,7 +1928,13 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	) {
 		super();
 		this.chatWindows = this._register(instantiationService.createInstance(ProjectBoardChatWindows));
+		this.chatSidePanel = this._register(instantiationService.createInstance(ProjectBoardChatSidePanel));
 		this.boardState = this._register(instantiationService.createInstance(ProjectBoardState));
+		this._register(autorun(reader => {
+			if (!this.boardState.configuration.read(reader).openChatInSidePanel) {
+				this.chatSidePanel.close();
+			}
+		}));
 		this._register(addDisposableListener(mainWindow, EventType.UNLOAD, () => this.dispose()));
 	}
 
@@ -1927,6 +1954,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		const view = this.instantiationService.createInstance(ProjectBoardView, container, this.chatWindows, this.boardState, false, {
 			sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 			logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
+			chatSidePanel: this.chatSidePanel,
 		});
 		this.customView = view;
 		const rememberFocus = () => { this.focusedView = { view, window: getWindow(container) }; };
@@ -1942,6 +1970,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 				}
 				if (this.customView === view) {
 					this.customView = undefined;
+					this.chatSidePanel.close();
 				}
 				view.dispose();
 			},
@@ -1958,6 +1987,10 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 
 	toggleAutoIncludeSessions(): void {
 		this.customView?.toggleAutoIncludeSessions();
+	}
+
+	toggleOpenChatInSidePanel(): void {
+		this.customView?.toggleOpenChatInSidePanel();
 	}
 
 	async createSession(): Promise<void> {
@@ -2027,6 +2060,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, window.content, this.chatWindows, this.boardState, true, {
 				sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
+				chatSidePanel: this.chatSidePanel,
 			}));
 			this.boardView = view;
 			store.add(addDisposableListener(window.content, EventType.FOCUS_IN, () => {

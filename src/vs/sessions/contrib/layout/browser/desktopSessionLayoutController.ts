@@ -86,6 +86,9 @@ export class LayoutController extends BaseLayoutController {
 		const editorMaximizedObs = observableFromEvent(this,
 			this._layoutService.onDidChangeEditorMaximized,
 			() => this._layoutService.isEditorMaximized());
+		const customViewVisibleObs = observableFromEvent(this,
+			this._layoutService.onDidChangePartVisibility,
+			() => this._isCustomViewVisible());
 
 		// Switch between sessions — sync auxiliary bar
 		let previousSessionResource: URI | undefined;
@@ -94,6 +97,11 @@ export class LayoutController extends BaseLayoutController {
 			const editorMaximized = editorMaximizedObs.read(reader);
 			const activeSessionResource = this.activeSessionResourceObs.read(reader);
 			const isCreated = activeSessionIsCreatedObs.read(reader);
+			if (customViewVisibleObs.read(reader)) {
+				previousSessionResource = activeSessionResource;
+				previousIsCreated = isCreated;
+				return;
+			}
 
 			// [D5] While the editor area is maximized, always show the Changes view
 			// regardless of the session's saved/previous state. The forced visibility
@@ -145,7 +153,7 @@ export class LayoutController extends BaseLayoutController {
 		// [D2] Track auxiliary bar visibility changes by the user so that hiding the
 		// Side Panel for a session is remembered immediately (not only on switch).
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
-			if (e.partId !== Parts.AUXILIARYBAR_PART) {
+			if (e.partId !== Parts.AUXILIARYBAR_PART || this._isCustomViewVisible()) {
 				return;
 			}
 			// [D9] Toggling the whole side pane (editor + aux bar together) hides or
@@ -219,7 +227,8 @@ export class LayoutController extends BaseLayoutController {
 		super._onSessionReplaced(from, to);
 
 		const activeSession = this._sessionsService.activeSession.get();
-		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
+		const replacedSessionIsActive = !this._isCustomViewVisible()
+			&& (isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource));
 		const auxiliaryBarVisible = replacedSessionIsActive
 			? this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 			: this._newSessionViewState?.auxiliaryBarVisible;
@@ -275,7 +284,7 @@ export class LayoutController extends BaseLayoutController {
 
 	/** [D10] Hide the aux-bar part when it has no active view containers; never reveals it. */
 	private _syncAuxiliaryBarPartVisibility(): void {
-		if (this._layoutService.isSinglePaneLayoutEnabled) {
+		if (this._layoutService.isSinglePaneLayoutEnabled || this._isCustomViewVisible()) {
 			return;
 		}
 		if (this._hasActiveAuxViewContainers()) {
@@ -323,7 +332,7 @@ export class LayoutController extends BaseLayoutController {
 	private _revealChangesViewOnFirstOpen(): void {
 		// A side-pane toggle restores exactly the remembered parts; don't let the
 		// editor part it reveals force the Changes view open (D9).
-		if (this._togglingSidePane) {
+		if (this._togglingSidePane || this._isCustomViewVisible()) {
 			return;
 		}
 		const activeEditorResource = this._editorService.activeEditor?.resource;
@@ -412,7 +421,7 @@ export class LayoutController extends BaseLayoutController {
 			// [D7] While the controller restores a session's layout (e.g. switching
 			// sessions reveals the saved side panel), re-baseline instead of reacting
 			// so navigation never auto-hides the sidebar — only in-session changes do.
-			if (this._isRestoringSessionLayout) {
+			if (this._isRestoringSessionLayout || this._isCustomViewVisible()) {
 				this._previousSpaceConstrained = constrained;
 				return;
 			}
@@ -475,7 +484,7 @@ export class LayoutController extends BaseLayoutController {
 	 * hide. See `desktopSessionLayoutController.md`.
 	 */
 	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
-		if (this.multipleSessionsVisibleObs.get()) {
+		if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -503,6 +512,9 @@ export class LayoutController extends BaseLayoutController {
 	// --- Auxiliary bar [D1] ---
 
 	private _captureViewState(sessionResource: URI): void {
+		if (this._isCustomViewVisible()) {
+			return;
+		}
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		const activeViewContainerId = this._paneCompositePartService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId();
 		// [D9] Preserve a collapse marker while the aux bar stays hidden; the

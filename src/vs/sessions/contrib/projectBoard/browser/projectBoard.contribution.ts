@@ -22,9 +22,26 @@ import { KanbanCustomViewContribution } from './kanbanView.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Menus } from '../../../browser/menus.js';
 import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../common/projectBoard.js';
-import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import './projectBoardChatSidePanel.contribution.js';
 
 registerWorkbenchContribution2(KanbanCustomViewContribution.ID, KanbanCustomViewContribution, WorkbenchPhase.BlockRestore);
+
+registerAction2(class ToggleKanbanOpenChatInSidePanelAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.openChatInSidePanel',
+			title: localize2('projectBoard.openChatInSidePanel', "Open Chat in Side Panel"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, KanbanBoardEditableContext),
+			toggled: KanbanOpenChatInSidePanelContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'opening', order: 1, when: ChatContextKeys.enabled }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleOpenChatInSidePanel();
+	}
+});
 
 registerAction2(class AddKanbanRowAction extends Action2 {
 	constructor() {

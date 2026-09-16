@@ -21,7 +21,7 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext, CustomViewSupportsAuxiliaryBarContext, CustomViewVisibleContext, IsQuickChatSessionContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
@@ -39,6 +39,8 @@ import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contri
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { Menus } from '../../../../browser/menus.js';
 
 suite('LayoutController (desktop)', () => {
 
@@ -237,6 +239,95 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	// --- [D1] Capture / restore on switch ---
+
+	for (const auxiliaryBarVisible of [false, true]) {
+		test(`[D1/D2/B4] custom-view auxiliary presentation preserves saved visibility ${auxiliaryBarVisible}`, () => {
+			const controller = createController();
+			const session = makeSession(URI.parse('session:custom-view'));
+			harness.activeSessionObs.set(session, undefined);
+			harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, auxiliaryBarVisible);
+			harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: auxiliaryBarVisible });
+			const expected = controller.getViewState(session.resource);
+
+			harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+			harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+			harness.activePaneCompositeId = 'custom-view.chat';
+			harness.openedViewContainers.length = 0;
+			harness.openedViews.length = 0;
+			for (const visible of [false, true, false]) {
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, visible);
+				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible });
+			}
+			harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+			const stored = JSON.parse(harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE)!);
+			harness.activeSessionObs.set(makeSession(URI.parse('session:other')), undefined);
+
+			assert.deepStrictEqual({
+				state: controller.getViewState(session.resource),
+				persisted: stored.find((entry: { sessionResource: string }) => entry.sessionResource === session.resource.toString()).viewState,
+				openedContainers: harness.openedViewContainers,
+				openedViews: harness.openedViews,
+			}, { state: expected, persisted: expected, openedContainers: [], openedViews: [] });
+		});
+	}
+
+	test('[D3] defers auxiliary restore until the custom view closes', () => {
+		createController();
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+		harness.openedViewContainers.length = 0;
+		harness.openedViews.length = 0;
+		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled }), undefined);
+		const whileCovered = [...harness.openedViewContainers];
+
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: false });
+
+		assert.deepStrictEqual({ whileCovered, afterClose: harness.openedViewContainers, openedViews: harness.openedViews }, {
+			whileCovered: [], afterClose: [SESSIONS_FILES_CONTAINER_ID], openedViews: [],
+		});
+	});
+
+	test('[D2/D4] custom-view auxiliary changes do not replace draft visibility preferences', () => {
+		const controller = createController();
+		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled });
+		const committed = makeSession(URI.parse('session:committed'));
+		harness.activeSessionObs.set(draft, undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		const before = harness.storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE);
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.activePaneCompositeId = 'custom-view.chat';
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+
+		assert.deepStrictEqual({
+			before,
+			after: harness.storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE),
+			committed: controller.getViewState(committed.resource),
+		}, {
+			before: '{"auxiliaryBarVisible":false}',
+			after: '{"auxiliaryBarVisible":false}',
+			committed: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
+		});
+	});
+
+	test('[D10] a custom-view auxiliary pane is not hidden by the session empty-view guard', () => {
+		createController();
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
+		harness.activeAuxViewContainerIds = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+		harness.onDidChangeActiveViewDescriptors.fire();
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual(harness.setPartHiddenCalls, []);
+	});
 
 	test('[D1] remembers aux bar hidden state on session switch', () => {
 		createController();
@@ -1291,6 +1382,28 @@ suite('LayoutController (desktop)', () => {
 			editorVisible: false,
 			auxiliaryBarVisible: false,
 		});
+	});
+
+	test('Toggle Side Panel is enabled for Kanban even when the covered session is a quick chat', () => {
+		createController();
+		const action = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentToggleSidePanel')!;
+		const context = new Context(0, null);
+		const cases = [
+			{ custom: true, supportsAuxiliaryBar: true, quickChat: true, singlePane: false, enabled: true },
+			{ custom: true, supportsAuxiliaryBar: true, quickChat: true, singlePane: true, enabled: true },
+			{ custom: true, supportsAuxiliaryBar: false, quickChat: false, singlePane: true, enabled: false },
+			{ custom: false, supportsAuxiliaryBar: false, quickChat: true, singlePane: false, enabled: false },
+			{ custom: false, supportsAuxiliaryBar: false, quickChat: true, singlePane: true, enabled: true },
+			{ custom: false, supportsAuxiliaryBar: false, quickChat: false, singlePane: false, enabled: true },
+		];
+		assert.deepStrictEqual(cases.map(testCase => {
+			context.setValue(CustomViewVisibleContext.key, testCase.custom);
+			context.setValue(CustomViewSupportsAuxiliaryBarContext.key, testCase.supportsAuxiliaryBar);
+			context.setValue(IsQuickChatSessionContext.key, testCase.quickChat);
+			context.setValue(SinglePaneLayoutEnabledContext.key, testCase.singlePane);
+			return action.command.precondition?.evaluate(context);
+		}), cases.map(testCase => testCase.enabled));
 	});
 
 	test('[D9] controller derives the toggling state from workbench events', () => {
@@ -3542,6 +3655,40 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		assert.strictEqual(hasFilesTab(), true, 'a non-file editor must not remove the Files tab');
+	});
+
+	test('[single-pane] custom-view auxiliary presentation does not collapse or reconcile session editor tabs', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:custom-view')), undefined);
+		await settle();
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/keep-open.ts')));
+		harness.activeGroupEditors.push(editor);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+		const editors = [...harness.activeGroupEditors];
+		harness.closedEditors.length = 0;
+		harness.openedEditors.length = 0;
+		harness.openedViews.length = 0;
+		harness.openedViewContainers.length = 0;
+
+		harness.partVisibility.set(Parts.CUSTOM_VIEW_GRID_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.CUSTOM_VIEW_GRID_PART, visible: true });
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({
+			editors: harness.activeGroupEditors,
+			closed: harness.closedEditors,
+			opened: harness.openedEditors,
+			openedViews: harness.openedViews,
+			openedContainers: harness.openedViewContainers,
+		}, { editors, closed: [], opened: [], openedViews: [], openedContainers: [] });
 	});
 
 	test('[single-pane] closes non-managed tabs when the editor area hides and reopens them when shown', async () => {

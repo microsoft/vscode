@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.project-board-chat-pane,
+.project-board-chat-content {
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.project-board-chat-content {
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-sideBar-background);
+	color: var(--vscode-sideBar-foreground);
+}
+
+.project-board-chat-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	flex-shrink: 0;
+}
+
+.project-board-chat-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.project-board-chat-actions {
+	flex-shrink: 0;
+}
+
+.project-board-chat-widget {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
