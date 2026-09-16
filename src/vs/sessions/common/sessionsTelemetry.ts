@@ -32,6 +32,121 @@ export function hashSessionIdForTelemetry(sessionId: string): string {
 	return sha1.digest();
 }
 
+export type SessionComparisonAttemptTerminalStatus = 'completed' | 'error' | 'launchError';
+export type SessionComparisonUsageCompleteness = 'complete' | 'partial' | 'unavailable';
+
+export interface ISessionComparisonAttemptCompletedTelemetry {
+	readonly comparisonId: string;
+	readonly agentSessionId?: string;
+	readonly attemptIndex: number;
+	readonly attemptCount: number;
+	readonly status: SessionComparisonAttemptTerminalStatus;
+	readonly elapsedMs?: number;
+	readonly inputTokenCount?: number;
+	readonly cachedInputTokenCount?: number;
+	readonly outputTokenCount?: number;
+	readonly usageCompleteness: SessionComparisonUsageCompleteness;
+}
+
+type SessionComparisonAttemptCompletedEvent = ISessionComparisonAttemptCompletedTelemetry;
+
+type SessionComparisonAttemptCompletedClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks terminal implementation attempts in Run and Compare Agents, including aggregate token usage when available.';
+	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate attempts from the same comparison.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
+	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
+	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of implementation attempts in the comparison.' };
+	status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the attempt completed, failed while running, or failed to launch.' };
+	elapsedMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed attempt duration in milliseconds when a session was created.' };
+	inputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate input token usage reported for the attempt.' };
+	cachedInputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate cached input token usage reported for the attempt.' };
+	outputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate output token usage reported for the attempt.' };
+	usageCompleteness: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether token usage is complete, partial, or unavailable.' };
+};
+
+export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetryService, data: ISessionComparisonAttemptCompletedTelemetry): void {
+	telemetryService.publicLog2<SessionComparisonAttemptCompletedEvent, SessionComparisonAttemptCompletedClassification>('agents/sessionComparisonAttemptCompleted', data);
+}
+
+export interface ISessionComparisonAttemptJudgedTelemetry {
+	readonly comparisonId: string;
+	readonly agentSessionId?: string;
+	readonly attemptIndex: number;
+	readonly attemptCount: number;
+	readonly recommended: boolean;
+	readonly tests: string;
+	readonly build: string;
+	readonly lint: string;
+	readonly diagnostics: string;
+}
+
+type SessionComparisonAttemptJudgedEvent = ISessionComparisonAttemptJudgedTelemetry;
+
+type SessionComparisonAttemptJudgedClassification = {
+	owner: 'meganrogge';
+	comment: 'Relates Run and Compare Agents attempts to the Judge recommendation and categorical validation outcome.';
+	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate attempts from the same comparison.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with attempt execution and trusted model telemetry.' };
+	attemptIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based ordinal of the attempt within the comparison.' };
+	attemptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of implementation attempts in the comparison.' };
+	recommended: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the Judge recommended this attempt.' };
+	tests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Judge-reported categorical test validation state.' };
+	build: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Judge-reported categorical build validation state.' };
+	lint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Judge-reported categorical lint validation state.' };
+	diagnostics: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Judge-reported categorical diagnostics validation state.' };
+};
+
+export function logSessionComparisonAttemptJudged(telemetryService: ITelemetryService, data: ISessionComparisonAttemptJudgedTelemetry): void {
+	telemetryService.publicLog2<SessionComparisonAttemptJudgedEvent, SessionComparisonAttemptJudgedClassification>('agents/sessionComparisonAttemptJudged', data);
+}
+
+export type SessionComparisonStage = 'judge' | 'synthesis';
+
+export interface ISessionComparisonStageCompletedTelemetry {
+	readonly comparisonId: string;
+	readonly agentSessionId?: string;
+	readonly stage: SessionComparisonStage;
+	readonly providerId: SessionsTelemetryProviderId;
+	readonly agentId: string;
+	readonly modelId?: string;
+	readonly status: SessionComparisonAttemptTerminalStatus;
+	readonly elapsedMs?: number;
+	readonly inputTokenCount?: number;
+	readonly cachedInputTokenCount?: number;
+	readonly outputTokenCount?: number;
+	readonly usageCompleteness: SessionComparisonUsageCompleteness;
+	readonly winningProviderId?: SessionsTelemetryProviderId;
+	readonly winningAgentId?: string;
+	readonly winningModelId?: string;
+}
+
+type SessionComparisonStageCompletedEvent = ISessionComparisonStageCompletedTelemetry;
+
+type SessionComparisonStageCompletedClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks terminal Judge and synthesis stages in Run and Compare Agents, including aggregate token usage and the Judge-selected harness.';
+	comparisonId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed identifier used to correlate stages from the same comparison.' };
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A hashed Agent Host session identifier, used to correlate with existing trusted model telemetry.' };
+	stage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this event describes the Judge or synthesis stage.' };
+	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category used by the stage.' };
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier used by the stage.' };
+	modelId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier selected for the stage when explicitly configured.' };
+	status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stage completed, failed while running, or failed to launch.' };
+	elapsedMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed stage duration in milliseconds when a session was created.' };
+	inputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate input token usage reported for the stage.' };
+	cachedInputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate cached input token usage reported for the stage.' };
+	outputTokenCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Aggregate output token usage reported for the stage.' };
+	usageCompleteness: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether stage token usage is complete, partial, or unavailable.' };
+	winningProviderId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded Sessions provider category of the attempt selected by the Judge.' };
+	winningAgentId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent type identifier of the attempt selected by the Judge.' };
+	winningModelId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model identifier of the attempt selected by the Judge when explicitly configured.' };
+};
+
+export function logSessionComparisonStageCompleted(telemetryService: ITelemetryService, data: ISessionComparisonStageCompletedTelemetry): void {
+	telemetryService.publicLog2<SessionComparisonStageCompletedEvent, SessionComparisonStageCompletedClassification>('agents/sessionComparisonStageCompleted', data);
+}
+
 // --- Titlebar button interactions ---
 
 export type SessionsInteractionButton =

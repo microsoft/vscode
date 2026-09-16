@@ -11,6 +11,8 @@ import { Event } from '../../../../base/common/event.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
+export type SessionGridLayout = 'columns' | 'grid';
+
 /**
  * Payload for {@link ISessionsPartService.onDidToggleMaximizeSession}.
  */
@@ -29,7 +31,7 @@ export interface ISessionsPartService {
 	 * visible sessions or active session change. The part is a passive renderer:
 	 * it does not observe the model itself.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void;
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, layout?: SessionGridLayout): void;
 
 	/**
 	 * Controls whether mounted session views may render independently of the part's grid visibility.

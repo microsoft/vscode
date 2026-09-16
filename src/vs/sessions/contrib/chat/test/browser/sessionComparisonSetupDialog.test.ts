@@ -1,0 +1,227 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { getSessionComparisonWorkspaceError, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
+import { ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
+
+const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
+const HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
+
+suite('SessionComparisonDialogResizeController', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createController(storageService: TestStorageService): { dialog: HTMLElement; body: HTMLElement } {
+		const dialog = dom.append(mainWindow.document.body, dom.$('.session-comparison-setup-dialog'));
+		const body = dom.append(dialog, dom.$('.session-comparison-setup-body'));
+		disposables.add({ dispose: () => dialog.remove() });
+		disposables.add(new SessionComparisonDialogResizeController(dialog, body, storageService));
+		return { dialog, body };
+	}
+
+	test('keeps the default size when no dimensions are stored', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const { dialog } = createController(storageService);
+
+		assert.deepStrictEqual({
+			width: dialog.style.width,
+			height: dialog.style.height,
+		}, {
+			width: '',
+			height: '',
+		});
+
+	});
+
+	test('restores stored dimensions and clamps them to the viewport', () => {
+		const storageService = disposables.add(new TestStorageService());
+		storageService.store(WIDTH_STORAGE_KEY, mainWindow.innerWidth * 2, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storageService.store(HEIGHT_STORAGE_KEY, 480, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const { dialog } = createController(storageService);
+
+		assert.deepStrictEqual({
+			width: dialog.style.width,
+			height: dialog.style.height,
+		}, {
+			width: `${Math.floor(mainWindow.innerWidth * 0.9)}px`,
+			height: '480px',
+		});
+	});
+
+	suite('SessionComparisonPermissions', () => {
+		const options = [{
+			id: 'default',
+			label: 'Default',
+			description: 'Default permissions.',
+			isDefault: true,
+		}, {
+			id: 'assisted',
+			label: 'Assisted',
+			description: 'Assisted permissions.',
+		}, {
+			id: 'allowAll',
+			label: 'Allow all',
+			description: 'Allow all permissions.',
+			isAllowAll: true,
+		}];
+
+		test('selects provider permissions from checked, unchecked, and mixed bulk state', () => {
+			assert.deepStrictEqual({
+				checked: selectSessionComparisonPermission(options, 'default', true)?.id,
+				unchecked: selectSessionComparisonPermission(options, 'allowAll', false)?.id,
+				mixed: selectSessionComparisonPermission(options, 'assisted', 'mixed')?.id,
+				mixedMissing: selectSessionComparisonPermission(options, 'missing', 'mixed')?.id,
+				lockedAllowAll: selectSessionComparisonPermission(options.map(option => option.isAllowAll ? { ...option, locked: true } : option), 'default', true)?.id,
+			}, {
+				checked: 'allowAll',
+				unchecked: 'default',
+				mixed: 'assisted',
+				mixedMissing: 'default',
+				lockedAllowAll: 'default',
+			});
+		});
+	});
+
+	test('resizes and persists dimensions with the keyboard', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const { dialog, body } = createController(storageService);
+		dialog.style.width = '560px';
+		dialog.style.height = '400px';
+		const widthHandle = body.querySelector<HTMLElement>('.session-comparison-setup-resize-width');
+		assert.ok(widthHandle);
+
+		widthHandle.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		assert.deepStrictEqual({
+			width: dialog.style.width,
+			storedWidth: storageService.getNumber(WIDTH_STORAGE_KEY, StorageScope.PROFILE),
+			storedHeight: storageService.getNumber(HEIGHT_STORAGE_KEY, StorageScope.PROFILE),
+			ariaValue: widthHandle.getAttribute('aria-valuenow'),
+		}, {
+			width: '580px',
+			storedWidth: 580,
+			storedHeight: 400,
+			ariaValue: '580',
+		});
+	});
+
+	suite('setup behavior', () => {
+		test('applies and clears bulk permissions for attempts and evaluators', () => {
+			const applyBulkPermissionSelection = Reflect.get(SessionComparisonSetupDialog.prototype, '_applyBulkPermissionSelection') as (
+				this: object,
+				attempts: readonly ISessionComparisonAttemptConfiguration[],
+				judgeHarness: ISessionComparisonHarness,
+				synthesisHarness: ISessionComparisonHarness,
+				allowAll: boolean,
+			) => {
+				readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
+				readonly judgeHarness: ISessionComparisonHarness;
+				readonly synthesisHarness: ISessionComparisonHarness;
+			};
+			const dialog = Object.create(SessionComparisonSetupDialog.prototype);
+			Reflect.set(dialog, 'sessionsProvidersService', {
+				getProvider: () => ({
+					getPermissionOptionsForCreation: () => [
+						{ id: 'default', label: 'Default', description: 'Default permissions', isDefault: true },
+						{ id: 'allowAll', label: 'Allow All', description: 'Allow all permissions', isAllowAll: true },
+					],
+				}),
+			});
+			const attempts = [
+				{ id: 'one', harness: { providerId: 'provider', sessionTypeId: 'one', label: 'One', permissionId: 'default', permissionLabel: 'Default' } },
+				{ id: 'two', harness: { providerId: 'provider', sessionTypeId: 'two', label: 'Two', permissionId: 'default', permissionLabel: 'Default' } },
+			];
+			const judgeHarness = { providerId: 'provider', sessionTypeId: 'judge', label: 'Judge', permissionId: 'default', permissionLabel: 'Default' };
+			const synthesisHarness = { providerId: 'provider', sessionTypeId: 'synthesis', label: 'Synthesizer', permissionId: 'default', permissionLabel: 'Default' };
+
+			const allowed = applyBulkPermissionSelection.call(dialog, attempts, judgeHarness, synthesisHarness, true);
+			const defaults = applyBulkPermissionSelection.call(dialog, allowed.attempts, allowed.judgeHarness, allowed.synthesisHarness, false);
+
+			assert.deepStrictEqual({
+				allowed: [...allowed.attempts.map(attempt => attempt.harness.permissionId), allowed.judgeHarness.permissionId, allowed.synthesisHarness.permissionId],
+				defaults: [...defaults.attempts.map(attempt => attempt.harness.permissionId), defaults.judgeHarness.permissionId, defaults.synthesisHarness.permissionId],
+			}, {
+				allowed: ['allowAll', 'allowAll', 'allowAll', 'allowAll'],
+				defaults: ['default', 'default', 'default', 'default'],
+			});
+		});
+
+		test('keeps setup dialog controls in the keyboard focus loop', () => {
+			const dialogElement = dom.append(mainWindow.document.body, dom.$('.session-comparison-setup-dialog'));
+			const first = dom.append(dialogElement, dom.$('button'));
+			const second = dom.append(dialogElement, dom.$('select'));
+			const third = dom.append(dialogElement, dom.$('button'));
+			for (const element of [first, second, third]) {
+				Object.defineProperty(element, 'getClientRects', { value: () => [{}] });
+			}
+			disposables.add({ dispose: () => dialogElement.remove() });
+			const store = disposables.add(new DisposableStore());
+			const registerFocusNavigation = Reflect.get(SessionComparisonSetupDialog.prototype, '_registerFocusNavigation') as (this: object, dialogElement: HTMLElement, store: DisposableStore) => void;
+			registerFocusNavigation.call(Object.create(SessionComparisonSetupDialog.prototype), dialogElement, store);
+			let fallbackEvents = 0;
+			store.add(dom.addDisposableListener(mainWindow, dom.EventType.KEY_DOWN, () => fallbackEvents++, true));
+
+			first.focus();
+			first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+			const afterTab = mainWindow.document.activeElement;
+			third.focus();
+			third.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+			const afterWrap = mainWindow.document.activeElement;
+			first.focus();
+			first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+			const afterReverseWrap = mainWindow.document.activeElement;
+
+			assert.deepStrictEqual({
+				afterTab,
+				afterWrap,
+				afterReverseWrap,
+				fallbackEvents,
+			}, {
+				afterTab: second,
+				afterWrap: first,
+				afterReverseWrap: third,
+				fallbackEvents: 0,
+			});
+		});
+
+		test('keeps focus on information buttons when showing their hover', () => {
+			const target = mainWindow.document.createElement('button');
+			let hoverFocus: boolean | undefined = true;
+			const dialog = Object.create(SessionComparisonSetupDialog.prototype);
+			Reflect.set(dialog, 'hoverService', {
+				showInstantHover: (_options: object, focus?: boolean) => {
+					hoverFocus = focus;
+				},
+			});
+			const showInfoHover = Reflect.get(SessionComparisonSetupDialog.prototype, '_showInfoHover') as (this: object, target: HTMLElement, content: string) => void;
+
+			showInfoHover.call(dialog, target, 'Description');
+
+			assert.strictEqual(hoverFocus, undefined);
+		});
+
+		test('requires a Git remote after resolving the repository', () => {
+			assert.deepStrictEqual({
+				noRepository: getSessionComparisonWorkspaceError(undefined, false),
+				noRemote: getSessionComparisonWorkspaceError('main', false),
+				unknownRemote: getSessionComparisonWorkspaceError('main', undefined),
+				ready: getSessionComparisonWorkspaceError('main', true),
+			}, {
+				noRepository: 'Run and Compare Agents requires a Git repository with at least one commit.',
+				noRemote: 'Comparisons require a Git remote.',
+				unknownRemote: undefined,
+				ready: undefined,
+			});
+		});
+
+	});
+});

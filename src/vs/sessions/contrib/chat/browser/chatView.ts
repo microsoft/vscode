@@ -54,6 +54,7 @@ import { ISessionOpenTelemetryService } from '../../../services/sessions/browser
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionComparisonResult } from './sessionComparisonResult.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -178,6 +179,8 @@ export class ChatView extends AbstractChatView {
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
 	private readonly _banners: SessionInputBanners;
+	/** Judge-only comparison result shown above the chat input. */
+	private readonly _comparisonResult: SessionComparisonResult;
 	/** Floating status pills (changes, preview, background activity) above the input. */
 	private readonly _chatPills: SessionChatInputToolbar;
 
@@ -310,6 +313,11 @@ export class ChatView extends AbstractChatView {
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
 		this._banners.setActive(this._isActive);
+		this._comparisonResult = this._register(scopedInstantiationService.createInstance(
+			SessionComparisonResult,
+			this._currentSessionObs,
+			() => this._layoutChatWidget(),
+		));
 
 		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derived(this, reader => {
 			if (!this._isVisibleObs.read(reader) || !this._isPrimaryObs.read(reader) || this.isLoadingTranscript.read(reader)) {
@@ -709,11 +717,15 @@ export class ChatView extends AbstractChatView {
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
 		const pillsNode = this._chatPills.element;
 		const bannersNode = this._banners.domNode;
+		const comparisonResultNode = this._comparisonResult.domNode;
 		if (persistentContentContainer.firstChild !== pillsNode) {
 			persistentContentContainer.insertBefore(pillsNode, persistentContentContainer.firstChild);
 		}
 		if (persistentContentContainer.nextSibling !== bannersNode) {
 			inputPartElement.insertBefore(bannersNode, persistentContentContainer.nextSibling);
+		}
+		if (bannersNode.nextSibling !== comparisonResultNode) {
+			inputPartElement.insertBefore(comparisonResultNode, bannersNode.nextSibling);
 		}
 	}
 

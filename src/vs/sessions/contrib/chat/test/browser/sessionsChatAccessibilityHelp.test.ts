@@ -14,6 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { COMPARE_AGENTS_ENABLED_SETTING } from '../../common/constants.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 
@@ -97,5 +98,59 @@ suite('SessionsChatAccessibilityHelp', () => {
 			activation: backgroundHelp?.includes('press Tab to find it, then press Enter or Space to activate it'),
 			nextButton: backgroundHelp?.includes('Each activation selects another random icon as the next Celebrate button.'),
 		}, { activation: true, nextButton: true });
+	});
+
+	test('describes Run and Compare Agents only when enabled', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({
+			[COMPARE_AGENTS_ENABLED_SETTING]: false,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const disabledContent = disabledProvider.provideContent();
+		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
+		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.deepStrictEqual({
+			disabled: disabledContent.includes('activate Run and Compare Agents'),
+			enabled: enabledProvider.provideContent().includes('activate Run and Compare Agents'),
+			workspaceAndBranch: enabledProvider.provideContent().includes('choose a Git repository with at least one commit and a remote, choose the base branch'),
+			permissions: enabledProvider.provideContent().includes('provider-specific Permissions selection'),
+			bulkPermissions: enabledProvider.provideContent().includes('Allow all permissions for every participant'),
+			permissionInfo: enabledProvider.provideContent().includes('Activate the adjacent information button'),
+			evaluatorInfo: enabledProvider.provideContent().includes('Their information buttons describe each role'),
+			setupSteps: enabledProvider.provideContent().includes('two-step comparison setup'),
+			stepButtons: enabledProvider.provideContent().includes('Attempts and Evaluation step buttons'),
+			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
+			latestStep: enabledProvider.provideContent().includes('follow the latest available step'),
+			inactiveInputsByDefault: enabledProvider.provideContent().includes('By default, only the active attempt pane shows its chat input'),
+			screenReaderInputs: enabledProvider.provideContent().includes('Screen-reader optimized mode keeps every attempt input visible'),
+			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
+			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
+			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
+			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
+		}, {
+			disabled: false,
+			enabled: true,
+			workspaceAndBranch: true,
+			permissions: true,
+			bulkPermissions: true,
+			permissionInfo: true,
+			evaluatorInfo: true,
+			setupSteps: true,
+			stepButtons: true,
+			effort: true,
+			latestStep: true,
+			inactiveInputsByDefault: true,
+			screenReaderInputs: true,
+			stopParticipant: true,
+			stopAll: true,
+			customSynthesis: true,
+			choiceButtons: true,
+		});
 	});
 });

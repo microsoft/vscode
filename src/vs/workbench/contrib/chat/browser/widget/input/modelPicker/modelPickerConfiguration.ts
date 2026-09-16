@@ -24,6 +24,7 @@ export interface IModelPickerConfigurationHost {
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
+	readonly getContextViewLayer?: () => number | undefined;
 }
 
 export class ModelPickerConfiguration {
@@ -127,6 +128,7 @@ export class ModelPickerConfiguration {
 				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
 				reserveSubmenuSpace: false,
 			}),
+			this._host.getContextViewLayer?.(),
 		);
 
 		if (focusGroup) {

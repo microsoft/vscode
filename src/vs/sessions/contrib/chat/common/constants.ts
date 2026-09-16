@@ -7,3 +7,4 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 
 export const NEW_SESSION_ACTION_ID = 'workbench.action.sessions.newChat';
 export const UNIFIED_WORKSPACE_PICKER_SETTING = ChatConfiguration.UnifiedWorkspacePicker;
+export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
