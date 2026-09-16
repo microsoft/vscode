@@ -21,28 +21,36 @@ import { readDismissedNotificationIds } from './widget/input/chatInputNotificati
 export const CHAT_CLOSED_PROMO_TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
 
 /**
- * A live model sale that can surface a closed-Chat treatment.
- * Independent of which treatment (if any) is selected.
+ * An eligible closed-Chat promo with the treatment chosen for it.
+ * `treatment` is undefined while an experiment lookup is in flight.
  */
-export interface IChatClosedPromoOpportunity {
+export interface IChatClosedPromoDecision {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
 	readonly promoId: string;
+	readonly treatment: ChatClosedPromoNotification | undefined;
 }
 
 /**
- * Detects when Chat is closed for Local and an eligible sale is on offer.
- * Treatments (none, copilot icon popup, …) are chosen separately from this signal.
+ * Decides whether a closed-Chat promo should run and which treatment to use.
+ * Owned by the promo contribution; not a workbench DI service.
  */
-export class ChatClosedPromoEligibility extends Disposable {
+export class ChatClosedPromo extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _experimentTreatment: boolean | undefined;
+	private _experimentPending = false;
+	private _experimentGeneration = 0;
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -56,13 +64,37 @@ export class ChatClosedPromoEligibility extends Disposable {
 		}));
 		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this._onDidChange.fire()));
 		this._register(this.chatWidgetService.onDidChangeFocusedWidget(() => this._onDidChange.fire()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
+				this._onDidChange.fire();
+			}
+		}));
+		this._register(this.assignmentService.onDidRefetchAssignments(() => {
+			this._experimentGeneration++;
+			this._experimentTreatment = undefined;
+			this._experimentPending = false;
+			this._onDidChange.fire();
+		}));
 	}
 
 	/**
-	 * Returns the first eligible discounted Copilot promo when Local Chat is not
-	 * visible. Undefined means no closed-Chat treatment should run.
+	 * Returns a decision when Local Chat is closed and an eligible sale exists.
+	 * Treatment is resolved only after eligibility so ExP is not queried otherwise.
+	 * `treatment` is undefined while TAS is still loading.
 	 */
-	getOpportunity(): IChatClosedPromoOpportunity | undefined {
+	getDecision(hasRenderAnchor: boolean): IChatClosedPromoDecision | undefined {
+		const opportunity = this.getOpportunity();
+		if (!opportunity) {
+			return undefined;
+		}
+		return {
+			model: opportunity.model,
+			promoId: opportunity.promoId,
+			treatment: this.resolveTreatment(hasRenderAnchor),
+		};
+	}
+
+	private getOpportunity(): { model: ILanguageModelChatMetadataAndIdentifier; promoId: string } | undefined {
 		if (this.isLocalChatVisible()) {
 			return undefined;
 		}
@@ -87,63 +119,7 @@ export class ChatClosedPromoEligibility extends Disposable {
 		return undefined;
 	}
 
-	private isLocalChatVisible(): boolean {
-		if (!this.viewsService.isViewVisible(ChatViewId)) {
-			return false;
-		}
-		const resource = this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-		return !resource || getChatSessionType(resource) === localChatSessionType;
-	}
-
-	private isGitHubCopilotPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		const harness = model.metadata.targetChatSessionType ?? localChatSessionType;
-		if (harness !== localChatSessionType) {
-			return false;
-		}
-		const vendor = model.metadata.vendor;
-		return !vendor || vendor === COPILOT_VENDOR_ID;
-	}
-}
-
-/**
- * Resolves which closed-Chat promo treatment to show when an opportunity exists.
- * Config/policy overrides the experiment; otherwise TAS is consulted once an
- * anchor is available for treatments that need the Copilot status icon.
- */
-export class ChatClosedPromoTreatmentResolver extends Disposable {
-
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
-
-	private _experimentTreatment: boolean | undefined;
-	private _experimentPending = false;
-	private _experimentGeneration = 0;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
-		@ILogService private readonly logService: ILogService,
-	) {
-		super();
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
-				this._onDidChange.fire();
-			}
-		}));
-		this._register(this.assignmentService.onDidRefetchAssignments(() => {
-			this._experimentGeneration++;
-			this._experimentTreatment = undefined;
-			this._experimentPending = false;
-			this._onDidChange.fire();
-		}));
-	}
-
-	/**
-	 * @param hasRenderAnchor Whether a status-bar Copilot icon is present for icon-based treatments.
-	 * @returns The selected treatment, or `undefined` while an experiment lookup is in flight.
-	 */
-	getTreatment(hasRenderAnchor: boolean): ChatClosedPromoNotification | undefined {
+	private resolveTreatment(hasRenderAnchor: boolean): ChatClosedPromoNotification | undefined {
 		const config = this.configurationService.inspect<ChatClosedPromoNotification>(ChatConfiguration.ChatClosedPromoNotification);
 		if (isConfigured(config) || config.policyValue !== undefined || config.memoryValue !== undefined) {
 			return config.value ?? ChatClosedPromoNotification.None;
@@ -176,5 +152,22 @@ export class ChatClosedPromoTreatmentResolver extends Disposable {
 		this._experimentPending = false;
 		this._experimentTreatment = enabled;
 		this._onDidChange.fire();
+	}
+
+	private isLocalChatVisible(): boolean {
+		if (!this.viewsService.isViewVisible(ChatViewId)) {
+			return false;
+		}
+		const resource = this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+		return !resource || getChatSessionType(resource) === localChatSessionType;
+	}
+
+	private isGitHubCopilotPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		const harness = model.metadata.targetChatSessionType ?? localChatSessionType;
+		if (harness !== localChatSessionType) {
+			return false;
+		}
+		const vendor = model.metadata.vendor;
+		return !vendor || vendor === COPILOT_VENDOR_ID;
 	}
 }

@@ -30,7 +30,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
-import { ChatClosedPromoEligibility, ChatClosedPromoTreatmentResolver, CHAT_CLOSED_PROMO_TREATMENT } from './chatClosedPromoEligibility.js';
+import { ChatClosedPromo, CHAT_CLOSED_PROMO_TREATMENT } from './chatClosedPromo.js';
 import { DISMISSED_PROMOS_STORAGE_KEY } from './chatPromoNotification.js';
 import { addDismissedNotificationId } from './widget/input/chatInputNotificationService.js';
 import { getModelProviderIcon } from './widget/input/modelPicker/modelProviderIcons.js';
@@ -86,8 +86,7 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 	private readonly pipRetry = this._register(new MutableDisposable());
 	private readonly pipObserver = this._register(new MutableDisposable());
 	private readonly pipInput = this._register(new MutableDisposable());
-	private readonly eligibility: ChatClosedPromoEligibility;
-	private readonly treatmentResolver: ChatClosedPromoTreatmentResolver;
+	private readonly closedPromo: ChatClosedPromo;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -101,8 +100,7 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 	) {
 		super();
 
-		this.eligibility = this._register(instantiationService.createInstance(ChatClosedPromoEligibility));
-		this.treatmentResolver = this._register(instantiationService.createInstance(ChatClosedPromoTreatmentResolver));
+		this.closedPromo = this._register(instantiationService.createInstance(ChatClosedPromo));
 
 		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier?: string) => {
 			await this.openChatAndSwitchModel(typeof modelIdentifier === 'string' ? modelIdentifier : undefined);
@@ -116,31 +114,28 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'click', e => this.onWorkbenchClick(e), true));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'keydown', e => this.onWorkbenchKeyDown(e), true));
 		this._register(this.layoutService.onDidLayoutMainContainer(() => this.syncPip()));
-		this._register(this.eligibility.onDidChange(() => this.syncPip()));
-		this._register(this.treatmentResolver.onDidChange(() => this.syncPip()));
+		this._register(this.closedPromo.onDidChange(() => this.syncPip()));
 		this.syncPip();
 	}
 
 	/**
-	 * Arms a closed-Chat treatment when an opportunity exists. Treatment is only
-	 * resolved after eligibility so ExP is not queried for ineligible surfaces.
+	 * Arms a closed-Chat treatment from {@link ChatClosedPromo}. Additional
+	 * treatments branch here once decided.
 	 */
 	private syncPip(): void {
-		const opportunity = this.eligibility.getOpportunity();
-		if (!opportunity) {
+		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
+		const decision = this.closedPromo.getDecision(!!anchor?.getClientRects().length);
+		if (!decision) {
 			if (this.pendingPayload) {
 				this.disarmChatPromo();
 			}
 			return;
 		}
 
-		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
-		const treatment = this.treatmentResolver.getTreatment(!!anchor?.getClientRects().length);
-
 		// Branch on treatment as additional closed-Chat surfaces are added.
 		let payload: IChatPromoCardInput | undefined;
-		if (treatment === ChatClosedPromoNotification.CopilotIconPopup) {
-			payload = this.promoCardPayload(opportunity.model);
+		if (decision.treatment === ChatClosedPromoNotification.CopilotIconPopup) {
+			payload = this.promoCardPayload(decision.model);
 		}
 
 		if (payload) {
