@@ -50,6 +50,11 @@ export interface ISemanticDiffRange {
 	count: number;
 }
 
+export interface ISemanticDiffAttentionRange extends ISemanticDiffRange {
+	firstLineContent?: string;
+	lastLineContent?: string;
+}
+
 export interface ISemanticDiffClassification {
 	groupId: string;
 	changeType: SemanticDiffChangeType;
@@ -63,8 +68,8 @@ export interface ISemanticDiffClassification {
 
 export interface ISemanticDiffAttentionBlock {
 	attention: SemanticDiffAttention;
-	oldRanges: ISemanticDiffRange[];
-	newRanges: ISemanticDiffRange[];
+	oldRanges: ISemanticDiffAttentionRange[];
+	newRanges: ISemanticDiffAttentionRange[];
 	reason: string;
 }
 
@@ -487,8 +492,13 @@ function validateChangedLinePartition(hunk: ISemanticDiffHunk, partitions: reado
 		for (const [name, hunkRange] of [['oldRanges', hunk.oldRange], ['newRanges', hunk.newRange]] as const) {
 			let previousEnd = -1;
 			for (const [rangeIndex, range] of partition[name].entries()) {
+				const rangePath = `${path}/${partitionIndex}/${name}/${rangeIndex}`;
 				if (!contains(hunkRange, range) || range.start < previousEnd) {
-					issues.add(`${path}/${partitionIndex}/${name}/${rangeIndex}`, 'INVALID_RANGE', localize('semanticDiff.invalidChangeTypeRange', "Changed-line ranges must be ordered, non-overlapping, and contained within the owning hunk."));
+					issues.add(rangePath, 'INVALID_RANGE', localize('semanticDiff.invalidChangeTypeRange', "Changed-line ranges must be ordered, non-overlapping, and contained within the owning hunk."));
+				}
+				if ((range.firstLineContent === undefined) !== (range.lastLineContent === undefined) ||
+					(range.count === 1 && range.firstLineContent !== undefined && range.firstLineContent !== range.lastLineContent)) {
+					issues.add(rangePath, 'INVALID_RANGE', localize('semanticDiff.invalidAttentionAnchor', "Attention range endpoint contents must be supplied together and must match for a single-line range."));
 				}
 				previousEnd = range.start + range.count;
 			}
@@ -627,12 +637,14 @@ export function parseSemanticDiffReport(text: string | undefined): SemanticDiffV
 
 /** Keeps SDK tool output small; the validated analysis already lives in the invocation's input. */
 export function serializeSemanticDiffToolResult(report: ISemanticDiffReport): string {
+	const warningSummary = getSemanticDiffToolWarnings(report.analysis);
 	return JSON.stringify({
 		schemaVersion: report.schemaVersion,
 		kind: 'semanticDiffClassificationReceipt',
 		status: report.status,
 		sourceVerification: report.sourceVerification,
 		summary: report.summary,
+		...warningSummary,
 	});
 }
 
@@ -681,7 +693,49 @@ export function parseSemanticDiffToolResult(text: string | undefined, input: str
 		issues.schema('/analysis');
 		return issues.failure();
 	}
-	return validateSemanticDiffReport({ ...receipt, kind: 'semanticDiffClassification', analysis: rebuilt.report.analysis });
+	const expectedWarnings = getSemanticDiffToolWarnings(rebuilt.report.analysis);
+	const hasWarnings = Object.hasOwn(receipt, 'warnings');
+	const hasOmittedWarningCount = Object.hasOwn(receipt, 'omittedWarningCount');
+	if (hasWarnings !== hasOmittedWarningCount ||
+		(hasWarnings && (!structuralEquals(receipt.warnings, expectedWarnings.warnings) ||
+			receipt.omittedWarningCount !== expectedWarnings.omittedWarningCount))) {
+		issues.schema('/warnings');
+		return issues.failure();
+	}
+	const reportReceipt = { ...receipt };
+	delete reportReceipt.warnings;
+	delete reportReceipt.omittedWarningCount;
+	return validateSemanticDiffReport({ ...reportReceipt, kind: 'semanticDiffClassification', analysis: rebuilt.report.analysis });
+}
+
+function getSemanticDiffToolWarnings(analysis: ISemanticDiffAnalysis): {
+	warnings: { code: string; path: string; message: string }[];
+	omittedWarningCount: number;
+} {
+	const maxWarnings = 10;
+	const warnings: { code: string; path: string; message: string }[] = [];
+	let warningCount = 0;
+	for (const [hunkIndex, hunk] of analysis.hunks.entries()) {
+		for (const [blockIndex, block] of hunk.attentionBlocks.entries()) {
+			const ranges = [...block.oldRanges, ...block.newRanges];
+			if (block.attention === 'hot' && ranges.length > 0 && ranges.every(range => {
+				if (range.firstLineContent === undefined || range.lastLineContent === undefined || range.count > 2) {
+					return false;
+				}
+				return range.firstLineContent.trim().length === 0 && range.lastLineContent.trim().length === 0;
+			})) {
+				warningCount++;
+				if (warnings.length < maxWarnings) {
+					warnings.push({
+						code: 'HOT_ATTENTION_ONLY_WHITESPACE',
+						path: `/analysis/hunks/${hunkIndex}/attentionBlocks/${blockIndex}`,
+						message: localize('semanticDiff.hotAttentionOnlyWhitespace', "Hot attention selects only whitespace according to its source anchors. Verify the range coordinates."),
+					});
+				}
+			}
+		}
+	}
+	return { warnings, omittedWarningCount: warningCount - warnings.length };
 }
 
 export function getSemanticDiffChangeTypeLabel(type: SemanticDiffChangeType): string {

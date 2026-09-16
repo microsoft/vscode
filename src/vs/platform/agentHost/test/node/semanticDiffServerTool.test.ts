@@ -135,7 +135,15 @@ suite('Semantic Diff Server Tool', () => {
 			'put removed replacement lines in original.deleted',
 			'without overlap',
 			'Preserve Git hunk ownership',
-			'AST structural/code labels are independent of logic/test/supporting hunk types',
+			'declaration, signature, statement, import, or other syntax role',
+			'exact zero-based end-exclusive coverage ranges',
+			'Use coverage as evidence for type and attention boundaries, not as a semantic verdict',
+			'Import coverage is normally cold and makes an import-only hunk supporting',
+			'Other coverage requires source inspection and is not automatically supporting or cold',
+			'test tag is a strong authorship hint',
+			'does not override the import-only supporting rule, prove behavioral coverage, or indicate that tests passed',
+			'complete named addition or deletion is one declaration classification even when it contains executable statements or tests',
+			'For replacements, compare original and modified coverage independently',
 			'Do not invoke classify_diff_hunks until every eligible file has a completed or failed TypeScript classification attempt',
 			'continue with ordinary source inspection',
 			'Report that operational fact outside analysis, not as a source limitation',
@@ -162,14 +170,28 @@ suite('Semantic Diff Server Tool', () => {
 		});
 	});
 
+	test('built-in walkthrough uses classification coverage as bounded semantic evidence', () => {
+		const skill = readFileSync(FileAccess.asFileUri('vs/sessions/skills/create-code-walkthrough/SKILL.md').fsPath, 'utf8');
+		assert.deepStrictEqual([
+			'`declaration`, `signature`, `statement`, `import`, or `other`',
+			'exact zero-based end-exclusive coverage `ranges`',
+			'{ start: start + 1, count: end - start }',
+			'Use coverage ranges as evidence for hunk type and attention boundaries',
+			'`import` is normally cold and makes an import-only hunk supporting',
+			'`test` tag is a strong test-authorship hint',
+			'does not override the import-only supporting rule, prove that tests cover the behavior, or show that tests passed',
+			'complete named addition or deletion is reported once as `declaration`',
+			'do not make the entire declaration hot or treat it as signature-only',
+			'Compare original and modified coverage independently for replacements',
+			'split a single syntax range when its lines have different review importance',
+		].filter(clause => !skill.includes(clause)), []);
+	});
+
 	test('prompt treats AST ranges as context rather than semantic attention partitions', () => {
 		assert.deepStrictEqual([
 			'The same entity can serve different intents; different entities can serve one intent',
-			'Entity ranges do not partition changed lines',
-			'Entity ranges do not partition changed lines',
-			'Never copy an entity range into attentionBlocks',
-			'Inspect whole added bodies',
-			'removed guards',
+			'Entity ranges group context but do not replace Git hunks, classification coverage ranges, or attention blocks',
+			'never make its whole entity range hot or treat it as signature-only',
 			'attention boundaries, not AST entity boundaries',
 		].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)), []);
 	});
@@ -178,6 +200,8 @@ suite('Semantic Diff Server Tool', () => {
 		const inputSchema = semanticDiffServerToolGroup.definitions[0].inputSchema as IJSONSchema;
 		const schema = JSON.stringify(inputSchema);
 		const hunkSchema = inputSchema.properties!.analysis.properties!.hunks.items as IJSONSchema;
+		const attentionBlockSchema = hunkSchema.properties!.attentionBlocks.items as IJSONSchema;
+		const attentionRangeSchema = attentionBlockSchema.properties!.newRanges.items as IJSONSchema;
 		assert.deepStrictEqual({
 			missingPromptClauses: [
 				'An import-only or generated-only hunk is supporting',
@@ -189,15 +213,38 @@ suite('Semantic Diff Server Tool', () => {
 				'both retain the Logic hunk color and filter',
 				'Treat a bare constructor parameter or field used only to make a dependency available',
 				'Use logic when it changes a public or construction contract',
-				'Reconstruct coordinates by walking the literal hunk',
+				'Reconstruct coordinates mechanically from line-numbered exact source while walking the literal hunk',
 				'context advances both sides, deletion only old, and addition only new',
 				'Total old counts must equal deletions and total new counts must equal additions',
+				'Choose the exact changed source lines before deriving coordinates',
+				'Include firstLineContent and lastLineContent without line terminators on every attention range',
+				'build an endpoint ledger for every range',
+				'derive endpoints from mechanically line-numbered source rather than manual counting',
 			].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)),
 			schemaImportOnly: hunkSchema.properties!.classification.properties!.changeType.description?.includes('import-only'),
 			schemaTypes: hunkSchema.properties!.classification.properties!.changeType.enum,
 			schemaRequiresAttention: hunkSchema.required?.includes('attentionBlocks'),
 			schemaExplainsExhaustiveRanges: schema.includes('Cover every added and deleted line exactly once'),
-		}, { missingPromptClauses: [], schemaImportOnly: true, schemaTypes: ['logic', 'test', 'supporting'], schemaRequiresAttention: true, schemaExplainsExhaustiveRanges: true });
+			attentionRangeFields: Object.keys(attentionRangeSchema.properties!),
+			attentionRangeRequired: attentionRangeSchema.required,
+		}, {
+			missingPromptClauses: [], schemaImportOnly: true, schemaTypes: ['logic', 'test', 'supporting'],
+			schemaRequiresAttention: true, schemaExplainsExhaustiveRanges: true,
+			attentionRangeFields: ['start', 'count', 'firstLineContent', 'lastLineContent'],
+			attentionRangeRequired: ['start', 'count'],
+		});
+	});
+
+	test('built-in walkthrough requires a mechanically verified attention endpoint ledger', () => {
+		const skill = readFileSync(FileAccess.asFileUri('vs/sessions/skills/create-code-walkthrough/SKILL.md').fsPath, 'utf8');
+		assert.deepStrictEqual([
+			'Choose exact changed source lines before deriving their coordinates',
+			'Every range includes `firstLineContent` and `lastLineContent` without line terminators',
+			'Build an endpoint ledger from mechanically line-numbered exact snapshots',
+			'manual counting is not an audit',
+			'derive ledger coordinates from the numbered source or a parser',
+			'Treat a successful receipt with warnings as a failed audit',
+		].filter(clause => !skill.includes(clause)), []);
 	});
 
 	test('mixed-import prompt example preserves Supporting import lines through source validation and tool transport', async () => {
@@ -230,12 +277,32 @@ suite('Semantic Diff Server Tool', () => {
 		}, {
 			type: 'logic',
 			restoredBlocks: [
-				{ attention: 'cold', oldRanges: [{ start: 1, count: 1 }], newRanges: [{ start: 1, count: 1 }], reason: 'Import wiring accompanies the changed result.' },
-				{ attention: 'hot', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }], reason: 'The exported result now comes from the helper.' },
+				{
+					attention: 'cold',
+					oldRanges: [{ start: 1, count: 1, firstLineContent: 'import { oldHelper } from \'./oldHelper.js\';', lastLineContent: 'import { oldHelper } from \'./oldHelper.js\';' }],
+					newRanges: [{ start: 1, count: 1, firstLineContent: 'import { helper } from \'./helper.js\';', lastLineContent: 'import { helper } from \'./helper.js\';' }],
+					reason: 'Import wiring accompanies the changed result.',
+				},
+				{
+					attention: 'hot',
+					oldRanges: [{ start: 2, count: 1, firstLineContent: 'export const result = false;', lastLineContent: 'export const result = false;' }],
+					newRanges: [{ start: 2, count: 1, firstLineContent: 'export const result = helper();', lastLineContent: 'export const result = helper();' }],
+					reason: 'The exported result now comes from the helper.',
+				},
 			],
 			verifiedBlocks: [
-				{ attention: 'cold', oldRanges: [{ start: 1, count: 1 }], newRanges: [{ start: 1, count: 1 }], reason: 'Import wiring accompanies the changed result.' },
-				{ attention: 'hot', oldRanges: [{ start: 2, count: 1 }], newRanges: [{ start: 2, count: 1 }], reason: 'The exported result now comes from the helper.' },
+				{
+					attention: 'cold',
+					oldRanges: [{ start: 1, count: 1, firstLineContent: 'import { oldHelper } from \'./oldHelper.js\';', lastLineContent: 'import { oldHelper } from \'./oldHelper.js\';' }],
+					newRanges: [{ start: 1, count: 1, firstLineContent: 'import { helper } from \'./helper.js\';', lastLineContent: 'import { helper } from \'./helper.js\';' }],
+					reason: 'Import wiring accompanies the changed result.',
+				},
+				{
+					attention: 'hot',
+					oldRanges: [{ start: 2, count: 1, firstLineContent: 'export const result = false;', lastLineContent: 'export const result = false;' }],
+					newRanges: [{ start: 2, count: 1, firstLineContent: 'export const result = helper();', lastLineContent: 'export const result = helper();' }],
+					reason: 'The exported result now comes from the helper.',
+				},
 			],
 		});
 	});
@@ -326,7 +393,7 @@ suite('Semantic Diff Server Tool', () => {
 	test('prompt rejects symbol-based umbrella grouping and audits attention endpoints', () => {
 		assert.deepStrictEqual([
 			'Compare observable contracts at repeated call sites rather than grouping on symbol substitution alone',
-			'Recheck the first and last cited line of every range against the source',
+			'compare each ledger row with the final payload',
 		].filter(clause => !SEMANTIC_DIFF_CLASSIFICATION_PROMPT.includes(clause)), []);
 	});
 

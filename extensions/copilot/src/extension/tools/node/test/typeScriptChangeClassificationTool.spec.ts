@@ -26,9 +26,13 @@ suite('TypeScript change classification tool', () => {
 			'mapped to the modified AST',
 			'direct modified and original arrays',
 			'declaration, signature, statement, import, or other',
-			'portions of its change range',
-			'tags such as test',
+			'exact zero-based end-exclusive coverage ranges',
+			'test tag based on test paths, named entities, or callbacks',
+			'authorship hints, not proof of behavioral coverage or passing tests',
 			'complete named declaration addition or deletion has one declaration classification',
+			'even when it contains executable statements or tests',
+			'evaluate original and modified coverage independently',
+			'convert classification coverage to Git coordinates',
 			'pathKinds aligned positionally with path',
 			'always render the joined entity path as a Markdown link',
 		];
@@ -129,20 +133,19 @@ suite('TypeScript change classification tool', () => {
 		});
 	});
 
-	test('requires AST evidence before semantic classification without conflating the taxonomies', () => {
+	test('guides semantic classification without conflating syntax, type, or attention', () => {
 		const definition = packageJson.contributes.languageModelTools.find(tool => tool.name === getContributedToolName(ToolName.TypeScriptChangeClassification));
 		assert.deepStrictEqual([
 			'invoke this for every eligible changed TypeScript or JavaScript file before classify_diff_hunks',
-			'supply both source snapshots from the exact comparison',
+			'supplying both source snapshots from the exact comparison',
 			'changed-line runs without hunk context',
-			'Include removed original lines from replacements in deleted',
-			'mixed structural/code labels do not partition them',
-			'do not determine semantic intent, logic/test/supporting/generated types, or review priority',
-			'Whole-entity additions/deletions are structural even when their bodies contain important code',
-			'assign changed-line block importance',
-			'never copy whole entity ranges into semantic classifications',
-			'When using results only as evidence for classify_diff_hunks',
-			'preserve its existing schema and navigation',
+			'do not use it to retrieve a git diff, compiler diagnostics, semantic intent, risk, or correctness',
+			'Import coverage is normally cold attention and makes an import-only semantic hunk supporting',
+			'signature and statement coverage can help locate contracts, behavior, and assertions',
+			'Other coverage is a fallback',
+			'inspect and subdivide it instead of treating its whole entity range as hot or signature-only',
+			'Entity ranges provide context and must not be copied into semantic attention blocks',
+			'preserve its schema and source-verified navigation',
 		].filter(clause => !definition?.modelDescription.includes(clause)), []);
 	});
 

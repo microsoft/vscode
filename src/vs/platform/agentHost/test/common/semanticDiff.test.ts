@@ -158,6 +158,9 @@ suite('Semantic diff classification', () => {
 			{ blocks: [block, block], path: '/attentionBlocks', code: 'INVALID_RANGE' },
 			{ blocks: [{ ...block, oldRanges: [{ start: 0, count: 3 }] }], path: '/attentionBlocks/0/oldRanges/0', code: 'INVALID_RANGE' },
 			{ blocks: [{ ...block, oldRanges: [{ start: 3, count: 1 }, { start: 1, count: 2 }] }], path: '/attentionBlocks/0/oldRanges/1', code: 'INVALID_RANGE' },
+			{ blocks: [{ ...block, oldRanges: [{ start: 1, count: 3, firstLineContent: 'first' }] }], path: '/attentionBlocks/0/oldRanges/0', code: 'INVALID_RANGE' },
+			{ blocks: [{ ...block, oldRanges: [{ start: 1, count: 1, firstLineContent: 'first', lastLineContent: 'last' }, { start: 2, count: 2 }] }], path: '/attentionBlocks/0/oldRanges/0', code: 'INVALID_RANGE' },
+			{ blocks: [{ ...block, oldRanges: [{ start: 1, count: 3, firstLineContent: 'first\n', lastLineContent: 'last' }] }], path: '/attentionBlocks/0/oldRanges/0/firstLineContent', code: 'SCHEMA_VIOLATION' },
 		] as const;
 		for (const { blocks, path, code } of cases) {
 			const input = minimalSubmission();
@@ -187,13 +190,17 @@ suite('Semantic diff classification', () => {
 		const analysis = semanticDiffSubmissionSchema.properties.analysis;
 		const hunk = analysis.properties!.hunks.items as IJSONSchema;
 		const classification = hunk.properties!.classification;
+		const attentionBlock = hunk.properties!.attentionBlocks.items as IJSONSchema;
+		const attentionRange = attentionBlock.properties!.oldRanges.items as IJSONSchema;
 		assert.deepStrictEqual({
 			references: serialized.includes('"$ref"'), definitions: serialized.includes('"$defs"'),
 			version: semanticDiffSubmissionSchema.properties.schemaVersion.enum,
 			analysisType: analysis.type, required: analysis.required,
 			hunkType: hunk.type,
 			hunkRequired: hunk.required,
-			attentionBlockFields: Object.keys((hunk.properties!.attentionBlocks.items as IJSONSchema).properties!),
+			attentionBlockFields: Object.keys(attentionBlock.properties!),
+			attentionRangeFields: Object.keys(attentionRange.properties!),
+			attentionRangeRequired: attentionRange.required,
 			groupId: classification.properties!.groupId.type,
 			changeType: classification.properties!.changeType.enum,
 			confidence: classification.properties!.groupConfidence.enum,
@@ -204,6 +211,8 @@ suite('Semantic diff classification', () => {
 			required: ['source', 'groups', 'files', 'hunks', 'limitations'], hunkType: 'object',
 			hunkRequired: ['id', 'fileId', 'oldRange', 'newRange', 'additions', 'deletions', 'classification', 'attentionBlocks'],
 			attentionBlockFields: ['attention', 'oldRanges', 'newRanges', 'reason'],
+			attentionRangeFields: ['start', 'count', 'firstLineContent', 'lastLineContent'],
+			attentionRangeRequired: ['start', 'count'],
 			groupId: 'string', changeType: ['logic', 'test', 'supporting'],
 			confidence: ['high', 'medium', 'low'], uncertainty: ['string', 'null'], target: ['string', 'null']
 		});
@@ -803,6 +812,66 @@ suite('Semantic diff classification', () => {
 				resolved: parseSemanticDiffToolResult(receipt, JSON.stringify(submission)),
 				prettyPrinted: parseSemanticDiffToolResult(receipt, JSON.stringify(submission, null, 2)),
 			}, { compact: true, containsAnalysis: false, resolved: { ok: true, report }, prettyPrinted: { ok: true, report } });
+		});
+
+		test('compact receipts warn about hot attention anchored only to whitespace', () => {
+			const submission = exampleSubmission();
+			const block = submission.analysis.hunks[2].attentionBlocks[0];
+			block.attention = 'hot';
+			block.oldRanges[0] = { ...block.oldRanges[0], firstLineContent: '', lastLineContent: '' };
+			block.newRanges[0] = { ...block.newRanges[0], firstLineContent: '\t', lastLineContent: '\t' };
+			const report = success(submission);
+			const receipt = JSON.parse(serializeSemanticDiffToolResult(report));
+			assert.deepStrictEqual({
+				warnings: receipt.warnings,
+				omittedWarningCount: receipt.omittedWarningCount,
+				restored: parseSemanticDiffToolResult(JSON.stringify(receipt), JSON.stringify(submission)),
+				tampered: parseSemanticDiffToolResult(JSON.stringify({ ...receipt, warnings: [] }), JSON.stringify(submission)).ok,
+			}, {
+				warnings: [{
+					code: 'HOT_ATTENTION_ONLY_WHITESPACE',
+					path: '/analysis/hunks/2/attentionBlocks/0',
+					message: 'Hot attention selects only whitespace according to its source anchors. Verify the range coordinates.',
+				}],
+				omittedWarningCount: 0,
+				restored: { ok: true, report },
+				tampered: false,
+			});
+		});
+
+		test('compact receipt warnings are bounded and remain backward compatible', () => {
+			const submission = minimalSubmission();
+			const template = submission.analysis.hunks[0];
+			submission.analysis.hunks = Array.from({ length: 25 }, (_, index) => ({
+				...template,
+				id: `h${index}`,
+				oldRange: { start: index + 1, count: 1 },
+				newRange: { start: index + 1, count: 1 },
+				additions: 1,
+				deletions: 1,
+				attentionBlocks: [{
+					attention: 'hot' as const,
+					oldRanges: [{ start: index + 1, count: 1, firstLineContent: '', lastLineContent: '' }],
+					newRanges: [{ start: index + 1, count: 1, firstLineContent: '', lastLineContent: '' }],
+					reason: 'Review this changed line.',
+				}],
+			}));
+			const report = success(submission);
+			const receipt = JSON.parse(serializeSemanticDiffToolResult(report));
+			const legacyReceipt = { ...receipt };
+			delete legacyReceipt.warnings;
+			delete legacyReceipt.omittedWarningCount;
+			assert.deepStrictEqual({
+				warnings: receipt.warnings.length,
+				omitted: receipt.omittedWarningCount,
+				compact: VSBuffer.fromString(JSON.stringify(receipt)).byteLength < 4096,
+				legacy: parseSemanticDiffToolResult(JSON.stringify(legacyReceipt), JSON.stringify(submission)),
+			}, {
+				warnings: 10,
+				omitted: 15,
+				compact: true,
+				legacy: { ok: true, report },
+			});
 		});
 
 		test('legacy SDK offload notices recover only from the validated input, without accessing the notice path', () => {

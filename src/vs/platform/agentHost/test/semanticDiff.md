@@ -81,7 +81,21 @@ Verify:
 
 When available, the walkthrough invokes `classify_typescript_changes` for every eligible changed TypeScript or JavaScript file before semantic grouping. The call must use original and modified snapshots from the exact comparison, exclude unchanged context, and convert one-based Git runs to zero-based end-exclusive ranges.
 
-Replaced baseline lines belong in `original.deleted`; pure additions belong in `modified.added`; replacement additions belong in `modified.changed`. Do not invent one-to-one replacement pairs. AST entity ranges and structural/code labels are investigation anchors only: they do not replace Git hunks, assign hunk types, or define attention blocks.
+Replaced baseline lines belong in `original.deleted`; pure additions belong in `modified.added`; replacement additions belong in `modified.changed`. Do not invent one-to-one replacement pairs. AST entity ranges are context only: they do not replace Git hunks, assign hunk types, or define attention blocks.
+
+The classifier reports `declaration`, `signature`, `statement`, `import`, and `other` syntax roles with exact coverage subranges and optional `test` tags. Verify that the walkthrough converts coverage back to one-based Git coordinates and uses it to seed, not dictate, hunk type and attention:
+
+| Classifier evidence | Expected use |
+|---|---|
+| Import coverage only | Supporting hunk; attention based on review relevance, normally Cold |
+| Import plus statement coverage | Preserve the hunk's Logic/Test intent; normally separate Cold import and Hot/Warm behavior |
+| Consumer-visible signature coverage | Inspect visibility and callers; use Logic and Hot when the contract changes |
+| Statement coverage with a `test` tag | Test hint for hand-authored assertions or setup; never a claim that tests passed |
+| Other coverage | Inspect the actual syntax; do not automatically assign Supporting or Cold |
+| Complete declaration addition/deletion | Inspect executable contents and subdivide attention despite the single declaration classification |
+| Different original and modified roles | Classify each side independently and reconcile both into exhaustive attention blocks |
+
+Attention ranges are selected source-first, then assigned mechanically derived coordinates. Every range records exact `firstLineContent` and `lastLineContent` without line terminators, and the walkthrough audits those endpoints in a line-numbered ledger before publishing; single-line ranges repeat the same content and blank endpoints use an empty string. Classification receipt warnings require correcting and resubmitting the full payload.
 
 If the classifier is unavailable or cannot resolve a file, ordinary source inspection remains the fallback. The walkthrough must not silently skip an eligible file or create working-tree files to force classification.
 

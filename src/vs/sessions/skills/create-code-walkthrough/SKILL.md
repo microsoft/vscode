@@ -50,7 +50,11 @@ Before grouping, invoke `classify_typescript_changes` for every changed text Typ
 - Exclude hunk context. Convert `{ start: s, count: n }` to zero-based end-exclusive `{ start: s - 1, end: s - 1 + n }`.
 - Put removed baseline lines, including replacement old sides, in `original.deleted`; pure additions in `modified.added`; and replacement additions in `modified.changed`, without overlap or invented pairing.
 - Batch each file into one invocation and retain the mapping to its Git hunks.
-- Use entity paths and kinds to inspect implementations and relationships. Entity ranges and structural/code labels do not partition changed lines or determine semantic type or attention.
+- Each `changes[].classifications` entry reports a syntax role (`declaration`, `signature`, `statement`, `import`, or `other`), exact zero-based end-exclusive coverage `ranges`, and optional `tags`. Convert each coverage range back to an absolute Git range with `{ start: start + 1, count: end - start }` and verify it against the mapped changed lines.
+- Use coverage ranges as evidence for hunk type and attention boundaries. `import` is normally cold and makes an import-only hunk supporting. A `signature` can identify a contract worth hot attention, while a `statement` can identify behavioral implementation or a distinguishing assertion; inspect visibility, consumers, conditions, and effects before deciding. Treat `other` as a prompt to inspect comments, separators, initializers, or fallback syntax rather than automatically marking it supporting or cold.
+- A `test` tag is a strong test-authorship hint derived from test paths, named entities, or test callbacks. It supports a `test` hunk type for hand-authored test behavior, but does not override the import-only supporting rule, prove that tests cover the behavior, or show that tests passed.
+- A complete named addition or deletion is reported once as `declaration`, even when it contains executable statements or tests. Inspect the whole declaration and subdivide its changed lines by semantic importance; do not make the entire declaration hot or treat it as signature-only.
+- Use entity paths and kinds to inspect implementations and relationships. Entity ranges group context but do not replace Git hunks, classification coverage ranges, or attention blocks.
 
 If the classifier is unavailable or cannot resolve a file, continue with ordinary source inspection. Do not create or restore files to force AST analysis. Report the skipped or failed classification outside `analysis`; silently skipping an eligible file does.
 
@@ -96,7 +100,11 @@ Every submitted hunk requires exhaustive `attentionBlocks`. They partition all a
 
 Attention changes only the hue/emphasis of the hunk type color. It never affects filtering, badge counts, or type labels. All blocks in a Logic hunk remain Logic, including cold import lines.
 
+Seed candidate boundaries from TypeScript classification coverage when available, then refine them from source evidence. Compare original and modified coverage independently for replacements because a line can change syntax role across the edit. Merge adjacent ranges only when they have the same evidence-based attention; split a single syntax range when its lines have different review importance.
+
 Use absolute baseline coordinates in `oldRanges` and absolute modified-file coordinates in `newRanges`. Include changed lines only. Ranges must be ordered, non-overlapping, contained in the hunk, and total exactly the hunk's deletions and additions. Walk the literal patch: context advances both sides, deletion only old, and addition only new.
+
+Choose exact changed source lines before deriving their coordinates. Every range includes `firstLineContent` and `lastLineContent` without line terminators as source-verification anchors; use the same content twice for a single-line range and an empty string for a blank endpoint. Content supplements canonical coordinates and is not a replacement identity.
 
 Do not force every hunk to use all three levels. An import-only or generated-only hunk may be hot when that hunk is itself the important review unit. Attention suggests reading order, not risk, safety, approval, confidence, or permission to skip cold lines.
 
@@ -133,14 +141,34 @@ This is one Logic hunk. The import can be cold and the changed result hot, but b
   "attentionBlocks": [
     {
       "attention": "cold",
-      "oldRanges": [{ "start": 1, "count": 1 }],
-      "newRanges": [{ "start": 1, "count": 1 }],
+      "oldRanges": [{
+        "start": 1,
+        "count": 1,
+        "firstLineContent": "import { oldHelper } from './oldHelper.js';",
+        "lastLineContent": "import { oldHelper } from './oldHelper.js';"
+      }],
+      "newRanges": [{
+        "start": 1,
+        "count": 1,
+        "firstLineContent": "import { helper } from './helper.js';",
+        "lastLineContent": "import { helper } from './helper.js';"
+      }],
       "reason": "Import wiring accompanies the changed result."
     },
     {
       "attention": "hot",
-      "oldRanges": [{ "start": 2, "count": 1 }],
-      "newRanges": [{ "start": 2, "count": 1 }],
+      "oldRanges": [{
+        "start": 2,
+        "count": 1,
+        "firstLineContent": "export const result = false;",
+        "lastLineContent": "export const result = false;"
+      }],
+      "newRanges": [{
+        "start": 2,
+        "count": 1,
+        "firstLineContent": "export const result = helper();",
+        "lastLineContent": "export const result = helper();"
+      }],
       "reason": "The exported result now comes from the helper."
     }
   ]
@@ -155,7 +183,8 @@ Before publication:
 
 - Reconcile every observed file and hunk against the submission.
 - Verify each submitted hunk appears once and belongs to one group.
-- Verify every attention range endpoint against the literal changed line.
+- Build an endpoint ledger from mechanically line-numbered exact snapshots: hunk, side, attention, coordinates, `firstLineContent`, and `lastLineContent` for every range. Compare every ledger row with the final payload; manual counting is not an audit.
+- For hunks with more than 20 changed lines, derive ledger coordinates from the numbered source or a parser rather than counting lines in an unnumbered view.
 - Verify attention coverage totals equal additions and deletions.
 - Verify imports and generated material in mixed hunks retain the hunk's single type.
 - Recheck mutable comparisons; report stale source instead of silently using changed evidence.
@@ -166,6 +195,8 @@ Before publication:
 Invoke `classify_diff_hunks` once with `schemaVersion: 1` and `analysis`. Use limitations only for missing or constrained repository source evidence. A complete result is still agent-reported classification, not a completed human review.
 
 If validation fails, repair the indicated paths and resubmit the full payload. There is no incremental merge.
+
+Treat a successful receipt with warnings as a failed audit. Inspect each named attention block, correct its coordinates or source anchors, and resubmit the complete classification.
 
 ### 7. Preserve semantic card rendering
 

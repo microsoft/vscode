@@ -442,6 +442,36 @@ suite('Semantic diff projection', () => {
 		});
 	}
 
+	test('verifies attention range endpoint contents against exact source lines', () => {
+		const anchored = hunk({
+			attentionBlocks: [{
+				attention: 'hot',
+				oldRanges: [{ start: 1, count: 1, firstLineContent: 'old', lastLineContent: 'old' }],
+				newRanges: [{ start: 1, count: 1, firstLineContent: 'new', lastLineContent: 'new' }],
+				reason: 'Changed result.',
+			}],
+		});
+		const body = patch('@@ -1 +1 @@\n-old\n+new\n');
+		const resolved = resolveSemanticDiffFile(file, [anchored], 'old\n', 'new\n', body);
+		assert.deepStrictEqual({
+			oldRange: resolved.hunks[0].attentionBlocks[0].oldRanges[0],
+			newRange: resolved.hunks[0].attentionBlocks[0].newRanges[0],
+		}, {
+			oldRange: { start: 1, count: 1, firstLineContent: 'old', lastLineContent: 'old' },
+			newRange: { start: 1, count: 1, firstLineContent: 'new', lastLineContent: 'new' },
+		});
+		for (const attentionBlocks of [
+			[{ ...anchored.attentionBlocks[0], oldRanges: [{ start: 1, count: 1, firstLineContent: 'wrong', lastLineContent: 'wrong' }] }],
+			[{ ...anchored.attentionBlocks[0], newRanges: [{ start: 1, count: 1, firstLineContent: 'wrong', lastLineContent: 'wrong' }] }],
+		]) {
+			assert.throws(() => resolveSemanticDiffFile(file, [{ ...anchored, attentionBlocks }], 'old\n', 'new\n', body), error => {
+				assert.ok(error instanceof Error);
+				assert.strictEqual(error.message, 'An attention range source anchor does not match the Git comparison.');
+				return true;
+			});
+		}
+	});
+
 	test('verifies context, omitted hunks, and gaps against both immutable texts', () => {
 		const fixture = multiHunkFixture();
 		for (const corrupted of [

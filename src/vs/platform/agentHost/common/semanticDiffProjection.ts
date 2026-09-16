@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
-import { ISemanticDiffAttentionBlock, ISemanticDiffFile, ISemanticDiffHunk, ISemanticDiffRange, SemanticDiffChangeType } from './semanticDiff.js';
+import { ISemanticDiffAttentionBlock, ISemanticDiffAttentionRange, ISemanticDiffFile, ISemanticDiffHunk, ISemanticDiffRange, SemanticDiffChangeType } from './semanticDiff.js';
 
 /** A canonical classified hunk with its exact, context-inclusive source text. */
 export interface ISemanticDiffVerifiedHunk extends Readonly<Omit<ISemanticDiffHunk, 'attentionBlocks'>> {
@@ -62,6 +62,10 @@ function invalidSource(): never {
 
 function invalidHunk(): never {
 	throw new Error(localize('semanticDiffProjection.invalidHunk', "A classified hunk does not match the Git comparison."));
+}
+
+function invalidAttentionAnchor(): never {
+	throw new Error(localize('semanticDiffProjection.invalidAttentionAnchor', "An attention range source anchor does not match the Git comparison."));
 }
 
 function validatePath(path: string): void {
@@ -143,6 +147,26 @@ function validRange(range: Readonly<ISemanticDiffRange>): boolean {
 /** Keep line terminators in the text; an empty file has no lines. */
 function sourceLines(text: string | undefined): string[] {
 	return text?.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+}
+
+function sourceLineContent(line: string): string {
+	return line.endsWith('\r\n') ? line.slice(0, -2) : line.endsWith('\n') || line.endsWith('\r') ? line.slice(0, -1) : line;
+}
+
+function validateAttentionRangeSource(range: Readonly<ISemanticDiffAttentionRange>, lines: readonly string[]): void {
+	if ((range.firstLineContent === undefined) !== (range.lastLineContent === undefined) ||
+		(range.count === 1 && range.firstLineContent !== undefined && range.firstLineContent !== range.lastLineContent)) {
+		invalidAttentionAnchor();
+	}
+	if (range.firstLineContent === undefined || range.lastLineContent === undefined) {
+		return;
+	}
+	const firstLine = lines[range.start - 1];
+	const lastLine = lines[range.start + range.count - 2];
+	if (firstLine === undefined || lastLine === undefined ||
+		sourceLineContent(firstLine) !== range.firstLineContent || sourceLineContent(lastLine) !== range.lastLineContent) {
+		invalidAttentionAnchor();
+	}
 }
 
 function parseHunk(lines: readonly string[], start: number): { hunk: IPatchHunk; end: number } {
@@ -364,6 +388,10 @@ export function resolveSemanticDiffFile(file: ISemanticDiffFile, hunks: readonly
 		if (!rangesExactlyCover(actual.originalChangedRanges, hunk.attentionBlocks.flatMap(block => block.oldRanges)) ||
 			!rangesExactlyCover(actual.modifiedChangedRanges, hunk.attentionBlocks.flatMap(block => block.newRanges))) {
 			invalidHunk();
+		}
+		for (const block of hunk.attentionBlocks) {
+			block.oldRanges.forEach(range => validateAttentionRangeSource(range, oldLines));
+			block.newRanges.forEach(range => validateAttentionRangeSource(range, newLines));
 		}
 		previous = index;
 		const attentionBlocks = hunk.attentionBlocks.map(block => {

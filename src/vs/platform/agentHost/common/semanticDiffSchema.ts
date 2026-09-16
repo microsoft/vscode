@@ -18,6 +18,7 @@ const object = (properties: Record<string, IJSONSchema>, optional: readonly stri
 });
 const array = (name: string, maxItems: number): IJSONSchema => ({ type: 'array', maxItems, items: reference(name) });
 const count: IJSONSchema = { type: 'integer', minimum: 0, maximum: 2147483647 };
+const lineContent: IJSONSchema = { type: 'string', maxLength: 4096, pattern: '^[^\\r\\n]*$' };
 
 const definitions: Record<string, IJSONSchema> = {
 	id: { type: 'string', minLength: 1, maxLength: 80, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$' },
@@ -34,8 +35,16 @@ const definitions: Record<string, IJSONSchema> = {
 	range: object({ start: reference('count'), count: reference('count') }),
 	reviewRange: object({
 		start: reference('count'),
-		count: { type: 'integer', minimum: 1, maximum: 2147483647 }
-	}),
+		count: { type: 'integer', minimum: 1, maximum: 2147483647 },
+		firstLineContent: {
+			...lineContent,
+			description: 'Exact first source line in this range, without its line terminator. Supply together with lastLineContent so source resolution can verify the range endpoint.',
+		},
+		lastLineContent: {
+			...lineContent,
+			description: 'Exact last source line in this range, without its line terminator. For a single-line range, this equals firstLineContent.',
+		},
+	}, ['firstLineContent', 'lastLineContent']),
 	attentionBlock: object({
 		attention: {
 			enum: ['hot', 'warm', 'cold'],
