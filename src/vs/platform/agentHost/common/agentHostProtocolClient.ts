@@ -14,13 +14,14 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from './agent.js';
+import { isAgentHostTunnelProtectedResource } from './agentHostFeatureAuthentication.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from './agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from './agentHostExtensionProtocol.js';
+import { AgentHostAuthenticationRequirementsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, readAgentHostAuthenticationRequirementsSnapshot, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from './agentHostExtensionProtocol.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from './state/agentSubscription.js';
 import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from './state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from './state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type AuthRequiredParams, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from './state/sessionActions.js';
 import { SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type RootState } from './state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from './state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from './state/protocol/version/registry.js';
@@ -99,6 +100,25 @@ interface IPendingRequest {
 	readonly deferred: DeferredPromise<unknown>;
 	readonly suppressNotFoundWarning: boolean;
 	readonly sentAt: number;
+}
+
+type IStoredAuthentication =
+	| {
+		readonly kind: 'bearer';
+		readonly params: AuthenticateParams;
+		readonly expiresAt: number | undefined;
+	}
+	| {
+		readonly kind: 'revocation';
+		readonly params: AuthenticateParams;
+	};
+
+function authenticationRequirementKey(requirement: AuthRequiredParams): string {
+	return JSON.stringify([
+		requirement.channel,
+		requirement.resource.resource,
+		[...new Set(requirement.resource.scopes_supported ?? [])].sort(),
+	]);
 }
 
 /**
@@ -221,6 +241,8 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+	private readonly _authenticationRequirements = observableValue<readonly AuthRequiredParams[]>(this, []);
+	readonly authenticationRequirements: IObservable<readonly AuthRequiredParams[]> = this._authenticationRequirements;
 
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
@@ -261,7 +283,8 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 
 	/** Pending JSON-RPC requests keyed by request id. */
 	private readonly _pendingRequests = new Map<number, IPendingRequest>();
-	private readonly _authentication = new Map<string, { readonly params: AuthenticateParams; readonly expiresAt: number | undefined }>();
+	private readonly _authentication = new Map<string, IStoredAuthentication>();
+	private readonly _authenticationOperations = new Map<string, object>();
 	private _nextRequestId = 1;
 
 	/**
@@ -713,6 +736,7 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 		if (this._state.kind !== AgentHostClientState.Reconnecting || !this._transportFactory) {
 			return;
 		}
+		this._clearAuthenticationRequirements();
 		const reconnect = this._state.reconnect;
 		reconnect.attempt++;
 		let transport: IProtocolTransport | undefined;
@@ -744,7 +768,7 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 			// credentials), or when an earlier pass was cut short by a transport
 			// drop — that attempt may have delivered only some of them, and an
 			// ordinary `replay` reconnect never revisits authentication.
-			if ((freshInitialize && result.type === ReconnectResultType.Snapshot) || this._authenticationRestorePending) {
+			if ((freshInitialize && result.type === ReconnectResultType.Snapshot) || this._authenticationRestorePending || this._hasUnacknowledgedRevocation()) {
 				if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
 					this._markSubscriptionsAwaitingRestore(result.snapshots);
 				}
@@ -937,7 +961,7 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
 					initialAuthenticationKey = this._authenticationKey(normalizedParams);
 					const expiresAt = getExpirationTime(normalizedParams.expiresIn);
-					this._authentication.set(initialAuthenticationKey, { params: normalizedParams, expiresAt });
+					this._authentication.set(initialAuthenticationKey, { kind: 'bearer', params: normalizedParams, expiresAt });
 				}
 			} catch (error) {
 				throw new InitialAuthenticationError(error);
@@ -948,11 +972,11 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 		}
 		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
 			const now = Date.now();
-			if (isExpired(authentication.expiresAt, now)) {
+			if (authentication.kind === 'bearer' && isExpired(authentication.expiresAt, now)) {
 				this._authentication.delete(key);
 				return;
 			}
-			const expiresIn = getRemainingTimeInSeconds(authentication.expiresAt, now);
+			const expiresIn = authentication.kind === 'bearer' ? getRemainingTimeInSeconds(authentication.expiresAt, now) : undefined;
 			const params = authentication.params;
 			try {
 				await this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
@@ -963,6 +987,9 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 				}, this._state.kind === AgentHostClientState.Connecting
 					? { bypassInitializeQueue: true, bypassReconnectGate: true }
 					: { bypassReconnectGate: true });
+				if (authentication.kind === 'revocation' && this._authentication.get(key) === authentication) {
+					this._authentication.delete(key);
+				}
 			} catch (error) {
 				// A dropped transport is not an authentication failure. Wrapping it
 				// would classify a momentary blip as terminally incompatible and
@@ -985,6 +1012,10 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 			}
 		}));
 		this._authenticationRestorePending = false;
+	}
+
+	private _hasUnacknowledgedRevocation(): boolean {
+		return [...this._authentication.values()].some(authentication => authentication.kind === 'revocation');
 	}
 
 	protected _clientMeta(): Record<string, unknown> {
@@ -1317,15 +1348,34 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		const normalizedParams = this._normalizeAuthenticationParams(params);
 		const expiresAt = getExpirationTime(params.expiresIn);
-		await this._sendRequest('authenticate', {
-			channel: ROOT_STATE_URI,
-			...normalizedParams,
-			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
-		});
 		const key = this._authenticationKey(normalizedParams);
+		const operation = {};
+		this._authenticationOperations.set(key, operation);
+		let revocation: IStoredAuthentication | undefined;
+		if (!params.token) {
+			revocation = { kind: 'revocation', params: normalizedParams };
+			this._authentication.set(key, revocation);
+		}
+		try {
+			await this._sendRequest('authenticate', {
+				channel: ROOT_STATE_URI,
+				...normalizedParams,
+				scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
+			});
+		} catch (error) {
+			if (this._authenticationOperations.get(key) === operation) {
+				this._authenticationOperations.delete(key);
+			}
+			throw error;
+		}
+		if (this._authenticationOperations.get(key) !== operation) {
+			return { authenticated: true };
+		}
+		this._authenticationOperations.delete(key);
 		if (params.token) {
-			this._authentication.set(key, { params: normalizedParams, expiresAt });
-		} else {
+			this._authentication.set(key, { kind: 'bearer', params: normalizedParams, expiresAt });
+			this._clearSatisfiedAuthenticationRequirements(normalizedParams);
+		} else if (this._authentication.get(key) === revocation) {
 			this._authentication.delete(key);
 		}
 		return { authenticated: true };
@@ -1340,6 +1390,37 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 
 	private _authenticationKey(params: AuthenticateParams): string {
 		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+	}
+
+	private _recordAuthenticationRequirement(requirement: AuthRequiredParams): void {
+		const key = authenticationRequirementKey(requirement);
+		this._authenticationRequirements.set([
+			...this._authenticationRequirements.get().filter(candidate => authenticationRequirementKey(candidate) !== key),
+			requirement,
+		], undefined);
+	}
+
+	private _clearSatisfiedAuthenticationRequirements(params: AuthenticateParams): void {
+		const grantedScopes = params.scopes ? new Set(params.scopes) : undefined;
+		const requirements = this._authenticationRequirements.get().filter(requirement => {
+			if (isAgentHostTunnelProtectedResource(params.resource)) {
+				return !isAgentHostTunnelProtectedResource(requirement.resource.resource);
+			}
+			if (requirement.resource.resource !== params.resource) {
+				return true;
+			}
+			return grantedScopes !== undefined
+				&& !(requirement.resource.scopes_supported ?? []).every(scope => grantedScopes.has(scope));
+		});
+		if (requirements.length !== this._authenticationRequirements.get().length) {
+			this._authenticationRequirements.set(requirements, undefined);
+		}
+	}
+
+	private _clearAuthenticationRequirements(): void {
+		if (this._authenticationRequirements.get().length > 0) {
+			this._authenticationRequirements.set([], undefined);
+		}
 	}
 
 	/**
@@ -1650,6 +1731,18 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
+			if (String(msg.method) === AgentHostAuthenticationRequirementsExtensionMethod) {
+				const snapshot = readAgentHostAuthenticationRequirementsSnapshot(msg.params);
+				if (!snapshot) {
+					this._logService.warn('[RemoteAgentHostProtocol] Ignoring invalid authentication requirements snapshot.');
+					return;
+				}
+				this._authenticationRequirements.set([
+					...this._authenticationRequirements.get().filter(requirement => !isAgentHostTunnelProtectedResource(requirement.resource.resource)),
+					...snapshot.requirements.filter(requirement => isAgentHostTunnelProtectedResource(requirement.resource.resource)),
+				], undefined);
+				return;
+			}
 			switch (msg.method) {
 				case 'action': {
 					// Protocol envelope → VS Code envelope (superset of action types)
@@ -1661,14 +1754,19 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 				case 'root/sessionAdded':
 				case 'root/sessionRemoved':
 				case 'root/sessionSummaryChanged':
-				case 'root/progress':
-				case 'auth/required': {
+				case 'root/progress': {
 					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
 					// The case narrows `msg.method` to a single literal; the matching params
 					// shape is paired with that literal by the {@link ServerNotificationMap}
 					// definition, so spreading is safe.
 					// eslint-disable-next-line local/code-no-dangerous-type-assertions
 					this._onDidNotification.fire({ type: msg.method, ...msg.params } as INotification);
+					break;
+				}
+				case 'auth/required': {
+					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
+					this._recordAuthenticationRequirement(msg.params);
+					this._onDidNotification.fire({ type: msg.method, ...msg.params });
 					break;
 				}
 				case 'otlp/exportLogs':
@@ -1723,6 +1821,7 @@ export class AgentHostProtocolClientCore extends Disposable implements IAgentCon
 			this._state.outbox.length = 0;
 		}
 		this._rejectPendingRequests(error);
+		this._clearAuthenticationRequirements();
 		this._clearConnectionResources(true);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire(reason);

@@ -232,6 +232,7 @@ export class AgentHostStateManager extends Disposable {
 	private _serverSeq = 0;
 
 	private _rootState: RootState;
+	private _activeAuthenticationRequirements: readonly Omit<AuthRequiredParams, 'channel'>[] = [];
 
 	/**
 	 * Authoritative per-session state, keyed by session URI string. Each entry
@@ -294,6 +295,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
+	private readonly _onDidChangeActiveAuthenticationRequirements = this._register(new Emitter<readonly Omit<AuthRequiredParams, 'channel'>[]>());
+	readonly onDidChangeActiveAuthenticationRequirements = this._onDidChangeActiveAuthenticationRequirements.event;
 	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
 	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
 	private readonly _onDidChangeSessionStatus = this._register(new Emitter<{ session: string; status: SessionStatus }>());
@@ -2047,6 +2050,18 @@ export class AgentHostStateManager extends Disposable {
 			channel: ROOT_STATE_URI,
 			...params,
 		});
+	}
+
+	setActiveAuthenticationRequirements(requirements: readonly Omit<AuthRequiredParams, 'channel'>[]): void {
+		this._activeAuthenticationRequirements = [...requirements];
+		for (const requirement of requirements) {
+			this.emitAuthRequired(requirement);
+		}
+		this._onDidChangeActiveAuthenticationRequirements.fire(this._activeAuthenticationRequirements);
+	}
+
+	getActiveAuthenticationRequirements(): readonly Omit<AuthRequiredParams, 'channel'>[] {
+		return this._activeAuthenticationRequirements;
 	}
 
 	override dispose(): void {

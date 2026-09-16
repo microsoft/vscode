@@ -11,6 +11,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
+import { autorun } from '../../../base/common/observable.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -628,6 +629,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
 		this._stateManager = core.stateManager;
+		this._register(autorun(reader => {
+			this._stateManager.setActiveAuthenticationRequirements(this._authService.hostFeatureAuthenticationRequirements.read(reader));
+		}));
 		this._configurationService = core.configurationService;
 		this._recentLocalSessionUpdateSnapshot = this._readRecentLocalSessionUpdates();
 		this._recentLocalSessionUpdates = this._recentLocalSessionUpdateSnapshot;
@@ -1139,7 +1143,7 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- auth ---------------------------------------------------------------
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		const result = await this._providerService.authenticate(params);
+		const result = await this._authService.authenticate(params, this._providerService.getProviders());
 		if (result.authenticated) {
 			this._agentMergeController.refresh();
 		}

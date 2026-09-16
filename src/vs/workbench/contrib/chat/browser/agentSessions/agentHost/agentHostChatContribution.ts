@@ -15,7 +15,7 @@ import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourc
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AuthRequiredReason, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -36,7 +36,7 @@ import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
+import { areAuthenticationRequirementsEqual, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, hasAuthenticationRequirement, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessionsFromResources } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -117,8 +117,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
-	private readonly _authTokenCache = new AgentHostAuthTokenCache();
-	private readonly _authRecovery = new AgentHostAuthenticationRecovery();
+	private readonly _authTokenCache = this._register(new AgentHostAuthTokenCache());
+	private readonly _authRecovery: AgentHostAuthenticationRecovery;
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
@@ -145,6 +145,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
+		this._authRecovery = this._register(this._instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
@@ -209,13 +210,24 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			if (notification.type !== NotificationType.AuthRequired) {
 				return;
 			}
-			this._authenticateNotificationResource(notification.resource);
+			this._authenticateNotificationResource(notification.resource, notification.reason);
 		}));
+		const authenticationRequirements = this._agentHostService.authenticationRequirements;
+		if (authenticationRequirements) {
+			store.add(autorun(reader => {
+				const requirements = authenticationRequirements.read(reader);
+				if (requirements.length > 0) {
+					void this._retryAuthenticationRequirements(requirements);
+				}
+			}));
+		}
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
 			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
+			void this._retryAuthenticationRequirements();
 		}));
 		store.add(this._authenticationService.onDidRegisterAuthenticationProvider(() => {
 			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
+			void this._retryAuthenticationRequirements();
 		}));
 		store.add(this._authenticationService.onDidChangeSessions(event => {
 			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed ?? []);
@@ -376,7 +388,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (removedSessions.length > 0) {
 			const generation = this._authenticationGeneration;
 			try {
-				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, removedSessions, {
+				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessionsFromResources, [
+					...agents.flatMap(agent => agent.protectedResources ?? []),
+					...this._authRecovery.reconcilableProtectedResources,
+				], providerId, removedSessions, {
 					authTokenCache: this._authTokenCache,
 					logPrefix: '[AgentHost]',
 					isCurrent: () => this._isAuthenticationCurrent(generation),
@@ -388,7 +403,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				}
 			}
 		}
-		await this._authenticateWithServer(agents);
+		await Promise.all([
+			this._authenticateWithServer(agents),
+			this._retryAuthenticationRequirements(),
+		]);
 	}
 
 	private _getRootAgents(): readonly AgentInfo[] {
@@ -442,18 +460,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
+	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata, reason = AuthRequiredReason.Required): void {
 		const generation = this._authenticationGeneration;
 		if (!this._isAuthenticationCurrent(generation)) {
 			return;
 		}
+		const retainedRequirements = this._agentHostService.authenticationRequirements;
+		const wasRetained = retainedRequirements ? hasAuthenticationRequirement(retainedRequirements.get(), protectedResource) : false;
 		this._agentHostService.setAuthenticationPending(true);
-		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
+		this._authRecovery.recover(protectedResource, {
 			authTokenCache: this._authTokenCache,
 			logPrefix: '[AgentHost]',
-			isCurrent: () => this._isAuthenticationCurrent(generation),
+			isCurrent: () => this._isAuthenticationCurrent(generation)
+				&& (!retainedRequirements || !wasRetained || hasAuthenticationRequirement(retainedRequirements.get(), protectedResource)),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
-		}))
+		}, reason)
 			.catch(err => {
 				if (!isCancellationError(err)) {
 					this._logService.error(`[AgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
@@ -464,6 +485,31 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 					this._agentHostService.setAuthenticationPending(false);
 				}
 			});
+	}
+
+	private async _retryAuthenticationRequirements(requirements = this._agentHostService.authenticationRequirements?.get() ?? []): Promise<void> {
+		const generation = this._authenticationGeneration;
+		if (!this._isAuthenticationCurrent(generation) || requirements.length === 0) {
+			return;
+		}
+		const retainedRequirements = this._agentHostService.authenticationRequirements;
+		this._agentHostService.setAuthenticationPending(true);
+		try {
+			await this._authRecovery.retry(requirements, {
+				authTokenCache: this._authTokenCache,
+				logPrefix: '[AgentHost]',
+				isCurrent: () => this._isAuthenticationCurrent(generation) && (!retainedRequirements || areAuthenticationRequirementsEqual(retainedRequirements.get(), requirements)),
+				authenticate: request => this._authenticateIfCurrent(request, generation),
+			});
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.error('[AgentHost] Failed to retry retained authentication requirements', error);
+			}
+		} finally {
+			if (this._isAuthenticationCurrent(generation)) {
+				this._agentHostService.setAuthenticationPending(false);
+			}
+		}
 	}
 
 	/**

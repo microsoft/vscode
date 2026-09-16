@@ -28,7 +28,7 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -240,6 +240,10 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	fireExtensionRequest(id: number, method: string, params: Record<string, unknown>): void {
 		// VS Code-private reverse requests intentionally are not part of the public AHP ProtocolMessage union.
 		this._onMessage.fire({ jsonrpc: '2.0', id, method, params } as unknown as ProtocolMessage);
+	}
+
+	fireExtensionNotification(method: string, params: Record<string, unknown>): void {
+		this._onMessage.fire({ jsonrpc: '2.0', method, params } as unknown as ProtocolMessage);
 	}
 
 	fireClose(): void {
@@ -594,6 +598,126 @@ suite('AgentHostProtocolClient', () => {
 		await revoke;
 
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
+	test('does not retain a bearer for reconnect replay when its revocation RPC fails', async () => {
+		const { client, transport } = createClient();
+		const authenticate = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: 'token' });
+		const authenticateRequest = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: authenticateRequest.id, result: {} });
+		await authenticate;
+
+		const revoke = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: '' });
+		const revokeRequest = transport.sentMessages[1] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: revokeRequest.id,
+			error: { code: AhpErrorCodes.AuthRequired, message: 'Revocation failed' },
+		});
+
+		await assert.rejects(revoke, /Revocation failed/);
+		assert.deepStrictEqual([...client['_authentication'].values()].map(authentication => authentication.params), [{
+			resource: 'https://api.github.com',
+			scopes: ['read:user'],
+			token: '',
+		}]);
+	});
+
+	test('does not commit an older in-flight bearer after a newer revocation succeeds', async () => {
+		const { client, transport } = createClient();
+		const bearer = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user'], token: 'older-token' });
+		const bearerRequest = transport.sentMessages[0] as JsonRpcRequest;
+		const revoke = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user', 'write:user'], token: '' });
+		const revokeRequest = transport.sentMessages[1] as JsonRpcRequest;
+
+		transport.fireMessage({ jsonrpc: '2.0', id: revokeRequest.id, result: {} });
+		await revoke;
+		transport.fireMessage({ jsonrpc: '2.0', id: bearerRequest.id, result: {} });
+		await bearer;
+
+		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
+	test('retains handshake authentication requirements for late consumers and clears tunnel alternatives on success', async () => {
+		const { client, transport } = createClient();
+		const resources = [
+			{
+				resource: 'https://vscode.dev/agent-host/tunnels/github',
+				scopes_supported: ['github-scope'],
+				required: false,
+			},
+			{
+				resource: 'https://vscode.dev/agent-host/tunnels/microsoft',
+				scopes_supported: ['microsoft-scope'],
+				required: false,
+			},
+		];
+		for (const resource of resources) {
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource, reason: AuthRequiredReason.Required },
+			});
+		}
+
+		const authenticate = client.authenticate({
+			resource: resources[0].resource,
+			scopes: resources[0].scopes_supported,
+			token: 'github-token',
+		});
+		const request = transport.sentMessages[0] as JsonRpcRequest;
+		const beforeResponse = client.authenticationRequirements.get();
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+		await authenticate;
+
+		assert.deepStrictEqual({
+			beforeResponse,
+			afterResponse: client.authenticationRequirements.get(),
+		}, {
+			beforeResponse: resources.map(resource => ({
+				channel: ROOT_STATE_URI,
+				resource,
+				reason: AuthRequiredReason.Required,
+			})),
+			afterResponse: [],
+		});
+	});
+
+	test('replaces retained authentication requirements with authoritative snapshots, including empty clears', () => {
+		const { client, transport } = createClient();
+		const providerResource = {
+			resource: 'https://api.example.com',
+			scopes_supported: ['provider-scope'],
+		};
+		const resource = {
+			resource: 'https://vscode.dev/agent-host/tunnels/github',
+			scopes_supported: ['github-scope'],
+			required: false,
+		};
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: 'auth/required',
+			params: { channel: ROOT_STATE_URI, resource: providerResource, reason: AuthRequiredReason.Required },
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: 'auth/required',
+			params: { channel: ROOT_STATE_URI, resource, reason: AuthRequiredReason.Required },
+		});
+		const beforeSnapshot = client.authenticationRequirements.get();
+
+		transport.fireExtensionNotification('vscode/authenticationRequirements', { requirements: [] });
+
+		assert.deepStrictEqual({
+			beforeSnapshot,
+			afterSnapshot: client.authenticationRequirements.get(),
+		}, {
+			beforeSnapshot: [
+				{ channel: ROOT_STATE_URI, resource: providerResource, reason: AuthRequiredReason.Required },
+				{ channel: ROOT_STATE_URI, resource, reason: AuthRequiredReason.Required },
+			],
+			afterSnapshot: [{ channel: ROOT_STATE_URI, resource: providerResource, reason: AuthRequiredReason.Required }],
+		});
 	});
 
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
@@ -3109,6 +3233,49 @@ suite('AgentHostProtocolClient', () => {
 				connectedRequest.dispose();
 				client.dispose();
 			}
+		});
+
+		test('replays an unacknowledged revocation tombstone after reconnect', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+			const authentication = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: 'token' });
+			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+			await authentication;
+
+			const revocation = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: '' });
+			await waitForRequestAt(transports[0], 'authenticate', 1);
+			transports[0].fireClose();
+			await assert.rejects(revocation);
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				result: { type: 'replay', actions: [], missing: [] },
+			});
+			await flushMicrotasks();
+			const replayedRevocation = findRequest(reconnectTransport, 'authenticate');
+			assert.ok(replayedRevocation);
+			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: replayedRevocation.id, result: {} });
+			await waitForConnectedWithin(client);
+
+			assert.deepStrictEqual({
+				params: replayedRevocation.params,
+				retainedAuthentication: [...client['_authentication'].values()],
+			}, {
+				params: {
+					channel: ROOT_STATE_URI,
+					resource: 'https://api.github.com',
+					scopes: ['read:user'],
+					token: '',
+				},
+				retainedAuthentication: [],
+			});
 		});
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {

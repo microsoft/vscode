@@ -5,11 +5,14 @@
 
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { match } from '../../../../../../base/common/glob.js';
+import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getAgentHostTunnelAuthenticationIssuer } from '../../../../../../platform/agentHost/common/agentHostFeatureAuthentication.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AuthRequiredReason, type AuthRequiredParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -65,17 +68,21 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
  * authentication for that connection so the cache is dropped naturally
  * when the connection is disposed.
  */
-export class AgentHostAuthTokenCache {
+export class AgentHostAuthTokenCache implements IDisposable {
 	private readonly _completedTokens = new Map<string, string>();
 	private readonly _pendingAuthentications = new Map<string, { readonly token: string; readonly promise: Promise<void> }>();
 	private readonly _keyGenerations = new Map<string, number>();
 	private _globalGeneration = 0;
+	private _isDisposed = false;
 
 	/**
 	 * Forwards a token once per resource/scope pair. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
 	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>): Promise<boolean> {
+		if (this._isDisposed) {
+			throw new CancellationError();
+		}
 		const key = this._key(resource, scopes);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
@@ -105,6 +112,9 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
+			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
+				throw new CancellationError();
+			}
 			await authenticate();
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
@@ -158,11 +168,19 @@ export class AgentHostAuthTokenCache {
 	}
 
 	private _isCurrentGeneration(key: string, globalGeneration: number, keyGeneration: number): boolean {
-		return this._globalGeneration === globalGeneration && (this._keyGenerations.get(key) ?? 0) === keyGeneration;
+		return !this._isDisposed && this._globalGeneration === globalGeneration && (this._keyGenerations.get(key) ?? 0) === keyGeneration;
 	}
 
 	private _key(resource: string, scopes: readonly string[] | undefined): string {
 		return `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+	}
+
+	dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		this.clear();
 	}
 }
 
@@ -171,6 +189,14 @@ type AuthenticationSessionResolution =
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'unavailable' };
 
+type AuthenticationRecoveryResult = AuthenticationSessionResolution['kind'] | 'unchanged';
+
+interface IPendingAuthenticationRecovery {
+	readonly promise: Promise<void>;
+	readonly isChallenge: boolean;
+	readonly reason: AuthRequiredReason;
+}
+
 /**
  * Returns a stable identity for an authentication challenge.
  */
@@ -178,44 +204,192 @@ function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata)
 	return JSON.stringify([
 		resource.resource,
 		[...new Set(resource.scopes_supported ?? [])].sort(),
-		resource.authorization_servers ?? [],
+		[...new Set(resource.authorization_servers ?? [])].sort(),
+		resource.required ?? true,
 	]);
+}
+
+export function hasAuthenticationRequirement(requirements: readonly AuthRequiredParams[], resource: ProtectedResourceMetadata): boolean {
+	const key = protectedResourceAuthenticationKey(resource);
+	return requirements.some(requirement => protectedResourceAuthenticationKey(requirement.resource) === key);
+}
+
+export function areAuthenticationRequirementsEqual(first: readonly AuthRequiredParams[], second: readonly AuthRequiredParams[]): boolean {
+	if (first.length !== second.length) {
+		return false;
+	}
+	const toKey = (requirement: AuthRequiredParams) => JSON.stringify([
+		requirement.channel,
+		protectedResourceAuthenticationKey(requirement.resource),
+		requirement.reason ?? AuthRequiredReason.Required,
+	]);
+	const firstKeys = first.map(toKey).sort();
+	const secondKeys = second.map(toKey).sort();
+	return firstKeys.every((key, index) => key === secondKeys[index]);
 }
 
 /**
  * Coordinates recovery from authentication challenges for one agent-host connection.
  */
-export class AgentHostAuthenticationRecovery {
+export class AgentHostAuthenticationRecovery implements IDisposable {
 	private readonly _resentTokens = new Map<string, string>();
-	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
+	private readonly _pendingRecoveries = new Map<string, IPendingAuthenticationRecovery>();
+	private readonly _reconcilableResources = new Map<string, ProtectedResourceMetadata>();
+	private _hostFeatureRecovery = Promise.resolve();
+	private _activeHostFeatureResource: string | undefined;
+	private _generation = 0;
+	private _isDisposed = false;
 
-	clear(): void {
-		this._resentTokens.clear();
-		this._pendingRecoveries.clear();
+	constructor(
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	get reconcilableProtectedResources(): readonly ProtectedResourceMetadata[] {
+		return [...this._reconcilableResources.values()];
 	}
 
-	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+	clear(): void {
+		this._generation++;
+		this._resentTokens.clear();
+		this._pendingRecoveries.clear();
+		this._reconcilableResources.clear();
+		this._hostFeatureRecovery = Promise.resolve();
+		this._activeHostFeatureResource = undefined;
+	}
+
+	recover(resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions, reason = AuthRequiredReason.Required): Promise<void> {
+		return this._queueRecovery(resource, options, reason, true);
+	}
+
+	async retry(requirements: readonly AuthRequiredParams[], options: IAgentHostAuthenticationOptions): Promise<void> {
+		if (this._isDisposed) {
+			throw new CancellationError();
+		}
+		const activeResource = this._activeHostFeatureResource;
+		const ordered = activeResource
+			? [
+				...requirements.filter(requirement => requirement.resource.resource === activeResource),
+				...requirements.filter(requirement => requirement.resource.resource !== activeResource),
+			]
+			: requirements;
+		for (const requirement of ordered) {
+			await this._queueRecovery(
+				requirement.resource,
+				options,
+				requirement.reason ?? AuthRequiredReason.Required,
+				false,
+			);
+		}
+	}
+
+	private _queueRecovery(
+		resource: ProtectedResourceMetadata,
+		options: IAgentHostAuthenticationOptions,
+		reason: AuthRequiredReason,
+		isChallenge: boolean,
+	): Promise<void> {
+		if (this._isDisposed) {
+			return Promise.reject(new CancellationError());
+		}
 		const key = protectedResourceAuthenticationKey(resource);
+		const schedulingGeneration = this._generation;
+		if (isChallenge) {
+			this._reconcilableResources.delete(key);
+		}
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
-			return pendingRecovery;
+			const needsFollowUp = isChallenge
+				&& (!pendingRecovery.isChallenge || pendingRecovery.reason !== reason);
+			if (!needsFollowUp) {
+				return pendingRecovery.promise;
+			}
+			const followUp = pendingRecovery.promise.then(
+				() => this._runRecovery(resource, options, reason, true, schedulingGeneration),
+				() => this._runRecovery(resource, options, reason, true, schedulingGeneration),
+			);
+			return this._trackPendingRecovery(key, followUp, true, reason);
 		}
 
-		const recovery = this._recover(accessor, key, resource, options)
-			.finally(() => {
-				if (this._pendingRecoveries.get(key) === recovery) {
-					this._pendingRecoveries.delete(key);
+		return this._trackPendingRecovery(
+			key,
+			this._runRecovery(resource, options, reason, isChallenge, schedulingGeneration),
+			isChallenge,
+			reason,
+		);
+	}
+
+	private _runRecovery(
+		resource: ProtectedResourceMetadata,
+		options: IAgentHostAuthenticationOptions,
+		reason: AuthRequiredReason,
+		isChallenge: boolean,
+		schedulingGeneration: number,
+	): Promise<void> {
+		const key = protectedResourceAuthenticationKey(resource);
+		const issuer = getAgentHostTunnelAuthenticationIssuer(resource.resource);
+		const recoveryOptions: IAgentHostAuthenticationOptions = {
+			...options,
+			isCurrent: () => schedulingGeneration === this._generation && options.isCurrent?.() !== false,
+		};
+		const run = async (): Promise<void> => {
+			if (schedulingGeneration !== this._generation) {
+				throw new CancellationError();
+			}
+			if (issuer && this._activeHostFeatureResource && this._activeHostFeatureResource !== resource.resource) {
+				return;
+			}
+			const result = await this._recover(this._authenticationService, this._commandService, this._logService, key, resource, recoveryOptions, reason, isChallenge);
+			if (schedulingGeneration !== this._generation) {
+				throw new CancellationError();
+			}
+			if (result === 'resolved') {
+				this._reconcilableResources.set(key, resource);
+				if (issuer) {
+					this._activeHostFeatureResource = resource.resource;
 				}
-			});
-		this._pendingRecoveries.set(key, recovery);
+			} else if (result === 'signedOut') {
+				this._reconcilableResources.delete(key);
+				if (issuer && this._activeHostFeatureResource === resource.resource) {
+					this._activeHostFeatureResource = undefined;
+				}
+			} else if (issuer
+				&& this._activeHostFeatureResource === resource.resource
+				&& (result === 'unavailable' || (result === 'unchanged' && reason === AuthRequiredReason.Expired))) {
+				this._activeHostFeatureResource = undefined;
+				this._reconcilableResources.delete(key);
+			}
+		};
+		const recovery = (issuer ? this._hostFeatureRecovery.then(run) : run())
+			.then(() => undefined);
+		if (issuer) {
+			this._hostFeatureRecovery = recovery.then(() => undefined, () => undefined);
+		}
 		return recovery;
 	}
 
-	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+	private _trackPendingRecovery(key: string, recovery: Promise<void>, isChallenge: boolean, reason: AuthRequiredReason): Promise<void> {
+		const tracked = recovery.finally(() => {
+			if (this._pendingRecoveries.get(key)?.promise === tracked) {
+				this._pendingRecoveries.delete(key);
+			}
+		});
+		this._pendingRecoveries.set(key, { promise: tracked, isChallenge, reason });
+		return tracked;
+	}
+
+	private async _recover(
+		authenticationService: IAuthenticationService,
+		commandService: ICommandService,
+		logService: ILogService,
+		key: string,
+		resource: ProtectedResourceMetadata,
+		options: IAgentHostAuthenticationOptions,
+		reason: AuthRequiredReason,
+		forceSameToken: boolean,
+	): Promise<AuthenticationRecoveryResult> {
 		throwIfAuthenticationStale(options);
-		const authenticationService = accessor.get(IAuthenticationService);
-		const commandService = accessor.get(ICommandService);
-		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
 		const resolution = await resolveAuthenticationSessionForResource(
 			URI.parse(resource.resource),
@@ -231,13 +405,25 @@ export class AgentHostAuthenticationRecovery {
 			if (resolution.kind === 'signedOut') {
 				this._resentTokens.delete(key);
 			}
-			return;
+			return resolution.kind;
 		}
 		const session = resolution.session;
 
 		const previousToken = this._resentTokens.get(key);
 		if (previousToken !== undefined && previousToken === session.accessToken) {
+			if (!forceSameToken) {
+				return 'unchanged';
+			}
 			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+			if (getAgentHostTunnelAuthenticationIssuer(resource.resource)) {
+				if (reason === AuthRequiredReason.Expired) {
+					return 'unchanged';
+				}
+				if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], session)) {
+					return 'resolved';
+				}
+				return 'unchanged';
+			}
 			throwIfAuthenticationStale(options);
 			const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
 			throwIfAuthenticationStale(options);
@@ -246,15 +432,26 @@ export class AgentHostAuthenticationRecovery {
 				if (interactiveSession.accessToken === session.accessToken) {
 					logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 				}
+				return 'resolved';
 			}
-			return;
+			return 'signedOut';
 		}
 
 		options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
 		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], session)) {
 			this._resentTokens.set(key, session.accessToken);
 			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+			return 'resolved';
 		}
+		return 'unchanged';
+	}
+
+	dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		this.clear();
 	}
 }
 
@@ -291,6 +488,11 @@ async function resolveAuthenticationSessionForResource(
 	logService: ILogService,
 	logPrefix: string,
 ): Promise<AuthenticationSessionResolution> {
+	const tunnelIssuer = getAgentHostTunnelAuthenticationIssuer(resourceServer.toString());
+	if (tunnelIssuer) {
+		return resolveAuthenticationSessionForProvider(tunnelIssuer, scopes, authenticationService, logService, logPrefix, {});
+	}
+
 	let hasUnavailableProvider = false;
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
@@ -316,55 +518,66 @@ async function resolveAuthenticationSessionForResource(
 			continue;
 		}
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
-
-		let sessions: readonly AuthenticationSession[];
-		try {
-			// Try exact scope match first
-			sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-		} catch (error) {
+		const resolution = await resolveAuthenticationSessionForProvider(
+			providerId,
+			scopes,
+			authenticationService,
+			logService,
+			logPrefix,
+			{ authorizationServer: serverUri },
+		);
+		if (resolution.kind === 'resolved') {
+			return resolution;
+		}
+		if (resolution.kind === 'unavailable') {
 			hasUnavailableProvider = true;
-			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
-			continue;
-		}
-		const exactSession = sessions[0];
-		if (exactSession) {
-			return { kind: 'resolved', session: exactSession };
-		}
-
-		let allSessions: readonly AuthenticationSession[];
-		try {
-			// Fall back: get all sessions and find the narrowest superset of requested scopes
-			allSessions = await authenticationService.getSessions(providerId, undefined, { authorizationServer: serverUri }, true);
-		} catch (error) {
-			hasUnavailableProvider = true;
-			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
-			continue;
-		}
-		const requestedSet = new Set(scopes);
-		let bestSession: AuthenticationSession | undefined;
-		let bestExtraScopes = Infinity;
-		for (const session of allSessions) {
-			const sessionScopes = new Set(session.scopes);
-			let isSuperset = true;
-			for (const scope of requestedSet) {
-				if (!sessionScopes.has(scope)) {
-					isSuperset = false;
-					break;
-				}
-			}
-			if (isSuperset) {
-				const extraScopes = sessionScopes.size - requestedSet.size;
-				if (extraScopes < bestExtraScopes) {
-					bestExtraScopes = extraScopes;
-					bestSession = session;
-				}
-			}
-		}
-		if (bestSession) {
-			return { kind: 'resolved', session: bestSession };
 		}
 	}
 	return hasUnavailableProvider ? { kind: 'unavailable' } : { kind: 'signedOut' };
+}
+
+async function resolveAuthenticationSessionForProvider(
+	providerId: string,
+	scopes: readonly string[],
+	authenticationService: IAuthenticationService,
+	logService: ILogService,
+	logPrefix: string,
+	options: Parameters<IAuthenticationService['getSessions']>[2],
+): Promise<AuthenticationSessionResolution> {
+	let sessions: readonly AuthenticationSession[];
+	try {
+		sessions = await authenticationService.getSessions(providerId, [...scopes], options, true);
+	} catch (error) {
+		logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions`, error);
+		return { kind: 'unavailable' };
+	}
+	const exactSession = sessions[0];
+	if (exactSession) {
+		return { kind: 'resolved', session: exactSession };
+	}
+
+	let allSessions: readonly AuthenticationSession[];
+	try {
+		allSessions = await authenticationService.getSessions(providerId, undefined, options, true);
+	} catch (error) {
+		logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions`, error);
+		return { kind: 'unavailable' };
+	}
+	const requestedSet = new Set(scopes);
+	let bestSession: AuthenticationSession | undefined;
+	let bestExtraScopes = Infinity;
+	for (const session of allSessions) {
+		const sessionScopes = new Set(session.scopes);
+		if (!scopes.every(scope => sessionScopes.has(scope))) {
+			continue;
+		}
+		const extraScopes = sessionScopes.size - requestedSet.size;
+		if (extraScopes < bestExtraScopes) {
+			bestExtraScopes = extraScopes;
+			bestSession = session;
+		}
+	}
+	return bestSession ? { kind: 'resolved', session: bestSession } : { kind: 'signedOut' };
 }
 
 export interface IAgentHostAuthenticateRequest {
@@ -419,10 +632,14 @@ async function forwardAuthenticationToken(
 		token,
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 	};
+	const authenticate = () => {
+		throwIfAuthenticationStale(options);
+		return options.authenticate(request);
+	};
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request));
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, authenticate);
 	}
-	await options.authenticate(request);
+	await authenticate();
 	return true;
 }
 
@@ -495,44 +712,58 @@ export async function revokeAuthenticationForRemovedSessions(
 	removedSessions: readonly AuthenticationSession[],
 	options: IAgentHostAuthenticationOptions,
 ): Promise<void> {
+	return revokeAuthenticationForRemovedSessionsFromResources(
+		accessor,
+		agents.flatMap(agent => agent.protectedResources ?? []),
+		providerId,
+		removedSessions,
+		options,
+	);
+}
+
+export async function revokeAuthenticationForRemovedSessionsFromResources(
+	accessor: ServicesAccessor,
+	protectedResources: readonly ProtectedResourceMetadata[],
+	providerId: string,
+	removedSessions: readonly AuthenticationSession[],
+	options: IAgentHostAuthenticationOptions,
+): Promise<void> {
 	const authenticationService = accessor.get(IAuthenticationService);
 	const logService = accessor.get(ILogService);
 	const reconciledResources = new Set<string>();
-	for (const agent of agents) {
-		for (const resource of agent.protectedResources ?? []) {
-			const scopes = resource.scopes_supported ?? [];
-			const key = protectedResourceAuthenticationKey(resource);
-			if (reconciledResources.has(key)) {
-				continue;
-			}
-			if (!removedSessionsCouldSatisfyResource(removedSessions, scopes)) {
-				continue;
-			}
-			if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
-				continue;
-			}
-			reconciledResources.add(key);
+	for (const resource of protectedResources) {
+		const scopes = resource.scopes_supported ?? [];
+		const key = protectedResourceAuthenticationKey(resource);
+		if (reconciledResources.has(key)) {
+			continue;
+		}
+		if (!removedSessionsCouldSatisfyResource(removedSessions, scopes)) {
+			continue;
+		}
+		if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
+			continue;
+		}
+		reconciledResources.add(key);
 
-			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
-			throwIfAuthenticationStale(options);
-			if (resolution.kind === 'unavailable') {
-				logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
-				continue;
+		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+		throwIfAuthenticationStale(options);
+		if (resolution.kind === 'unavailable') {
+			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
+			continue;
+		}
+		if (resolution.kind === 'resolved') {
+			// Another account still covers this resource; forward it so the host
+			// swaps credentials instead of losing them. Unchanged tokens are
+			// deduped by the cache.
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session)) {
+				logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
 			}
-			if (resolution.kind === 'resolved') {
-				// Another account still covers this resource; forward it so the host
-				// swaps credentials instead of losing them. Unchanged tokens are
-				// deduped by the cache.
-				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session)) {
-					logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
-				}
-				continue;
-			}
+			continue;
+		}
 
-			options.authTokenCache?.clear(resource.resource, scopes);
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, undefined)) {
-				logService.info(`${options.logPrefix} Clearing authentication for resource after session removal: ${resource.resource}`);
-			}
+		options.authTokenCache?.clear(resource.resource, scopes);
+		if (await forwardAuthenticationToken(options, resource.resource, scopes, undefined)) {
+			logService.info(`${options.logPrefix} Clearing authentication for resource after session removal: ${resource.resource}`);
 		}
 	}
 }
@@ -555,6 +786,10 @@ async function resourceMatchesAuthenticationProvider(
 	logService: ILogService,
 	logPrefix: string,
 ): Promise<boolean> {
+	const tunnelIssuer = getAgentHostTunnelAuthenticationIssuer(resource.resource);
+	if (tunnelIssuer) {
+		return providerId === tunnelIssuer;
+	}
 	for (const authorizationServer of resource.authorization_servers ?? []) {
 		try {
 			if (await authenticationService.getOrActivateProviderIdForServer(URI.parse(authorizationServer), URI.parse(resource.resource)) === providerId) {
@@ -676,6 +911,25 @@ async function forceAuthenticationInteractively(
 ): Promise<AuthenticationSession | undefined> {
 	throwIfAuthenticationStale(options);
 	const scopes = resource.scopes_supported ?? [];
+	const tunnelIssuer = getAgentHostTunnelAuthenticationIssuer(resource.resource);
+	if (tunnelIssuer) {
+		let session: AuthenticationSession;
+		try {
+			session = await authenticationService.createSession(tunnelIssuer, [...scopes], { activateImmediate: true });
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
+		throwIfAuthenticationStale(options);
+		options.authTokenCache?.clear(resource.resource, scopes);
+		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+			return undefined;
+		}
+		logService.info(`${options.logPrefix} Interactive tunnel authentication completed for ${resource.resource}`);
+		return session;
+	}
 	const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
 		forceSignInDialog: true,
 		additionalScopes: scopes,

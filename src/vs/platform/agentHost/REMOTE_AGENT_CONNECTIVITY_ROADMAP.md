@@ -39,6 +39,9 @@ renderer services, or transport-specific code.
 
 - Use existing AHP `auth/required` and `authenticate` messages. Do not add a
   second authentication protocol.
+- VS Code clients additionally receive an internal, credential-free snapshot of
+  all active host-feature requirements so removals, including an empty list,
+  synchronize across connected clients without changing the AHP auth flow.
 - Add a small internal host-feature auth registry because tunnel discovery needs
   to advertise and consume auth before any remote `IAgent` exists.
 - Advertise separate protected-resource identifiers for GitHub and Microsoft so
@@ -136,6 +139,7 @@ Current prototype status:
 - [x] PR 2: runtime controls and shared activation.
 - [x] PR 3: target contribution boundary and complete Person 2 handoff (pending
   review).
+- [x] PR 4: host-feature authentication.
 
 Person 2 can consume
 [`IAgentHostRemoteTargetHandle`](./common/agentHostRemoteAgents.ts) and the
@@ -194,7 +198,7 @@ Provide two fake contribution kinds plus a test-only fixed WebSocket target.
 **Handoff checkpoint:** Person 2 receives the connection interface and fake
 implementation here.
 
-### PR 4: Add host-feature authentication
+### PR 4: Add host-feature authentication - complete
 
 Back the existing AHP auth flow with the internal host-feature resource registry.
 Register issuer-specific optional tunnel resources only while the effective

@@ -48,6 +48,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		});
 		const logService = new NullLogService();
 		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		const authenticateCalls: Array<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> = [];
 		const connection = {
 			authenticate: async (params: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => {
@@ -57,7 +58,10 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const address = 'test-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }]]);
+		contribution._connections = new Map([[address, {
+			authTokenCache: store.add(new AgentHostAuthTokenCache()),
+			authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)),
+		}]]);
 		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = { get: () => undefined };
@@ -91,11 +95,18 @@ suite('RemoteAgentHost auth notifications', () => {
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
 		});
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		const calls: string[] = [];
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
 		contribution._connections = new Map([
-			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }],
-			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }],
+			['host-one', {
+				authTokenCache: store.add(new AgentHostAuthTokenCache()),
+				authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)),
+			}],
+			['host-two', {
+				authTokenCache: store.add(new AgentHostAuthTokenCache()),
+				authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)),
+			}],
 		]);
 		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
@@ -133,7 +144,10 @@ suite('RemoteAgentHost auth notifications', () => {
 		let envelopeNumber = 0;
 		const address = 'sealed-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }]]);
+		contribution._connections = new Map([[address, {
+			authTokenCache: store.add(new AgentHostAuthTokenCache()),
+			authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)),
+		}]]);
 		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = {

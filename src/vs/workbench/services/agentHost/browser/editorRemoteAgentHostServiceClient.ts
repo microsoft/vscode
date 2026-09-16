@@ -187,6 +187,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.onDidNotification ?? Event.None;
 	}
 
+	get authenticationRequirements() {
+		return this._protocolClient?.authenticationRequirements;
+	}
+
 	get onDidAction(): Event<ActionEnvelope> {
 		return this._protocolClient?.onDidAction ?? Event.None;
 	}

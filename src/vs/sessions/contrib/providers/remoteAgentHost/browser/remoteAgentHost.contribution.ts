@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -18,7 +20,8 @@ import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -28,7 +31,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
-import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { areAuthenticationRequirementsEqual, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, hasAuthenticationRequirement, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessionsFromResources } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -116,14 +119,18 @@ class ConnectionState extends Disposable {
 	readonly agents = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
-	readonly authTokenCache = new AgentHostAuthTokenCache();
-	readonly authRecovery = new AgentHostAuthenticationRecovery();
+	readonly authTokenCache = this._register(new AgentHostAuthTokenCache());
+	readonly authRecovery: AgentHostAuthenticationRecovery;
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@ICommandService commandService: ICommandService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+		this.authRecovery = this._register(new AgentHostAuthenticationRecovery(authenticationService, commandService, logService));
 	}
 }
 
@@ -276,6 +283,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			this._handleRootStateChange(address, connection, rootState);
 		}));
 		store.add(connection.onDidNotification(notification => this._handleAuthenticationRequiredNotification(address, connection, notification)));
+		const authenticationRequirements = connection.authenticationRequirements;
+		if (authenticationRequirements) {
+			store.add(autorun(reader => {
+				const requirements = authenticationRequirements.read(reader);
+				if (requirements.length > 0) {
+					void this._retryAuthenticationRequirements(address, connection, requirements);
+				}
+			}));
+		}
 
 		// If root state is already available, process it immediately
 		const initialRootState = connection.rootState.value;
@@ -458,6 +474,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const rootState = connState.connection.rootState.value;
 			if (rootState && !(rootState instanceof Error)) {
 				this._authenticateWithConnection(address, connState.connection, rootState.agents).catch(() => { /* best-effort */ });
+				void this._retryAuthenticationRequirements(address, connState.connection);
 			}
 		}
 	}
@@ -470,9 +487,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					continue;
 				}
 				try {
-					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
+					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessionsFromResources, [
+						...rootState.agents.flatMap(agent => agent.protectedResources ?? []),
+						...connState.authRecovery.reconcilableProtectedResources,
+					], providerId, removedSessions, {
 						authTokenCache: connState.authTokenCache,
 						logPrefix: '[RemoteAgentHost]',
+						isCurrent: () => this._connections.get(address) === connState,
 						authenticate: this._authenticateCallback(address, connState.connection),
 					});
 				} catch (error) {
@@ -491,15 +512,20 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * the auth pass is in flight so that sessions surface as still loading.
 	 */
 	private async _authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void> {
+		const connState = this._connections.get(address);
+		if (!connState) {
+			return;
+		}
 		const providerId = `agenthost-${agentHostAuthority(address)}`;
 		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
-		const authTokenCache = this._connections.get(address)?.authTokenCache;
+		const authTokenCache = connState.authTokenCache;
 		provider?.setAuthenticationPending(true);
 		try {
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
 				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
 					authTokenCache,
+					isCurrent: () => this._connections.get(address) === connState,
 					authenticate: this._authenticateCallback(address, connection),
 				});
 				return;
@@ -507,6 +533,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
 				logPrefix: '[RemoteAgentHost]',
+				isCurrent: () => this._connections.get(address) === connState,
 				authenticate: this._authenticateCallback(address, connection),
 			});
 		} catch (err) {
@@ -528,28 +555,57 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (notification.type !== NotificationType.AuthRequired) {
 			return;
 		}
-		this._authenticateNotificationResource(address, connection, notification.resource);
+		this._authenticateNotificationResource(address, connection, notification.resource, notification.reason);
 	}
 
-	private _authenticateNotificationResource(address: string, connection: IAgentConnection, protectedResource: ProtectedResourceMetadata): void {
+	private _authenticateNotificationResource(address: string, connection: IAgentConnection, protectedResource: ProtectedResourceMetadata, reason = AuthRequiredReason.Required): void {
 		const connState = this._connections.get(address);
 		if (!connState) {
 			return;
 		}
 		const providerId = `agenthost-${agentHostAuthority(address)}`;
 		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+		const retainedRequirements = connection.authenticationRequirements;
+		const wasRetained = retainedRequirements ? hasAuthenticationRequirement(retainedRequirements.get(), protectedResource) : false;
 		provider?.setAuthenticationPending(true);
-		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
+		connState.authRecovery.recover(protectedResource, {
 			authTokenCache: connState.authTokenCache,
 			logPrefix: '[RemoteAgentHost]',
+			isCurrent: () => this._connections.get(address) === connState
+				&& (!retainedRequirements || !wasRetained || hasAuthenticationRequirement(retainedRequirements.get(), protectedResource)),
 			authenticate: this._authenticateCallback(address, connection),
-		}))
+		}, reason)
 			.catch(err => {
 				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
 			})
 			.finally(() => {
 				provider?.setAuthenticationPending(false);
 			});
+	}
+
+	private async _retryAuthenticationRequirements(address: string, connection: IAgentConnection, requirements = connection.authenticationRequirements?.get() ?? []): Promise<void> {
+		const connState = this._connections.get(address);
+		if (!connState || requirements.length === 0) {
+			return;
+		}
+		const providerId = `agenthost-${agentHostAuthority(address)}`;
+		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+		const retainedRequirements = connection.authenticationRequirements;
+		provider?.setAuthenticationPending(true);
+		try {
+			await connState.authRecovery.retry(requirements, {
+				authTokenCache: connState.authTokenCache,
+				logPrefix: '[RemoteAgentHost]',
+				isCurrent: () => this._connections.get(address) === connState && (!retainedRequirements || areAuthenticationRequirementsEqual(retainedRequirements.get(), requirements)),
+				authenticate: this._authenticateCallback(address, connection),
+			});
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.error(`[RemoteAgentHost] Failed to retry retained authentication requirements for ${address}`, error);
+			}
+		} finally {
+			provider?.setAuthenticationPending(false);
+		}
 	}
 
 	/**

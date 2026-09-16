@@ -21,12 +21,12 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { AgentHostAuthenticationRequirementsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetClientRemoteAgentHostsPolicyExtensionMethod, type IAgentHostAuthenticationRequirementsSnapshot, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type AuthRequiredParams, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -48,10 +48,11 @@ import {
 	type JsonRpcResponse,
 	type ReconnectParams,
 	type IStateSnapshot,
+	type ProtocolMessage,
 	type SubscribeResult,
 	type ListSessionsResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -424,6 +425,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
 		}));
+		this._register(this._stateManager.onDidChangeActiveAuthenticationRequirements(requirements => {
+			this._broadcastAuthenticationRequirementsSnapshot(requirements);
+		}));
 
 		this._register(this._agentService.onMcpNotification(notification => {
 			this._broadcastMcpNotification(notification);
@@ -460,11 +464,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						client = result.client;
 						if (result.response instanceof Promise) {
 							this._trackRequest(result.response).then(
-								response => transport.send(jsonRpcSuccess(msg.id, response)),
+								response => {
+									transport.send(jsonRpcSuccess(msg.id, response));
+									this._sendActiveAuthenticationRequirements(result.client);
+								},
 								err => transport.send(jsonRpcErrorFrom(msg.id, err)),
 							);
 						} else {
 							transport.send(jsonRpcSuccess(msg.id, result.response));
+							this._sendActiveAuthenticationRequirements(result.client);
 						}
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
@@ -473,16 +481,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				if (!client && msg.method === 'reconnect') {
 					let responsePromise: Promise<unknown>;
+					let reconnectedClient: IConnectedClient;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
-						client = result.client;
+						client = reconnectedClient = result.client;
 						responsePromise = this._trackRequest(result.responsePromise);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 						return;
 					}
 					responsePromise.then(
-						response => transport.send(jsonRpcSuccess(msg.id, response)),
+						response => {
+							transport.send(jsonRpcSuccess(msg.id, response));
+							this._sendActiveAuthenticationRequirements(reconnectedClient);
+						},
 						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
 					);
 					return;
@@ -2132,6 +2144,40 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const record of this._clients.values()) {
 			this._getActiveClientFromRecord(record)?.transport.send(msg);
 		}
+	}
+
+	private _sendActiveAuthenticationRequirements(client: IConnectedClient): void {
+		const requirements = this._stateManager.getActiveAuthenticationRequirements();
+		for (const requirement of requirements) {
+			const msg: AhpServerNotification<'auth/required'> = {
+				jsonrpc: '2.0',
+				method: 'auth/required',
+				params: {
+					channel: ROOT_STATE_URI,
+					...requirement,
+				},
+			};
+			client.transport.send(msg);
+		}
+		this._sendAuthenticationRequirementsSnapshot(client, requirements);
+	}
+
+	private _broadcastAuthenticationRequirementsSnapshot(requirements: readonly Omit<AuthRequiredParams, 'channel'>[]): void {
+		for (const record of this._clients.values()) {
+			const client = this._getActiveClientFromRecord(record);
+			if (client) {
+				this._sendAuthenticationRequirementsSnapshot(client, requirements);
+			}
+		}
+	}
+
+	private _sendAuthenticationRequirementsSnapshot(client: IConnectedClient, requirements: readonly Omit<AuthRequiredParams, 'channel'>[]): void {
+		const params: IAgentHostAuthenticationRequirementsSnapshot = {
+			requirements: requirements.map(requirement => ({ channel: ROOT_STATE_URI, ...requirement })),
+		};
+		// VS Code-private notifications intentionally extend the public AHP protocol union.
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		client.transport.send({ jsonrpc: '2.0', method: AgentHostAuthenticationRequirementsExtensionMethod, params } as unknown as ProtocolMessage);
 	}
 
 	/**

@@ -21,7 +21,7 @@ import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExt
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { AUTOMATION_CATALOG_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
@@ -348,7 +348,7 @@ function request(id: number, method: string, params?: unknown): ProtocolMessage 
 }
 
 function findNotifications(sent: ProtocolMessage[], method: string): AhpNotification[] {
-	return sent.filter(isJsonRpcNotification) as AhpNotification[];
+	return sent.filter(message => isJsonRpcNotification(message) && String(message.method) === method) as AhpNotification[];
 }
 
 function findResponse(sent: ProtocolMessage[], id: number): ProtocolMessage | undefined {
@@ -477,6 +477,145 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 			},
 		});
+	});
+
+	test('re-emits active optional authentication requirements after initialize for late clients', () => {
+		const resources = [
+			{
+				resource: 'https://vscode.dev/agent-host/tunnels/github',
+				resource_name: 'VS Code Dev Tunnels (GitHub)',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['tunnel'],
+				required: false,
+			},
+			{
+				resource: 'https://vscode.dev/agent-host/tunnels/microsoft',
+				resource_name: 'VS Code Dev Tunnels (Microsoft)',
+				authorization_servers: ['https://login.microsoftonline.com/common/v2.0'],
+				scopes_supported: ['tunnel'],
+				required: false,
+			},
+		];
+		stateManager.setActiveAuthenticationRequirements(resources.map(resource => ({ resource, reason: AuthRequiredReason.Required })));
+
+		const first = connectClient('client-1');
+		const late = connectClient('client-2');
+		const summarize = (transport: MockProtocolTransport) => transport.sent.map(message => {
+			if (isJsonRpcResponse(message)) {
+				return { kind: 'response', id: message.id };
+			}
+			if (isJsonRpcNotification(message) && message.method === 'auth/required') {
+				return { kind: message.method, params: message.params };
+			}
+			if (isJsonRpcNotification(message) && String(message.method) === 'vscode/authenticationRequirements') {
+				return { kind: 'authSnapshot', params: message.params };
+			}
+			return { kind: 'other' };
+		});
+
+		const expected = [
+			{ kind: 'response', id: 1 },
+			...resources.map(resource => ({
+				kind: 'auth/required',
+				params: { channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required },
+			})),
+			{
+				kind: 'authSnapshot',
+				params: {
+					requirements: resources.map(resource => ({
+						channel: 'ahp-root://',
+						resource,
+						reason: AuthRequiredReason.Required,
+					})),
+				},
+			},
+		];
+		assert.deepStrictEqual({ first: summarize(first), late: summarize(late) }, { first: expected, late: expected });
+	});
+
+	test('re-emits an active optional authentication requirement after reconnect', async () => {
+		const resource = {
+			resource: 'https://vscode.dev/agent-host/tunnels/github',
+			resource_name: 'VS Code Dev Tunnels (GitHub)',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['tunnel'],
+			required: false,
+		};
+		stateManager.setActiveAuthenticationRequirements([{ resource, reason: AuthRequiredReason.Required }]);
+		const initial = connectClient('client-1');
+		initial.simulateClose();
+
+		const reconnect = new MockProtocolTransport();
+		server.simulateConnection(reconnect);
+		const response = waitForResponse(reconnect, 1);
+		reconnect.simulateMessage(request(1, 'reconnect', {
+			channel: 'ahp-root://',
+			clientId: 'client-1',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+		}));
+		await response;
+
+		assert.deepStrictEqual(reconnect.sent.map(message => {
+			if (isJsonRpcResponse(message)) {
+				return { kind: 'response', id: message.id };
+			}
+			if (isJsonRpcNotification(message) && message.method === 'auth/required') {
+				return { kind: message.method, params: message.params };
+			}
+			if (isJsonRpcNotification(message) && String(message.method) === 'vscode/authenticationRequirements') {
+				return { kind: 'authSnapshot', params: message.params };
+			}
+			return { kind: 'other' };
+		}), [
+			{ kind: 'response', id: 1 },
+			{
+				kind: 'auth/required',
+				params: { channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required },
+			},
+			{
+				kind: 'authSnapshot',
+				params: {
+					requirements: [{
+						channel: 'ahp-root://',
+						resource,
+						reason: AuthRequiredReason.Required,
+					}],
+				},
+			},
+		]);
+	});
+
+	test('publishes authoritative authentication requirement snapshots, including clears, to every client', () => {
+		const first = connectClient('client-1');
+		const second = connectClient('client-2');
+		first.sent.length = 0;
+		second.sent.length = 0;
+		const resource = {
+			resource: 'https://vscode.dev/agent-host/tunnels/github',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['tunnel'],
+			required: false,
+		};
+
+		stateManager.setActiveAuthenticationRequirements([{ resource, reason: AuthRequiredReason.Required }]);
+		stateManager.setActiveAuthenticationRequirements([]);
+
+		const snapshots = (transport: MockProtocolTransport) => transport.sent
+			.flatMap(message => isJsonRpcNotification(message) && String(message.method) === 'vscode/authenticationRequirements'
+				? [message.params]
+				: []);
+		const expected = [
+			{
+				requirements: [{
+					channel: 'ahp-root://',
+					resource,
+					reason: AuthRequiredReason.Required,
+				}],
+			},
+			{ requirements: [] },
+		];
+		assert.deepStrictEqual({ first: snapshots(first), second: snapshots(second) }, { first: expected, second: expected });
 	});
 
 	test('routes a workspace trust request to the initiating client', async () => {

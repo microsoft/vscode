@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
+import { vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import { AuthRequiredReason, type AuthRequiredParams } from './state/sessionActions.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
@@ -21,6 +22,7 @@ export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAg
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const SetClientRemoteAgentHostsPolicyExtensionMethod = 'vscode/setClientRemoteAgentHostsPolicy';
+export const AgentHostAuthenticationRequirementsExtensionMethod = 'vscode/authenticationRequirements';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -33,6 +35,41 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
+}
+
+const agentHostAuthenticationRequirementsValidator = vObj({
+	requirements: vArray(vObj({
+		channel: vString(),
+		resource: vObj({
+			resource: vString(),
+			resource_name: vOptionalProp(vString()),
+			authorization_servers: vOptionalProp(vArray(vString())),
+			scopes_supported: vOptionalProp(vArray(vString())),
+			required: vOptionalProp(vBoolean()),
+		}),
+		reason: vOptionalProp(vEnum('required', 'expired')),
+	})),
+});
+
+export interface IAgentHostAuthenticationRequirementsSnapshot {
+	readonly requirements: readonly AuthRequiredParams[];
+}
+
+export function readAgentHostAuthenticationRequirementsSnapshot(value: unknown): IAgentHostAuthenticationRequirementsSnapshot | undefined {
+	const result = agentHostAuthenticationRequirementsValidator.validate(value);
+	if (result.error) {
+		return undefined;
+	}
+	return {
+		requirements: result.content.requirements.map(requirement => ({
+			...requirement,
+			reason: requirement.reason === 'expired'
+				? AuthRequiredReason.Expired
+				: requirement.reason === 'required'
+					? AuthRequiredReason.Required
+					: undefined,
+		})),
+	};
 }
 
 export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {

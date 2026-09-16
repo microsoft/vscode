@@ -15,6 +15,7 @@ import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostFeatureAuthenticationRegistry, IAgentHostFeatureAuthenticationRegistry } from './agentHostFeatureAuthentication.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
@@ -74,6 +75,7 @@ export interface IAgentServiceFoundation {
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly authenticationService: AgentHostAuthenticationService;
+	readonly featureAuthenticationRegistry: AgentHostFeatureAuthenticationRegistry;
 	readonly gitHubEndpointService: AgentHostGitHubEndpointService;
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
@@ -112,7 +114,10 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			Object.values(AgentHostProxyConfigKey).map(key => [key, undefined])
 		));
 	}
-	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService));
+	const featureAuthenticationRegistry = options.owned.add(new AgentHostFeatureAuthenticationRegistry(
+		options.productService.tunnelApplicationConfig?.authenticationProviders,
+	));
+	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, featureAuthenticationRegistry));
 	const gitHubEndpointService = options.owned.add(new AgentHostGitHubEndpointService(configurationService, options.logService));
 	const proxyResolver = options.proxyResolver ?? options.owned.add(new AgentHostProxyResolver(configurationService, options.logService));
 	const requestService = options.owned.add(new AgentHostRequestService(options.logService, proxyResolver));
@@ -122,6 +127,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	options.services.set(IAgentConfigurationService, configurationService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
+	options.services.set(IAgentHostFeatureAuthenticationRegistry, featureAuthenticationRegistry);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
 	options.services.set(IAgentHostProxyResolver, proxyResolver);
 	options.services.set(IRequestService, requestService);
@@ -131,6 +137,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		stateManager,
 		configurationService,
 		authenticationService,
+		featureAuthenticationRegistry,
 		gitHubEndpointService,
 		proxyResolver,
 		requestService,

@@ -39,6 +39,7 @@ import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
+import { IAgentHostRemoteAgentsService } from './agentHostRemoteAgentsService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
@@ -91,8 +92,9 @@ export function createAgentServiceComposition(
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
-		const { callbackAdapter, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
+		const { callbackAdapter, stateManager, configurationService, authenticationService, featureAuthenticationRegistry, gitHubEndpointService } = foundation;
 		const providerService = accessor.get(IAgentHostProviderService);
+		owned.add(accessor.get(IAgentHostRemoteAgentsService).registerContribution(featureAuthenticationRegistry));
 		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
 		const core: IAgentServiceCore = {
 			disposables: owned,

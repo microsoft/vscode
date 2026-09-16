@@ -357,6 +357,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.onDidNotification ?? Event.None;
 	}
 
+	get authenticationRequirements() {
+		return this._protocolClient?.authenticationRequirements;
+	}
+
 	get onMcpNotification(): Event<IMcpNotification> {
 		return this._protocolClient?.onMcpNotification ?? Event.None;
 	}

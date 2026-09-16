@@ -5,12 +5,15 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { AGENT_HOST_GITHUB_TUNNEL_PROTECTED_RESOURCE_ID, AGENT_HOST_MICROSOFT_TUNNEL_PROTECTED_RESOURCE_ID, AgentHostTunnelAuthenticationIssuer, createAgentHostTunnelProtectedResources, getAgentHostTunnelAuthenticationIssuer } from '../../../../../../platform/agentHost/common/agentHostFeatureAuthentication.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -21,7 +24,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateProtectedResources, authenticateProtectedResourcesWithToken, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, revokeAuthenticationForRemovedSessionsFromResources, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
@@ -112,6 +115,52 @@ suite('resolveSessionForResource', () => {
 		});
 		const token = (await resolveSessionForResource(resource, ['https://auth.example.com'], ['read'], authService, log, 'test'))?.accessToken;
 		assert.strictEqual(token, undefined);
+	});
+
+	test('maps tunnel resource identifiers directly to cached GitHub and Microsoft sessions', async () => {
+		const calls: Array<{ readonly providerId: string; readonly scopes: readonly string[] | undefined }> = [];
+		const authService = createMockAuthService({
+			getSessions: (providerId, scopes) => {
+				calls.push({ providerId, scopes });
+				return Promise.resolve(scopes ? [{
+					scopes,
+					accessToken: `${providerId}-token`,
+				}] : []);
+			},
+		});
+
+		const githubToken = (await resolveSessionForResource(
+			URI.parse(AGENT_HOST_GITHUB_TUNNEL_PROTECTED_RESOURCE_ID),
+			[],
+			['github-scope'],
+			authService,
+			log,
+			'test',
+		))?.accessToken;
+		const microsoftToken = (await resolveSessionForResource(
+			URI.parse(AGENT_HOST_MICROSOFT_TUNNEL_PROTECTED_RESOURCE_ID),
+			[],
+			['microsoft-scope'],
+			authService,
+			log,
+			'test',
+		))?.accessToken;
+
+		assert.deepStrictEqual({
+			issuers: [
+				getAgentHostTunnelAuthenticationIssuer(AGENT_HOST_GITHUB_TUNNEL_PROTECTED_RESOURCE_ID),
+				getAgentHostTunnelAuthenticationIssuer(AGENT_HOST_MICROSOFT_TUNNEL_PROTECTED_RESOURCE_ID),
+			],
+			tokens: [githubToken, microsoftToken],
+			calls,
+		}, {
+			issuers: [AgentHostTunnelAuthenticationIssuer.GitHub, AgentHostTunnelAuthenticationIssuer.Microsoft],
+			tokens: ['github-token', 'microsoft-token'],
+			calls: [
+				{ providerId: 'github', scopes: ['github-scope'] },
+				{ providerId: 'microsoft', scopes: ['microsoft-scope'] },
+			],
+		});
 	});
 
 	test('returns token from exact scope match', async () => {
@@ -372,6 +421,43 @@ suite('AgentHostAuthTokenCache', () => {
 
 		assert.strictEqual(authenticateCalls, 4);
 	});
+
+	test('disposal cancels pending authentication and rejects future use', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const authentication = new DeferredPromise<void>();
+		const pending = cache.authenticate('https://api.example.com', ['read'], 'tok1', () => authentication.p);
+
+		cache.dispose();
+		authentication.complete();
+
+		await assert.rejects(pending, /Canceled/);
+		await assert.rejects(
+			cache.authenticate('https://api.example.com', ['read'], 'tok2', async () => { }),
+			/Canceled/,
+		);
+	});
+
+	test('rechecks currentness when a queued cached-auth callback begins forwarding', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const firstAuthentication = new DeferredPromise<void>();
+		const [resource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['github-scope'] } });
+		const first = cache.authenticate(resource.resource, resource.scopes_supported, 'first-token', () => firstAuthentication.p);
+		const forwardedTokens: string[] = [];
+		let current = true;
+		const queued = authenticateProtectedResourcesWithToken([resource], 'queued-token', {
+			authTokenCache: cache,
+			isCurrent: () => current,
+			authenticate: async request => { forwardedTokens.push(request.token); },
+		});
+		await Promise.resolve();
+
+		current = false;
+		firstAuthentication.complete();
+		await first;
+
+		await assert.rejects(queued, /Canceled/);
+		assert.deepStrictEqual(forwardedTokens, []);
+	});
 });
 
 suite('AgentHostAuthenticationRecovery', () => {
@@ -386,10 +472,10 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const authenticateCalls: string[] = [];
 		let current = true;
-		const recoveryPromise = instantiationService.invokeFunction(accessor => recovery.recover(accessor, {
+		const recoveryPromise = recovery.recover({
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
 			scopes_supported: ['read'],
@@ -397,7 +483,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 			logPrefix: '[AgentHost]',
 			isCurrent: () => current,
 			authenticate: async request => { authenticateCalls.push(request.token); },
-		}));
+		});
 
 		current = false;
 		recovery.clear();
@@ -422,7 +508,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 		const cache = new AgentHostAuthTokenCache();
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -435,14 +521,14 @@ suite('AgentHostAuthenticationRecovery', () => {
 			authenticate: async request => { authenticateCalls.push(request.token); },
 		};
 
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await recovery.recover(resource, options);
 		commandService.onExecute = async () => {
 			token.value = 'tok-2';
 			await cache.authenticate(resource.resource, resource.scopes_supported, token.value, async () => {
 				authenticateCalls.push(token.value);
 			});
 		};
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await recovery.recover(resource, options);
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls.length,
@@ -452,7 +538,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 			authenticateCalls: ['tok-1', 'tok-2', 'tok-2'],
 		});
 
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await recovery.recover(resource, options);
 		assert.strictEqual(commandService.calls.length, 2);
 	});
 
@@ -464,7 +550,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery();
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -477,11 +563,11 @@ suite('AgentHostAuthenticationRecovery', () => {
 			authenticate: async request => { authenticateCalls.push(request.token); },
 		};
 
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await recovery.recover(resource, options);
 		token.value = undefined;
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await recovery.recover(resource, options);
 		token.value = 'tok-1';
-		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		await recovery.recover(resource, options);
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls.length,
@@ -490,6 +576,441 @@ suite('AgentHostAuthenticationRecovery', () => {
 			commandCalls: 0,
 			authenticateCalls: ['tok-1', 'tok-1'],
 		});
+	});
+
+	test('serializes optional tunnel issuer alternatives and forwards only one cached credential', async () => {
+		const authService = createMockAuthService({
+			getSessions: (providerId, scopes) => Promise.resolve(scopes ? [{
+				scopes,
+				accessToken: `${providerId}-token`,
+			}] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resources = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const authenticateCalls: string[] = [];
+
+		await Promise.all(resources.map(resource => recovery.recover(resource, {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		}, AuthRequiredReason.Required)));
+
+		assert.deepStrictEqual({
+			authenticateCalls,
+			commandCalls: commandService.calls,
+			reconcilableResources: recovery.reconcilableProtectedResources,
+		}, {
+			authenticateCalls: [`${resources[0].resource}:github-token`],
+			commandCalls: [],
+			reconcilableResources: [resources[0]],
+		});
+	});
+
+	test('does not force optional tunnel sign-in when no cached token is available', async () => {
+		const authService = createMockAuthService({
+			getSessions: providerId => Promise.resolve(providerId === 'microsoft' ? [{
+				scopes: ['microsoft-scope'],
+				accessToken: 'microsoft-token',
+			}] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resources = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const authenticateCalls: string[] = [];
+
+		await Promise.all(resources.map(resource => recovery.recover(resource, {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		}, AuthRequiredReason.Required)));
+		await recovery.recover(resources[1], {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		}, AuthRequiredReason.Expired);
+
+		assert.deepStrictEqual({
+			authenticateCalls,
+			commandCalls: commandService.calls,
+		}, {
+			authenticateCalls: [`${resources[1].resource}:microsoft-token`],
+			commandCalls: [],
+		});
+	});
+
+	test('does not forward a tunnel credential after recovery is cleared', async () => {
+		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const sessionLookupStarted = new DeferredPromise<void>();
+		const authService = createMockAuthService({
+			getSessions: (_providerId, scopes) => {
+				if (scopes) {
+					sessionLookupStarted.complete();
+					return sessions.p;
+				}
+				return Promise.resolve([]);
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const [github] = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+		});
+		const authenticateCalls: string[] = [];
+
+		const recoveryPromise = recovery.recover(github, {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		});
+		await sessionLookupStarted.p;
+		recovery.clear();
+		sessions.complete([{ scopes: ['github-scope'], accessToken: 'stale-token' }]);
+
+		await assert.rejects(recoveryPromise, /Canceled/);
+		assert.deepStrictEqual(authenticateCalls, []);
+	});
+
+	test('disposal cancels a pending credential resolution before it can forward', async () => {
+		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const lookupStarted = new DeferredPromise<void>();
+		const authService = createMockAuthService({
+			getSessions: (_providerId, scopes) => {
+				if (scopes) {
+					lookupStarted.complete();
+					return sessions.p;
+				}
+				return Promise.resolve([]);
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const [resource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['github-scope'] } });
+		const authenticateCalls: string[] = [];
+		const pending = recovery.recover(resource, {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		});
+		await lookupStarted.p;
+
+		recovery.dispose();
+		sessions.complete([{ scopes: ['github-scope'], accessToken: 'stale-token' }]);
+
+		await assert.rejects(pending, /Canceled/);
+		assert.deepStrictEqual(authenticateCalls, []);
+	});
+
+	test('retains only successfully forwarded challenges for session reconciliation and removes definitive sign-out', async () => {
+		const token = { value: 'token' as string | undefined };
+		let rejectForward = true;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(token.value && scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async () => {
+				if (rejectForward) {
+					throw new Error('rejected');
+				}
+			},
+		};
+
+		await assert.rejects(
+			recovery.recover(resource, options),
+			/rejected/,
+		);
+		const afterFailure = recovery.reconcilableProtectedResources;
+		rejectForward = false;
+		await recovery.recover(resource, options);
+		const afterSuccess = recovery.reconcilableProtectedResources;
+		token.value = undefined;
+		await recovery.recover(resource, options);
+
+		assert.deepStrictEqual({
+			afterFailure,
+			afterSuccess,
+			afterSignOut: recovery.reconcilableProtectedResources,
+		}, {
+			afterFailure: [],
+			afterSuccess: [resource],
+			afterSignOut: [],
+		});
+	});
+
+	test('retries a retained requirement when a cached session becomes available', async () => {
+		const token = { value: undefined as string | undefined };
+		const authService = createMockAuthService({
+			getSessions: (_providerId, scopes) => Promise.resolve(token.value && scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const [resource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['github-scope'] } });
+		const requirement = { channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required };
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await recovery.recover(resource, options);
+		token.value = 'available-token';
+		await recovery.retry([requirement], options);
+
+		assert.deepStrictEqual(authenticateCalls, ['available-token']);
+	});
+
+	test('retries skipped GitHub fallback after the active Microsoft issuer signs out', async () => {
+		const tokens: Record<string, string | undefined> = {
+			github: undefined,
+			microsoft: 'microsoft-token',
+		};
+		const authService = createMockAuthService({
+			getSessions: (providerId, scopes) => Promise.resolve(tokens[providerId] && scopes ? [{
+				scopes,
+				accessToken: tokens[providerId]!,
+			}] : []),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resources = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const requirements = resources.map(resource => ({ channel: 'ahp-root://' as const, resource, reason: AuthRequiredReason.Required }));
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		};
+
+		await Promise.all(resources.map(resource => recovery.recover(resource, options)));
+		tokens.microsoft = undefined;
+		tokens.github = 'github-token';
+		await instantiationService.invokeFunction(
+			revokeAuthenticationForRemovedSessionsFromResources,
+			recovery.reconcilableProtectedResources,
+			'microsoft',
+			[{
+				id: 'microsoft-session',
+				account: { id: 'microsoft-account', label: 'Microsoft Account' },
+				scopes: ['microsoft-scope'],
+				accessToken: 'microsoft-token',
+			}],
+			options,
+		);
+		await recovery.retry(requirements, options);
+
+		assert.deepStrictEqual({
+			authenticateCalls,
+			reconcilableResources: recovery.reconcilableProtectedResources,
+		}, {
+			authenticateCalls: [
+				`${resources[1].resource}:microsoft-token`,
+				`${resources[1].resource}:`,
+				`${resources[0].resource}:github-token`,
+			],
+			reconcilableResources: [resources[0]],
+		});
+	});
+
+	test('falls back to GitHub when the active Microsoft provider is unavailable', async () => {
+		let microsoftUnavailable = false;
+		const tokens: Record<string, string | undefined> = {
+			github: undefined,
+			microsoft: 'microsoft-token',
+		};
+		const authService = createMockAuthService({
+			getSessions: (providerId, scopes) => {
+				if (providerId === 'microsoft' && microsoftUnavailable) {
+					return Promise.reject(new Error('provider unavailable'));
+				}
+				return Promise.resolve(tokens[providerId] && scopes ? [{ scopes, accessToken: tokens[providerId]! }] : []);
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resources = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		};
+
+		await Promise.all(resources.map(resource => recovery.recover(resource, options)));
+		microsoftUnavailable = true;
+		tokens.github = 'github-token';
+		await recovery.retry(resources.map(resource => ({
+			channel: 'ahp-root://' as const,
+			resource,
+			reason: AuthRequiredReason.Required,
+		})), options);
+
+		assert.deepStrictEqual(authenticateCalls, [
+			`${resources[1].resource}:microsoft-token`,
+			`${resources[0].resource}:github-token`,
+		]);
+	});
+
+	test('falls back to GitHub when the active Microsoft challenge cannot refresh an expired token', async () => {
+		const tokens: Record<string, string | undefined> = {
+			github: undefined,
+			microsoft: 'microsoft-token',
+		};
+		const authService = createMockAuthService({
+			getSessions: (providerId, scopes) => Promise.resolve(tokens[providerId] && scopes ? [{
+				scopes,
+				accessToken: tokens[providerId]!,
+			}] : []),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const resources = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(`${request.resource}:${request.token}`); },
+		};
+
+		await Promise.all(resources.map(resource => recovery.recover(resource, options)));
+		tokens.github = 'github-token';
+		await recovery.retry(resources.map(resource => ({
+			channel: 'ahp-root://' as const,
+			resource,
+			reason: AuthRequiredReason.Expired,
+		})), options);
+
+		assert.deepStrictEqual(authenticateCalls, [
+			`${resources[1].resource}:microsoft-token`,
+			`${resources[0].resource}:github-token`,
+		]);
+	});
+
+	test('runs a challenge after an equivalent retained recovery already in flight', async () => {
+		const retainedResolution = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const retainedResolutionStarted = new DeferredPromise<void>();
+		let exactLookupCount = 0;
+		const authService = createMockAuthService({
+			getSessions: (_providerId, scopes) => {
+				if (!scopes) {
+					return Promise.resolve([]);
+				}
+				exactLookupCount++;
+				if (exactLookupCount === 2) {
+					retainedResolutionStarted.complete();
+					return retainedResolution.p;
+				}
+				return Promise.resolve([{ scopes, accessToken: 'token' }]);
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const [resource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['scope-a', 'scope-b'] } });
+		const requirement = { channel: 'ahp-root://' as const, resource, reason: AuthRequiredReason.Required };
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+		await recovery.recover(resource, options);
+		const retained = recovery.retry([requirement], options);
+		await retainedResolutionStarted.p;
+
+		const challenge = recovery.recover({ ...resource, scopes_supported: ['scope-b', 'scope-a'] }, options);
+		retainedResolution.complete([{ scopes: ['scope-a', 'scope-b'], accessToken: 'token' }]);
+		await Promise.all([retained, challenge]);
+
+		assert.deepStrictEqual(authenticateCalls, ['token', 'token']);
+	});
+
+	test('clear cancels a challenge follow-up queued behind retained recovery', async () => {
+		const retainedResolution = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
+		const retainedResolutionStarted = new DeferredPromise<void>();
+		let exactLookupCount = 0;
+		const authService = createMockAuthService({
+			getSessions: (_providerId, scopes) => {
+				if (!scopes) {
+					return Promise.resolve([]);
+				}
+				exactLookupCount++;
+				if (exactLookupCount === 2) {
+					retainedResolutionStarted.complete();
+					return retainedResolution.p;
+				}
+				return Promise.resolve([{ scopes, accessToken: exactLookupCount === 1 ? 'initial-token' : 'resurrected-token' }]);
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const [resource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['scope'] } });
+		const requirement = { channel: 'ahp-root://' as const, resource, reason: AuthRequiredReason.Required };
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+		await recovery.recover(resource, options);
+		const retained = recovery.retry([requirement], options);
+		await retainedResolutionStarted.p;
+		const challenge = recovery.recover(resource, options, AuthRequiredReason.Required);
+
+		recovery.clear();
+		retainedResolution.complete([{ scopes: ['scope'], accessToken: 'initial-token' }]);
+
+		await assert.rejects(retained, /Canceled/);
+		await assert.rejects(challenge, /Canceled/);
+		assert.deepStrictEqual(authenticateCalls, ['initial-token']);
+	});
+
+	test('queues Expired challenge semantics behind a pending Required challenge', async () => {
+		const token = { value: 'initial-token' };
+		const requiredForwardStarted = new DeferredPromise<void>();
+		const releaseRequiredForward = new DeferredPromise<void>();
+		const authService = createMockAuthService({
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		const [resource] = createAgentHostTunnelProtectedResources({ github: { scopes: ['scope'] } });
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				authenticateCalls.push(request.token);
+				if (request.token === 'required-token') {
+					requiredForwardStarted.complete();
+					await releaseRequiredForward.p;
+				}
+			},
+		};
+		await recovery.recover(resource, options);
+		token.value = 'required-token';
+		const required = recovery.recover(resource, options, AuthRequiredReason.Required);
+		await requiredForwardStarted.p;
+		token.value = 'expired-token';
+		const expired = recovery.recover(resource, options, AuthRequiredReason.Expired);
+
+		releaseRequiredForward.complete();
+		await Promise.all([required, expired]);
+
+		assert.deepStrictEqual(authenticateCalls, ['initial-token', 'required-token', 'expired-token']);
 	});
 });
 
@@ -1278,6 +1799,35 @@ suite('authenticateProtectedResources', () => {
 		});
 	});
 
+	test('clears an observed tunnel credential after its built-in authentication session is removed', async () => {
+		const authService = createMockAuthService({
+			getSessions: () => Promise.resolve([]),
+		});
+		const [resource] = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['tunnel:manage'] },
+		});
+		const requests: Array<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> = [];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(
+			revokeAuthenticationForRemovedSessionsFromResources,
+			[resource],
+			'github',
+			[removedSession(['tunnel:manage'])],
+			{
+				authTokenCache: new AgentHostAuthTokenCache(),
+				logPrefix: '[AgentHost]',
+				authenticate: async request => { requests.push(request); },
+			},
+		);
+
+		assert.deepStrictEqual(requests, [{
+			resource: AGENT_HOST_GITHUB_TUNNEL_PROTECTED_RESOURCE_ID,
+			scopes: ['tunnel:manage'],
+			token: '',
+		}]);
+	});
+
 	test('forwards the surviving token instead of revoking when another account remains', async () => {
 		let sharedHostToken: string | undefined = 'removed-account-token';
 		const authService = createMockAuthService({
@@ -1442,6 +1992,69 @@ suite('resolveAuthenticationInteractively', () => {
 				}],
 			}],
 			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'signed-in-token' }],
+		});
+	});
+
+	test('uses the existing Microsoft tunnel sign-in without Copilot onboarding', async () => {
+		const commandService = new TestCommandService();
+		const sessionCreations: Array<{ readonly providerId: string; readonly scopes: readonly string[] }> = [];
+		const authService = createMockAuthService({
+			getSessions: () => Promise.resolve([]),
+			createSession: async (providerId, scopes) => {
+				sessionCreations.push({ providerId, scopes });
+				return { accessToken: 'microsoft-tunnel-token' };
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const [, microsoft] = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+			microsoft: { scopes: ['microsoft-scope'] },
+		});
+		const requests: Array<{ readonly resource: string; readonly token: string }> = [];
+
+		const success = await instantiationService.invokeFunction(resolveAuthenticationInteractively, [microsoft], {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { requests.push(request); },
+		});
+
+		assert.deepStrictEqual({
+			success,
+			sessionCreations,
+			commandCalls: commandService.calls,
+			requests,
+		}, {
+			success: true,
+			sessionCreations: [{ providerId: 'microsoft', scopes: ['microsoft-scope'] }],
+			commandCalls: [],
+			requests: [{ resource: microsoft.resource, scopes: ['microsoft-scope'], token: 'microsoft-tunnel-token' }],
+		});
+	});
+
+	test('treats declining optional tunnel sign-in as no token', async () => {
+		const commandService = new TestCommandService();
+		const authService = createMockAuthService({
+			getSessions: () => Promise.resolve([]),
+			createSession: () => Promise.reject(new CancellationError()),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const [github] = createAgentHostTunnelProtectedResources({
+			github: { scopes: ['github-scope'] },
+		});
+		const requests: string[] = [];
+
+		const success = await instantiationService.invokeFunction(resolveAuthenticationInteractively, [github], {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { requests.push(request.token); },
+		});
+
+		assert.deepStrictEqual({
+			success,
+			commandCalls: commandService.calls,
+			requests,
+		}, {
+			success: false,
+			commandCalls: [],
+			requests: [],
 		});
 	});
 
