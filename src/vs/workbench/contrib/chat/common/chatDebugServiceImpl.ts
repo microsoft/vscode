@@ -114,6 +114,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	readonly onDidChangeAvailableSessionResources: Event<void> = this._onDidChangeAvailableSessionResources.event;
 
 	private readonly _providers = new Set<IChatDebugLogProvider>();
+	private readonly _sessionResourceResolvers = new Set<(sessionResource: URI) => URI | undefined>();
 	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
 
 	/**
@@ -410,6 +411,21 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		return toDisposable(() => {
 			this._providers.delete(provider);
 		});
+	}
+
+	registerSessionResourceResolver(resolver: (sessionResource: URI) => URI | undefined): IDisposable {
+		this._sessionResourceResolvers.add(resolver);
+		return toDisposable(() => this._sessionResourceResolvers.delete(resolver));
+	}
+
+	resolveSessionResource(sessionResource: URI): URI {
+		for (const resolver of this._sessionResourceResolvers) {
+			const resolved = resolver(sessionResource);
+			if (resolved) {
+				return resolved;
+			}
+		}
+		return sessionResource;
 	}
 
 	hasInvokedProviders(sessionResource: URI): boolean {

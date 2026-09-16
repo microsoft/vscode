@@ -18,7 +18,7 @@ import { IAgentHostService } from '../../../../../platform/agentHost/common/agen
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { buildDefaultChatUri, CustomizationType, readUsageInfoMeta, StateComponents, type ChatState, type ChildCustomization, type Customization, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, CustomizationType, parseChatUri, readUsageInfoMeta, ResponsePartKind, StateComponents, ToolCallStatus, type ActiveTurn, type ChatState, type ChildCustomization, type Customization, type Turn, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -237,7 +237,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	 * session (the one currently shown) is watched at a time. Remote
 	 * (non-`file`) sessions are not watched; they still load on open.
 	 */
-	private _ensureLiveRefresh(sessionResource: URI, eventsUri: URI): void {
+	private _ensureLiveRefresh(sessionResource: URI, sourceChatResource: URI, eventsUri: URI): void {
 		const key = sessionResource.toString();
 		if (this._watchedSessionKey === key) {
 			return; // already watching this session
@@ -271,7 +271,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// Also refresh when the live AHP chat state changes: input/cache/AIU
 		// usage is on the chat channel (not in events.jsonl until
 		// session.shutdown), so a usage update mid-turn must re-render the tiles.
-		const liveSub = this._sessionChatSubscription(sessionResource);
+		const liveSub = this._sessionChatSubscription(sessionResource, sourceChatResource);
 		if (liveSub) {
 			store.add(liveSub.onDidChange(() => scheduler.schedule()));
 		}
@@ -290,7 +290,10 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	 * subscribe to that channel rather than the session. Read-only: never
 	 * creates a subscription.
 	 */
-	private _sessionChatSubscription(sessionResource: URI) {
+	private _sessionChatSubscription(sessionResource: URI, sourceChatResource?: URI) {
+		if (sourceChatResource && parseChatUri(sourceChatResource)) {
+			return this._agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, sourceChatResource);
+		}
 		if (sessionResource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME) {
 			return undefined; // live usage only for local Agent Host sessions
 		}
@@ -309,8 +312,8 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	 * source for in-progress sessions (no `session.shutdown` summary yet).
 	 * Only AIU is reliable live; input/cache need the shutdown summary (F1).
 	 */
-	private _getLiveUsageTotals(sessionResource: URI): ISessionUsageTotals | undefined {
-		const chat = this._sessionChatSubscription(sessionResource)?.value;
+	private _getLiveUsageTotals(sessionResource: URI, sourceChatResource: URI): ISessionUsageTotals | undefined {
+		const chat = this._sessionChatSubscription(sessionResource, sourceChatResource)?.value;
 		if (!chat || chat instanceof Error) {
 			return undefined;
 		}
@@ -371,7 +374,10 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		if (!this._configurationService.getValue<boolean>(AgentHostAgentDebugLogEnabledSettingId)) {
 			return undefined; // agent-host debug logging disabled
 		}
-		const eventsUri = this._resolveEventsUri(sessionResource);
+		const sourceChatResource = this._chatDebugService.resolveSessionResource(sessionResource);
+		const parsedSourceChat = parseChatUri(sourceChatResource);
+		const sourceSessionResource = parsedSourceChat ? URI.parse(parsedSourceChat.session) : sourceChatResource;
+		const eventsUri = this._resolveEventsUri(sourceSessionResource);
 		if (!eventsUri) {
 			return undefined; // not an Agent Host Copilot CLI session
 		}
@@ -384,11 +390,17 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// arming the watcher, live updates would never surface until the panel
 		// is re-opened. The watcher targets the (already-existing) session-state
 		// directory, so it fires when the CLI first creates the file.
-		this._ensureLiveRefresh(sessionResource, eventsUri);
+		this._ensureLiveRefresh(sessionResource, sourceChatResource, eventsUri);
 
 		const records = await this._readEventRecords(eventsUri, token);
 		if (records === undefined) {
-			return undefined; // session has no events.jsonl yet, or read failed
+			const chat = this._sessionChatSubscription(sessionResource, sourceChatResource)?.value;
+			if (!chat || chat instanceof Error) {
+				return undefined; // session has no events.jsonl or live chat state
+			}
+			const converted = convertAgentHostChatStateToDebugEvents(chat, sessionResource);
+			this.mergeResolvedDetails(converted.resolved);
+			return converted.events;
 		}
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -397,13 +409,13 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// For in-progress sessions (no session.shutdown yet), fall back to live
 		// Copilot AIU from the AHP session state so the usage tile isn't blank.
 		// (Input/cache stay blank until the session ends — see F1.)
-		const liveUsageTotals = this._getLiveUsageTotals(sessionResource);
+		const liveUsageTotals = this._getLiveUsageTotals(sessionResource, sourceChatResource);
 
 		// Prefer the client-local usage sidecar: it records exact per-request
 		// input/cache/AIU (captured live from ChatUsage actions) so metrics are
 		// correct per round and survive a restart. Falls back to the
 		// session.shutdown even-split / live totals when no sidecar exists.
-		const usageRecords = await this._readUsageRecords(sessionResource);
+		const usageRecords = await this._readUsageRecords(sourceSessionResource);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -416,15 +428,18 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// captured by `AgentHostCustomizationRecorder`.
 		let customizations = this._customizationService.getCustomizations(sessionResource);
 		if (customizations.length === 0) {
-			customizations = await this._readCustomizationsSnapshot(sessionResource) ?? customizations;
+			customizations = await this._readCustomizationsSnapshot(sourceSessionResource) ?? customizations;
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
 		}
 
 		const { events, resolved } = convertAgentHostEventsToDebugEvents(records, sessionResource, liveUsageTotals, usageRecords, customizations);
+		this.mergeResolvedDetails(resolved);
+		return events;
+	}
 
-		// Merge the resolved-detail map, evicting oldest entries past the cap.
+	private mergeResolvedDetails(resolved: ReadonlyMap<string, IChatDebugResolvedEventContent>): void {
 		for (const [id, detail] of resolved) {
 			this._resolved.set(id, detail);
 			if (this._resolved.size > MAX_RESOLVED_DETAILS) {
@@ -434,8 +449,6 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 				}
 			}
 		}
-
-		return events;
 	}
 
 	/**
@@ -584,6 +597,152 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		}
 		return found.filter((s): s is NonNullable<typeof s> => s !== undefined);
 	}
+}
+
+function convertAgentHostChatStateToDebugEvents(
+	chat: ChatState,
+	sessionResource: URI,
+): { events: IChatDebugEvent[]; resolved: Map<string, IChatDebugResolvedEventContent> } {
+	const events: IChatDebugEvent[] = [];
+	const resolved = new Map<string, IChatDebugResolvedEventContent>();
+	const turns: readonly (Turn | ActiveTurn)[] = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
+
+	for (const turn of turns) {
+		const isCompleted = isCompletedAgentHostTurn(turn, chat.activeTurn);
+		const created = new Date(turn.startedAt ?? chat.modifiedAt);
+		const userEventId = `agent-host-state:${turn.id}:user`;
+		const modelEventId = `agent-host-state:${turn.id}:model`;
+		const responseText = turn.responseParts
+			.filter(part => part.kind === ResponsePartKind.Markdown)
+			.map(part => part.content)
+			.join('');
+		const toolCalls = turn.responseParts
+			.filter(part => part.kind === ResponsePartKind.ToolCall)
+			.map(part => part.toolCall);
+		const model = turn.usage?.model ?? turn.message.model?.id;
+		const inputTokens = turn.usage?.inputTokens;
+		const outputTokens = turn.usage?.outputTokens;
+		const cachedTokens = turn.usage?.cacheReadTokens;
+		const totalTokens = inputTokens !== undefined || outputTokens !== undefined
+			? (inputTokens ?? 0) + (outputTokens ?? 0)
+			: undefined;
+		const durationInMillis = isCompleted ? turn.duration : undefined;
+
+		events.push({
+			kind: 'userMessage',
+			id: userEventId,
+			sessionResource,
+			created,
+			message: turn.message.text,
+			sections: [],
+		});
+		resolved.set(userEventId, {
+			kind: 'message',
+			type: 'user',
+			message: turn.message.text,
+			sections: [],
+		});
+
+		events.push({
+			kind: 'modelTurn',
+			id: modelEventId,
+			sessionResource,
+			created,
+			parentEventId: userEventId,
+			model,
+			requestName: 'agentHost',
+			inputTokens,
+			outputTokens,
+			cachedTokens,
+			totalTokens,
+			durationInMillis,
+		});
+		const modelSections: IChatDebugMessageSection[] = [{
+			name: 'Input Messages',
+			content: JSON.stringify([{
+				role: turn.message.origin.kind,
+				parts: [{ type: 'text', content: turn.message.text }],
+			}]),
+		}];
+		if (toolCalls.length > 0) {
+			modelSections.push({
+				name: 'Tools',
+				content: JSON.stringify(toolCalls.map(toolCall => ({ name: toolCall.toolName }))),
+			});
+		}
+		if (responseText) {
+			modelSections.push({ name: localize('agentHost.debug.response', "Response"), content: responseText });
+		}
+		resolved.set(modelEventId, {
+			kind: 'modelTurn',
+			requestName: 'agentHost',
+			model,
+			status: isCompleted ? turn.state : 'in-progress',
+			durationInMillis,
+			inputTokens,
+			outputTokens,
+			cachedTokens,
+			totalTokens,
+			sections: modelSections,
+		});
+
+		for (const toolCall of toolCalls) {
+			const eventId = `agent-host-state:${turn.id}:tool:${toolCall.toolCallId}`;
+			const input = toolCall.status === ToolCallStatus.Streaming
+				? toolCall.partialInput
+				: stringifyPayload(toolCall.toolInput);
+			const result = toolCall.status === ToolCallStatus.Completed
+				? toolCall.success ? 'success' : 'error'
+				: toolCall.status === ToolCallStatus.Cancelled ? 'error' : undefined;
+			const output = toolCall.status === ToolCallStatus.Completed
+				? stringifyPayload(toolCall.content ?? toolCall.structuredContent ?? toolCall.error)
+				: undefined;
+			events.push({
+				kind: 'toolCall',
+				id: eventId,
+				sessionResource,
+				created,
+				parentEventId: modelEventId,
+				toolName: toolCall.toolName,
+				toolCallId: toolCall.toolCallId,
+				input,
+				output,
+				result,
+			});
+			resolved.set(eventId, {
+				kind: 'toolCall',
+				toolName: toolCall.toolName,
+				input,
+				output,
+				result,
+			});
+		}
+
+		if (responseText) {
+			const responseEventId = `agent-host-state:${turn.id}:response`;
+			events.push({
+				kind: 'agentResponse',
+				id: responseEventId,
+				sessionResource,
+				created,
+				parentEventId: modelEventId,
+				message: responseText,
+				sections: [],
+			});
+			resolved.set(responseEventId, {
+				kind: 'message',
+				type: 'agent',
+				message: responseText,
+				sections: [],
+			});
+		}
+	}
+
+	return { events, resolved };
+}
+
+function isCompletedAgentHostTurn(turn: Turn | ActiveTurn, activeTurn: ActiveTurn | undefined): turn is Turn {
+	return turn !== activeTurn;
 }
 
 /**

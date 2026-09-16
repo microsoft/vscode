@@ -197,6 +197,18 @@ export interface IChatDebugService extends IDisposable {
 	registerProvider(provider: IChatDebugLogProvider): IDisposable;
 
 	/**
+	 * Registers a resolver for translating a client-facing chat resource to the
+	 * backend resource used to locate provider data.
+	 */
+	registerSessionResourceResolver(resolver: (sessionResource: URI) => URI | undefined): IDisposable;
+
+	/**
+	 * Resolves the backend resource for provider data, falling back to the
+	 * original client-facing resource.
+	 */
+	resolveSessionResource(sessionResource: URI): URI;
+
+	/**
 	 * Check whether providers have already been invoked for a given session.
 	 */
 	hasInvokedProviders(sessionResource: URI): boolean;

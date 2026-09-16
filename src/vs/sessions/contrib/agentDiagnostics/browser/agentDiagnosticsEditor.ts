@@ -12,7 +12,9 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -21,10 +23,15 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { ChatDebugFilterState } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugFilters.js';
-import { ChatDebugLogsView } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugLogsView.js';
+import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEnablement.js';
+import { ChatDebugSessionView, ChatDebugSessionViews } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugSessionViews.js';
 import { IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
+import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
 import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
 
@@ -45,7 +52,13 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private root: HTMLElement | undefined;
 	private _scopedContextKeyService: IContextKeyService | undefined;
 	private debugEmptyState: HTMLElement | undefined;
-	private debugLogsView: ChatDebugLogsView | undefined;
+	private debugTabList: HTMLElement | undefined;
+	private debugViewsContainer: HTMLElement | undefined;
+	private debugSessionViews: ChatDebugSessionViews | undefined;
+	private debugDisabledOverlay: HTMLElement | undefined;
+	private readonly debugDisabledOverlayDisposables = this._register(new DisposableStore());
+	private readonly debugTabs = new Map<ChatDebugSessionView, Button>();
+	private selectedDebugView = ChatDebugSessionView.Logs;
 	private currentChatResource: URI | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -60,9 +73,22 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
+		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
+			const activeSession = this.sessionsService.activeSession.get();
+			if (!activeSession || !isEqual(activeSession.activeChat.get().resource, sessionResource)) {
+				return undefined;
+			}
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			return provider && isAgentHostProvider(provider)
+				? provider.getBackendChatResource(sessionResource)
+				: undefined;
+		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -96,11 +122,34 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		debugPanel.panel.classList.add('agent-diagnostics-agent-debug-panel');
 		this.debugEmptyState = debugPanel.emptyState;
 
+		this.debugTabList = DOM.append(debugPanel.panel, DOM.$('.agent-diagnostics-debug-tabs'));
+		this.debugTabList.setAttribute('role', 'tablist');
+		this.debugTabList.setAttribute('aria-label', localize('agentDiagnostics.debugTabsAriaLabel', "Agent Debug views"));
+		this.createDebugTab(ChatDebugSessionView.Logs, localize('agentDiagnostics.debug.logs', "Logs"));
+		this.createDebugTab(ChatDebugSessionView.Flow, localize('agentDiagnostics.debug.flow', "Flow"));
+		this.createDebugTab(ChatDebugSessionView.Cache, localize('agentDiagnostics.debug.cache', "Cache"));
+		this.createDebugTab(ChatDebugSessionView.Wire, localize('agentDiagnostics.debug.ahp', "AHP"));
+		this._register(DOM.addDisposableListener(this.debugTabList, DOM.EventType.KEY_DOWN, event => this.handleDebugTabKeyDown(event)));
+
+		this.debugViewsContainer = DOM.append(debugPanel.panel, DOM.$('.agent-diagnostics-debug-views'));
+		this.debugViewsContainer.id = 'agent-diagnostics-debug-view';
+		this.debugViewsContainer.setAttribute('role', 'tabpanel');
 		const filterState = this._register(new ChatDebugFilterState());
-		this.debugLogsView = this._register(this.instantiationService.createInstance(ChatDebugLogsView, debugPanel.panel, filterState));
+		this.debugSessionViews = this._register(this.instantiationService.createInstance(ChatDebugSessionViews, this.debugViewsContainer, filterState));
+		this.debugDisabledOverlay = DOM.append(debugPanel.panel, DOM.$('.chat-debug-disabled-overlay'));
+		DOM.hide(this.debugDisabledOverlay);
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			this.setDebugSession(activeSession?.activeChat.read(reader).resource);
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
+				|| event.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
+				if (this.currentChatResource) {
+					void this.chatDebugService.invokeProviders(this.currentChatResource);
+				}
+				this.updateDebugView();
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(tabList, DOM.EventType.KEY_DOWN, event => this.handleTabKeyDown(event)));
@@ -115,6 +164,19 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		button.element.setAttribute('aria-controls', panelId);
 		this._register(button.onDidClick(() => this.selectTab(tab, true)));
 		this.tabs.set(tab, button);
+	}
+
+	private createDebugTab(view: ChatDebugSessionView, label: string): void {
+		if (!this.debugTabList) {
+			return;
+		}
+		const button = this._register(new Button(this.debugTabList, { ...defaultButtonStyles, secondary: true }));
+		button.label = label;
+		button.element.classList.add('agent-diagnostics-debug-tab');
+		button.element.setAttribute('role', 'tab');
+		button.element.setAttribute('aria-controls', 'agent-diagnostics-debug-view');
+		this._register(button.onDidClick(() => this.selectDebugView(view, true)));
+		this.debugTabs.set(view, button);
 	}
 
 	private createPanel(parent: HTMLElement, tab: DiagnosticsTab, id: string, title: string, placeholder: string): { panel: HTMLElement; emptyState: HTMLElement } {
@@ -158,6 +220,34 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		}
 	}
 
+	private handleDebugTabKeyDown(event: KeyboardEvent): void {
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		const views = [ChatDebugSessionView.Logs, ChatDebugSessionView.Flow, ChatDebugSessionView.Cache, ChatDebugSessionView.Wire];
+		const currentIndex = views.indexOf(this.selectedDebugView);
+		let targetIndex: number | undefined;
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.LeftArrow:
+			case KeyCode.UpArrow:
+				targetIndex = (currentIndex + views.length - 1) % views.length;
+				break;
+			case KeyCode.RightArrow:
+			case KeyCode.DownArrow:
+				targetIndex = (currentIndex + 1) % views.length;
+				break;
+			case KeyCode.Home:
+				targetIndex = 0;
+				break;
+			case KeyCode.End:
+				targetIndex = views.length - 1;
+				break;
+		}
+		if (targetIndex !== undefined) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.selectDebugView(views[targetIndex], true);
+		}
+	}
+
 	private selectTab(tab: DiagnosticsTab, focus: boolean): void {
 		this.selectedTab = tab;
 		for (const [candidate, button] of this.tabs) {
@@ -173,6 +263,20 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.updateDebugView();
 	}
 
+	private selectDebugView(view: ChatDebugSessionView, focus: boolean): void {
+		this.selectedDebugView = view;
+		for (const [candidate, button] of this.debugTabs) {
+			const selected = candidate === view;
+			button.element.classList.toggle('selected', selected);
+			button.element.setAttribute('aria-selected', String(selected));
+			button.element.tabIndex = selected ? 0 : -1;
+		}
+		this.updateDebugView();
+		if (focus) {
+			this.debugTabs.get(view)?.focus();
+		}
+	}
+
 	private setDebugSession(chatResource: URI | undefined): void {
 		if (isEqual(this.currentChatResource, chatResource)) {
 			return;
@@ -183,29 +287,45 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.currentChatResource = chatResource;
 		this.chatDebugService.activeSessionResource = chatResource;
 		if (chatResource) {
-			this.debugLogsView?.setSession(chatResource);
-			if (!this.chatDebugService.hasInvokedProviders(chatResource)) {
-				void this.chatDebugService.invokeProviders(chatResource);
-			}
+			this.debugSessionViews?.setSession(chatResource);
+			void this.chatDebugService.invokeProviders(chatResource);
 		}
 		this.updateDebugView();
 	}
 
 	private updateDebugView(): void {
-		const visible = this.selectedTab === DiagnosticsTab.AgentDebug && !!this.currentChatResource;
+		const dataViewSelected = this.selectedDebugView !== ChatDebugSessionView.Wire;
+		const dataViewDisabled = dataViewSelected && !isChatDebugLoggingEnabledForSession(this.configurationService, this.currentChatResource);
+		const visible = this.selectedTab === DiagnosticsTab.AgentDebug && !!this.currentChatResource && !dataViewDisabled;
 		this.debugEmptyState?.toggleAttribute('hidden', !!this.currentChatResource);
+		this.debugTabList?.toggleAttribute('hidden', !this.currentChatResource);
+		this.debugViewsContainer?.toggleAttribute('hidden', !this.currentChatResource);
+		this.updateDebugDisabledOverlay(dataViewDisabled);
 		if (visible) {
-			this.debugLogsView?.show();
+			this.debugSessionViews?.showView(this.selectedDebugView);
 			this.layoutDebugView();
 		} else {
-			this.debugLogsView?.hide();
+			this.debugSessionViews?.showView(undefined);
+		}
+	}
+
+	private updateDebugDisabledOverlay(disabled: boolean): void {
+		if (!this.debugDisabledOverlay) {
+			return;
+		}
+		this.debugDisabledOverlayDisposables.clear();
+		DOM.clearNode(this.debugDisabledOverlay);
+		if (disabled && this.selectedTab === DiagnosticsTab.AgentDebug && this.currentChatResource) {
+			renderChatDebugLoggingDisabledMessage(this.debugDisabledOverlay, this.currentChatResource, this.preferencesService, this.debugDisabledOverlayDisposables);
+			DOM.show(this.debugDisabledOverlay);
+		} else {
+			DOM.hide(this.debugDisabledOverlay);
 		}
 	}
 
 	private layoutDebugView(): void {
-		const panel = this.panels.get(DiagnosticsTab.AgentDebug);
-		if (panel && !panel.hidden) {
-			this.debugLogsView?.layout(new Dimension(panel.clientWidth, panel.clientHeight));
+		if (this.debugViewsContainer && !this.debugViewsContainer.hidden) {
+			this.debugSessionViews?.layout(new Dimension(this.debugViewsContainer.clientWidth, this.debugViewsContainer.clientHeight));
 		}
 	}
 
@@ -216,11 +336,24 @@ export class AgentDiagnosticsEditor extends EditorPane {
 				localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here."),
 			].join('\n')
 			: [
-				localize('agentDiagnostics.accessible.agentDebug', "Agent Debug"),
+				localize('agentDiagnostics.accessible.agentDebugView', "Agent Debug: {0}", this.getDebugViewLabel(this.selectedDebugView)),
 				this.currentChatResource
 					? localize('agentDiagnostics.accessible.agentDebugEvents', "{0} debug events for {1}.", this.chatDebugService.getEvents(this.currentChatResource).length, this.currentChatResource.toString())
 					: localize('agentDiagnostics.agentDebugPlaceholder', "Focused-chat debug events will appear here."),
 			].join('\n');
+	}
+
+	private getDebugViewLabel(view: ChatDebugSessionView): string {
+		switch (view) {
+			case ChatDebugSessionView.Logs:
+				return localize('agentDiagnostics.debug.logs', "Logs");
+			case ChatDebugSessionView.Flow:
+				return localize('agentDiagnostics.debug.flow', "Flow");
+			case ChatDebugSessionView.Cache:
+				return localize('agentDiagnostics.debug.cache', "Cache");
+			case ChatDebugSessionView.Wire:
+				return localize('agentDiagnostics.debug.ahp', "AHP");
+		}
 	}
 
 	override focus(): void {

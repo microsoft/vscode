@@ -48,11 +48,21 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.agent-diagnostics-content,
-.agent-diagnostics-panel {
+.agent-diagnostics-content {
+	display: flex;
 	flex: 1;
+	width: 100%;
 	min-width: 0;
 	min-height: 0;
+	overflow: hidden;
+}
+
+.agent-diagnostics-panel {
+	flex: 1;
+	width: 100%;
+	min-width: 0;
+	min-height: 0;
+	box-sizing: border-box;
 }
 
 .agent-diagnostics-panel:not([hidden]) {
@@ -65,8 +75,66 @@
 	display: none;
 }
 
-.agent-diagnostics-agent-debug-panel > .chat-debug-logs > .chat-debug-breadcrumb {
+.agent-diagnostics-debug-tabs {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size20);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border);
+}
+
+.agent-diagnostics-debug-tabs .agent-diagnostics-debug-tab.monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	color: var(--vscode-tab-inactiveForeground);
+	background: transparent;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.agent-diagnostics-debug-tabs .agent-diagnostics-debug-tab.monaco-button:hover {
+	color: var(--vscode-tab-activeForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-diagnostics-debug-tabs .agent-diagnostics-debug-tab.monaco-button.selected {
+	color: var(--vscode-tab-activeForeground);
+	background: var(--vscode-list-activeSelectionBackground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-debug-tabs .agent-diagnostics-debug-tab.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-diagnostics-debug-views {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.agent-diagnostics-debug-views[hidden] {
 	display: none;
+}
+
+.agent-diagnostics-debug-views > .chat-debug-breadcrumb,
+.agent-diagnostics-debug-views > * > .chat-debug-breadcrumb {
+	display: none;
+}
+
+.agent-diagnostics-debug-views > .chat-debug-logs,
+.agent-diagnostics-debug-views > .chat-debug-flowchart,
+.agent-diagnostics-debug-views > .chat-debug-cache,
+.agent-diagnostics-debug-views > .chat-debug-wirelog {
+	flex: 1;
+	width: 100%;
+	min-width: 0;
+	min-height: 0;
 }
 
 .agent-diagnostics-empty-state {

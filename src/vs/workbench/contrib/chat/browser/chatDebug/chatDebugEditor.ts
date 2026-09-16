@@ -33,10 +33,7 @@ import { isAgentHostSession } from './agentHostLogSources.js';
 import { isChatDebugLoggingEnabledForSession, isWireLogLoggingEnabled, renderChatDebugLoggingDisabledMessage, renderWireLogLoggingDisabledMessage } from './chatDebugEnablement.js';
 import { ChatDebugHomeView } from './chatDebugHomeView.js';
 import { ChatDebugOverviewView, OverviewNavigation } from './chatDebugOverviewView.js';
-import { ChatDebugLogsView, LogsNavigation } from './chatDebugLogsView.js';
-import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChartView.js';
-import { ChatDebugCacheExplorerView, CacheExplorerNavigation } from './chatDebugCacheExplorerView.js';
-import { ChatDebugWireLogView, WireLogNavigation } from './chatDebugWireLogView.js';
+import { ChatDebugSessionNavigation, ChatDebugSessionView, ChatDebugSessionViews } from './chatDebugSessionViews.js';
 
 const $ = DOM.$;
 
@@ -66,10 +63,7 @@ export class ChatDebugEditor extends EditorPane {
 
 	private homeView: ChatDebugHomeView | undefined;
 	private overviewView: ChatDebugOverviewView | undefined;
-	private logsView: ChatDebugLogsView | undefined;
-	private flowChartView: ChatDebugFlowChartView | undefined;
-	private cacheExplorerView: ChatDebugCacheExplorerView | undefined;
-	private wireLogView: ChatDebugWireLogView | undefined;
+	private sessionViews: ChatDebugSessionViews | undefined;
 	private filterState: ChatDebugFilterState | undefined;
 
 	private _scopedContextKeyService: IContextKeyService | undefined;
@@ -154,55 +148,13 @@ export class ChatDebugEditor extends EditorPane {
 			}
 		}));
 
-		this.logsView = this._register(this.instantiationService.createInstance(ChatDebugLogsView, this.container, this.filterState));
-		this._register(this.logsView.onNavigate(nav => {
-			switch (nav) {
-				case LogsNavigation.Home:
-					this.endActiveSession();
-					this.showView(ViewState.Home);
-					break;
-				case LogsNavigation.Overview:
-					this.showView(ViewState.Overview);
-					break;
-			}
-		}));
-
-		this.flowChartView = this._register(this.instantiationService.createInstance(ChatDebugFlowChartView, this.container, this.filterState));
-		this._register(this.flowChartView.onNavigate(nav => {
-			switch (nav) {
-				case FlowChartNavigation.Home:
-					this.endActiveSession();
-					this.showView(ViewState.Home);
-					break;
-				case FlowChartNavigation.Overview:
-					this.showView(ViewState.Overview);
-					break;
-			}
-		}));
-
-		this.cacheExplorerView = this._register(this.instantiationService.createInstance(ChatDebugCacheExplorerView, this.container));
-		this._register(this.cacheExplorerView.onNavigate(nav => {
-			switch (nav) {
-				case CacheExplorerNavigation.Home:
-					this.endActiveSession();
-					this.showView(ViewState.Home);
-					break;
-				case CacheExplorerNavigation.Overview:
-					this.showView(ViewState.Overview);
-					break;
-			}
-		}));
-
-		this.wireLogView = this._register(this.instantiationService.createInstance(ChatDebugWireLogView, this.container));
-		this._register(this.wireLogView.onNavigate(nav => {
-			switch (nav) {
-				case WireLogNavigation.Home:
-					this.endActiveSession();
-					this.showView(ViewState.Home);
-					break;
-				case WireLogNavigation.Overview:
-					this.showView(ViewState.Overview);
-					break;
+		this.sessionViews = this._register(this.instantiationService.createInstance(ChatDebugSessionViews, this.container, this.filterState));
+		this._register(this.sessionViews.onNavigate(navigation => {
+			if (navigation === ChatDebugSessionNavigation.Home) {
+				this.endActiveSession();
+				this.showView(ViewState.Home);
+			} else {
+				this.showView(ViewState.Overview);
 			}
 		}));
 
@@ -213,16 +165,7 @@ export class ChatDebugEditor extends EditorPane {
 			} else if (this.chatDebugService.activeSessionResource && event.sessionResource.toString() === this.chatDebugService.activeSessionResource.toString()) {
 				if (this.viewState === ViewState.Overview) {
 					this.overviewView?.refresh();
-				} else if (this.viewState === ViewState.FlowChart) {
-					this.flowChartView?.refresh();
-				} else if (this.viewState === ViewState.CacheExplorer) {
-					this.cacheExplorerView?.refresh();
-				} else if (this.viewState === ViewState.WireLog) {
-					this.wireLogView?.refresh();
 				}
-				// Note: Logs view is intentionally omitted here — it handles
-				// onDidAddEvent internally via loadEvents() → addEvent() →
-				// scheduleRefresh() to avoid a redundant full refresh.
 			}
 		}));
 
@@ -243,10 +186,7 @@ export class ChatDebugEditor extends EditorPane {
 						this.homeView?.render();
 					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart || this.viewState === ViewState.CacheExplorer || this.viewState === ViewState.WireLog) {
 						this.overviewView?.updateBreadcrumb();
-						this.logsView?.updateBreadcrumb();
-						this.flowChartView?.updateBreadcrumb();
-						this.cacheExplorerView?.updateBreadcrumb();
-						this.wireLogView?.updateBreadcrumb();
+						this.sessionViews?.updateBreadcrumbs();
 					}
 				}
 			}));
@@ -317,31 +257,14 @@ export class ChatDebugEditor extends EditorPane {
 			this.overviewView?.hide();
 		}
 
-		if (state === ViewState.Logs && !dataViewDisabled) {
-			this.logsView?.show();
-			this.doLayout();
-			this.logsView?.focus();
-		} else {
-			this.logsView?.hide();
-		}
-
-		if (state === ViewState.FlowChart && !dataViewDisabled) {
-			this.flowChartView?.show();
-		} else {
-			this.flowChartView?.hide();
-		}
-
-		if (state === ViewState.CacheExplorer && !dataViewDisabled) {
-			this.cacheExplorerView?.show();
-		} else {
-			this.cacheExplorerView?.hide();
-		}
-
-		if (state === ViewState.WireLog && !wireLogDisabled) {
-			this.wireLogView?.show();
-			this.doLayout();
-		} else {
-			this.wireLogView?.hide();
+		const sessionView = state === ViewState.Logs && !dataViewDisabled ? ChatDebugSessionView.Logs
+			: state === ViewState.FlowChart && !dataViewDisabled ? ChatDebugSessionView.Flow
+				: state === ViewState.CacheExplorer && !dataViewDisabled ? ChatDebugSessionView.Cache
+					: state === ViewState.WireLog && !wireLogDisabled ? ChatDebugSessionView.Wire
+						: undefined;
+		this.sessionViews?.showView(sessionView);
+		if (sessionView === ChatDebugSessionView.Logs) {
+			this.sessionViews?.focus();
 		}
 
 		this.updateDisabledOverlay(wireLogDisabled ? 'wirelog' : dataViewDisabled ? 'data' : undefined);
@@ -378,10 +301,7 @@ export class ChatDebugEditor extends EditorPane {
 		this.trackSessionModelChanges(sessionResource);
 
 		this.overviewView?.setSession(sessionResource);
-		this.logsView?.setSession(sessionResource);
-		this.flowChartView?.setSession(sessionResource);
-		this.cacheExplorerView?.setSession(sessionResource);
-		this.wireLogView?.setSession(sessionResource);
+		this.sessionViews?.setSession(sessionResource);
 
 		const targetState = view === 'logs' ? ViewState.Logs
 			: view === 'flowchart' ? ViewState.FlowChart
@@ -412,7 +332,7 @@ export class ChatDebugEditor extends EditorPane {
 
 	override focus(): void {
 		if (this.viewState === ViewState.Logs) {
-			this.logsView?.focus();
+			this.sessionViews?.focus();
 		} else {
 			this.container?.focus();
 		}
@@ -502,7 +422,7 @@ export class ChatDebugEditor extends EditorPane {
 		// Apply filter text if provided (e.g. from debug events snapshot)
 		if (filter !== undefined && this.filterState) {
 			this.filterState.setTextFilter(filter);
-			this.logsView?.setFilterText(filter);
+			this.sessionViews?.setFilterText(filter);
 		}
 	}
 
@@ -519,10 +439,6 @@ export class ChatDebugEditor extends EditorPane {
 		if (!this.currentDimension) {
 			return;
 		}
-		if (this.viewState === ViewState.Logs) {
-			this.logsView?.layout(this.currentDimension);
-		} else if (this.viewState === ViewState.WireLog) {
-			this.wireLogView?.layout();
-		}
+		this.sessionViews?.layout(this.currentDimension);
 	}
 }
