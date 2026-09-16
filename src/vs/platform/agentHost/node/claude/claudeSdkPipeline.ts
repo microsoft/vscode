@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -16,10 +16,37 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import type { IContextAttributionData, UsageInfo } from '../../common/state/sessionState.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { contextPromptTokens, toClaudeContextAttribution } from './claudeContextUsage.js';
+import { buildClaudeUsageInfo } from './claudeMapSessionEvents.js';
+import type { IClaudeModelLimits } from './claudeModelSelection.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
+import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+
+/** Upper bound, in milliseconds, on the post-result `getContextUsage` control round-trip. See {@link ClaudeSdkPipeline._contextUsageTimeoutMs}. */
+const DEFAULT_CONTEXT_USAGE_TIMEOUT_MS = 2000;
+
+/** A `getContextUsage` request issued on a query, and whether the subprocess has answered it. */
+interface IPendingContextUsage {
+	readonly query: Query;
+	settled: boolean;
+}
+
+/** A model named in a result's `modelUsage`, with the limits the SDK reported for it. */
+export interface IClaudeObservedModelLimits extends IClaudeModelLimits {
+	/** SDK model id exactly as `modelUsage` keys it. */
+	readonly model: string;
+	/**
+	 * Transport of the query that produced the result. Bound to the query, not
+	 * read from the session at delivery time: a rebind commits the new
+	 * transport before the old stream is detached, so a late result from the
+	 * old query would otherwise be attributed to the new transport.
+	 */
+	readonly transportKind: ClaudeTransport['kind'];
+}
 
 /**
  * Callback the agent supplies via {@link ClaudeSdkPipeline.attachRematerializer}
@@ -32,7 +59,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
  * promotion (see `claudeAgent.ts` materialize path).
  */
 export interface IRematerializer {
-	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
+	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController; readonly transportKind: ClaudeTransport['kind'] }>;
 }
 
 /**
@@ -178,6 +205,118 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
+	 * Report every model's SDK-declared limits from a result's `modelUsage`.
+	 * Error results carry the same map, and a turn that fails still names the
+	 * model it ran, so limits are observed on every result subtype.
+	 */
+	private _observeModelLimits(message: Extract<SDKMessage, { type: 'result' }>, transportKind: ClaudeTransport['kind']): void {
+		for (const [model, usage] of Object.entries(message.modelUsage)) {
+			if (Number.isFinite(usage.contextWindow) && usage.contextWindow > 0) {
+				this._onDidObserveModelLimits.fire({
+					model,
+					transportKind,
+					contextWindow: usage.contextWindow,
+					maxOutputTokens: Number.isFinite(usage.maxOutputTokens) && usage.maxOutputTokens > 0 ? usage.maxOutputTokens : 0,
+				});
+			}
+		}
+	}
+
+	/**
+	 * Emit a `ChatUsage` for a successful `result`: the base usage built from
+	 * the message, enriched with the SDK's context-window breakdown
+	 * (`_meta.contextAttribution`) when {@link _fetchContextAttribution}
+	 * answers, so the context-usage widget can show what occupies the window
+	 * and not just the last call's token counts.
+	 *
+	 * The mapper deliberately emits no usage for results. The workbench treats
+	 * a second report with different prompt tokens as another model call and
+	 * counts its completion tokens again, so this emits one `ChatUsage` per
+	 * successful SDK `result` — enriched or not — not one per protocol turn (a
+	 * steered protocol turn has several results, one per preempted `result`).
+	 *
+	 * `inputTokens` on the enriched report prefers {@link contextPromptTokens}
+	 * — the last API call's actual prompt size — over the context report's
+	 * `totalTokens`, which for `detail: 'summary'` may already include that
+	 * same call's output tokens and would double-count them against
+	 * `outputTokens`. The base report's `input_tokens` is the Anthropic API's
+	 * *uncached* input count, which excludes the cache reads that make up
+	 * most of a long conversation — so it undercounts the window badly. The
+	 * widget reads `inputTokens` as the prompt size, and the `cacheReadTokens`
+	 * field still carries the raw value.
+	 */
+	private async _emitResultUsage(query: Query, message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>, turnId: string): Promise<void> {
+		const base = buildClaudeUsageInfo(message);
+		const fetched = await this._fetchContextAttribution(query);
+		this._fireChatUsage(turnId, fetched
+			? { ...base, inputTokens: fetched.promptTokens ?? fetched.contextAttribution.totalTokens, _meta: { contextAttribution: fetched.contextAttribution } }
+			: base);
+	}
+
+	/** Fire the turn's `ChatUsage` action on {@link onDidProduceSignal}. */
+	private _fireChatUsage(turnId: string, usage: UsageInfo): void {
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: { type: ActionType.ChatUsage, turnId, usage },
+		});
+	}
+
+	/**
+	 * Fetch the SDK's context-window breakdown for the current turn, or
+	 * `undefined` when it cannot be had in time, so the caller falls back to
+	 * the base usage report.
+	 *
+	 * Bounded by {@link ClaudeSdkPipeline._contextUsageTimeoutMs}: the report
+	 * is a control round-trip to the subprocess, and turn completion must not
+	 * hang on it. Any failure or timeout logs at trace. A breakdown that
+	 * arrives after the query was swapped or aborted is discarded too, so a
+	 * stale window never describes a new turn; the base report is the
+	 * result's own data and is unaffected.
+	 *
+	 * The timeout stops awaiting but cannot cancel the control request, which
+	 * stays pending in the subprocess. While one is pending on this query, later
+	 * turns skip the fetch instead of queueing another request behind it. A
+	 * rebind swaps the query and lifts the guard.
+	 *
+	 * Mapping the raw response (`toClaudeContextAttribution` /
+	 * {@link contextPromptTokens}) happens inside the same `try`: a malformed
+	 * report must fall back to the base usage like any other enrichment
+	 * failure, never fail the turn.
+	 */
+	private async _fetchContextAttribution(query: Query): Promise<{ readonly contextAttribution: IContextAttributionData; readonly promptTokens: number | undefined } | undefined> {
+		if (this._pendingContextUsage?.query === query && !this._pendingContextUsage.settled) {
+			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage still pending from an earlier turn, skipping enrichment`);
+			return undefined;
+		}
+		try {
+			const request = query.getContextUsage({ detail: 'summary' });
+			const pending: IPendingContextUsage = { query, settled: false };
+			this._pendingContextUsage = pending;
+			// Marks the record, not the pipeline: a request the subprocess never
+			// answers keeps this reaction alive for as long as the SDK holds the
+			// promise, and it must not retain the pipeline with it.
+			request.then(() => undefined, () => undefined).then(() => { pending.settled = true; });
+			const contextUsage = await raceTimeout(request, this._contextUsageTimeoutMs);
+			if (!contextUsage) {
+				this._logService.trace(`[Claude:${this.sessionId}] getContextUsage timed out after ${this._contextUsageTimeoutMs}ms`);
+				return undefined;
+			}
+			if (this._query !== query || this._abortController.signal.aborted) {
+				return undefined;
+			}
+			const contextAttribution = toClaudeContextAttribution(contextUsage);
+			if (!contextAttribution) {
+				return undefined;
+			}
+			return { contextAttribution, promptTokens: contextPromptTokens(contextUsage) };
+		} catch (err) {
+			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage failed: ${err}`);
+			return undefined;
+		}
+	}
+
+	/**
 	 * Bind a fresh SDK stream off the current warm subprocess. The stream is
 	 * long-lived: it spans every turn until a rebind swaps the subprocess (the
 	 * prompt iterable parks between turns rather than ending), so {@link _query}
@@ -196,7 +335,18 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * set is a *dead* stream awaiting rebuild. Cleared only on dispose.
 	 */
 	private _query: Query | undefined;
+	/**
+	 * Transport of {@link _warm}. Swapped together with it in
+	 * {@link _rebindQuery} so a consumer-loop pass can bind the transport of
+	 * the query it drains (see {@link IClaudeObservedModelLimits.transportKind}).
+	 */
+	private _transportKind: ClaudeTransport['kind'];
 	private _warm: WarmQuery;
+
+	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
+	protected _contextUsageTimeoutMs = DEFAULT_CONTEXT_USAGE_TIMEOUT_MS;
+	/** The latest `getContextUsage` request issued on the live query, if any. See {@link _fetchContextAttribution}. */
+	private _pendingContextUsage: IPendingContextUsage | undefined;
 	private _abortController: AbortController;
 
 	private readonly _queue: ClaudePromptQueue;
@@ -243,6 +393,15 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
 
+	private readonly _onDidObserveModelLimits = this._register(new Emitter<IClaudeObservedModelLimits>());
+	/**
+	 * Fires once per model named in a `result`'s `modelUsage`, whatever the
+	 * result's subtype, with the context window and output cap the SDK reports
+	 * for it. The agent folds these into the native model catalog, which the
+	 * SDK otherwise publishes without limits.
+	 */
+	readonly onDidObserveModelLimits: Event<IClaudeObservedModelLimits> = this._onDidObserveModelLimits.event;
+
 	private readonly _router: ClaudeSdkMessageRouter;
 
 	constructor(
@@ -253,12 +412,14 @@ export class ClaudeSdkPipeline extends Disposable {
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
+		transportKind: ClaudeTransport['kind'],
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._warm = warm;
+		this._transportKind = transportKind;
 		this._abortController = abortController;
 		this._wireAbortHandler(abortController);
 		this._queue = this._register(instantiationService.createInstance(
@@ -277,7 +438,10 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
 		// `_abortController` so a swap aborts the live subprocess.
-		this._register(toDisposable(() => this._abortController.abort()));
+		this._register(toDisposable(() => {
+			this._abortController.abort();
+			this._pendingContextUsage = undefined;
+		}));
 		this._register(toDisposable(() => {
 			void Promise.resolve(this._warm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline] WarmQuery dispose failed: ${err}`));
@@ -541,7 +705,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	 *
 	 * A rebind ({@link _rebindQuery}) swaps in a new `_query` while the loop is
 	 * still draining the OLD (now-disposed) one; that old pass then ends with
-	 * the "stream ended without a result" guard. Because `_consumerLoopRunning`
+	 * the "stream ended without a result" guard, or it may end earlier via the
+	 * mid-loop return right after the usage await in {@link _processMessages},
+	 * once that pass notices `_query` has moved on. Because `_consumerLoopRunning`
 	 * stays `true` for the whole handoff, the {@link send} that queued the
 	 * post-rebind prompt already saw {@link _ensureConsumerLoop} no-op — so if
 	 * this pass just stopped, nothing would ever read the new query and `send`
@@ -629,6 +795,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during rebind: ${err}`));
 		this._warm = built.warm;
+		this._transportKind = built.transportKind;
 		this._abortController = built.abortController;
 		this._wireAbortHandler(built.abortController);
 		this._queue.resetForRebind();
@@ -663,6 +830,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		if (!query) {
 			throw new Error('ClaudeSdkPipeline._processMessages called before query was bound');
 		}
+		// Bound with `query`: a rebind swaps both before this pass sees the swap.
+		const transportKind = this._transportKind;
 		try {
 			for await (const message of query) {
 				if (this._abortController.signal.aborted) {
@@ -680,6 +849,32 @@ export class ClaudeSdkPipeline extends Disposable {
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
 				const turnDuration = parent?.stopWatch.elapsed();
+				if (message.type === 'result' && message.subtype === 'success' && turnId !== undefined) {
+					// This result's usage report (one per SDK `result`, see
+					// `_emitResultUsage`). Must land before the router maps the
+					// result: a success result with
+					// `is_error` maps to `ChatError`, and the chat reducer ends the
+					// active turn on `ChatError` / `ChatTurnComplete` and applies
+					// `ChatUsage` only to the active turn. The await stalls this
+					// loop, and so the delivery of any message queued behind the
+					// result, for at most `_contextUsageTimeoutMs`. A Stop that
+					// lands during this await cancels the turn exactly as one
+					// landing while the result is routed; the window is bounded
+					// by `_contextUsageTimeoutMs`, and `detail: 'summary'` is
+					// answered locally by the subprocess.
+					await this._emitResultUsage(query, message, turnId);
+					// An abort during the await above can have re-sent through
+					// `_rebindQuery`, which yields the new turn into the SAME queue
+					// this pass is draining. Resuming a stale pass past this point
+					// would `settleHead()` the WRONG (new) entry and complete it
+					// early, so re-validate before routing/settling.
+					if (this._query !== query) {
+						return;
+					}
+					if (this._abortController.signal.aborted) {
+						throw new CancellationError();
+					}
+				}
 				try {
 					await this._router.handle(message, turnId, {
 						turnDuration,
@@ -690,6 +885,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
+					this._observeModelLimits(message, transportKind);
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.

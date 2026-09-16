@@ -51,7 +51,7 @@ import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
+import { ClaudeSdkPipeline, IRematerializer, type IClaudeObservedModelLimits, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
@@ -316,6 +316,10 @@ export class ClaudeAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
+
+	private readonly _onDidObserveModelLimits = this._register(new Emitter<IClaudeObservedModelLimits>());
+	/** Relays the live pipeline's {@link ClaudeSdkPipeline.onDidObserveModelLimits} across rebuilds. */
+	readonly onDidObserveModelLimits: Event<IClaudeObservedModelLimits> = this._onDidObserveModelLimits.event;
 
 	/**
 	 * Real Copilot credits (in nano-AIU) billed by CAPI for the current
@@ -675,6 +679,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
+				ctx.transport.kind,
 				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
 			));
 		} catch (err) {
@@ -683,6 +688,17 @@ export class ClaudeAgentSession extends Disposable {
 			throw err;
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
+		this._register(pipeline.onDidObserveModelLimits(limits => {
+			// Only a native turn describes the native catalog. The agent applies
+			// observations to `@provider=anthropic` rows only, so a proxy turn's
+			// `modelUsage` would overwrite the native rows' limits if forwarded.
+			// The pipeline binds the transport to the query that produced the
+			// result; `_transportKind` already names the next transport while
+			// a rebind's old stream is still detaching.
+			if (limits.transportKind === 'native') {
+				this._onDidObserveModelLimits.fire(limits);
+			}
+		}));
 		this._pipeline = pipeline;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {
@@ -791,7 +807,7 @@ export class ClaudeAgentSession extends Disposable {
 					this._pendingTransportSwitch = false;
 					this._pendingSwitchTransport = undefined;
 				}
-				return { warm: rebuildWarm, abortController: rebuildAbort };
+				return { warm: rebuildWarm, abortController: rebuildAbort, transportKind: rebuildTransport.kind };
 			} catch (err) {
 				rebuildAbort.abort();
 				await rebuildWarm?.[Symbol.asyncDispose]();

@@ -48,7 +48,7 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ClaudeSdkPackage, IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildModelEnumerationOptions } from './claudeSdkOptions.js';
 import { isClaudeAccountSetUp, resolveClaudeTransportMode, type ClaudeTransportMode } from './claudeTransportMode.js';
-import { mergeClaudeModelCatalogs, resolveClaudeSessionTransport } from './claudeModelSelection.js';
+import { applyObservedNativeModelLimits, mergeClaudeModelCatalogs, resolveClaudeSessionTransport, type IClaudeModelLimits } from './claudeModelSelection.js';
 import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -57,7 +57,8 @@ import { handleCanUseTool } from './claudeCanUseTool.js';
 import { handleElicitation } from './claudeElicitationBridge.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
-import { tryParseClaudeModelId } from './claudeModelId.js';
+import { toSdkModelId, tryParseClaudeModelId } from './claudeModelId.js';
+import type { IClaudeObservedModelLimits } from './claudeSdkPipeline.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
@@ -361,6 +362,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+
+	/**
+	 * Context-window limits the SDK has reported per model (keyed by
+	 * {@link toSdkModelId}-normalized id) across every turn so far. The native
+	 * catalog is published without limits, so these are folded into it on every
+	 * publish — see {@link applyObservedNativeModelLimits}.
+	 */
+	private readonly _observedModelLimits = new Map<string, IClaudeModelLimits>();
+
+	/**
+	 * Normalized alias → normalized concrete id for the SDK catalog's alias rows
+	 * (`sonnet` → `claude-sonnet-4-5`, …), captured on each native enumeration.
+	 * `modelUsage` keys by the concrete id, so this is what lets an alias row
+	 * receive its observed limits.
+	 */
+	private _nativeModelAliases: ReadonlyMap<string, string> = new Map();
 	/**
 	 * In-flight {@link refreshModels} call, so overlapping triggers (an auth
 	 * token change, a transport flip, or a periodic tick from the host's
@@ -560,7 +577,35 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._emitSpawnedChatEvents(signal);
 		}));
 		entry.addDisposable(session.onDidCustomizationsChange(() => this._onDidCustomizationsChange.fire()));
+		entry.addDisposable(session.onDidObserveModelLimits(limits => this._recordObservedModelLimits(limits)));
 		return entry;
+	}
+
+	/**
+	 * Remember a model's SDK-reported limits and, when they are new or changed,
+	 * re-publish the catalog so native models gain a context window. Nothing is
+	 * re-published for a repeat observation, so the per-turn event is cheap. An
+	 * observation that matches no catalog row also republishes nothing: the
+	 * limits stay recorded in {@link _observedModelLimits} and the next refresh
+	 * folds them in once the catalog has a row for the model.
+	 */
+	private _recordObservedModelLimits(limits: IClaudeObservedModelLimits): void {
+		const key = toSdkModelId(limits.model);
+		const previous = this._observedModelLimits.get(key);
+		if (previous && previous.contextWindow === limits.contextWindow && previous.maxOutputTokens === limits.maxOutputTokens) {
+			return;
+		}
+		this._observedModelLimits.set(key, { contextWindow: limits.contextWindow, maxOutputTokens: limits.maxOutputTokens });
+		const before = this._models.get();
+		const published = applyObservedNativeModelLimits(before, this._observedModelLimits, this._nativeModelAliases);
+		const applied = published
+			.filter((m, i) => m.maxContextWindow !== before[i].maxContextWindow || m.maxPromptTokens !== before[i].maxPromptTokens || m.maxOutputTokens !== before[i].maxOutputTokens)
+			.map(m => m.id);
+		this._logService.info(`[Claude] Observed limits for model ${limits.model}: contextWindow=${limits.contextWindow}, maxOutputTokens=${limits.maxOutputTokens}; applied to ${applied.length ? applied.join(', ') : 'no catalog rows'}`);
+		if (applied.length === 0) {
+			return;
+		}
+		this._models.set(published, undefined);
 	}
 
 	private _registerLiveChat(chat: URI, session: ClaudeAgentSession): void {
@@ -951,7 +996,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const nativeModels = settledCatalog(nativeOutcome, 'native');
 			const merged = mergeClaudeModelCatalogs(proxyModels, nativeModels);
 			this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
-			this._models.set(merged, undefined);
+			this._models.set(applyObservedNativeModelLimits(merged, this._observedModelLimits, this._nativeModelAliases), undefined);
 		}
 		// Last, never first: announcing `ready` before the catalog lands is exactly
 		// how the window renders "no account found".
@@ -989,6 +1034,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (!setUp) {
 				return [];
 			}
+			const aliases = new Map<string, string>();
+			for (const m of models) {
+				if (m.resolvedModel && m.resolvedModel !== m.value) {
+					aliases.set(toSdkModelId(m.value), toSdkModelId(m.resolvedModel));
+				}
+			}
+			this._nativeModelAliases = aliases;
 			return models
 				.filter(m => !isSdkDefaultModel(m))
 				.map(m => fromSdkModelInfo(m, this.id));

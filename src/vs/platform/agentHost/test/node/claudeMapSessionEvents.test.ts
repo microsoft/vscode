@@ -13,7 +13,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
+import { buildClaudeUsageInfo, ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
 import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/proxyChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
@@ -26,6 +26,7 @@ import {
 	makeInputJsonDelta,
 	makeMessageStart,
 	makeMessageStop,
+	makeModelUsage,
 	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
@@ -841,7 +842,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('result success emits ChatUsage (with model); ChatTurnComplete now lives on the pipeline, not the mapper', () => {
+	test('result success emits no signals: ChatUsage and ChatTurnComplete both live on the pipeline, not the mapper', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.usage.input_tokens = 12;
 		result.usage.output_tokens = 34;
@@ -864,51 +865,35 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		// Pipeline (Phase 9 refactor) owns the protocol-Turn boundary; it
 		// fires ChatTurnComplete via `onTurnComplete` only on the FINAL
 		// result of a turn (intermediate results during steering preempt do
-		// NOT close the protocol Turn). The mapper therefore emits only
-		// ChatUsage for `result` messages.
-		assert.deepStrictEqual(signals, [
-			{
-				kind: 'action',
-				resource: SESSION,
-				action: {
-					type: ActionType.ChatUsage,
-					turnId: TURN_ID,
-					usage: {
-						inputTokens: 12,
-						outputTokens: 34,
-						cacheReadTokens: 5,
-						model: 'claude-test',
-					},
-				},
-			},
-		]);
+		// NOT close the protocol Turn). It also owns the successful result's
+		// ChatUsage (`_emitResultUsage`), so a success result maps to nothing.
+		assert.deepStrictEqual(signals, []);
 	});
 
-	test('result success does not derive credits from total_cost_usd', () => {
+	test('buildClaudeUsageInfo forwards the token counts and first modelUsage key, never total_cost_usd', () => {
 		// Per-turn credits come from CAPI `copilot_usage` via the proxy, not
-		// from the SDK's Anthropic-list-price `total_cost_usd`. The mapper
-		// must never attach a `_meta.cost` (it would mislabel USD as credits).
+		// from the SDK's Anthropic-list-price `total_cost_usd`. The usage must
+		// never carry a `_meta.cost` (it would mislabel USD as credits).
 		const result = makeResultSuccess(SESSION_ID);
+		result.usage.input_tokens = 12;
+		result.usage.output_tokens = 34;
+		result.usage.cache_read_input_tokens = 5;
 		result.total_cost_usd = 0.1234;
+		result.modelUsage = {
+			'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, contextWindow: 200_000, maxOutputTokens: 8192 }),
+		};
 
-		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
-
-		assert.strictEqual(signals.length, 1);
-		const usage = signals[0];
-		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
-		assert.strictEqual(usage.action.usage._meta, undefined);
+		assert.deepStrictEqual(buildClaudeUsageInfo(result), { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' });
 	});
 
-	test('result success without modelUsage omits the model field on ChatUsage', () => {
+	test('buildClaudeUsageInfo omits the model field without modelUsage', () => {
 		const result = makeResultSuccess(SESSION_ID);
+		result.usage.input_tokens = 12;
+		result.usage.output_tokens = 34;
+		result.usage.cache_read_input_tokens = 5;
 		result.modelUsage = {};
 
-		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
-
-		assert.strictEqual(signals.length, 1);
-		const usage = signals[0];
-		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
-		assert.strictEqual(usage.action.usage.model, undefined);
+		assert.deepStrictEqual(buildClaudeUsageInfo(result), { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5 });
 	});
 
 	test('result drains pending tool_use entries that never received a tool_result and warns once per orphan', () => {
@@ -937,7 +922,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			r(),
 		);
 
-		assert.strictEqual(resultSignals.length, 1);
+		// A success result maps to no signals of its own; only the drain side effect is observable.
+		assert.deepStrictEqual(resultSignals, []);
 		assert.strictEqual(log.warns.length, 1);
 		assert.ok(log.warns[0].includes(TOOL_USE_ID), `expected warn to mention orphan id, got: ${log.warns[0]}`);
 		assert.ok(log.warns[0].includes('Read'), `expected warn to mention tool name, got: ${log.warns[0]}`);
