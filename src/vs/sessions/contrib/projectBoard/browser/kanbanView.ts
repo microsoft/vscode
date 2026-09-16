@@ -22,7 +22,7 @@ import './kanbanAccessibility.js';
 
 export class KanbanCustomView extends AbstractCustomView {
 
-	readonly title: IObservable<string> = constObservable(localize('kanbanTitle', "Kanban"));
+	readonly title: IObservable<string> = constObservable(localize('kanbanTitle', "Agents Hub"));
 	override readonly description: IObservable<string | undefined> = constObservable(
 		localize('kanbanDescription', "Arrange live chats by area and priority."));
 	override readonly maxWidth = Number.POSITIVE_INFINITY;

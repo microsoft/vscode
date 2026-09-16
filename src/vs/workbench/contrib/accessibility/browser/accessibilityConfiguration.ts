@@ -249,7 +249,7 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Kanban]: {
-			description: localize('verbosity.kanban', 'Provide information about how to navigate and manage chats in the Kanban view.'),
+			description: localize('verbosity.kanban', 'Provide information about how to navigate and manage chats in Agents Hub.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {

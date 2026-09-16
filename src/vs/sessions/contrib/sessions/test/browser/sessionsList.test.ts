@@ -849,7 +849,7 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	test('shows the Kanban shortcut when AI features are enabled and opens its custom view command', async () => {
+	test('shows the Agents Hub shortcut when AI features are enabled and opens its stable custom view command', async () => {
 		const harness = createListHarness(disposables, [], instantiationService => {
 			ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(true);
 			instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
@@ -864,7 +864,7 @@ suite('Sessions - SessionsList', () => {
 		}));
 		list.layout(300, 400);
 		const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
-			.find(candidate => candidate.getAttribute('aria-label') === 'Kanban');
+			.find(candidate => candidate.getAttribute('aria-label') === 'Agents Hub');
 		assert.ok(row);
 
 		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));

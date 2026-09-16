@@ -30,6 +30,7 @@ suite('Project Board Editor handoff', () => {
 
 	test('PB-06: ordinary Editor command requires AI and is hidden in Agents', () => {
 		const action = new OpenAgentProjectBoardAction();
+		assert.strictEqual(typeof action.desc.title === 'string' ? action.desc.title : action.desc.title.value, 'Agents: Open Agents Hub');
 		for (const [aiEnabled, isSessions, expected] of [
 			[true, false, true],
 			[false, false, false],

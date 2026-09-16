@@ -1,4 +1,4 @@
-# Agent Project Board contributor setup
+# Agents Hub contributor setup
 
 This guide targets the shared feature branch `bryanchen-d/agents-board-view`, not upstream `main`. Keep day-to-day work on personal topic branches. The [design and scenario contract](agent-project-board-spec.md) describes the implemented P0/P1 prototype and optional P2 scope.
 
@@ -70,7 +70,7 @@ Keep the Agents owner window open; the board shares its services. If the launche
 1. Enable/sign into GitHub Copilot through the normal UI using your own account and entitlement.
 2. For bounded tests, choose the empty `$demo` folder in Agents rather than asking a model to modify the VS Code checkout.
 3. Verify that the model picker is populated and a harmless prompt receives a real response. A remote-connection account badge alone does not establish Copilot authentication.
-4. Run **Agents: Open Project Board** from the command palette.
+4. Run **Agents: Open Agents Hub** from the command palette, or choose **Agents Hub** in the Sessions sidebar for the embedded view.
 
 An empty board is expected before chats exist. Create a session in Agents or use the board's New Session button. Independently created chats should appear without reopening the board.
 
