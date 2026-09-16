@@ -1676,6 +1676,101 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('a queued render from a virtualized row does not claim code block registrations owned by another template', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		// Incremental rendering defers the re-render to a rAF, so a retained part's render can land
+		// after the response was re-rendered into a different template.
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'off');
+		configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+		configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
+		configurationService.setUserConfiguration('chat', {
+			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' }
+		});
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'Consolas',
+			fontLigatures: false,
+			accessibilitySupport: 'off',
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => undefined! });
+		instantiationService.stub(IChatOutputRendererService, { hasCodeBlockRenderer: () => false });
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			onDidChangeContainer: Event.None,
+			getViewLocationById: () => null,
+		});
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const request = model.addRequest({
+			text: 'Diagram',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 7), new Range(1, 1, 1, 8), 'Diagram')],
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const editorOptions = disposables.add(instantiationService.createInstance(
+			ChatEditorOptions,
+			undefined,
+			'foreground',
+			'chat.requestEditor.background',
+			'chat.responseEditor.background',
+		));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer, editorOptions, {},
+			{
+				getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+				currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+			},
+			undefined, viewModel,
+		));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		const markdownPartOf = (template: IChatListItemTemplate) => template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+
+		const firstTemplate = renderer.renderTemplate(container);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```js\nconst first = 1;\n```') });
+		renderer.renderElement(node, 0, firstTemplate);
+		const firstPart = markdownPartOf(firstTemplate);
+		assert.ok(firstPart);
+
+		// The row is virtualized while a further update leaves a render queued on the retained part.
+		renderer.disposeElement(node, 0, firstTemplate);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nOffscreen update') });
+		renderer.renderElement(node, 0, firstTemplate);
+
+		// The response comes back in a different cached template before that queued render runs.
+		const secondTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(secondTemplate)));
+		renderer.renderElement(node, 0, secondTemplate);
+		const secondPart = markdownPartOf(secondTemplate);
+		assert.ok(secondPart && secondPart !== firstPart);
+
+		await retry(async () => {
+			assert.ok(firstPart.isRenderComplete && secondPart.isRenderComplete);
+		}, 10, 100);
+		const ownersAfterQueuedRender = renderer.getCodeBlockInfosForResponse(response).map(info => info.ownerMarkdownPartId);
+
+		// Recycling the stale template must not delete the visible response's registrations.
+		renderer.disposeTemplate(firstTemplate);
+
+		assert.deepStrictEqual({
+			ownersAfterQueuedRender,
+			ownersAfterRecyclingStaleTemplate: renderer.getCodeBlockInfosForResponse(response).map(info => info.ownerMarkdownPartId),
+		}, {
+			ownersAfterQueuedRender: [secondPart.codeblocksPartId],
+			ownersAfterRecyclingStaleTemplate: [secondPart.codeblocksPartId],
+		});
+	});
+
 	test('disposing a sticky row preserves code block mappings owned by the rendered row', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);

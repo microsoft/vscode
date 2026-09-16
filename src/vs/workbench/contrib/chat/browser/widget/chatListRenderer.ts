@@ -2651,7 +2651,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedPartsMounted = true;
 		for (const part of templateData.renderedParts) {
 			if (part) {
-				this.remountRenderedPart(templateData, part);
+				this.remountRenderedPart(part);
 			}
 		}
 	}
@@ -2660,13 +2660,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * Re-applies a retained part's code block registrations and tells it that it was remounted, so
 	 * code block navigation works as soon as the row is back rather than after the next re-render.
 	 */
-	private remountRenderedPart(templateData: IChatListItemTemplate, part: IChatContentPart): void {
-		// Only the template that currently owns the element may rewrite its registrations, so a
-		// stale row cannot clobber the entries of the template that replaced it.
-		const element = templateData.currentElement;
-		if (element && this.templateDataByRequestId.get(element.id) === templateData) {
-			this.codeBlockRegistrationsByPart.get(part)?.();
-		}
+	private remountRenderedPart(part: IChatContentPart): void {
+		this.codeBlockRegistrationsByPart.get(part)?.();
 		part.onDidRemount?.();
 	}
 
@@ -2805,7 +2800,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (!partToRender) {
 				// null=no change
 				if (!templateData.renderedPartsMounted && alreadyRenderedPart) {
-					this.remountRenderedPart(templateData, alreadyRenderedPart);
+					this.remountRenderedPart(alreadyRenderedPart);
 				}
 				return;
 			}
@@ -2842,7 +2837,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (alreadyRenderedPart.tryIncrementalUpdate(partToRender)) {
 						renderedParts[contentIndex] = alreadyRenderedPart;
 						if (!templateData.renderedPartsMounted) {
-							this.remountRenderedPart(templateData, alreadyRenderedPart);
+							this.remountRenderedPart(alreadyRenderedPart);
 						}
 						return;
 					}
@@ -3978,7 +3973,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return citationsPart;
 	}
 
-	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
+	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number, templateData: IChatListItemTemplate): void {
 		if (!part.addDisposable || part.codeblocksPartId === undefined) {
 			return;
 		}
@@ -3986,6 +3981,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const registrations = new MutableDisposable<DisposableStore>();
 		part.addDisposable(registrations);
 		const updateCodeblocks = () => {
+			// A retained part can re-render after its row was virtualized - with incremental
+			// rendering its queued render can even land after the response was re-rendered into
+			// another template. Only the template that currently owns the element may rewrite
+			// these registrations, so a detached row cannot claim entries that belong to the
+			// template that replaced it and then delete them when it is recycled.
+			if (this.templateDataByRequestId.get(element.id) !== templateData) {
+				return;
+			}
+
 			registrations.clear();
 			const store = new DisposableStore();
 			registrations.value = store;
@@ -4063,7 +4067,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			lazilyCreatedPart = partToReuse ?? this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, codeBlockStartIndex);
 			if (!partToReuse) {
 				lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
-				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
+				this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex, templateData);
 			}
 			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart };
 		};
@@ -4867,7 +4871,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
-			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
+			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex, templateData);
 		}
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
