@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { OPEN_AGENT_PROJECT_BOARD_COMMAND_ID } from '../../../../../platform/window/common/window.js';
@@ -23,7 +24,7 @@ import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/w
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IProjectBoardService } from '../../browser/projectBoardService.js';
-import { KanbanCustomViewContribution } from '../../browser/kanbanView.js';
+import { KanbanCustomView, KanbanCustomViewContribution } from '../../browser/kanbanView.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -91,6 +92,7 @@ suite('Project Board Agents routing', () => {
 		assert.strictEqual(entries.length, 1);
 		const entry = entries[0];
 		assert.ok(isIMenuItem(entry));
+		assert.strictEqual(typeof entry.command.title === 'string' ? entry.command.title : entry.command.title.value, 'Agents: Open Agents Hub');
 		for (const [aiEnabled, isSessions, expected] of [
 			[true, true, true],
 			[false, true, false],
@@ -104,7 +106,7 @@ suite('Project Board Agents routing', () => {
 		}
 	});
 
-	test('registers Kanban as a restorable Sessions custom view', () => {
+	test('registers Agents Hub with the existing restorable custom view ID', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		let registered: ICustomViewDescriptor | undefined;
 		let primaryActionId: string | undefined;
@@ -122,6 +124,11 @@ suite('Project Board Agents routing', () => {
 			},
 		}));
 		store.add(instantiationService.createInstance(KanbanCustomViewContribution));
+		instantiationService.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({}));
+		instantiationService.stub(IContextKeyService, upcastPartial<IContextKeyService>({}));
+		const view = store.add(instantiationService.createInstance(KanbanCustomView));
+		assert.strictEqual(view.title.get(), 'Agents Hub');
+		assert.strictEqual(KANBAN_CUSTOM_VIEW_ID, 'sessions.customView.kanban');
 
 		assert.deepStrictEqual({
 			id: registered?.id,

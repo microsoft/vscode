@@ -289,7 +289,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	getAccessibleContent(): string {
-		const lines = [localize('projectBoard.accessibleTitle', "Kanban")];
+		const lines = [localize('projectBoard.accessibleTitle', "Agents Hub")];
 		const appendGroup = (label: string, cards: readonly IProjectBoardCard[], collapsed: boolean) => {
 			lines.push('', collapsed ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", label) : label);
 			if (!cards.length) {
@@ -622,7 +622,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			header.className = 'project-board-header';
 			const heading = document.createElement('div');
 			const title = document.createElement('h1');
-			title.textContent = localize('projectBoard.title', "Agent project board");
+			title.textContent = localize('projectBoard.title', "Agents Hub");
 			heading.appendChild(title);
 			const description = document.createElement('p');
 			description.textContent = localize('projectBoard.description', "Arrange live chats by area and priority. Use arrow keys to navigate cards, Enter to open, and Escape to close the chat window.");
@@ -1748,7 +1748,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.moveCard(card.id, selected.placement);
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Failed to choose a destination', error);
-			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved on the project board."));
+			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved in Agents Hub."));
 		} finally {
 			if (this.movePicker.value === lifetime) {
 				this.movePicker.clear();
@@ -1841,7 +1841,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		} catch (error) {
 			this.logService.error('[ProjectBoard] Failed to move chat', error);
-			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved on the project board."));
+			this.notificationService.error(localize('projectBoard.moveFailed', "The chat could not be moved in Agents Hub."));
 		}
 	}
 
@@ -1972,7 +1972,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	}
 
 	getAccessibleContent(): string {
-		return (this.customView ?? this.boardView)?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Kanban is not currently open.");
+		return (this.customView ?? this.boardView)?.getAccessibleContent() ?? localize('projectBoard.accessibleUnavailable', "Agents Hub is not currently open.");
 	}
 
 	private async focusBoardWindow(): Promise<void> {
@@ -2023,7 +2023,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			if (store.isDisposed) {
 				return;
 			}
-			const window = store.add(this.instantiationService.createInstance(ProjectBoardWindow, boardWindow, localize('projectBoard.windowTitle', "Agent Project Board")));
+			const window = store.add(this.instantiationService.createInstance(ProjectBoardWindow, boardWindow, localize('projectBoard.windowTitle', "Agents Hub")));
 			const view = store.add(this.instantiationService.createInstance(ProjectBoardView, window.content, this.chatWindows, this.boardState, true, {
 				sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 				logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
@@ -2044,7 +2044,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 			this.boardWindow = undefined;
 			this.boardDisposables.clear();
 			this.logService.error('[ProjectBoard] Failed to open window', error);
-			this.notificationService.error(localize('projectBoard.openWindowFailed', "The Agent Project Board could not be opened."));
+			this.notificationService.error(localize('projectBoard.openWindowFailed', "Agents Hub could not be opened."));
 		}
 	}
 }

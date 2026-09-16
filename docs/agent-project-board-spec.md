@@ -1,4 +1,4 @@
-# Agent Project Board design
+# Agents Hub design
 
 Revision: 2026-09-15. Status: P0/P1 prototype implemented; optional P2 work is not a committed feature set.
 
@@ -28,9 +28,10 @@ Moving a card changes only its placement. Chats sharing a session still share th
 
 ### Windows and navigation
 
-- `Agents: Open Project Board` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
-- The Sessions sidebar's Kanban entry embeds the same board inside the Agents window, using the custom view's styled scrolling and accessibility support. Both presentations share profile configuration; they are not separate named boards. Their view lifetimes, accessibility content and focus return must remain independent when both are open.
-- Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agent Project Board title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
+- `Agents: Open Agents Hub` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
+- The Sessions sidebar's Agents Hub entry embeds the same board inside the Agents window, using the custom view's styled scrolling and accessibility support. Both presentations share profile configuration; they are not separate named boards. Their view lifetimes, accessibility content and focus return must remain independent when both are open.
+- Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agents Hub title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
+- Agents Hub is the user-facing feature name. Existing `projectBoard`/`kanban` command IDs, custom-view IDs, storage keys and source paths remain stable for compatibility.
 - Invoking the command from an ordinary Editor hands off to that Agents window, rather than creating a separate board for the Editor's profile.
 - Double-click, Enter or Space opens the exact chat in a compact standalone chat editor. Reopening the same chat reuses its window; different chats get independent windows.
 - Standalone chat windows reuse `ChatEditorInput` and `ChatEditor`, not another full Agents workbench. Opening one preserves the main Agents selection.

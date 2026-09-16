@@ -287,6 +287,8 @@ suite('ProjectBoardService', () => {
 		const { service, container, state } = createBoard(document);
 		await service.open();
 		assert.ok(container.querySelector('.project-board'));
+		assert.strictEqual(container.querySelector('h1')?.textContent, 'Agents Hub');
+		assert.ok(service.getAccessibleContent().startsWith('Agents Hub\n'));
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.project-board-column-heading'), element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
 		const firstFocusCount = state.focusCount;
 		await service.open();
@@ -948,7 +950,7 @@ suite('ProjectBoardService', () => {
 		h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
 		await pending.complete(h.pick.lastCall.args[0][2]);
 		await moving;
-		assert.deepStrictEqual(errors, ['The chat could not be moved on the project board.']);
+		assert.deepStrictEqual(errors, ['The chat could not be moved in Agents Hub.']);
 		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
 		h.state.sessions = [h.session];
 		h.sessionsChanged.fire({ added: [h.session], removed: [], changed: [] });
@@ -1243,7 +1245,7 @@ suite('ProjectBoardService', () => {
 		await Promise.resolve();
 		assert.ok(h.service.getAccessibleContent().includes('Shared surface chat'));
 		embedded.dispose();
-		assert.strictEqual(h.service.getAccessibleContent(), 'Kanban is not currently open.');
+		assert.strictEqual(h.service.getAccessibleContent(), 'Agents Hub is not currently open.');
 	});
 
 	test('PB-05 a closing draft restores focus by its stable ID after its model resource changes', async () => {

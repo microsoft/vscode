@@ -60,7 +60,7 @@ suite('ProjectBoardNativeTitlebar', () => {
 			}
 		}());
 		const titlebar = store.add(instantiationService.createInstance(NativeTitlebarPart, 'test.projectBoard.titlebar', window));
-		titlebar.setAuxiliaryWindowTitle('Agent Project Board');
+		titlebar.setAuxiliaryWindowTitle('Agents Hub');
 		titlebar.create(container);
 		titlebar.layout(800, titlebar.minimumHeight);
 		return { ownerTitle, window, container, controlsTargets, actions };
@@ -74,7 +74,7 @@ suite('ProjectBoardNativeTitlebar', () => {
 			controlsTargets: [...new Set(controlsTargets)],
 		}, {
 			ownerTitle,
-			boardTitle: 'Agent Project Board',
+			boardTitle: 'Agents Hub',
 			controlsTargets: [7002],
 		});
 	});
