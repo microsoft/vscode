@@ -6,6 +6,7 @@
 import { $, addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -279,7 +280,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 					e.stopPropagation();
 					const index = anchor.getAttribute('data-content-index');
 					if (index !== null) {
-						hintHandler.callback(index, e);
+						hintHandler.callback(index, new StandardKeyboardEvent(e));
 					}
 				}
 			});

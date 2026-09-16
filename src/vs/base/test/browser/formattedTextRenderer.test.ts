@@ -78,6 +78,7 @@ suite('FormattedTextRenderer', () => {
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<a>action</a>');
+		assert.strictEqual(result.firstChild!.getAttribute('data-content-index'), '0');
 
 		const event: MouseEvent = document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
@@ -97,6 +98,7 @@ suite('FormattedTextRenderer', () => {
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a>action</a></b></i>');
+		assert.strictEqual(result.firstChild!.firstChild!.firstChild!.getAttribute('data-content-index'), '0');
 
 		const event: MouseEvent = document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
@@ -117,6 +119,7 @@ suite('FormattedTextRenderer', () => {
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<code><i><b><a>action</a></b></i></code>');
+		assert.strictEqual(result.firstChild!.firstChild!.firstChild!.firstChild!.getAttribute('data-content-index'), '0');
 
 		const event: MouseEvent = document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
