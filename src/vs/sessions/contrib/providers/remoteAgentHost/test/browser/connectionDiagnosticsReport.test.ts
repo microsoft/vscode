@@ -617,7 +617,7 @@ suite('ConnectionDiagnosticsReport', () => {
 	});
 
 	for (const hostCount of [0, 1]) {
-		test(`mobile picker does not duplicate connection information with ${hostCount} hosts`, () => {
+		test(`mobile picker opens information after removing its sheet with ${hostCount} hosts`, () => {
 			const container = dom.append(mainWindow.document.body, dom.$('div.monaco-workbench'));
 			store.add(toDisposable(() => container.remove()));
 			const trigger = dom.append(container, dom.$('div'));
@@ -655,15 +655,29 @@ suite('ConnectionDiagnosticsReport', () => {
 				}(),
 			));
 			widget.open();
-			const diagnostics = container.querySelector<HTMLElement>('.host-picker-sheet-header .host-picker-sheet-diagnostics');
+			const diagnostics = container.querySelector<HTMLElement>('.host-picker-sheet-heading .host-picker-sheet-information');
 			assert.deepStrictEqual({
 				empty: container.querySelector('.host-picker-sheet-empty')?.textContent,
 				diagnostics: diagnostics?.getAttribute('aria-label'),
 			}, {
 				empty: hostCount ? undefined : 'No hosts found yet.',
-				diagnostics: undefined,
+				diagnostics: 'Open Connection Information',
 			});
-			assert.deepStrictEqual(commands, []);
+			diagnostics!.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
+			widget.open();
+			container.querySelector<HTMLElement>('.host-picker-sheet-information')!.click();
+			assert.deepStrictEqual({
+				commands,
+				focusRestored: dom.getActiveElement() === trigger,
+				sheets: container.querySelectorAll('.host-picker-sheet-overlay').length,
+			}, {
+				commands: [
+					{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false },
+					{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false },
+				],
+				focusRestored: true,
+				sheets: 0,
+			});
 		});
 	}
 

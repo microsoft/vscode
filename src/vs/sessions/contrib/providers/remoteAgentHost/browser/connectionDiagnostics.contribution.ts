@@ -160,6 +160,7 @@ export class ConnectionDiagnosticsContribution extends Disposable {
 		active.overlay.remove();
 		active.close();
 		const help = [
+			...(this.isWebPlatform ? [localize('connectionDiagnostics.help.hostPicker', "On phones, Open Connection Information beside the Hosts sheet title closes the picker and opens this report. Closing the report returns focus to the host picker control.")] : []),
 			this.isWebPlatform
 				? localize('connectionDiagnostics.help.webOverview', "Connection information shows live host summaries with Connect and Disconnect beside each host. Expand a host to read its captured diagnostic details. Actions use current host state. An intentional disconnect keeps the host in the picker and pauses automatic connection. The separate Hidden hosts section has Restore actions that return hosts to discovery; restoration does not guarantee a connection.")
 				: localize('connectionDiagnostics.help.overview', "Connection diagnostics shows a read-only snapshot of local connection state."),
