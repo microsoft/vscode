@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { suite, test } from 'node:test';
 import * as path from 'path';
 import * as vm from 'vm';
-import { createNLSCollector, finalizeNLS } from '../../next/nls-plugin.ts';
+import { createNLSCatalog, writeNLSFiles } from '../../next/nls-catalog.ts';
 import { serializeNlsData } from '../nlsMessages.ts';
 
 suite('NLS JavaScript messages', () => {
@@ -34,7 +34,7 @@ suite('NLS JavaScript messages', () => {
 		}), languages.map(language => ({ ascii: true, language })));
 	});
 
-	test('finalizeNLS writes ASCII JavaScript without changing JSON catalogs or message values', async t => {
+	test('writes ASCII JavaScript without changing JSON catalogs or message values', async t => {
 		const buildDir = path.resolve(import.meta.dirname, '..', '..', '..', '.build');
 		await fs.promises.mkdir(buildDir, { recursive: true });
 		const directory = await fs.promises.mkdtemp(path.join(buildDir, 'nls-messages-test-'));
@@ -42,13 +42,11 @@ suite('NLS JavaScript messages', () => {
 
 		const messages = ['ASCII "quotes" \\ \n', '\u00e9 \u2026 \u65e5\u672c\u8a9e', '\ud83d\ude80 \u2028\u2029', '\ud800'];
 		const keys = messages.map((_, index) => ({ key: String(index), comment: ['Translator \u2026'] }));
-		const collector = createNLSCollector();
-		for (let index = messages.length - 1; index >= 0; index--) {
-			collector.add({ moduleId: 'module', key: keys[index], message: messages[index], placeholder: `message${index}` });
-		}
+		const catalog = createNLSCatalog(messages.map((message, index) =>
+			({ moduleId: 'module', key: keys[index], message, placeholder: `%%NLS:module#${index}%%` })).reverse());
 
 		const directories = [path.join(directory, 'primary'), path.join(directory, 'mirror')];
-		await finalizeNLS(collector, directories[0], [directories[1]]);
+		await Promise.all(directories.map(directory => writeNLSFiles(catalog, directory)));
 
 		const generated = await Promise.all(directories.map(async outDir => {
 			const javascript = await fs.promises.readFile(path.join(outDir, 'nls.messages.js'), 'utf8');

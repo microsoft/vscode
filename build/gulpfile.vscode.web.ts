@@ -18,7 +18,8 @@ import packageJson from '../package.json' with { type: 'json' };
 import { compileApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import * as extensions from './lib/extensions.ts';
 import buildfile from './buildfile.ts';
-import { runEsbuildBundle } from './lib/esbuild.ts';
+import { runEsbuildBundle, runEsbuildNLS } from './lib/esbuild.ts';
+import { NLS_CATALOG_FILE } from './next/nls-catalog.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -138,8 +139,15 @@ task.task(minifyVSCodeWebTask);
 
 // esbuild-based tasks (new)
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
-const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true, 'web'));
-const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, 'web', `${sourceMappingURLBase}/core`));
+const nlsCatalogPath = path.join('out-build', NLS_CATALOG_FILE);
+const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', task.series(
+	() => runEsbuildNLS('out-build'),
+	() => runEsbuildBundle('out-vscode-web', false, true, 'web', undefined, nlsCatalogPath)
+));
+const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', task.series(
+	() => runEsbuildNLS('out-build'),
+	() => runEsbuildBundle('out-vscode-web-min', true, true, 'web', `${sourceMappingURLBase}/core`, nlsCatalogPath)
+));
 
 function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);

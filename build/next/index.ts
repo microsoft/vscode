@@ -10,7 +10,8 @@ import { promisify } from 'util';
 
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
-import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
+import { nlsPlugin, postProcessNLS } from './nls-plugin.ts';
+import { extractNLSCatalog, loadNLSCatalog, prepareNLSCatalog, writeNLSFiles } from './nls-catalog.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
@@ -38,7 +39,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-// CLI: build-fast [--force] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
+// CLI: build-fast [--force] | transpile [--watch] | nls | bundle [--minify] [--nls] [--out <dir>]
 const command = process.argv[2];
 
 function getArgValue(name: string): string | undefined {
@@ -53,6 +54,7 @@ const options = {
 	watch: process.argv.includes('--watch'),
 	minify: process.argv.includes('--minify'),
 	nls: process.argv.includes('--nls'),
+	nlsCatalog: getArgValue('--nls-catalog'),
 	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
 	force: process.argv.includes('--force'),
@@ -469,7 +471,11 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 // Bundle (Goal 2: JS → bundled JS)
 // ============================================================================
 
-async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
+async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string, nlsCatalogPath?: string): Promise<void> {
+	const sourceDir = path.join(REPO_ROOT, SRC_DIR);
+	const nlsCatalog = doNls
+		? await (nlsCatalogPath ? loadNLSCatalog(sourceDir, path.resolve(REPO_ROOT, nlsCatalogPath)) : extractNLSCatalog(sourceDir))
+		: undefined;
 	await cleanDir(outDir);
 
 	// Write build date file (used by packaging to embed in product.json).
@@ -489,8 +495,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
 
-	// Create shared NLS collector (only used if doNls is true)
-	const nlsCollector = createNLSCollector();
+	const indexMap = nlsCatalog?.indexMap ?? new Map<string, number>();
 	const preserveEnglish = false; // Production mode: replace messages with null
 
 	// Get entry points based on target
@@ -513,10 +518,10 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const plugins: esbuild.Plugin[] = bundleCssEntryPoints.has(entryPoint) ? [] : [cssExternalPlugin()];
 		// Add content mapper plugin to inject product config and builtin extensions
 		plugins.push(contentMapperPlugin);
-		if (doNls) {
+		if (nlsCatalog) {
 			plugins.unshift(nlsPlugin({
-				baseDir: path.join(REPO_ROOT, SRC_DIR),
-				collector: nlsCollector,
+				baseDir: sourceDir,
+				catalog: nlsCatalog,
 			}));
 		}
 
@@ -558,10 +563,10 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
-		if (doNls) {
+		if (nlsCatalog) {
 			bootstrapPlugins.unshift(nlsPlugin({
-				baseDir: path.join(REPO_ROOT, SRC_DIR),
-				collector: nlsCollector,
+				baseDir: sourceDir,
+				catalog: nlsCatalog,
 			}));
 		}
 
@@ -575,16 +580,8 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		buildResults.push({ outPath, result });
 	}
 
-	// Finalize NLS: sort entries, assign indices, write metadata files
-	let indexMap = new Map<string, number>();
-	if (doNls) {
-		// Also write NLS files to out-build for backwards compatibility with test runner
-		const nlsResult = await finalizeNLS(
-			nlsCollector,
-			path.join(REPO_ROOT, outDir),
-			[path.join(REPO_ROOT, 'out-build')]
-		);
-		indexMap = nlsResult.indexMap;
+	if (nlsCatalog) {
+		await writeNLSFiles(nlsCatalog, outDirPath);
 	}
 
 	// Post-process and write all output files
@@ -626,7 +623,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 				}
 
 				// Apply NLS post-processing if enabled (JS only)
-				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
+				if (file.path.endsWith('.js') && doNls) {
 					const preNLSCode = content;
 					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
 					content = nlsResult.code;
@@ -848,6 +845,7 @@ function printUsage(): void {
 Commands:
 	build-fast         Incrementally build changed development outputs
 	transpile          Transpile TypeScript to JavaScript (single-file, fast)
+	nls                Extract the canonical core NLS catalog and shared metadata
 	bundle             Bundle entry points into optimized bundles
 
 Options for 'build-fast':
@@ -858,9 +856,13 @@ Options for 'transpile':
 	--out <dir>        Output directory (default: out)
 	--exclude-tests    Exclude test files from transpilation
 
+Options for 'nls':
+	--out <dir>        Catalog and metadata directory (default: out-build)
+
 Options for 'bundle':
 	--minify           Minify bundles, copied JavaScript resources, and SVG assets
 	--nls              Process NLS (localization) strings
+	--nls-catalog <file>  Use a prepared canonical catalog (requires --nls)
 	--mangle-privates  Convert native #private fields to regular properties
 	--out <dir>        Output directory (default: out-vscode)
 	--target <target>  Build target: desktop (default), server, server-web, web
@@ -873,6 +875,8 @@ Examples:
 	npx tsx build/next/index.ts transpile --watch
 	npx tsx build/next/index.ts transpile --out out-build
 	npx tsx build/next/index.ts transpile --out out-build --exclude-tests
+	npx tsx build/next/index.ts nls --out out-build
+	npx tsx build/next/index.ts bundle --nls --nls-catalog out-build/nls.catalog.json
 	npx tsx build/next/index.ts bundle
 	npx tsx build/next/index.ts bundle --minify --nls
 	npx tsx build/next/index.ts bundle --nls --out out-vscode-min
@@ -910,7 +914,14 @@ async function main(): Promise<void> {
 				break;
 
 			case 'bundle':
-				await bundle(options.out ?? OUT_VSCODE_DIR, options.minify, options.nls, options.manglePrivates, options.target as BuildTarget, options.sourceMapBaseUrl);
+				if (process.argv.includes('--nls-catalog') && (!options.nls || !options.nlsCatalog)) {
+					throw new Error('--nls-catalog requires --nls and a catalog file path.');
+				}
+				await bundle(options.out ?? OUT_VSCODE_DIR, options.minify, options.nls, options.manglePrivates, options.target as BuildTarget, options.sourceMapBaseUrl, options.nlsCatalog);
+				break;
+
+			case 'nls':
+				await prepareNLSCatalog(path.join(REPO_ROOT, SRC_DIR), path.resolve(REPO_ROOT, options.out ?? 'out-build'));
 				break;
 
 			default:

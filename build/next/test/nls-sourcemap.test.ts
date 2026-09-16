@@ -10,7 +10,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { type RawSourceMap, SourceMapConsumer } from 'source-map';
-import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
+import { nlsPlugin, postProcessNLS } from '../nls-plugin.ts';
+import { collectNLSCalls, createNLSCatalog, getNLSModuleId } from '../nls-catalog.ts';
 import { adjustSourceMap } from '../private-to-property.ts';
 import { getBundleOptions } from '../bundle.ts';
 
@@ -55,14 +56,15 @@ async function bundleWithNLS(
 		await fs.promises.writeFile(filePath, content);
 	}
 
-	const collector = createNLSCollector();
+	const catalog = createNLSCatalog(Object.entries(allFiles).flatMap(([name, content]) =>
+		collectNLSCalls(content, getNLSModuleId(srcDir, path.join(srcDir, name))).map(call => call.entry)));
 
 	const result = await esbuild.build({
 		...getBundleOptions(opts?.minify ?? false, 'neutral'),
 		entryPoints: [path.join(srcDir, entryPoint)],
 		outfile: path.join(outDir, entryPoint.replace(/\.ts$/, '.js')),
 		plugins: [
-			nlsPlugin({ baseDir: srcDir, collector }),
+			nlsPlugin({ baseDir: srcDir, catalog }),
 		],
 	});
 
@@ -79,9 +81,8 @@ async function bundleWithNLS(
 
 	// Optionally apply NLS post-processing (replaces placeholders with indices)
 	if (opts?.postProcess) {
-		const nlsResult = await finalizeNLS(collector, outDir);
 		const preNLSCode = jsContent;
-		const nlsProcessed = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		const nlsProcessed = postProcessNLS(jsContent, catalog.indexMap, false);
 		jsContent = nlsProcessed.code;
 
 		// Adjust source map for NLS edits

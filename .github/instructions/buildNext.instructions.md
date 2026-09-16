@@ -34,12 +34,14 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 - **[index.ts](index.ts)** - Main build orchestrator
   - `build-fast` command: Persistent non-watch incremental development build
   - `transpile` command: Fast TS → JS using `esbuild.transform()`
+  - `nls` command: Canonical core NLS extraction before target bundling
   - `bundle` command: TS → bundled JS using `esbuild.build()`
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
 - **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
 - **[standalone.ts](../../build/next/standalone.ts)** - Unbundled desktop Electron preloads and their source-map publication
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
+- **[nls-catalog.ts](../../build/next/nls-catalog.ts)** - Source-wide NLS extraction, canonical indices, and metadata publication
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 - **[svg.ts](../../build/next/svg.ts)** - Production-only SVG finishing, independent of the legacy gulp infrastructure
 
@@ -57,6 +59,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 
 In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` task wires up these helpers (defined in [build/lib/esbuild.ts](../../build/lib/esbuild.ts)):
 - `runEsbuildTranspile()` → transpile command
+- `runEsbuildNLS()` → canonical extraction and shared metadata, after transpilation and before parallel bundles
 - `runEsbuildBundle()` → bundle command
 
 Old gulp-based bundling renamed to `core-ci-old`.
@@ -147,13 +150,24 @@ Two placeholders that need injection:
 
 **Lesson:** Always verify new build entry points against the old build's per-target definitions in `buildfile.ts` and the respective gulpfiles.
 
-### 6. NLS Output File Parity
+### 6. Canonical Core NLS Catalog
 
-**Problem:** `finalizeNLS()` was generating `nls.messages.js` (with `globalThis._VSCODE_NLS_MESSAGES=...`) in addition to the standard `.json` files. The old build only produces `nls.messages.json`, `nls.keys.json`, and `nls.metadata.json`.
+Numeric NLS IDs must refer to the same module/key/default message in desktop, server, server-web, standalone web (including the Agents Window), and the localization CDN. Target-local extraction violates that contract: extra modules shift shared indices, and a valid localized script can replace the browser's English array with an incompatible table.
 
-**Fix:** Removed `nls.messages.js` generation from `finalizeNLS()` in `nls-plugin.ts`.
+- `nls` scans all core TypeScript sources, excluding declarations and test sources, independently of target entry points. It reuses the plugin's localization-call analysis, combines translator comments, rejects conflicting default messages, and preserves separate `localize`/`localize2` slots. Ordering is ordinal, not host-locale dependent.
+- The command writes the four existing metadata/runtime files and publishes the build-only `nls.catalog.json` manifest last. Failed extraction invalidates the previous manifest. Its source fingerprint includes normalized paths/content, so LF and CRLF checkouts agree; source additions, removals, or changes require regeneration.
+- `core-ci` prepares the catalog once before parallel target processes. Targets receive `--nls-catalog`, validate it against their sources, and only write their own output trees. They never overwrite shared metadata. Translation export and CDN upload continue to read the canonical files in `out-build`.
+- Standalone-web packaging explicitly prepares the same source-wide catalog before its bundle and metadata upload. Direct `bundle --nls` and local desktop/server packaging extract the same source-wide catalog in memory when no manifest was supplied; they do not publish to `out-build`.
+- A supplied missing, invalid, or stale manifest is an error, not a request to fall back to target-local indexing. The plugin also rejects missing/changed entries, and postprocessing rejects unresolved placeholders.
+- Every target ships the complete ordered English catalog. Do not compact or concatenate numeric arrays independently. The generated JavaScript remains ASCII via `serializeNlsData`; JSON/translator files preserve their decoded strings. Extension and legacy Monaco localization paths are unchanged.
 
-**Lesson:** Don't add new output file formats that create parity differences with the old build. The old build is the reference.
+```bash
+node build/next/index.ts nls --out out-build
+node build/next/index.ts bundle --nls --target server-web --nls-catalog out-build/nls.catalog.json --out out-vscode-reh-web-test
+node --test build/next/test/nls-catalog.test.ts build/next/test/nls-sourcemap.test.ts build/lib/test/nlsMessages.test.ts build/lib/test/nlsMetadata.test.ts
+```
+
+Catalog/index changes must ship with matching rebuilt bundles under a new build identity; never replace a published commit's table with reordered entries. Test exact ordered keys and semantic lookups, including equal-length wrong-order catalogs, target-only strings, translated values, missing translations, comments, and source-map integrity. A browser merely starting without `NLS MISSING` is not sufficient.
 
 ### Translated Message Cache Identity
 

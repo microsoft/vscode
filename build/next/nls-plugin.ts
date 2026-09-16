@@ -7,24 +7,13 @@ import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
 import { SourceMapGenerator } from 'source-map';
-import {
-	TextModel,
-	analyzeLocalizeCalls,
-	parseLocalizeKeyOrValue
-} from '../lib/nls-analysis.ts';
-import { serializeNlsData } from '../lib/nlsMessages.ts';
+import { TextModel } from '../lib/nls-analysis.ts';
+import { collectNLSCalls, getNLSModuleId, type NLSCatalog } from './nls-catalog.ts';
 import type { TextEdit } from './private-to-property.ts';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface NLSEntry {
-	moduleId: string;
-	key: string | { key: string; comment: string[] };
-	message: string;
-	placeholder: string;
-}
 
 export interface NLSPluginOptions {
 	/**
@@ -33,119 +22,9 @@ export interface NLSPluginOptions {
 	baseDir: string;
 
 	/**
-	 * Shared collector for NLS entries across multiple builds.
-	 * Create with createNLSCollector() and pass to multiple plugin instances.
+	 * Immutable catalog extracted from all core sources before target bundling.
 	 */
-	collector: NLSCollector;
-}
-
-/**
- * Collector for NLS entries across multiple esbuild builds.
- */
-export interface NLSCollector {
-	entries: Map<string, NLSEntry>;
-	add(entry: NLSEntry): void;
-}
-
-/**
- * Creates a shared NLS collector that can be passed to multiple plugin instances.
- */
-export function createNLSCollector(): NLSCollector {
-	const entries = new Map<string, NLSEntry>();
-	return {
-		entries,
-		add(entry: NLSEntry) {
-			entries.set(entry.placeholder, entry);
-		}
-	};
-}
-
-/**
- * Finalizes NLS collection and writes output files.
- * Call this after all esbuild builds have completed.
- */
-export async function finalizeNLS(
-	collector: NLSCollector,
-	outDir: string,
-	alsoWriteTo?: string[]
-): Promise<{ indexMap: Map<string, number>; messageCount: number }> {
-	if (collector.entries.size === 0) {
-		return { indexMap: new Map(), messageCount: 0 };
-	}
-
-	// Sort entries by moduleId, then by key for stable indices
-	const sortedEntries = [...collector.entries.values()].sort((a, b) => {
-		const aKey = typeof a.key === 'string' ? a.key : a.key.key;
-		const bKey = typeof b.key === 'string' ? b.key : b.key.key;
-		const moduleCompare = a.moduleId.localeCompare(b.moduleId);
-		if (moduleCompare !== 0) {
-			return moduleCompare;
-		}
-		return aKey.localeCompare(bKey);
-	});
-
-	// Create index map
-	const indexMap = new Map<string, number>();
-	sortedEntries.forEach((entry, idx) => {
-		indexMap.set(entry.placeholder, idx);
-	});
-
-	// Build NLS metadata
-	const allMessages: string[] = [];
-	const moduleToKeys: Map<string, (string | { key: string; comment: string[] })[]> = new Map();
-	const moduleToMessages: Map<string, string[]> = new Map();
-
-	for (const entry of sortedEntries) {
-		allMessages.push(entry.message);
-
-		if (!moduleToKeys.has(entry.moduleId)) {
-			moduleToKeys.set(entry.moduleId, []);
-			moduleToMessages.set(entry.moduleId, []);
-		}
-		moduleToKeys.get(entry.moduleId)!.push(entry.key);
-		moduleToMessages.get(entry.moduleId)!.push(entry.message);
-	}
-
-	// nls.keys.json: [["moduleId", ["key1", "key2"]], ...]
-	const nlsKeysJson: [string, string[]][] = [];
-	for (const [moduleId, keys] of moduleToKeys) {
-		nlsKeysJson.push([moduleId, keys.map(k => typeof k === 'string' ? k : k.key)]);
-	}
-
-	// nls.metadata.json: { keys: {...}, messages: {...} }
-	const nlsMetadataJson = {
-		keys: Object.fromEntries(moduleToKeys),
-		messages: Object.fromEntries(moduleToMessages)
-	};
-
-	// Write NLS files
-	const allOutDirs = [outDir, ...(alsoWriteTo ?? [])];
-	for (const dir of allOutDirs) {
-		await fs.promises.mkdir(dir, { recursive: true });
-	}
-
-	await Promise.all(allOutDirs.flatMap(dir => [
-		fs.promises.writeFile(
-			path.join(dir, 'nls.messages.json'),
-			JSON.stringify(allMessages)
-		),
-		fs.promises.writeFile(
-			path.join(dir, 'nls.keys.json'),
-			JSON.stringify(nlsKeysJson)
-		),
-		fs.promises.writeFile(
-			path.join(dir, 'nls.metadata.json'),
-			JSON.stringify(nlsMetadataJson, null, '\t')
-		),
-		fs.promises.writeFile(
-			path.join(dir, 'nls.messages.js'),
-			`/*---------------------------------------------------------\n * Copyright (C) Microsoft Corporation. All rights reserved.\n *--------------------------------------------------------*/\nglobalThis._VSCODE_NLS_MESSAGES=${serializeNlsData(allMessages)};`
-		),
-	]));
-
-	console.log(`[nls] Extracted ${allMessages.length} messages from ${moduleToKeys.size} modules`);
-
-	return { indexMap, messageCount: allMessages.length };
+	catalog: NLSCatalog;
 }
 
 /**
@@ -154,7 +33,7 @@ export async function finalizeNLS(
  */
 export function postProcessNLS(
 	content: string,
-	indexMap: Map<string, number>,
+	indexMap: ReadonlyMap<string, number>,
 	preserveEnglish: boolean
 ): { code: string; edits: readonly TextEdit[] } {
 	return replaceInOutput(content, indexMap, preserveEnglish);
@@ -173,65 +52,43 @@ interface NLSEdit {
 
 function transformToPlaceholders(
 	source: string,
-	moduleId: string
-): { code: string; entries: NLSEntry[]; edits: NLSEdit[] } {
-	const localizeCalls = analyzeLocalizeCalls(source, 'localize');
-	const localize2Calls = analyzeLocalizeCalls(source, 'localize2');
-
-	// Tag calls with their type so we can handle them differently later
-	const taggedLocalize = localizeCalls.map(call => ({ call, isLocalize2: false }));
-	const taggedLocalize2 = localize2Calls.map(call => ({ call, isLocalize2: true }));
-	const allCalls = [...taggedLocalize, ...taggedLocalize2].sort(
-		(a, b) => a.call.keySpan.start.line - b.call.keySpan.start.line ||
-			a.call.keySpan.start.character - b.call.keySpan.start.character
-	);
+	moduleId: string,
+	catalog: NLSCatalog
+): { code: string; edits: NLSEdit[] } {
+	const allCalls = collectNLSCalls(source, moduleId);
 
 	if (allCalls.length === 0) {
-		return { code: source, entries: [], edits: [] };
+		return { code: source, edits: [] };
 	}
 
-	const entries: NLSEntry[] = [];
 	const edits: NLSEdit[] = [];
 	const model = new TextModel(source);
 
 	// Process in reverse order to preserve positions
-	for (const { call, isLocalize2 } of allCalls.reverse()) {
-		const keyParsed = parseLocalizeKeyOrValue(call.key) as string | { key: string; comment: string[] };
-		const messageParsed = parseLocalizeKeyOrValue(call.value);
-		const keyString = typeof keyParsed === 'string' ? keyParsed : keyParsed.key;
+	for (const { entry, keySpan } of allCalls.reverse()) {
+		const index = catalog.indexMap.get(entry.placeholder);
+		if (index === undefined || catalog.entries[index].message !== entry.message) {
+			throw new Error(`[nls] Missing or changed entry ${entry.placeholder}. Regenerate the canonical NLS catalog.`);
+		}
 
-		// Use different placeholder prefix for localize vs localize2
-		// localize: message will be replaced with null
-		// localize2: message will be preserved (only key replaced)
-		const prefix = isLocalize2 ? 'NLS2' : 'NLS';
-		const placeholder = `%%${prefix}:${moduleId}#${keyString}%%`;
-
-		entries.push({
-			moduleId,
-			key: keyParsed,
-			message: String(messageParsed),
-			placeholder
-		});
-
-		const replacementText = `"${placeholder}"`;
+		const replacementText = JSON.stringify(entry.placeholder);
 
 		// Track the edit for source map generation (positions are in original source coords)
 		edits.push({
-			line: call.keySpan.start.line,
-			startCol: call.keySpan.start.character,
-			endCol: call.keySpan.end.character,
+			line: keySpan.start.line,
+			startCol: keySpan.start.character,
+			endCol: keySpan.end.character,
 			newLength: replacementText.length,
 		});
 
 		// Replace the key with the placeholder string
-		model.apply(call.keySpan, replacementText);
+		model.apply(keySpan, replacementText);
 	}
 
-	// Reverse entries and edits to match source order
-	entries.reverse();
+	// Reverse edits to match source order
 	edits.reverse();
 
-	return { code: model.toString(), entries, edits };
+	return { code: model.toString(), edits };
 }
 
 /**
@@ -312,7 +169,7 @@ function generateNLSSourceMap(
 
 function replaceInOutput(
 	content: string,
-	indexMap: Map<string, number>,
+	indexMap: ReadonlyMap<string, number>,
 	preserveEnglish: boolean
 ): { code: string; edits: readonly TextEdit[] } {
 	// Collect all matches first, then apply from back to front so that byte
@@ -323,16 +180,10 @@ function replaceInOutput(
 	const pending: PendingEdit[] = [];
 
 	if (preserveEnglish) {
-		const re = /["']%%NLS2?:([^%]+)%%["']/g;
+		const re = /["'](?<placeholder>%%NLS2?:[^%]+%%)["']/g;
 		let m: RegExpExecArray | null;
 		while ((m = re.exec(content)) !== null) {
-			const inner = m[1];
-			let placeholder = `%%NLS:${inner}%%`;
-			let index = indexMap.get(placeholder);
-			if (index === undefined) {
-				placeholder = `%%NLS2:${inner}%%`;
-				index = indexMap.get(placeholder);
-			}
+			const index = indexMap.get(m.groups!.placeholder);
 			if (index !== undefined) {
 				pending.push({ start: m.index, end: m.index + m[0].length, replacement: String(index) });
 			}
@@ -363,10 +214,6 @@ function replaceInOutput(
 		}
 	}
 
-	if (pending.length === 0) {
-		return { code: content, edits: [] };
-	}
-
 	// Sort by offset ascending, then apply back-to-front to keep offsets valid
 	pending.sort((a, b) => a.start - b.start);
 
@@ -387,7 +234,12 @@ function replaceInOutput(
 	}
 	parts.push(content.substring(lastEnd));
 
-	return { code: parts.join(''), edits };
+	const code = parts.join('');
+	const unresolved = /(?<placeholder>%%NLS2?:.*?%%)/.exec(code);
+	if (unresolved) {
+		throw new Error(`[nls] Unresolved placeholder ${unresolved.groups!.placeholder}`);
+	}
+	return { code, edits };
 }
 
 // ============================================================================
@@ -395,8 +247,6 @@ function replaceInOutput(
 // ============================================================================
 
 export function nlsPlugin(options: NLSPluginOptions): esbuild.Plugin {
-	const { collector } = options;
-
 	return {
 		name: 'nls',
 		setup(build) {
@@ -409,21 +259,12 @@ export function nlsPlugin(options: NLSPluginOptions): esbuild.Plugin {
 
 				const source = await fs.promises.readFile(args.path, 'utf-8');
 
-				// Compute module ID (e.g., "vs/editor/editor" from "src/vs/editor/editor.ts")
-				const relativePath = path.relative(options.baseDir, args.path);
-				const moduleId = relativePath
-					.replace(/\\/g, '/')
-					.replace(/\.ts$/, '');
+				const moduleId = getNLSModuleId(options.baseDir, args.path);
 
 				// Transform localize() calls to placeholders
-				const { code, entries: fileEntries, edits } = transformToPlaceholders(source, moduleId);
+				const { code, edits } = transformToPlaceholders(source, moduleId, options.catalog);
 
-				// Collect entries
-				for (const entry of fileEntries) {
-					collector.add(entry);
-				}
-
-				if (fileEntries.length > 0) {
+				if (edits.length > 0) {
 					// Generate a source map that maps from the NLS-transformed source
 					// back to the original. Embed it inline so esbuild composes it
 					// with its own bundle source map, making the final map point to
