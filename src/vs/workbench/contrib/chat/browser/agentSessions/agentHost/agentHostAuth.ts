@@ -69,7 +69,7 @@ export class AgentHostAuthTokenCache {
 	private readonly _completedTokens = new Map<string, string>();
 	private readonly _pendingAuthentications = new Map<string, { readonly token: string; readonly promise: Promise<void> }>();
 	private readonly _keyGenerations = new Map<string, number>();
-	private readonly _rejectedSessions = new Map<string, AuthenticationSessionIdentity>();
+	private readonly _rejectedSessions = new Map<string, RejectedAuthenticationSession>();
 	private _globalGeneration = 0;
 
 	/**
@@ -159,7 +159,7 @@ export class AgentHostAuthTokenCache {
 		this._rejectedSessions.set(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
 	}
 
-	getRejectedSession(resource: string, scopes: readonly string[] | undefined): AuthenticationSessionIdentity | undefined {
+	getRejectedSession(resource: string, scopes: readonly string[] | undefined): RejectedAuthenticationSession | undefined {
 		return this._rejectedSessions.get(this._key(resource, scopes));
 	}
 
@@ -185,21 +185,18 @@ type AuthenticationSessionResolution =
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'unavailable' };
 
-type AuthenticationSessionReference = Pick<AuthenticationSession, 'id' | 'accessToken'>;
-type AuthenticationSessionIdentity = AuthenticationSessionReference & { readonly accountId: string };
-
-interface AuthenticationSessionSelection {
-	readonly excludedSession?: AuthenticationSessionReference;
-	readonly accountId?: string;
+interface RejectedAuthenticationSession {
+	readonly id: string;
+	readonly accessToken: string;
+	readonly accountId: string;
 }
 
-function isSameAuthenticationSession(first: AuthenticationSessionReference, second: AuthenticationSessionReference): boolean {
-	return first.id === second.id && first.accessToken === second.accessToken;
+function isSameAuthenticationSession(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession): boolean {
+	return session.id === rejectedSession.id && session.accessToken === rejectedSession.accessToken;
 }
 
-function isAuthenticationSessionCandidate(session: AuthenticationSession, selection: AuthenticationSessionSelection): boolean {
-	return (!selection.accountId || session.account.id === selection.accountId)
-		&& (!selection.excludedSession || !isSameAuthenticationSession(session, selection.excludedSession));
+function isAuthenticationSessionCandidate(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession | null): boolean {
+	return rejectedSession === null || (session.account.id === rejectedSession.accountId && !isSameAuthenticationSession(session, rejectedSession));
 }
 
 /**
@@ -248,7 +245,7 @@ export class AgentHostAuthenticationRecovery {
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
-		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, {});
+		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
 		throwIfAuthenticationStale(options);
 		if (resolution.kind === 'signedOut') {
 			this._resentTokens.delete(key);
@@ -268,7 +265,7 @@ export class AgentHostAuthenticationRecovery {
 				logService,
 				resource,
 				options,
-				{ accountId: currentSession.account?.id, excludedSession: currentSession },
+				{ id: currentSession.id, accessToken: currentSession.accessToken, accountId: currentSession.account.id },
 			);
 			throwIfAuthenticationStale(options);
 		}
@@ -337,7 +334,7 @@ async function resolveAuthenticationSessionForResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	logPrefix: string,
-	selection: AuthenticationSessionSelection = {},
+	rejectedSession: RejectedAuthenticationSession | null = null,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
 	for (const server of authorizationServers) {
@@ -374,7 +371,7 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, selection));
+		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession));
 		if (exactSession) {
 			return { kind: 'resolved', session: exactSession };
 		}
@@ -392,7 +389,7 @@ async function resolveAuthenticationSessionForResource(
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
-			if (!isAuthenticationSessionCandidate(session, selection)) {
+			if (!isAuthenticationSessionCandidate(session, rejectedSession)) {
 				continue;
 			}
 			const sessionScopes = new Set(session.scopes);
@@ -662,14 +659,16 @@ async function authenticateProtectedResourceWithServices(
 	return true;
 }
 
+/**
+ * Defaults to the cached rejection; pass null for an unfiltered lookup.
+ */
 async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'logPrefix'>,
-	selection?: AuthenticationSessionSelection,
+	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
-	const rejectedSession = selection ? undefined : options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported);
 	return resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
 		resource.authorization_servers ?? [],
@@ -677,7 +676,7 @@ async function resolveSessionForProtectedResource(
 		authenticationService,
 		logService,
 		options.logPrefix,
-		selection ?? (rejectedSession ? { accountId: rejectedSession.accountId, excludedSession: rejectedSession } : {}),
+		rejectedSession,
 	);
 }
 
@@ -749,7 +748,7 @@ async function forceAuthenticationInteractively(
 	}
 	let sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 	if (sessionResolution.kind === 'signedOut' && options.authTokenCache?.getRejectedSession(resource.resource, scopes)) {
-		sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, {});
+		sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
 	}
 	throwIfAuthenticationStale(options);
 	if (sessionResolution.kind !== 'resolved') {

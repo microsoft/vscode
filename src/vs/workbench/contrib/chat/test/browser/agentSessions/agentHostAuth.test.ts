@@ -418,7 +418,12 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const token = { value: 'tok-1' };
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
-			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes, accessToken: token.value }] : []),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{
+				id: 'session-id',
+				account: { id: 'account-1', label: 'Account 1' },
+				scopes,
+				accessToken: token.value,
+			}] : []),
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);

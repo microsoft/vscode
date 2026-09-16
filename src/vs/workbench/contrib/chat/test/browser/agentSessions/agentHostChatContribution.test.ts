@@ -15038,7 +15038,12 @@ suite('AgentHostChatContribution', () => {
 				getOrActivateProviderIdForServer: async () => 'github',
 				getSessions: (async (_providerId: string, scopes?: ReadonlyArray<string>) => {
 					if (scopes !== undefined) {
-						return [{ scopes: [...scopes], accessToken: tokenRef.current }];
+						return [{
+							id: 'session-id',
+							account: { id: 'account-1', label: 'Account 1' },
+							scopes: [...scopes],
+							accessToken: tokenRef.current,
+						}];
 					}
 					return [];
 				}) as unknown as IAuthenticationService['getSessions'],
