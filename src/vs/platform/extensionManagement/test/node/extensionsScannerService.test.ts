@@ -504,6 +504,16 @@ suite('NativeExtensionsScanerService Test', () => {
 			assert.deepStrictEqual([cached[0].manifest.version, rescanned[0].manifest.version], ['1.0.0', '2.0.0']);
 		});
 
+		test('user extensions are cached per scan language', async () => {
+			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+			const profileLocation = instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource;
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+			await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+
+			assert.deepStrictEqual(await cacheFileNames(), ['extensions.user.en.cache']);
+		});
+
 		async function cacheFileNames(): Promise<string[]> {
 			const cacheHome = instantiationService.get(IUserDataProfilesService).defaultProfile.cacheHome;
 			const resolved = await instantiationService.get(IFileService).resolve(cacheHome);
