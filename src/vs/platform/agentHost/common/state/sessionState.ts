@@ -1596,6 +1596,13 @@ export interface ISessionGitState {
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/**
+	 * Remote of the upstream branch when it can be synced through its remote-tracking ref
+	 * (`origin`, `my/fork`), or `.` when it cannot: a local upstream, or a fetch refspec
+	 * that keeps the tracking ref outside `refs/remotes/<remote>/`. Absent when there is
+	 * no upstream, and in git state persisted before this field existed.
+	 */
+	readonly upstreamRemote?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch has ahead of the upstream branch. */
@@ -1808,6 +1815,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
+		upstreamRemote?: string;
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
@@ -1821,6 +1829,7 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['upstreamRemote'] === 'string') { result.upstreamRemote = raw['upstreamRemote']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
@@ -1843,9 +1852,15 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
  * `HEAD` is a legitimate branch-less checkout and must not be mistaken for it,
  * or every caller would refresh in a loop against a repository that will never
  * report a branch.
+ *
+ * A state that names an upstream but not its remote was persisted before
+ * {@link ISessionGitState.upstreamRemote} existed; recompute it once so the
+ * consumers that need the remote (Sync Changes) do not stay stranded.
  */
 export function needsSessionGitStateRefresh(gitState: ISessionGitState | undefined): boolean {
-	return gitState === undefined || (gitState.branchName === undefined && !gitState.isDetachedHead);
+	return gitState === undefined
+		|| (gitState.branchName === undefined && !gitState.isDetachedHead)
+		|| (gitState.upstreamBranchName !== undefined && gitState.upstreamRemote === undefined);
 }
 
 /**

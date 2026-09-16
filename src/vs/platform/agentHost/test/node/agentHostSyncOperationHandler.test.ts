@@ -100,6 +100,46 @@ suite('AgentHostSyncOperationHandler', () => {
 		});
 	});
 
+	test('syncs through a remote whose name contains a slash', async () => {
+		const gitCalls: Array<{ readonly operation: string; readonly options?: IPullOptions | IPushOptions }> = [];
+		const gitService = new class extends mock<IAgentHostGitService>() {
+			declare readonly _serviceBrand: undefined;
+
+			override async getCurrentBranchName(): Promise<string> {
+				return 'local-name';
+			}
+
+			override async getBranch() {
+				return {
+					ref: 'refs/heads/local-name',
+					name: 'local-name',
+					upstream: {
+						ref: 'refs/remotes/my/fork/remote-name',
+						name: 'my/fork/remote-name',
+						remote: 'my/fork',
+					},
+					kind: GitRefType.Head,
+				} as const;
+			}
+
+			override async pull(_workingDirectory: URI, options?: IPullOptions): Promise<void> {
+				gitCalls.push({ operation: 'pull', options });
+			}
+
+			override async push(_workingDirectory: URI, options?: IPushOptions): Promise<void> {
+				gitCalls.push({ operation: 'push', options });
+			}
+		}();
+		const { handler } = createHandler(gitService);
+
+		await invoke(handler);
+
+		assert.deepStrictEqual(gitCalls, [
+			{ operation: 'pull', options: { remote: 'my/fork', ref: 'remote-name' } },
+			{ operation: 'push', options: { remote: 'my/fork', ref: 'refs/heads/local-name:refs/heads/remote-name' } },
+		]);
+	});
+
 	test('rejects a cached branch that no longer matches the current checkout', async () => {
 		let branchLookup = false;
 		const gitService = new class extends mock<IAgentHostGitService>() {
