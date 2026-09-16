@@ -123,6 +123,7 @@ export interface IChatRequestViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
+	readonly modelConfiguration?: IChatRequestModel['modelConfiguration'];
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
@@ -499,6 +500,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get modelId() {
 		return this._model.modelId;
+	}
+
+	get modelConfiguration() {
+		return this._model.modelConfiguration;
 	}
 
 	get resolvedModelId() {
