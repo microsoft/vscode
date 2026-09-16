@@ -3294,11 +3294,20 @@ suite('PromptsService', () => {
 					'---',
 					'# VS Code Development Setup',
 				],
+			}, {
+				path: `${BUILTIN_SKILLS_URI.path}/vscode-extension-fix/SKILL.md`,
+				contents: [
+					'---',
+					'name: vscode-extension-fix',
+					'description: Create and run a local VS Code extension that provides a safe workaround.',
+					'---',
+					'# VS Code Extension Fix',
+				],
 			}]);
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 
-			const builtinSkillNames = ['issue-wizard', 'vscode-bug-fix', 'vscode-dev-setup'];
+			const builtinSkillNames = ['issue-wizard', 'vscode-bug-fix', 'vscode-dev-setup', 'vscode-extension-fix'];
 			assert.deepStrictEqual(result?.filter(skill => builtinSkillNames.includes(skill.name)).map(skill => ({
 				name: skill.name,
 				uri: skill.uri.toString(),
@@ -3317,6 +3326,11 @@ suite('PromptsService', () => {
 			}, {
 				name: 'vscode-dev-setup',
 				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'vscode-dev-setup/SKILL.md').toString(),
+				storage: PromptsStorage.builtIn,
+				userInvocable: true,
+			}, {
+				name: 'vscode-extension-fix',
+				uri: URI.joinPath(BUILTIN_SKILLS_URI, 'vscode-extension-fix/SKILL.md').toString(),
 				storage: PromptsStorage.builtIn,
 				userInvocable: true,
 			}]);

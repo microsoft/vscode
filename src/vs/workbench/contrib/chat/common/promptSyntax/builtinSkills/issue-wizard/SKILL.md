@@ -78,7 +78,7 @@ Recommend one path instead of making the user design the workflow.
 
 - **Setting:** Use this path only when one documented effective setting explains the symptom. Name its exact key, current/recommended value, scope, and visible effect. Explain and obtain approval before changing it. If no write tool exists, give the shortest Settings UI or JSON instruction.
 - **Update VS Code:** Use this path when evidence shows an appropriate newer product/channel/build contains the fix. Name the product, channel, and minimum version, then ask the user to update and restart. Do not start source setup.
-- **Extension:** Use this path when evidence narrows the problem to one extension. Explain and obtain approval before disabling or reconfiguring only that extension. If reporting is useful, prepare an unpublished handoff for the extension's declared tracker; do not require Git or GitHub authentication.
+- **Existing extension:** Use this path when evidence narrows the problem to one installed extension. Explain and obtain approval before disabling or reconfiguring only that extension. If reporting is useful, prepare an unpublished handoff for the extension's declared tracker; do not require Git or GitHub authentication.
 
 After any direct resolution, ask the user to repeat the original action. Record **resolved** only after the user explicitly confirms the symptom is gone. If it remains, return to the minimum necessary Stage 2 evidence.
 
@@ -87,6 +87,12 @@ After any direct resolution, ask the user to repeat the original action. Record 
 Choose this when the problem is owned by VS Code but a safe source fix is not established or would be disproportionate. Prefer adding evidence to a strong matching issue. Otherwise prepare a concise new report containing actual/expected behavior, reproduction steps, product information, and only approved sanitized screenshots or log excerpts, plus `<!-- issue-wizard -->`. Do not set labels or assignees.
 
 Before publishing an issue, comment, or attachment, show the exact sanitized payload and all attachments together and obtain explicit approval. If GitHub posting is unavailable, give the user the prepared text and browser destination.
+
+### Try an extension fix
+
+Offer this only when the evidence indicates that a documented, stable VS Code extension API can safely provide the required behavior without changing VS Code itself. Do not propose private APIs, product-file patches, undocumented commands, monkey-patching, or proposed APIs as a user-facing workaround. Do not generate files, install tools, or start an Extension Development Host until the user explicitly chooses this path.
+
+After the user chooses it, invoke the bundled `vscode-extension-fix` skill with the Stage 1 problem brief, Stage 2 evidence handoff, and original acceptance scenario. Let that skill choose a dedicated destination, generate the project with the official extension generator, implement and validate the workaround, and run it in a separate Extension Development Host. Record **resolved** only after the user confirms the original symptom is gone. Do not package, install, publish, or create a repository for the extension without separate explicit approval.
 
 ### Try a source fix
 
