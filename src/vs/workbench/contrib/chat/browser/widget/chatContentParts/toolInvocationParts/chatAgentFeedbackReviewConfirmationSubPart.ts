@@ -140,6 +140,10 @@ export class ChatAgentFeedbackReviewConfirmationSubPart extends AbstractToolConf
 			) ?? [];
 		} catch (error) {
 			this.logService.warn('[AgentFeedbackReview] Failed to fetch unreviewed comments', error);
+			if (!this._store.isDisposed) {
+				listElement.append(dom.$('.chat-agent-feedback-review-empty', undefined, localize('agentFeedback.loadFailed', "Could not load review comments. Cancel this request and try again.")));
+			}
+			return;
 		}
 
 		if (this._store.isDisposed) {
