@@ -18,7 +18,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionComparisonHarnessDisplayLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
@@ -131,7 +131,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			const reasoningEffort = participant.harness.modelConfiguration?.[ReasoningEffortConfigKey];
 			return {
 				attemptNumber: index + 1,
-				label: `Attempt ${index + 1}: ${getSessionComparisonHarnessDisplayLabel(participant.harness)}`,
+				label: getSessionComparisonAttemptLabel(participant, index + 1),
 				harness: {
 					agent: participant.harness.label,
 					model: participant.harness.modelLabel ?? 'Default',
@@ -206,7 +206,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts only by the attemptNumber values returned by readAttemptComparison; do not use participant or session UUIDs. Keep explanation to one concise sentence. Provide exactly one concise rationale point for solution, validation, codeQuality, and comparison; each point must cite concrete evidence and stay within the schema length limit. Record whether each validation result came from the attempt report, a Judge run, was unavailable, or was not applicable. Use notApplicable for both validation state and source when a category genuinely does not apply. Identify semantic decision sections when attempts take meaningfully different approaches, including affected files and one concise option per relevant attemptNumber. Rate every option as better, neutral, or worse and rate each section\'s recommended option as better. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts only by the attemptNumber values returned by readAttemptComparison; do not use participant or session UUIDs. Keep explanation to one concise sentence. Provide exactly one concise rationale point in this order: comparison, validation, codeQuality, and solution. Each point must cite concrete evidence and stay within the schema length limit. Record whether each validation result came from the attempt report, a Judge run, was unavailable, or was not applicable. Use notApplicable for both validation state and source when a category genuinely does not apply. Identify semantic decision sections when attempts take meaningfully different approaches, including affected files and one concise option per relevant attemptNumber. Rate every option as better, neutral, or worse and rate each section\'s recommended option as better. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -232,12 +232,12 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 						type: 'object',
 						description: 'Four categorized, concise reasons why the recommended attempt won.',
 						properties: {
-							solution: rationalePointSchema('What the solution gets right.'),
+							comparison: rationalePointSchema('The decisive advantage over the other attempts.'),
 							validation: rationalePointSchema('The strongest concrete validation evidence.'),
 							codeQuality: rationalePointSchema('Why the implementation is well scoped and maintainable.'),
-							comparison: rationalePointSchema('The decisive advantage over the other attempts.'),
+							solution: rationalePointSchema('What the solution gets right.'),
 						},
-						required: ['solution', 'validation', 'codeQuality', 'comparison'],
+						required: ['comparison', 'validation', 'codeQuality', 'solution'],
 						additionalProperties: false,
 					},
 					conflicts: {
@@ -344,7 +344,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const input = parseInput(invocation.parameters);
 		if (!input) {
-			return toolError('The comparison verdict input is invalid. Keep explanation to one sentence and provide concise solution, validation, codeQuality, and comparison rationale points. Every attempt also requires tests, build, lint, and diagnostics values in both validation and validationSource.');
+			return toolError('The comparison verdict input is invalid. Keep explanation to one sentence and provide concise comparison, validation, codeQuality, and solution rationale points. Every attempt also requires tests, build, lint, and diagnostics values in both validation and validationSource.');
 		}
 		const comparison = this.comparisonService.getComparison(input.comparisonId);
 		if (!comparison) {
@@ -551,17 +551,17 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 
 function parseRationale(value: unknown): ISessionComparisonRationale | undefined {
 	if (!isRecord(value)
-		|| !isConciseText(value.solution, MaxRationalePointLength)
+		|| !isConciseText(value.comparison, MaxRationalePointLength)
 		|| !isConciseText(value.validation, MaxRationalePointLength)
 		|| !isConciseText(value.codeQuality, MaxRationalePointLength)
-		|| !isConciseText(value.comparison, MaxRationalePointLength)) {
+		|| !isConciseText(value.solution, MaxRationalePointLength)) {
 		return undefined;
 	}
 	return {
-		solution: value.solution,
+		comparison: value.comparison,
 		validation: value.validation,
 		codeQuality: value.codeQuality,
-		comparison: value.comparison,
+		solution: value.solution,
 	};
 }
 

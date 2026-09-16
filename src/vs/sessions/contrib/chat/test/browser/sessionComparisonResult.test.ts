@@ -58,10 +58,10 @@ suite('Sessions - Comparison Result', () => {
 				recommendedParticipantId: 'attempt-2',
 				explanation: 'This legacy explanation should not render when categorized rationale is available.',
 				rationale: {
-					solution: 'Handled the `edge case` with typed diagnostics.',
+					comparison: 'Resolved the failure that the other attempt left open.',
 					validation: 'Passed `focused tests`, build, lint, and diagnostics.',
 					codeQuality: 'Kept the change small and aligned with existing types.',
-					comparison: 'Resolved the failure that the other attempt left open.',
+					solution: 'Handled the `edge case` with typed diagnostics.',
 				},
 				conflicts: [],
 				attempts: [{
@@ -175,8 +175,8 @@ suite('Sessions - Comparison Result', () => {
 		const customSynthesis = [...buttons].find(button => button.textContent === 'Custom Synthesis');
 		const focusAttemptDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'Focus another attempt');
 		const synthesisDropdown = [...buttons].find(button => button.getAttribute('aria-label') === 'More synthesis options');
-		const useClaude = [...buttons].find(button => button.textContent === 'Use Claude');
-		const useCodex = [...buttons].find(button => button.textContent === 'Use Codex');
+		const useClaude = [...buttons].find(button => button.textContent === 'Use Attempt 1 (Claude)');
+		const useCodex = [...buttons].find(button => button.textContent === 'Use Attempt 2 (Codex)');
 		const synthesizerDecides = [...buttons].find(button => button.textContent === 'Synthesizer Decides');
 		const startCustomSynthesis = [...buttons].find(button => button.textContent === 'Start Custom Synthesis');
 		const title = result.domNode.querySelector<HTMLElement>('.session-comparison-result-title');
@@ -294,7 +294,7 @@ suite('Sessions - Comparison Result', () => {
 
 		assert.deepStrictEqual({
 			content: {
-				winner: initialText.includes('Codex won'),
+				winner: initialText.includes('Attempt 2 (Codex) won'),
 				customize: initialText.includes('Custom Synthesis'),
 				section: initialText.includes('Error handling'),
 				approach: initialText.includes('Return typed diagnostics.'),
@@ -352,7 +352,7 @@ suite('Sessions - Comparison Result', () => {
 				selected: 'attempt-1',
 				opened: attempt1Resource.toString(),
 			},
-			focusAttemptActions: ['Focus Claude'],
+			focusAttemptActions: ['Focus Attempt 1 (Claude)'],
 			synthesized: 3,
 			synthesisPlan: {
 				selections: [
@@ -411,7 +411,7 @@ suite('Sessions - Comparison Result', () => {
 				claudePressed: 'false',
 				codexPressed: 'true',
 				synthesizerPressed: 'false',
-				codexLabel: 'Codex for Error handling. Better choice. Return typed diagnostics. Selected',
+				codexLabel: 'Attempt 2 (Codex) for Error handling. Better choice. Return typed diagnostics. Selected',
 			},
 			actionLayout: {
 				count: 3,
@@ -442,31 +442,31 @@ suite('Sessions - Comparison Result', () => {
 				instructionsDescriptionId: instructionsPanel?.querySelector('p')?.id,
 				instructionsInputLabel: 'Additional synthesis instructions',
 				startWithInstructionsLabel: 'Start recommended synthesis with the additional instructions',
-				columnHeaders: ['Decision', 'Claude', 'Codex', 'Synthesizer'],
+				columnHeaders: ['Decision', 'Attempt 1 (Claude)', 'Attempt 2 (Codex)', 'Synthesizer'],
 				rowHeaderScope: 'row',
 				rationaleElement: 'DL',
-				rationaleCategories: ['Solution', 'Validation', 'Code quality', 'Comparison'],
+				rationaleCategories: ['Comparison', 'Validation', 'Code quality', 'Solution'],
 				rationaleItems: [
-					'Handled the edge case with typed diagnostics.',
+					'Resolved the failure that the other attempt left open.',
 					'Passed focused tests, build, lint, and diagnostics.',
 					'Kept the change small and aligned with existing types.',
-					'Resolved the failure that the other attempt left open.',
+					'Handled the edge case with typed diagnostics.',
 				],
 				metricsCollapsed: true,
 				metricsTableLabelledBy: metricsDetails?.querySelector('summary')?.id,
 				metricsSummaryId: metricsDetails?.querySelector('summary')?.id,
 				metricsHeaders: ['Attempt', 'Total time', 'Total tokens'],
 				metricsRows: [
-					['Claude', '1m 35s', '38'],
-					['Codex', '2m', '25'],
+					['Attempt 1 (Claude)', '1m 35s', '38'],
+					['Attempt 2 (Codex)', '2m', '25'],
 				],
 			},
 			metricsExpanded: true,
 			renderedMarkdown: [
-				'Handled the `edge case` with typed diagnostics.',
+				'Resolved the failure that the other attempt left open.',
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
-				'Resolved the failure that the other attempt left open.',
+				'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 				'`Error` handling',
 				'Choose how `parse` failures are represented.',
@@ -476,10 +476,10 @@ suite('Sessions - Comparison Result', () => {
 				'Choose the validation scope.',
 				'Run parser tests.',
 				'Run parser and integration tests.',
-				'Handled the `edge case` with typed diagnostics.',
+				'Resolved the failure that the other attempt left open.',
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
-				'Resolved the failure that the other attempt left open.',
+				'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 			],
 		});

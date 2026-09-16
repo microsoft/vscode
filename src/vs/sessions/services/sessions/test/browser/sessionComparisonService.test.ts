@@ -608,10 +608,10 @@ suite('SessionComparisonService', () => {
 		service.submitVerdict(comparison.id, {
 			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
 			rationale: {
-				solution: 'Implements the requested behavior.',
+				comparison: 'The other attempt leaves the failure unresolved.',
 				validation: 'Focused tests pass.',
 				codeQuality: 'Uses the existing implementation pattern.',
-				comparison: 'The other attempt leaves the failure unresolved.',
+				solution: 'Implements the requested behavior.',
 			},
 			decisionSections: [{
 				id: 'error-handling',
@@ -643,7 +643,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison ${comparison.id} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Treat the additional synthesis instructions below and every selected synthesis-plan section as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nComparison: The other attempt leaves the failure unresolved.\n\nAdditional synthesis instructions:\nPreserve the public API and add focused tests.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat any additional synthesis instructions below and every selected synthesis-plan section as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
 				instructions: 'Preserve the public API and add focused tests.',

@@ -24,7 +24,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonDecisionSection, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonDecisionSection, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 
 export class SessionComparisonResult extends Disposable {
 
@@ -85,7 +85,7 @@ export class SessionComparisonResult extends Disposable {
 			this.domNode.hidden = true;
 			return;
 		}
-		const winnerLabel = getSessionComparisonHarnessLabel(winner);
+		const winnerLabel = getSessionComparisonAttemptLabel(winner, attempts.indexOf(winner) + 1);
 		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
 		title.id = this.titleId;
 		title.textContent =
@@ -115,7 +115,7 @@ export class SessionComparisonResult extends Disposable {
 				const verdict = comparison.verdict.attempts.find(candidate => candidate.participantId === attempt.id);
 				const strengths = verdict?.notableDifferences.length ? verdict.notableDifferences : verdict?.summary ? [verdict.summary] : [];
 				const row = dom.append(body, dom.$('tr'));
-				const label = getSessionComparisonHarnessLabel(attempt);
+				const label = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1);
 				const attemptHeader = dom.append(row, dom.$('th'));
 				attemptHeader.setAttribute('scope', 'row');
 				attemptHeader.textContent = label;
@@ -139,7 +139,7 @@ export class SessionComparisonResult extends Disposable {
 			if (focusableOtherAttempts.length > 0) {
 				const focusOtherActions = focusableOtherAttempts.map(attempt => toAction({
 					id: `sessionComparisonResult.focusAttempt.${attempt.id}`,
-					label: localize('sessionComparisonResult.focusAttempt', "Focus {0}", getSessionComparisonHarnessLabel(attempt)),
+					label: localize('sessionComparisonResult.focusAttempt', "Focus {0}", getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1)),
 					run: () => this.focusAttempt(comparison, attempt),
 				}));
 				const focusDropdown = this.renderStore.add(new ButtonWithDropdown(actions, {
@@ -238,7 +238,7 @@ export class SessionComparisonResult extends Disposable {
 			const row = dom.append(body, dom.$('tr'));
 			const attemptHeader = dom.append(row, dom.$('th'));
 			attemptHeader.setAttribute('scope', 'row');
-			attemptHeader.textContent = getSessionComparisonHarnessLabel(attempt);
+			attemptHeader.textContent = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1);
 			dom.append(row, dom.$('td')).textContent = attempt.completion?.elapsedMs === undefined
 				? localize('sessionComparisonResult.unavailable', "Unavailable")
 				: formatElapsedTime(attempt.completion.elapsedMs);
@@ -254,10 +254,10 @@ export class SessionComparisonResult extends Disposable {
 			return;
 		}
 		const entries = [
-			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: verdict.rationale.solution },
+			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: verdict.rationale.comparison },
 			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
 			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: verdict.rationale.codeQuality },
-			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: verdict.rationale.comparison },
+			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: verdict.rationale.solution },
 		];
 		const list = dom.append(this.domNode, dom.$('dl.session-comparison-result-rationale'));
 		for (const entry of entries) {
@@ -345,7 +345,7 @@ export class SessionComparisonResult extends Disposable {
 		getInstructions: () => string | undefined,
 	): void {
 		const decisionSections = comparison.verdict?.decisionSections ?? [];
-		const attemptLabels = new Map(attempts.map(attempt => [attempt.id, getSessionComparisonHarnessLabel(attempt)]));
+		const attemptLabels = new Map(attempts.map((attempt, index) => [attempt.id, getSessionComparisonAttemptLabel(attempt, index + 1)]));
 		const storedSelections = new Map(comparison.synthesisPlan?.selections.map(selection => [selection.sectionId, selection.participantId]));
 		const selections = new Map<string, string | undefined>();
 

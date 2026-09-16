@@ -103,10 +103,10 @@ export interface ISessionComparisonDecisionSection {
 }
 
 export interface ISessionComparisonRationale {
-	readonly solution: string;
+	readonly comparison: string;
 	readonly validation: string;
 	readonly codeQuality: string;
-	readonly comparison: string;
+	readonly solution: string;
 }
 
 export interface ISessionComparisonVerdict {
@@ -179,6 +179,10 @@ export const ISessionComparisonService = createDecorator<ISessionComparisonServi
 
 export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
 	return getSessionComparisonHarnessDisplayLabel(participant.harness);
+}
+
+export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, attemptNumber: number): string {
+	return localize('sessionComparison.attemptLabel', "Attempt {0} ({1})", attemptNumber, getSessionComparisonHarnessLabel(participant));
 }
 
 export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness): string {

@@ -28,10 +28,11 @@ import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../common/sessionCom
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(initialLayout: SessionGridLayout = 'grid', options?: { readonly attemptsOnly?: boolean; readonly hideInactiveInputs?: boolean; readonly screenReaderOptimized?: boolean }) {
+	function setup(initialLayout: SessionGridLayout = 'grid', options?: { readonly attemptsOnly?: boolean; readonly attemptCount?: 2 | 3; readonly hideInactiveInputs?: boolean; readonly screenReaderOptimized?: boolean }) {
 		const judge = upcastPartial<IActiveSession>({ sessionId: 'judge', resource: URI.parse('test:///judge') });
 		const attempt = upcastPartial<IActiveSession>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
 		const attempt2 = upcastPartial<IActiveSession>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
+		const attempt3 = upcastPartial<IActiveSession>({ sessionId: 'attempt-3', resource: URI.parse('test:///attempt-3') });
 		const comparison: ISessionComparison = {
 			id: 'comparison',
 			groupId: 'group',
@@ -54,11 +55,18 @@ suite('Session comparison grid controller', () => {
 				role: SessionComparisonParticipantRole.Attempt,
 				sessionResource: attempt2.resource,
 				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Attempt 2' },
+			}, {
+				id: 'attempt-3',
+				role: SessionComparisonParticipantRole.Attempt,
+				sessionResource: attempt3.resource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Attempt 3' },
 			}],
 		};
 		const focused = store.add(new Emitter<string>());
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', attempt);
-		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', options?.attemptsOnly ? [attempt, attempt2] : [judge, attempt]);
+		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', options?.attemptsOnly
+			? [attempt, attempt2, attempt3].slice(0, options.attemptCount ?? 2)
+			: [judge, attempt]);
 		const sessionGridLayout = observableValue<SessionGridLayout>('sessionGridLayout', initialLayout);
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const closed: Array<string | undefined> = [];
@@ -134,6 +142,7 @@ suite('Session comparison grid controller', () => {
 			judge,
 			attempt,
 			attempt2,
+			attempt3,
 			focused,
 			activeSession,
 			visibleSessions,
@@ -225,11 +234,12 @@ suite('Session comparison grid controller', () => {
 		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed, resetCount: fixture.resetCount }, { shownOnly: [], closed: [], resetCount: 0 });
 	});
 
-	test('defaults to hiding inactive attempt inputs except for screen readers', async () => {
-		const attemptGrid = setup('grid', { attemptsOnly: true });
-		const disabledGrid = setup('grid', { attemptsOnly: true, hideInactiveInputs: false });
+	test('hides inactive inputs only for comparison grids with three or more attempts', async () => {
+		const twoAttemptGrid = setup('grid', { attemptsOnly: true, attemptCount: 2 });
+		const attemptGrid = setup('grid', { attemptsOnly: true, attemptCount: 3 });
+		const disabledGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, hideInactiveInputs: false });
 		const mixedGrid = setup('grid', { hideInactiveInputs: true });
-		const screenReaderGrid = setup('grid', { attemptsOnly: true, screenReaderOptimized: true });
+		const screenReaderGrid = setup('grid', { attemptsOnly: true, attemptCount: 3, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
 		const enabledByDefault = attemptGrid.mainContainer.classList.contains(className);
 
@@ -247,6 +257,7 @@ suite('Session comparison grid controller', () => {
 
 		assert.deepStrictEqual({
 			enabledByDefault,
+			twoAttemptGrid: twoAttemptGrid.mainContainer.classList.contains(className),
 			disabledForScreenReader,
 			restoredAfterScreenReader,
 			disabledBySetting,
@@ -256,6 +267,7 @@ suite('Session comparison grid controller', () => {
 			screenReaderGrid: screenReaderGrid.mainContainer.classList.contains(className),
 		}, {
 			enabledByDefault: true,
+			twoAttemptGrid: false,
 			disabledForScreenReader: false,
 			restoredAfterScreenReader: true,
 			disabledBySetting: false,

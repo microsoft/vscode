@@ -23,7 +23,7 @@ import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/ch
 import { SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
@@ -262,10 +262,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._synthesisStarting.add(comparisonId);
 		try {
 			const additionalInstructions = comparison.synthesisPlan?.instructions
-				? localize('sessionComparison.additionalSynthesisInstructionsPrompt', "\n\nAdditional synthesis instructions:\n{0}", comparison.synthesisPlan.instructions)
+				? localize('sessionComparison.additionalSynthesisInstructionsPrompt', "\n\n## Additional synthesis instructions\n{0}", comparison.synthesisPlan.instructions)
 				: '';
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison {0} into a new implementation. First call #readAttemptComparison exactly once with that comparison ID. Read implementation code only from the authoritative worktrees in its manifest. If changedFilesStatus is unavailable, read the Git diff from that worktree. Treat the additional synthesis instructions below and every selected synthesis-plan section as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically. Call get_session_context only with an exact sessionContextTarget returned by the manifest and only for rationale or validation evidence; never recover implementation code or paths from a transcript. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior, resolve the Judge's reported conflicts, and run the relevant validation.\n\nJudge recommendation:\n{1}{2}", comparison.id, this._getVerdictRecommendation(comparison.verdict), additionalInstructions),
+				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat any additional synthesis instructions below and every selected synthesis-plan section as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), additionalInstructions),
 				attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
@@ -513,21 +513,29 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	private _getJudgePrompt(comparisonId: string): string {
-		return localize('sessionComparison.judgePrompt', "Judge implementation comparison `{0}`.\n\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Review every attempt's code changes and validation evidence. Terminal commands start in the Judge worktree, not an attempt worktree, so explicitly `cd` to the exact `worktree.workingDirectory` from the manifest in every command that inspects or validates an attempt.\n3. Run missing targeted tests, build, lint, or diagnostics when needed to make a reliable recommendation.\n4. Record whether each validation result came from the attempt report, your own Judge run, or unavailable evidence. When a validation category genuinely does not apply, use `notApplicable` for both its result and source.\n5. Keep `explanation` to one sentence. Fill `rationale` with exactly four concise points: `solution`, `validation`, `codeQuality`, and `comparison`. Each point must cite concrete evidence, contain no line breaks, and stay within the tool schema length limit. For every other attempt, record its strongest reusable points in `notableDifferences`.\n6. Identify semantic `decisionSections` where attempts make meaningfully different implementation choices. Each section may span related files. Give it a stable ID, short title, plain-language summary, affected repository-relative files, one concise option per relevant `attemptNumber`, and a recommended `attemptNumber`. Rate every option as `better`, `neutral`, or `worse` relative to the other approaches using concrete code and validation evidence; the recommended option must be rated `better`. Return an empty array when there are no meaningful choices. Do not use raw line numbers as section identity.\n7. Do not modify, merge, apply, or delete any attempt.\n8. Call `#completeAttemptComparison` with the recommendation and supporting evidence. Refer to attempts only by the `attemptNumber` values returned by `#readAttemptComparison`; do not copy participant or session UUIDs. If it rejects invalid input, correct the reported fields and retry; do not submit again after success.\n9. After the tool returns, respond with the winning attempt followed by the same four concise rationale categories and the strongest reusable points from every other attempt.", comparisonId);
+		return localize('sessionComparison.judgePrompt', "Judge implementation comparison `{0}`.\n\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Review every attempt's code changes and validation evidence. Terminal commands start in the Judge worktree, not an attempt worktree, so explicitly `cd` to the exact `worktree.workingDirectory` from the manifest in every command that inspects or validates an attempt.\n3. Run missing targeted tests, build, lint, or diagnostics when needed to make a reliable recommendation.\n4. Record whether each validation result came from the attempt report, your own Judge run, or unavailable evidence. When a validation category genuinely does not apply, use `notApplicable` for both its result and source.\n5. Keep `explanation` to one sentence. Fill `rationale` with exactly four concise points in this order: `comparison`, `validation`, `codeQuality`, and `solution`. Each point must cite concrete evidence, contain no line breaks, and stay within the tool schema length limit. For every other attempt, record its strongest reusable points in `notableDifferences`.\n6. Identify semantic `decisionSections` where attempts make meaningfully different implementation choices. Each section may span related files. Give it a stable ID, short title, plain-language summary, affected repository-relative files, one concise option per relevant `attemptNumber`, and a recommended `attemptNumber`. Rate every option as `better`, `neutral`, or `worse` relative to the other approaches using concrete code and validation evidence; the recommended option must be rated `better`. Return an empty array when there are no meaningful choices. Do not use raw line numbers as section identity.\n7. Do not modify, merge, apply, or delete any attempt.\n8. Call `#completeAttemptComparison` with the recommendation and supporting evidence. Refer to attempts only by the `attemptNumber` values returned by `#readAttemptComparison`; do not copy participant or session UUIDs. If it rejects invalid input, correct the reported fields and retry; do not submit again after success.\n9. After the tool returns, identify the winner as `Attempt N (agent, model, effort)` and use the same rationale order, followed by the strongest reusable points from every other attempt.", comparisonId);
 	}
 
-	private _getVerdictRecommendation(verdict: ISessionComparisonVerdict | undefined): string {
+	private _getVerdictRecommendation(comparison: ISessionComparison): string {
+		const verdict = comparison.verdict;
 		if (!verdict) {
 			return localize('sessionComparison.noJudgeExplanation', "No Judge explanation is available; use the selected attempt as the base.");
 		}
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const winnerIndex = attempts.findIndex(attempt => attempt.id === verdict.recommendedParticipantId);
+		const winner = attempts[winnerIndex];
+		const winnerLabel = winner
+			? getSessionComparisonAttemptLabel(winner, winnerIndex + 1)
+			: localize('sessionComparison.unknownWinningAttempt', "Winning attempt");
 		if (!verdict.rationale) {
-			return verdict.explanation;
+			return `${winnerLabel}\n${verdict.explanation}`;
 		}
 		return [
-			localize('sessionComparison.rationale.solution', "Solution: {0}", verdict.rationale.solution),
+			winnerLabel,
+			localize('sessionComparison.rationale.comparison', "Comparison: {0}", verdict.rationale.comparison),
 			localize('sessionComparison.rationale.validation', "Validation: {0}", verdict.rationale.validation),
 			localize('sessionComparison.rationale.codeQuality', "Code quality: {0}", verdict.rationale.codeQuality),
-			localize('sessionComparison.rationale.comparison', "Comparison: {0}", verdict.rationale.comparison),
+			localize('sessionComparison.rationale.solution', "Solution: {0}", verdict.rationale.solution),
 		].join('\n');
 	}
 

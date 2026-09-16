@@ -49,7 +49,7 @@ suite('SessionComparisonTool', () => {
 			categorizedRationale: data.modelDescription.includes('exactly one concise rationale point'),
 			required: data.inputSchema?.required?.includes('decisionSections'),
 			rationaleRequired: data.inputSchema?.required?.includes('rationale'),
-			rationaleCategories: schema.includes('"required":["solution","validation","codeQuality","comparison"]'),
+			rationaleCategories: schema.includes('"required":["comparison","validation","codeQuality","solution"]'),
 			rationaleLength: schema.includes(`"maxLength":180`),
 			assessmentRequired: schema.includes('"required":["attemptNumber","approach","assessment"]'),
 			assessmentValues: schema.includes('"enum":["better","neutral","worse"]'),
@@ -100,7 +100,7 @@ suite('SessionComparisonTool', () => {
 			baseBranch: 'main',
 			attempts: [{
 				attemptNumber: 1,
-				label: 'Attempt 1: Copilot · Claude · High',
+				label: 'Attempt 1 (Copilot · Claude · High)',
 				harness: { agent: 'Copilot', model: 'Claude', reasoningEffort: 'high', permissions: { id: 'bypassPermissions', label: 'Bypass Permissions' } },
 				status: 'completed',
 				sessionContextTarget: 'agent-host-session://copilot/attempt',
@@ -453,16 +453,16 @@ suite('SessionComparisonTool', () => {
 			decisionSections: [],
 		}, judgeResource);
 
-		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. Keep explanation to one sentence and provide concise solution, validation, codeQuality, and comparison rationale points. Every attempt also requires tests, build, lint, and diagnostics values in both validation and validationSource.');
+		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. Keep explanation to one sentence and provide concise comparison, validation, codeQuality, and solution rationale points. Every attempt also requires tests, build, lint, and diagnostics values in both validation and validationSource.');
 	});
 });
 
 function rationaleInput() {
 	return {
-		solution: 'Implements the requested behavior with the smallest correct change.',
+		comparison: 'The other attempts were incomplete or left the reported failure unresolved.',
 		validation: 'Focused tests and diagnostics pass in the attempt worktree.',
 		codeQuality: 'Matches the surrounding types and existing implementation pattern.',
-		comparison: 'The other attempts were incomplete or left the reported failure unresolved.',
+		solution: 'Implements the requested behavior with the smallest correct change.',
 	};
 }
 
