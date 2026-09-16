@@ -12,6 +12,7 @@
 
 //#region --- workbench common
 
+import '../platform/otel/electron-browser/otelDiagnosticsService.js';
 import './sessions.common.main.js';
 
 //#endregion

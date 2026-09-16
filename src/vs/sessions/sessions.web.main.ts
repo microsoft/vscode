@@ -12,6 +12,7 @@
 
 //#region --- sessions common
 
+import '../platform/otel/browser/otelDiagnosticsService.js';
 import './sessions.common.main.js';
 
 //#endregion

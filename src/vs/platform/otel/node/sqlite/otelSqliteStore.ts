@@ -207,6 +207,26 @@ export class OTelSqliteStore {
 			.all(conversationId, conversationId) as unknown as SpanRow[];
 	}
 
+	getSpansByAttribute(key: string, value: string): SpanRow[] {
+		return this._ensureDb().prepare(`
+			SELECT spans.*
+			FROM spans
+			INNER JOIN span_attributes ON span_attributes.span_id = spans.span_id
+			WHERE span_attributes.key = ? AND span_attributes.value = ?
+			ORDER BY spans.start_time_ms
+		`).all(key, value) as unknown as SpanRow[];
+	}
+
+	getSpansByAttributeSuffix(key: string, suffix: string): SpanRow[] {
+		return this._ensureDb().prepare(`
+			SELECT spans.*
+			FROM spans
+			INNER JOIN span_attributes ON span_attributes.span_id = spans.span_id
+			WHERE span_attributes.key = ? AND span_attributes.value LIKE ?
+			ORDER BY spans.start_time_ms
+		`).all(key, `%${suffix}`) as unknown as SpanRow[];
+	}
+
 	getSpanAttributes(spanId: string): Array<{ key: string; value: string | null }> {
 		return this._ensureDb()
 			.prepare('SELECT key, value FROM span_attributes WHERE span_id = ?')

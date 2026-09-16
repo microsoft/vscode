@@ -153,6 +153,8 @@ When `chat.agentHost.otel.dbSpanExporter.enabled` is on, every span the agent ho
 
 Use the **Chat: Export Agent Host Traces Database…** command (`workbench.action.chat.agentHost.otel.exportAgentTracesDB`) to save a copy of the database for offline inspection. The store uses WAL mode, so it is safe to copy or query with `sqlite3` while the agent host is running.
 
+The desktop shared process exposes the same store through `IOTelDiagnosticsService` for native focused-session diagnostics. It resolves an Agents session URI to its OTel conversation id and provides session summaries, captured messages, trace summaries, span details, and span-event activity with a debounced live-change event. This surface reflects the trace database only; provider-native logs and metrics still follow the direct external routing described above.
+
 ## Quick Start with Aspire Dashboard
 
 To collect agent host traces with the [Aspire Dashboard](https://learn.microsoft.com/dotnet/aspire/fundamentals/dashboard/standalone) (or any OTLP-compatible collector):

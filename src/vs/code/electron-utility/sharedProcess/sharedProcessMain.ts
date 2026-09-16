@@ -48,6 +48,8 @@ import { LoggerChannelClient } from '../../../platform/log/common/logIpc.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../platform/request/common/request.js';
+import { IOTelDiagnosticsService, OTEL_DIAGNOSTICS_CHANNEL_NAME } from '../../../platform/otel/common/otelDiagnosticsService.js';
+import { OTelDiagnosticsService } from '../../../platform/otel/node/otelDiagnosticsService.js';
 import { ISharedProcessConfiguration } from '../../../platform/sharedProcess/node/sharedProcess.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { resolveCommonProperties } from '../../../platform/telemetry/common/commonProperties.js';
@@ -306,6 +308,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
 
+		// OTel Diagnostics
+		services.set(IOTelDiagnosticsService, new SyncDescriptor(OTelDiagnosticsService));
+
 		// V8 Inspect profiler
 		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
@@ -453,6 +458,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Diagnostics
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService), this._store);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
+
+		// OTel Diagnostics
+		const otelDiagnosticsChannel = ProxyChannel.fromService(accessor.get(IOTelDiagnosticsService), this._store);
+		this.server.registerChannel(OTEL_DIAGNOSTICS_CHANNEL_NAME, otelDiagnosticsChannel);
 
 		// Extension Tips
 		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));

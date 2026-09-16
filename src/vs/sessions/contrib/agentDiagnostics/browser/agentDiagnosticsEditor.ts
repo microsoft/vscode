@@ -17,6 +17,8 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOTelDiagnosticsService } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -60,6 +62,9 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private readonly debugTabs = new Map<ChatDebugSessionView, Button>();
 	private selectedDebugView = ChatDebugSessionView.Logs;
 	private currentChatResource: URI | undefined;
+	private currentInsightsResource: URI | undefined;
+	private sessionInsightsDescription: HTMLElement | undefined;
+	private insightsGeneration = 0;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -77,6 +82,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IOTelDiagnosticsService private readonly otelDiagnosticsService: IOTelDiagnosticsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
@@ -105,13 +112,14 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.createTab(tabList, DiagnosticsTab.AgentDebug, localize('agentDiagnostics.agentDebug', "Agent Debug"), 'agent-diagnostics-agent-debug');
 
 		const content = DOM.append(this.root, DOM.$('.agent-diagnostics-content'));
-		this.createPanel(
+		const insightsPanel = this.createPanel(
 			content,
 			DiagnosticsTab.SessionInsights,
 			'agent-diagnostics-session-insights',
 			localize('agentDiagnostics.sessionInsights', "Session Insights"),
 			localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.")
 		);
+		this.sessionInsightsDescription = insightsPanel.description;
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -140,8 +148,11 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		DOM.hide(this.debugDisabledOverlay);
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			this.setDebugSession(activeSession?.activeChat.read(reader).resource);
+			const chatResource = activeSession?.activeChat.read(reader).resource;
+			this.setDebugSession(chatResource);
+			this.setInsightsSession(chatResource);
 		}));
+		this._register(this.otelDiagnosticsService.onDidChange(() => this.refreshSessionInsights()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
 				|| event.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
@@ -179,7 +190,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		this.debugTabs.set(view, button);
 	}
 
-	private createPanel(parent: HTMLElement, tab: DiagnosticsTab, id: string, title: string, placeholder: string): { panel: HTMLElement; emptyState: HTMLElement } {
+	private createPanel(parent: HTMLElement, tab: DiagnosticsTab, id: string, title: string, placeholder: string): { panel: HTMLElement; emptyState: HTMLElement; description: HTMLElement } {
 		const panel = DOM.append(parent, DOM.$('.agent-diagnostics-panel'));
 		panel.id = id;
 		panel.setAttribute('role', 'tabpanel');
@@ -191,7 +202,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		const description = DOM.append(emptyState, DOM.$('p.agent-diagnostics-description'));
 		description.textContent = placeholder;
 		this.panels.set(tab, panel);
-		return { panel, emptyState };
+		return { panel, emptyState, description };
 	}
 
 	private handleTabKeyDown(event: KeyboardEvent): void {
@@ -291,6 +302,60 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			void this.chatDebugService.invokeProviders(chatResource);
 		}
 		this.updateDebugView();
+	}
+
+	private setInsightsSession(chatResource: URI | undefined): void {
+		if (isEqual(this.currentInsightsResource, chatResource)) {
+			return;
+		}
+		this.currentInsightsResource = chatResource;
+		this.refreshSessionInsights();
+	}
+
+	private refreshSessionInsights(): void {
+		const generation = ++this.insightsGeneration;
+		const resource = this.currentInsightsResource;
+		if (!resource) {
+			if (this.sessionInsightsDescription) {
+				this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsPlaceholder', "Focused-session insights will appear here.");
+			}
+			return;
+		}
+		void this.loadSessionInsights(resource, generation).catch(error => {
+			this.logService.error('[AgentDiagnostics] Failed to load native OTel diagnostics', error);
+			if (generation === this.insightsGeneration && this.sessionInsightsDescription) {
+				this.sessionInsightsDescription.textContent = localize('agentDiagnostics.sessionInsightsError', "Failed to load native OpenTelemetry diagnostics.");
+			}
+		});
+	}
+
+	private async loadSessionInsights(resource: URI, generation: number): Promise<void> {
+		const sessionUri = resource.with({ fragment: '' }).toString();
+		const [identity, summary, messages, traces, logs] = await Promise.all([
+			this.otelDiagnosticsService.resolveSessionUri(sessionUri),
+			this.otelDiagnosticsService.getSessionSummary(sessionUri),
+			this.otelDiagnosticsService.getSessionMessages(sessionUri),
+			this.otelDiagnosticsService.getSessionTraces(sessionUri),
+			this.otelDiagnosticsService.getSessionLogs(sessionUri),
+		]);
+		const traceDetails = traces[0]
+			? await this.otelDiagnosticsService.getTraceDetails(traces[0].traceId)
+			: undefined;
+		if (generation !== this.insightsGeneration || !this.sessionInsightsDescription) {
+			return;
+		}
+		this.sessionInsightsDescription.textContent = identity && summary
+			? localize(
+				'agentDiagnostics.sessionInsightsLoaded',
+				"Native OpenTelemetry: {0} turns, {1} traces, {2} spans, {3} messages, and {4} activity records. First trace has {5} spans.",
+				summary.turns,
+				summary.traceCount,
+				summary.spanCount,
+				messages.length,
+				logs.length,
+				traceDetails?.spans.length ?? 0,
+			)
+			: localize('agentDiagnostics.sessionInsightsEmpty', "No native OpenTelemetry data is available for the focused session.");
 	}
 
 	private updateDebugView(): void {
