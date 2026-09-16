@@ -680,12 +680,12 @@ export class TerminalSandboxEngine extends Disposable {
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
-			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			allowReadPaths = await this._resolveAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths);
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(macFileSystemSetting.denyRead ?? []), configFilePath]));
 			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
 		} else if (this._os === OperatingSystem.Linux) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
-			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			allowReadPaths = await this._resolveAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths);
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(linuxFileSystemSetting.denyRead ?? []), configFilePath]));
 			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
 		}
@@ -749,12 +749,12 @@ export class TerminalSandboxEngine extends Disposable {
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 		} else if (this._os === OperatingSystem.Macintosh) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
-			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			allowReadPaths = await this._resolveAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths);
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(macFileSystemSetting.denyRead ?? []), ...(configFilePath ? [configFilePath] : [])]));
 			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
 		} else if (this._os === OperatingSystem.Linux) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
-			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
+			allowReadPaths = await this._resolveAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths);
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(linuxFileSystemSetting.denyRead ?? []), ...(configFilePath ? [configFilePath] : [])]));
 			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
 		}
@@ -946,15 +946,85 @@ export class TerminalSandboxEngine extends Disposable {
 		return [...new Set([...(configuredDenyRead ?? []), ...(userHome ? [userHome] : [])])];
 	}
 
-	private async _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
+	private async _resolveAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
 		const hostReadPaths = this._host.getReadRoots?.().map(root => this._getUriPath(root)) ?? [];
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...hostReadPaths, ...allowWrite])];
+		const generatedAllowRead = getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails);
+		const [resolvedAllowRead, resolvedGeneratedAllowRead] = await Promise.all([
+			this._resolveFileSystemPaths([...(configuredAllowRead ?? []), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...hostReadPaths, ...allowWrite]),
+			this._resolveGeneratedReadAllowListPaths(generatedAllowRead),
+		]);
+		return this._deduplicateFileSystemPaths([...resolvedAllowRead, ...resolvedGeneratedAllowRead]);
 	}
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
 		const resolvedPaths = await Promise.all((paths ?? []).map(path => this._resolveFileSystemPath(path)));
+		return this._deduplicateFileSystemPaths(resolvedPaths.flat());
+	}
+
+	private async _resolveGeneratedReadAllowListPaths(paths: readonly string[]): Promise<string[]> {
+		const rubyReadPaths = new Set([
+			'~/.gem/ruby',
+			'~/.gem/specs',
+			'~/.rbenv/versions',
+			'~/.rbenv/shims',
+			'~/.rvm/rubies',
+		]);
+		const resolvedPaths = await Promise.all(paths.map(async path => {
+			const result = await this._resolveFileSystemPath(path);
+			if (this._os !== OperatingSystem.Linux || !rubyReadPaths.has(path)) {
+				return result;
+			}
+			if (result.length === 1) {
+				return result;
+			}
+			return await this._isSafeRubyGemSymlinkTarget(result[1]) ? result : [];
+		}));
+		return this._deduplicateFileSystemPaths(resolvedPaths.flat());
+	}
+
+	private async _isSafeRubyGemSymlinkTarget(target: string): Promise<boolean> {
+		const userHome = this._userHome ? this._getUriPath(this._userHome) : undefined;
+		if (!userHome) {
+			return false;
+		}
+		const homeRoots = new Set([userHome]);
+		for (const resolvedPath of await this._resolveFileSystemPath(userHome)) {
+			homeRoots.add(resolvedPath);
+		}
+		const gemRoots = new Set([...homeRoots].map(homeRoot => posix.join(homeRoot, '.gem')));
+		const gemRoot = posix.join(userHome, '.gem');
+		for (const resolvedPath of await this._resolveFileSystemPath(gemRoot)) {
+			gemRoots.add(resolvedPath);
+		}
+		const allowedRoots = new Set<string>();
+		for (const homeRoot of homeRoots) {
+			for (const relativePath of ['.gem/ruby', '.gem/specs', '.rbenv/versions', '.rbenv/shims', '.rvm/rubies']) {
+				allowedRoots.add(posix.join(homeRoot, relativePath));
+			}
+		}
+		for (const root of gemRoots) {
+			allowedRoots.add(posix.join(root, 'ruby'));
+			allowedRoots.add(posix.join(root, 'specs'));
+		}
+
+		const protectedRoots = [...homeRoots, ...gemRoots];
+		if (protectedRoots.some(root => this._isFileSystemPathEqualOrParent(target, root))) {
+			return false;
+		}
+		if (protectedRoots.some(root => this._isFileSystemPathEqualOrParent(root, target))) {
+			return [...allowedRoots].some(root => this._isFileSystemPathEqualOrParent(root, target));
+		}
+		return true;
+	}
+
+	private _isFileSystemPathEqualOrParent(parent: string, candidate: string): boolean {
+		const relativePath = posix.relative(parent, candidate);
+		return relativePath === '' || (!relativePath.startsWith('..') && !posix.isAbsolute(relativePath));
+	}
+
+	private _deduplicateFileSystemPaths(paths: readonly string[]): string[] {
 		const seenPaths = new Set<string>();
-		return resolvedPaths.flat().filter(path => {
+		return paths.filter(path => {
 			const comparisonKey = this._getFileSystemPathComparisonKey(path);
 			if (seenPaths.has(comparisonKey)) {
 				return false;
