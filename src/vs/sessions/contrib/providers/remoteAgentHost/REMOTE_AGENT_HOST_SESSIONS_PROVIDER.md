@@ -61,6 +61,14 @@ Drafts expose the shared untitled `ISession` contract and use remote workspace m
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
 
+### Repository-backed session creation
+
+A repository selection is intent, not a host filesystem directory. When the host cannot address the selected repository URI as a directory, the client discovers its session configuration. The optional standard `SessionConfigSchema.repository` descriptor identifies the declared URL and revision properties; the client passes those values through ordinary session creation without invoking a vendor cloning method. Hosts that do not advertise the descriptor retain the existing directory-selection behavior.
+
+The host owns checkout preparation and publishes its outcome through session state. A repository-backed session must reach `ready` with its selected repository and resolved directories before the client sends a turn. The client rebinds workspace-scoped customizations to those directories, propagates creation failures and allows a cancelled local wait to stop without disposing shared host resources. Reconnection observes the existing session; a lost creation reply must not cause an unrelated session to be accepted under the same URI.
+
+This is an optional protocol capability, not a requirement that every host use Git or materialize a local directory. Directory-based requests, existing sessions and hosts without repository configuration keep their existing behavior.
+
 ## Authentication and recovery
 
 Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.

@@ -23,22 +23,7 @@ interface IActiveDownload {
 	complete(): void;
 }
 
-/**
- * Renders agent-host `progress` notifications as notification progress bars.
- *
- * Shared by the Agents window (via `BaseAgentHostSessionsProvider`) and the
- * editor window (via `AgentHostContribution`) so both surfaces render the
- * agent host's lazy, first-use SDK download identically.
- *
- * Progress is correlated by {@link ProgressParams.progressToken}; today's only
- * producer is the SDK download, which the host surfaces as a single stream per
- * provider keyed by the download's own stable identity — so one indicator per
- * download regardless of how many sessions await it. Determinate when the host
- * knows the `total` (`Content-Length`), or a byte-count spinner otherwise. The
- * operation is complete — and the notification dismissed — once
- * `progress >= total`. The human-readable brand noun rides on
- * {@link ProgressParams.message}.
- */
+/** Renders AHP progress for SDK downloads and other session preparation without assuming progress units. */
 export class AgentHostDownloadProgress extends Disposable {
 
 	/**
@@ -90,7 +75,7 @@ export class AgentHostDownloadProgress extends Disposable {
 			// a generic indicator that makes no assumption about what's downloading.
 			const deferred = new DeferredPromise<void>();
 			let report: ((step: IProgressStep) => void) | undefined;
-			const title = progress.message ?? localize('agentHost.download.titleFallback', "Downloading");
+			const title = progress.message ?? localize('agentHost.progress.titleFallback', "Preparing Session");
 			this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
@@ -119,10 +104,7 @@ export class AgentHostDownloadProgress extends Disposable {
 				total: 100,
 			});
 		} else {
-			// No total: indeterminate. Show megabytes received so the user
-			// still sees the download making progress.
-			const megabytes = (progress.progress / (1024 * 1024)).toFixed(1);
-			entry.report({ message: localize('agentHost.download.megabytes', "{0} MB", megabytes) });
+			entry.report({ message: progress.message ?? localize('agentHost.progress.indeterminate', "Working...") });
 		}
 	}
 }
