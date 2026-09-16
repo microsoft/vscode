@@ -16,27 +16,21 @@ import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
-import { ChatClosedPromoNotification } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
-import { ChatClosedPromo, CHAT_CLOSED_PROMO_TREATMENT } from './chatClosedPromo.js';
 import { DISMISSED_PROMOS_STORAGE_KEY } from './chatPromoNotification.js';
 import { addDismissedNotificationId } from './widget/input/chatInputNotificationService.js';
 import { getModelProviderIcon } from './widget/input/modelPicker/modelProviderIcons.js';
 import './media/chatPromoWidget.css';
-
-export { CHAT_CLOSED_PROMO_TREATMENT };
 
 export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
@@ -72,11 +66,10 @@ interface IChatPromoCardInput {
 }
 
 /**
- * Collapsed-chat Copilot-icon pip and promo card.
+ * Presentation for the closed-Chat Copilot-icon pip and promo card.
+ * Driven by {@link ChatClosedPromoContribution}; does not decide eligibility.
  */
-export class ChatPromoWidgetContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.chatPromoWidget';
+export class ChatPromoIconPopup extends Disposable {
 
 	private static idCounter = 0;
 
@@ -86,7 +79,6 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 	private readonly pipRetry = this._register(new MutableDisposable());
 	private readonly pipObserver = this._register(new MutableDisposable());
 	private readonly pipInput = this._register(new MutableDisposable());
-	private readonly closedPromo: ChatClosedPromo;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -96,57 +88,42 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this.closedPromo = this._register(instantiationService.createInstance(ChatClosedPromo));
 
 		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier?: string) => {
 			await this.openChatAndSwitchModel(typeof modelIdentifier === 'string' ? modelIdentifier : undefined);
 		}));
 		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_DISMISS_COMMAND_ID, (_accessor, promoId?: string) => {
-			this.disarmChatPromo();
+			this.hide();
 			if (typeof promoId === 'string') {
 				addDismissedNotificationId(this.storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
 			}
 		}));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'click', e => this.onWorkbenchClick(e), true));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'keydown', e => this.onWorkbenchKeyDown(e), true));
-		this._register(this.layoutService.onDidLayoutMainContainer(() => this.syncPip()));
-		this._register(this.closedPromo.onDidChange(() => this.syncPip()));
-		this.syncPip();
 	}
 
 	/**
-	 * Arms a closed-Chat treatment from {@link ChatClosedPromo}. Additional
-	 * treatments branch here once decided.
+	 * Shows the status-bar pip for the given sale model.
 	 */
-	private syncPip(): void {
-		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
-		const decision = this.closedPromo.getDecision(!!anchor?.getClientRects().length);
-		if (!decision) {
-			if (this.pendingPayload) {
-				this.disarmChatPromo();
-			}
+	show(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const payload = this.promoCardPayload(model);
+		if (!payload) {
+			this.hide();
 			return;
 		}
-
-		// Branch on treatment as additional closed-Chat surfaces are added.
-		let payload: IChatPromoCardInput | undefined;
-		if (decision.treatment === ChatClosedPromoNotification.CopilotIconPopup) {
-			payload = this.promoCardPayload(decision.model);
-		}
-
-		if (payload) {
-			if (!equals(this.pendingPayload, payload)) {
-				this.armChatPromo(payload);
-			}
+		if (equals(this.pendingPayload, payload)) {
 			return;
 		}
-		if (this.pendingPayload) {
-			this.disarmChatPromo();
-		}
+		this.armChatPromo(payload);
+	}
+
+	/**
+	 * Clears the pip and any open card.
+	 */
+	hide(): void {
+		this.disarmChatPromo();
 	}
 
 	private promoCardPayload(model: ILanguageModelChatMetadataAndIdentifier): IChatPromoCardInput | undefined {
@@ -414,7 +391,7 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 
 	private buildContent(info: IChatPromoCardInput, disposables: DisposableStore): HTMLElement {
 		const container = dom.$('.chat-promo-widget');
-		const titleId = `chat-promo-widget-title-${ChatPromoWidgetContribution.idCounter++}`;
+		const titleId = `chat-promo-widget-title-${ChatPromoIconPopup.idCounter++}`;
 		container.setAttribute('role', 'dialog');
 		container.setAttribute('aria-labelledby', titleId);
 

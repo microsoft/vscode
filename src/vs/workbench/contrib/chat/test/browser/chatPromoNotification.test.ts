@@ -28,7 +28,8 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
-import { CHAT_CLOSED_PROMO_TREATMENT, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoWidgetContribution } from '../../browser/chatPromoWidget.js';
+import { CHAT_CLOSED_PROMO_TREATMENT, ChatClosedPromoContribution } from '../../browser/chatClosedPromo.js';
+import { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID } from '../../browser/chatPromoWidget.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../../browser/chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -276,7 +277,7 @@ function createWidget(
 		hoverService?: IHoverService;
 		telemetryService?: ITelemetryService;
 	} = {},
-): ChatPromoWidgetContribution {
+): ChatClosedPromoContribution {
 	const configurationService = options.configurationService ?? new TestConfigurationService(
 		options.closedPromoNotification === undefined ? {} : {
 			[ChatConfiguration.ChatClosedPromoNotification]: options.closedPromoNotification,
@@ -298,7 +299,7 @@ function createWidget(
 	} as unknown as IViewsService);
 	instantiation.stub(IWorkbenchAssignmentService, options.assignmentService ?? new NullWorkbenchAssignmentService());
 	instantiation.stub(ILogService, options.logService ?? new NullLogService());
-	const widget = instantiation.createInstance(ChatPromoWidgetContribution);
+	const widget = instantiation.createInstance(ChatClosedPromoContribution);
 	const originalDispose = widget.dispose.bind(widget);
 	widget.dispose = () => {
 		originalDispose();
@@ -1464,7 +1465,7 @@ suite('ChatPromoNotificationContribution', () => {
 			identifier: 'copilot:claude',
 			metadata: { name: 'Claude', id: 'claude', promo: { id: 'promo', discountPercent: 20, message: 'Model promo' } },
 		}]);
-		disposables.add(instantiation.createInstance(ChatPromoWidgetContribution));
+		disposables.add(instantiation.createInstance(ChatClosedPromoContribution));
 		entry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 		// Mount the card the way the hover service does, because the hover host styles
@@ -1494,7 +1495,7 @@ suite('ChatPromoNotificationContribution', () => {
 			identifier: 'copilot:model',
 			metadata: { name: 'Model', id: 'model', promo: { id: 'promo', discountPercent: 20, message: 'Model promo' } },
 		}]);
-		const widget = disposables.add(instantiation.createInstance(ChatPromoWidgetContribution));
+		const widget = disposables.add(instantiation.createInstance(ChatClosedPromoContribution));
 		const initiallyArmed = !!entry.querySelector('.codicon-copilot-dot');
 
 		const replacement = dom.$('div', { id: 'chat.statusBarEntry' });

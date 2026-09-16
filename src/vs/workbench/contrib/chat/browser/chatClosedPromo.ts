@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
@@ -16,32 +18,26 @@ import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetada
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { ChatViewId, IChatWidgetService } from './chat.js';
 import { DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY } from './chatPromoNotification.js';
+import { ChatPromoIconPopup, findChatIconAnchor } from './chatPromoWidget.js';
 import { readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
 
 export const CHAT_CLOSED_PROMO_TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
 
 /**
- * An eligible closed-Chat promo with the treatment chosen for it.
- * `treatment` is undefined while an experiment lookup is in flight.
+ * Background controller for closed-Chat model promos. Listens for sale/eligibility
+ * changes, chooses a treatment, and drives presentation (today: status-bar icon popup).
  */
-export interface IChatClosedPromoDecision {
-	readonly model: ILanguageModelChatMetadataAndIdentifier;
-	readonly promoId: string;
-	readonly treatment: ChatClosedPromoNotification | undefined;
-}
+export class ChatClosedPromoContribution extends Disposable implements IWorkbenchContribution {
 
-/**
- * Decides whether a closed-Chat promo should run and which treatment to use.
- * Owned by the promo contribution; not a workbench DI service.
- */
-export class ChatClosedPromo extends Disposable {
-
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	/** Stable id kept from the former widget contribution registration. */
+	static readonly ID = 'workbench.contrib.chatPromoWidget';
 
 	private _experimentTreatment: boolean | undefined;
 	private _experimentPending = false;
 	private _experimentGeneration = 0;
+
+	private readonly popup: ChatPromoIconPopup;
+	private activePromoId: string | undefined;
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -51,47 +47,74 @@ export class ChatClosedPromo extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ILogService private readonly logService: ILogService,
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._onDidChange.fire()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_PROMOS_STORAGE_KEY, this._store)(() => this._onDidChange.fire()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, SEEN_PROMOS_STORAGE_KEY, this._store)(() => this._onDidChange.fire()));
+		this.popup = this._register(instantiationService.createInstance(ChatPromoIconPopup));
+
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.sync()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_PROMOS_STORAGE_KEY, this._store)(() => this.sync()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, SEEN_PROMOS_STORAGE_KEY, this._store)(() => this.sync()));
 		this._register(this.viewsService.onDidChangeViewVisibility(e => {
 			if (e.id === ChatViewId) {
-				this._onDidChange.fire();
+				this.sync();
 			}
 		}));
-		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this._onDidChange.fire()));
-		this._register(this.chatWidgetService.onDidChangeFocusedWidget(() => this._onDidChange.fire()));
+		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this.sync()));
+		this._register(this.chatWidgetService.onDidChangeFocusedWidget(() => this.sync()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
-				this._onDidChange.fire();
+				this.sync();
 			}
 		}));
 		this._register(this.assignmentService.onDidRefetchAssignments(() => {
 			this._experimentGeneration++;
 			this._experimentTreatment = undefined;
 			this._experimentPending = false;
-			this._onDidChange.fire();
+			this.sync();
 		}));
+		this._register(this.layoutService.onDidLayoutMainContainer(() => this.sync()));
+
+		this.sync();
 	}
 
 	/**
-	 * Returns a decision when Local Chat is closed and an eligible sale exists.
-	 * Treatment is resolved only after eligibility so ExP is not queried otherwise.
-	 * `treatment` is undefined while TAS is still loading.
+	 * Recompute opportunity + treatment and update presentation.
 	 */
-	getDecision(hasRenderAnchor: boolean): IChatClosedPromoDecision | undefined {
+	private sync(): void {
 		const opportunity = this.getOpportunity();
 		if (!opportunity) {
-			return undefined;
+			this.hidePresentation();
+			return;
 		}
-		return {
-			model: opportunity.model,
-			promoId: opportunity.promoId,
-			treatment: this.resolveTreatment(hasRenderAnchor),
-		};
+
+		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
+		const treatment = this.resolveTreatment(!!anchor?.getClientRects().length);
+
+		// Branch as additional closed-Chat treatments are added.
+		if (treatment === ChatClosedPromoNotification.CopilotIconPopup) {
+			if (this.activePromoId !== opportunity.promoId) {
+				this.activePromoId = opportunity.promoId;
+				this.popup.show(opportunity.model);
+			}
+			return;
+		}
+
+		// undefined = experiment still loading; keep current presentation stable.
+		if (treatment === undefined) {
+			return;
+		}
+
+		this.hidePresentation();
+	}
+
+	private hidePresentation(): void {
+		if (this.activePromoId !== undefined) {
+			this.activePromoId = undefined;
+			this.popup.hide();
+		}
 	}
 
 	private getOpportunity(): { model: ILanguageModelChatMetadataAndIdentifier; promoId: string } | undefined {
@@ -151,7 +174,7 @@ export class ChatClosedPromo extends Disposable {
 		}
 		this._experimentPending = false;
 		this._experimentTreatment = enabled;
-		this._onDidChange.fire();
+		this.sync();
 	}
 
 	private isLocalChatVisible(): boolean {
