@@ -117,6 +117,12 @@ export class CustomViewNode extends Disposable {
 		resizeObserver.observe(this._contentEl);
 		this._register(toDisposable(() => resizeObserver.disconnect()));
 
+		// The resize observer can lag behind interactions that grow content well
+		// after it last fired (for example, expanding a "+more" group), leaving
+		// content unreachable until the next observed resize. Views can request
+		// an immediate rescan instead of waiting for it.
+		this._register(this._view.onDidChangeContentSize(() => this._scrollable.scanDomNode()));
+
 		this._register(autorun(reader => {
 			const title = this._view.title.read(reader);
 			this._titleEl.textContent = title;
