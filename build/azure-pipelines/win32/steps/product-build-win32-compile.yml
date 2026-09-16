@@ -17,6 +17,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: preBuildSteps
+    type: stepList
+    default: []
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -31,6 +34,8 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ parameters.preBuildSteps }}
 
   - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
     - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts

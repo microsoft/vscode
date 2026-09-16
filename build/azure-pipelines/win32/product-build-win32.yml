@@ -32,21 +32,21 @@ jobs:
             displayName: Publish Crash Reports
             sbomEnabled: false
             isProduction: false
-            condition: failed()
+            condition: and(failed(), ne(variables['PRODUCT_ARTIFACT_RETRY_CHECK_FAILED'], 'true'))
           - output: pipelineArtifact
             targetPath: $(Build.SourcesDirectory)/node_modules
             artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: Publish Node Modules
             sbomEnabled: false
             isProduction: true
-            condition: failed()
+            condition: and(failed(), ne(variables['PRODUCT_ARTIFACT_RETRY_CHECK_FAILED'], 'true'))
           - output: pipelineArtifact
             targetPath: $(Build.SourcesDirectory)/.build/logs
             artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: Publish Log Files
             sbomEnabled: false
             isProduction: false
-            condition: succeededOrFailed()
+            condition: and(succeededOrFailed(), ne(variables['PRODUCT_ARTIFACT_RETRY_CHECK_FAILED'], 'true'))
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/system-setup/VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
           artifactName: vscode_client_win32_$(VSCODE_ARCH)_setup
@@ -100,3 +100,17 @@ jobs:
           VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+          preBuildSteps:
+            - pwsh: >-
+                node build/azure-pipelines/common/checkProductArtifactRetry.ts
+                vscode_client_win32_$(VSCODE_ARCH)_setup
+                vscode_client_win32_$(VSCODE_ARCH)_user-setup
+                vscode_client_win32_$(VSCODE_ARCH)_archive
+                vscode_server_win32_$(VSCODE_ARCH)_archive
+                vscode_web_win32_$(VSCODE_ARCH)_archive
+                agent_sdk_win32_$(VSCODE_ARCH)_tarballs
+              displayName: Check product artifact retry safety
+              condition: and(succeeded(), gt(variables['System.JobAttempt'], 1))
+              timeoutInMinutes: 2
+              env:
+                SYSTEM_ACCESSTOKEN: $(System.AccessToken)
