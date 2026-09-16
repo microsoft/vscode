@@ -18,8 +18,6 @@ import { ILayoutService } from '../../../../../../platform/layout/browser/layout
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { TestEnvironmentService } from '../../../../../test/browser/workbenchTestServices.js';
 import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatSetup, ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter, IChatSetupDialogProviders, shouldShowMicrosoftProvider, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
@@ -199,7 +197,6 @@ suite('Chat setup strategy', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			new TestConfigurationService(),
-			TestEnvironmentService,
 		);
 
 		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, additionalScopes: ['repo'] });
@@ -298,7 +295,6 @@ suite('Chat setup dialog cancellation', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			new TestConfigurationService(),
-			TestEnvironmentService,
 		);
 
 		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });
@@ -315,7 +311,7 @@ suite('Chat setup dialog telemetry', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false, isSessionsWindow = false) {
+	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const impressions: (ITelemetryData | undefined)[] = [];
 		const dialogShown = new DeferredPromise<void>();
@@ -341,7 +337,6 @@ suite('Chat setup dialog telemetry', () => {
 			getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }),
 			resolveGitHubUrl: path => `https://github.com/${path}`,
 		});
-		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILayoutService, {});
 		instantiationService.stubInstance(ChatSetupDialog, {
@@ -362,7 +357,7 @@ suite('Chat setup dialog telemetry', () => {
 		await dialogShown.p;
 
 		assert.deepStrictEqual(impressions, [{
-			source: 'chat', surface: 'workbench', kind: 'signIn',
+			source: 'chat', kind: 'signIn',
 			accountAvailable: false, entitlement: 'Unknown', forceSignInDialog: false,
 		}]);
 
@@ -372,15 +367,15 @@ suite('Chat setup dialog telemetry', () => {
 		assert.strictEqual(impressions.length, 2);
 	});
 
-	test('records forced sign-in with an available account in the Agents window', async () => {
-		const { setup, impressions, dialogShown, dialogResult } = createSetup(ChatEntitlement.Pro, true, true);
+	test('records forced sign-in with an available account from Agents setup', async () => {
+		const { setup, impressions, dialogShown, dialogResult } = createSetup(ChatEntitlement.Pro, true);
 		const result = setup.run({ telemetrySource: ChatSetupSource.SessionsSetup, forceSignInDialog: true });
 		await dialogShown.p;
 		await dialogResult.complete(ChatSetupStrategy.Canceled);
 		await result;
 
 		assert.deepStrictEqual(impressions, [{
-			source: 'sessionsSetup', surface: 'agents', kind: 'signIn',
+			source: 'sessionsSetup', kind: 'signIn',
 			accountAvailable: true, entitlement: 'Pro', forceSignInDialog: true,
 		}]);
 	});
@@ -393,7 +388,7 @@ suite('Chat setup dialog telemetry', () => {
 		await result;
 
 		assert.deepStrictEqual(impressions, [{
-			source: 'unknown', surface: 'workbench', kind: 'setup',
+			source: 'unknown', kind: 'setup',
 			accountAvailable: true, entitlement: 'Unresolved', forceSignInDialog: false,
 		}]);
 	});
@@ -407,7 +402,7 @@ suite('Chat setup dialog telemetry', () => {
 		await result;
 
 		assert.deepStrictEqual(impressions, [{
-			source: 'unknown', surface: 'workbench', kind: 'signIn',
+			source: 'unknown', kind: 'signIn',
 			accountAvailable: false, entitlement: 'Unknown', forceSignInDialog: false,
 		}]);
 	});
