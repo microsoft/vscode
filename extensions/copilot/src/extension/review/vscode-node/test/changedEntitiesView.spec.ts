@@ -15,7 +15,7 @@ vi.mock('vscode', async importOriginal => {
 		id?: string;
 		resourceUri?: vscode.Uri;
 		description?: string;
-		tooltip?: string;
+		tooltip?: vscode.TreeItem['tooltip'];
 		iconPath?: vscode.ThemeIcon;
 		contextValue?: string;
 		accessibilityInformation?: vscode.AccessibilityInformation;
@@ -181,7 +181,7 @@ suite('Changed entities view', () => {
 						kind: 'function',
 						path: ['ReaderOptions', 'fromOptions'],
 						range: new vscode.Range(0, 0, 1, 0),
-						metrics: { cognitiveComplexity: 4, cyclomaticComplexity: 5, runtimeComplexity: 'O(n log n)' },
+						metrics: { cognitiveComplexity: 0, cyclomaticComplexity: 5, runtimeComplexity: 'O(n log n)' },
 					},
 					{
 						kind: 'method',
@@ -193,7 +193,7 @@ suite('Changed entities view', () => {
 						kind: 'method',
 						path: ['Reader', 'read'],
 						range: new vscode.Range(8, 0, 10, 0),
-						metrics: { cognitiveComplexity: 6, cyclomaticComplexity: 5, runtimeComplexity: 'O(log n)' },
+						metrics: { cognitiveComplexity: 4, cyclomaticComplexity: 6, runtimeComplexity: 'O(1)' },
 					},
 				],
 			}],
@@ -217,7 +217,7 @@ suite('Changed entities view', () => {
 			const members = await provider.getChildren(entities[1]);
 			const initialEntityState = [...namespaceMembers, ...members].map(member => ({
 				label: member.treeItem.label,
-				tooltip: member.treeItem.tooltip,
+				tooltip: serializeTooltip(member.treeItem.tooltip),
 				accessibilityLabel: member.treeItem.accessibilityInformation?.label,
 			}));
 			const explanationInputsBeforeHover = [...codeReviewService.explanationInputs];
@@ -230,7 +230,7 @@ suite('Changed entities view', () => {
 				fileCount: files.length,
 				fileLabel: files[0].treeItem.label,
 				fileDescription: files[0].treeItem.description,
-				fileTooltip: files[0].treeItem.tooltip,
+				fileTooltip: serializeTooltip(files[0].treeItem.tooltip),
 				fileAccessibilityLabel: files[0].treeItem.accessibilityInformation?.label,
 				fileIcon: files[0].treeItem.iconPath instanceof vscode.ThemeIcon ? files[0].treeItem.iconPath.id : undefined,
 				fileRefreshEvents: refreshEvents.map(element => element === files[0]),
@@ -253,7 +253,7 @@ suite('Changed entities view', () => {
 					label: entity.treeItem.label,
 					icon: entity.treeItem.iconPath instanceof vscode.ThemeIcon ? entity.treeItem.iconPath.id : undefined,
 					description: entity.treeItem.description,
-					tooltip: entity.treeItem.tooltip,
+					tooltip: serializeTooltip(entity.treeItem.tooltip),
 					accessibilityLabel: entity.treeItem.accessibilityInformation?.label,
 					collapsibleState: entity.treeItem.collapsibleState,
 					command: entity.treeItem.command,
@@ -262,23 +262,23 @@ suite('Changed entities view', () => {
 					label: member.treeItem.label,
 					icon: member.treeItem.iconPath instanceof vscode.ThemeIcon ? member.treeItem.iconPath.id : undefined,
 					description: member.treeItem.description,
-					tooltip: member.treeItem.tooltip,
+					tooltip: serializeTooltip(member.treeItem.tooltip),
 					accessibilityLabel: member.treeItem.accessibilityInformation?.label,
 				})),
 				members: members.map(member => ({
 					label: member.treeItem.label,
 					icon: member.treeItem.iconPath instanceof vscode.ThemeIcon ? member.treeItem.iconPath.id : undefined,
 					description: member.treeItem.description,
-					tooltip: member.treeItem.tooltip,
+					tooltip: serializeTooltip(member.treeItem.tooltip),
 					accessibilityLabel: member.treeItem.accessibilityInformation?.label,
 					command: member.treeItem.command,
 				})),
 			}, {
 				fileCount: 1,
 				fileLabel: 'reader.ts',
-				fileDescription: 'src — Cognitive -6, Cyclomatic -4',
-				fileTooltip: 'src\\reader.ts — Cognitive -6, Cyclomatic -4',
-				fileAccessibilityLabel: 'Changed file src\\reader.ts, cognitive complexity decreased by 6, cyclomatic complexity decreased by 4',
+				fileDescription: 'src — CC: [0/-5]',
+				fileTooltip: 'src\\reader.ts — CC: [0/-5]',
+				fileAccessibilityLabel: 'Changed file src\\reader.ts, cognitive complexity unchanged, cyclomatic complexity decreased by 5',
 				fileIcon: 'file',
 				fileRefreshEvents: [true],
 				inputs: [{
@@ -302,22 +302,22 @@ suite('Changed entities view', () => {
 					{
 						label: 'fromOptions',
 						tooltip: undefined,
-						accessibilityLabel: 'ReaderOptions.fromOptions, function, Statement deletion (Test), cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
+						accessibilityLabel: 'ReaderOptions.fromOptions, function, Statement deletion (Test), cognitive complexity unchanged, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
 					},
 					{
 						label: 'listen',
 						tooltip: undefined,
-						accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n). Open diff',
+						accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity changed from O(1) to O(n). Open diff',
 					},
 					{
 						label: 'close',
 						tooltip: undefined,
-						accessibilityLabel: 'Reader.close, method, Declaration addition. Open diff',
+						accessibilityLabel: 'Reader.close, method, Declaration addition, runtime complexity O(n^2). Open diff',
 					},
 					{
 						label: 'read',
 						tooltip: undefined,
-						accessibilityLabel: 'Reader.read, method, Statement deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1). Open diff',
+						accessibilityLabel: 'Reader.read, method, Statement deletion, cognitive complexity decreased by 2, cyclomatic complexity decreased by 3. Open diff',
 					},
 				],
 				explanationInputs: [
@@ -380,18 +380,18 @@ suite('Changed entities view', () => {
 					{
 						label: 'ReaderOptions',
 						icon: 'symbol-namespace',
-						description: 'Cognitive -4, Cyclomatic -5',
-						tooltip: 'ReaderOptions — Cognitive -4, Cyclomatic -5',
-						accessibilityLabel: 'ReaderOptions, namespace changed entity group, cognitive complexity decreased by 4, cyclomatic complexity decreased by 5',
+						description: 'CC: [0/-5]',
+						tooltip: 'ReaderOptions — CC: [0/-5]',
+						accessibilityLabel: 'ReaderOptions, namespace changed entity group, cognitive complexity unchanged, cyclomatic complexity decreased by 5',
 						collapsibleState: 2,
 						command: undefined,
 					},
 					{
 						label: 'Reader',
 						icon: 'symbol-class',
-						description: 'Cognitive -2, Cyclomatic +1',
-						tooltip: 'Reader — Cognitive -2, Cyclomatic +1',
-						accessibilityLabel: 'Reader, class changed entity group, cognitive complexity decreased by 2, cyclomatic complexity increased by 1',
+						description: undefined,
+						tooltip: 'Reader',
+						accessibilityLabel: 'Reader, class changed entity group',
 						collapsibleState: 2,
 						command: undefined,
 					},
@@ -399,17 +399,27 @@ suite('Changed entities view', () => {
 				namespaceMembers: [{
 					label: 'fromOptions',
 					icon: 'symbol-function',
-					description: 'Statement deletion (Test) — Cognitive -4, Cyclomatic -5, Runtime O(n log n)',
-					tooltip: 'ReaderOptions.fromOptions — Statement deletion (Test) — Cognitive -4, Cyclomatic -5, Runtime O(n log n)\n\nRemoved the decoder registration logic.',
-					accessibilityLabel: 'ReaderOptions.fromOptions, function, Statement deletion (Test), cognitive complexity decreased by 4, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
+					description: 'Statement deletion (Test) — CC: [0/-5], Runtime: O(n log n)',
+					tooltip: {
+						markdown: '**ReaderOptions.fromOptions — Statement deletion (Test) — CC: [0/-5], Runtime: O(n log n)**\n\nRemoved the decoder registration logic.',
+						isTrusted: false,
+						supportHtml: false,
+						supportThemeIcons: false,
+					},
+					accessibilityLabel: 'ReaderOptions.fromOptions, function, Statement deletion (Test), cognitive complexity unchanged, cyclomatic complexity decreased by 5, runtime complexity O(n log n). Open diff',
 				}],
 				members: [
 					{
 						label: 'listen',
 						icon: 'symbol-method',
-						description: 'Signature change, Statement addition — Cognitive +2, Cyclomatic +3, Runtime O(n)',
-						tooltip: 'Reader.listen — Signature change, Statement addition — Cognitive +2, Cyclomatic +3, Runtime O(n)\n\nAdded an optional options parameter.\n\nAdded logging when listening starts.',
-						accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity O(n). Open diff',
+						description: 'Signature change, Statement addition — CC: [+2/+3], Runtime: O(1) -> O(n)',
+						tooltip: {
+							markdown: '**Reader.listen — Signature change, Statement addition — CC: [+2/+3], Runtime: O(1) -> O(n)**\n\nAdded an optional options parameter.\n\nAdded logging when listening starts.',
+							isTrusted: false,
+							supportHtml: false,
+							supportThemeIcons: false,
+						},
+						accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity changed from O(1) to O(n). Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -419,9 +429,14 @@ suite('Changed entities view', () => {
 					{
 						label: 'close',
 						icon: 'symbol-method',
-						description: 'Declaration addition',
-						tooltip: 'Reader.close — Declaration addition\n\nAdded a close method.',
-						accessibilityLabel: 'Reader.close, method, Declaration addition. Open diff',
+						description: 'Declaration addition — Runtime: O(n^2)',
+						tooltip: {
+							markdown: '**Reader.close — Declaration addition — Runtime: O(n^2)**\n\nAdded a close method.',
+							isTrusted: false,
+							supportHtml: false,
+							supportThemeIcons: false,
+						},
+						accessibilityLabel: 'Reader.close, method, Declaration addition, runtime complexity O(n^2). Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -431,9 +446,14 @@ suite('Changed entities view', () => {
 					{
 						label: 'read',
 						icon: 'symbol-method',
-						description: 'Statement deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)',
-						tooltip: 'Reader.read — Statement deletion — Cognitive -4, Cyclomatic -2, Runtime O(1)\n\nRemoved the read logic.',
-						accessibilityLabel: 'Reader.read, method, Statement deletion, cognitive complexity decreased by 4, cyclomatic complexity decreased by 2, runtime complexity O(1). Open diff',
+						description: 'Statement deletion — CC: [-2/-3]',
+						tooltip: {
+							markdown: '**Reader.read — Statement deletion — CC: [-2/-3]**\n\nRemoved the read logic.',
+							isTrusted: false,
+							supportHtml: false,
+							supportThemeIcons: false,
+						},
+						accessibilityLabel: 'Reader.read, method, Statement deletion, cognitive complexity decreased by 2, cyclomatic complexity decreased by 3. Open diff',
 						command: {
 							command: 'github.copilot.openChangedEntityDiff',
 							title: 'Open Entity Diff',
@@ -490,5 +510,21 @@ function coverage(classification: TypeScriptChangeClassification, range: { reado
 		classification,
 		ranges: [range],
 		tags,
+	};
+}
+
+function serializeTooltip(tooltip: vscode.TreeItem['tooltip']): string | { markdown: string; isTrusted: vscode.MarkdownString['isTrusted']; supportHtml: boolean | undefined; supportThemeIcons: boolean | undefined } | undefined {
+	if (!(tooltip instanceof vscode.MarkdownString)) {
+		return tooltip;
+	}
+	return {
+		markdown: tooltip.value
+			.replaceAll('&nbsp;', ' ')
+			.replaceAll('\\-', '-')
+			.replaceAll('\\>', '>')
+			.replace(/\\([\\`*_{}[\]()#+!~])/g, '$1'),
+		isTrusted: tooltip.isTrusted,
+		supportHtml: tooltip.supportHtml,
+		supportThemeIcons: tooltip.supportThemeIcons,
 	};
 }

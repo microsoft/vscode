@@ -206,7 +206,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 
 			const entityItems = createEntityTreeItems(file.id, file.uri.fsPath, entities);
 			const fileComplexity = rollUpComplexity(undefined, entityItems);
-			if (fileComplexity !== undefined) {
+			if (fileComplexity !== undefined && hasComplexityDelta(fileComplexity)) {
 				file.setComplexityRollup(fileComplexity);
 				this.changeEmitter.fire(file);
 			}
@@ -263,7 +263,11 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 		}
 		for (const [key, entity] of result) {
 			if (changesAffectCode(entity.changes)) {
-				entity.metrics = computeChangeMetrics(modifiedMetrics.get(key), originalMetrics.get(key));
+				entity.metrics = computeChangeMetrics(
+					modifiedMetrics.get(key),
+					originalMetrics.get(key),
+					changesAffectStatements(entity.changes),
+				);
 			}
 		}
 		return Array.from(result.values()).sort((left, right) => left.rangeStart - right.rangeStart);
@@ -348,6 +352,9 @@ class ChangedFileItem {
 	setComplexityRollup(complexity: ComplexityDelta): void {
 		const metricsDescription = formatMetrics(complexity, undefined);
 		const accessibleMetricsDescription = formatAccessibleMetrics(complexity, undefined);
+		if (metricsDescription === undefined || accessibleMetricsDescription === undefined) {
+			return;
+		}
 		this.treeItem.description = this.directory === undefined
 			? metricsDescription
 			: l10n.t`${this.directory} — ${metricsDescription}`;
@@ -384,8 +391,13 @@ interface ComplexityDelta {
 }
 
 interface EntityChangeMetrics {
-	readonly complexity: ComplexityDelta;
-	readonly runtimeComplexity: string;
+	readonly complexity: ComplexityDelta | undefined;
+	readonly runtimeComplexity: RuntimeComplexityChange | undefined;
+}
+
+interface RuntimeComplexityChange {
+	readonly original: string | undefined;
+	readonly modified: string | undefined;
 }
 
 interface EntityChangeExplanation {
@@ -426,12 +438,8 @@ class ChangedEntityItem {
 		const fullLabel = node.path.length === 0 ? node.label : node.path.join('.');
 		this.tooltipLabel = fullLabel;
 		const kindLabel = getEntityKindLabel(node.kind);
-		const metricsDescription = this.complexityRollup === undefined
-			? undefined
-			: formatMetrics(this.complexityRollup, node.entity?.metrics?.runtimeComplexity);
-		const accessibleMetricsDescription = this.complexityRollup === undefined
-			? undefined
-			: formatAccessibleMetrics(this.complexityRollup, node.entity?.metrics?.runtimeComplexity);
+		const metricsDescription = formatMetrics(this.complexityRollup, node.entity?.metrics?.runtimeComplexity);
+		const accessibleMetricsDescription = formatAccessibleMetrics(this.complexityRollup, node.entity?.metrics?.runtimeComplexity);
 		if (node.entity === undefined) {
 			this.treeItem.description = metricsDescription;
 			this.treeItem.tooltip = metricsDescription === undefined ? fullLabel : l10n.t`${fullLabel} — ${metricsDescription}`;
@@ -454,7 +462,7 @@ class ChangedEntityItem {
 			? changesDescription
 			: l10n.t`${changesDescription}, ${accessibleMetricsDescription}`;
 		this.treeItem.description = description;
-		this.fallbackTooltip = formatEntityTooltip(fullLabel, description, []);
+		this.fallbackTooltip = formatEntityTooltipCaption(fullLabel, description);
 		this.tooltipDescription = description;
 		this.treeItem.contextValue = 'copilotChangedEntity';
 		this.treeItem.accessibilityInformation = {
@@ -475,7 +483,7 @@ class ChangedEntityItem {
 		return this.explanationRequests.length > 0;
 	}
 
-	async resolveTooltip(codeReviewService: ICodeReviewService, token: vscode.CancellationToken): Promise<string> {
+	async resolveTooltip(codeReviewService: ICodeReviewService, token: vscode.CancellationToken): Promise<string | vscode.MarkdownString> {
 		const explanations = await codeReviewService.explainChanges({
 			filePath: this.filePath,
 			changes: this.explanationRequests.map(request => request.request),
@@ -486,16 +494,14 @@ class ChangedEntityItem {
 		if (this.tooltipDescription === undefined) {
 			return this.fallbackTooltip;
 		}
-
 		const explanationsById = new Map(explanations.map(explanation => [explanation.id, explanation.explanation]));
-		return formatEntityTooltip(
-			this.tooltipLabel,
-			this.tooltipDescription,
-			this.explanationRequests.flatMap(request => {
-				const explanation = explanationsById.get(request.request.id);
-				return explanation === undefined ? [] : [{ change: request.change, explanation }];
-			}),
-		);
+		const resolvedExplanations = this.explanationRequests.flatMap(request => {
+			const explanation = explanationsById.get(request.request.id);
+			return explanation === undefined ? [] : [{ change: request.change, explanation }];
+		});
+		return resolvedExplanations.length === 0
+			? this.fallbackTooltip
+			: formatEntityTooltip(this.tooltipLabel, this.tooltipDescription, resolvedExplanations);
 	}
 }
 
@@ -578,27 +584,37 @@ function affectsCode(bucket: TypeScriptChangeBucket): boolean {
 }
 
 function changesAffectCode(changes: readonly ClassifiedChange[]): boolean {
+	return changes.some(change => change.classifications.some(classification =>
+		classification.classification === TypeScriptChangeClassification.Statement
+		|| classification.classification === TypeScriptChangeClassification.Declaration));
+}
+
+function changesAffectStatements(changes: readonly ClassifiedChange[]): boolean {
 	return changes.some(change => change.classifications.some(classification => classification.classification === TypeScriptChangeClassification.Statement));
 }
 
-function computeChangeMetrics(modified: TypeScriptMetrics | undefined, original: TypeScriptMetrics | undefined): EntityChangeMetrics | undefined {
-	const runtimeComplexity = modified?.runtimeComplexity ?? original?.runtimeComplexity;
-	if (runtimeComplexity === undefined) {
+function computeChangeMetrics(modified: TypeScriptMetrics | undefined, original: TypeScriptMetrics | undefined, includeComplexity: boolean): EntityChangeMetrics | undefined {
+	if (modified === undefined && original === undefined) {
 		return undefined;
 	}
+	const runtimeComplexity = modified?.runtimeComplexity === original?.runtimeComplexity
+		? undefined
+		: { original: original?.runtimeComplexity, modified: modified?.runtimeComplexity };
 	return {
-		complexity: {
-			cognitiveComplexity: (modified?.cognitiveComplexity ?? 0) - (original?.cognitiveComplexity ?? 0),
-			cyclomaticComplexity: (modified?.cyclomaticComplexity ?? 0) - (original?.cyclomaticComplexity ?? 0),
-		},
+		complexity: includeComplexity
+			? {
+				cognitiveComplexity: (modified?.cognitiveComplexity ?? 0) - (original?.cognitiveComplexity ?? 0),
+				cyclomaticComplexity: (modified?.cyclomaticComplexity ?? 0) - (original?.cyclomaticComplexity ?? 0),
+			}
+			: undefined,
 		runtimeComplexity,
 	};
 }
 
 function rollUpComplexity(metrics: EntityChangeMetrics | undefined, children: readonly ChangedEntityItem[]): ComplexityDelta | undefined {
-	let cognitiveComplexity = metrics?.complexity.cognitiveComplexity ?? 0;
-	let cyclomaticComplexity = metrics?.complexity.cyclomaticComplexity ?? 0;
-	let hasMetrics = metrics !== undefined;
+	let cognitiveComplexity = metrics?.complexity?.cognitiveComplexity ?? 0;
+	let cyclomaticComplexity = metrics?.complexity?.cyclomaticComplexity ?? 0;
+	let hasMetrics = metrics?.complexity !== undefined;
 	for (const child of children) {
 		if (child.complexityRollup !== undefined) {
 			hasMetrics = true;
@@ -609,18 +625,52 @@ function rollUpComplexity(metrics: EntityChangeMetrics | undefined, children: re
 	return hasMetrics ? { cognitiveComplexity, cyclomaticComplexity } : undefined;
 }
 
-function formatMetrics(complexity: ComplexityDelta, runtimeComplexity: string | undefined): string {
-	const complexityDescription = l10n.t`Cognitive ${formatDelta(complexity.cognitiveComplexity)}, Cyclomatic ${formatDelta(complexity.cyclomaticComplexity)}`;
-	return runtimeComplexity === undefined
-		? complexityDescription
-		: l10n.t`${complexityDescription}, Runtime ${runtimeComplexity}`;
+function formatMetrics(complexity: ComplexityDelta | undefined, runtimeComplexity: RuntimeComplexityChange | undefined): string | undefined {
+	const parts: string[] = [];
+	if (complexity !== undefined && hasComplexityDelta(complexity)) {
+		parts.push(l10n.t`CC: [${formatDelta(complexity.cognitiveComplexity)}/${formatDelta(complexity.cyclomaticComplexity)}]`);
+	}
+	if (runtimeComplexity !== undefined) {
+		parts.push(formatRuntimeComplexity(runtimeComplexity));
+	}
+	return parts.length === 0 ? undefined : parts.join(', ');
 }
 
-function formatAccessibleMetrics(complexity: ComplexityDelta, runtimeComplexity: string | undefined): string {
-	const complexityDescription = l10n.t`cognitive complexity ${formatAccessibleDelta(complexity.cognitiveComplexity)}, cyclomatic complexity ${formatAccessibleDelta(complexity.cyclomaticComplexity)}`;
-	return runtimeComplexity === undefined
-		? complexityDescription
-		: l10n.t`${complexityDescription}, runtime complexity ${runtimeComplexity}`;
+function formatAccessibleMetrics(complexity: ComplexityDelta | undefined, runtimeComplexity: RuntimeComplexityChange | undefined): string | undefined {
+	const parts: string[] = [];
+	if (complexity !== undefined && hasComplexityDelta(complexity)) {
+		parts.push(l10n.t`cognitive complexity ${formatAccessibleDelta(complexity.cognitiveComplexity)}, cyclomatic complexity ${formatAccessibleDelta(complexity.cyclomaticComplexity)}`);
+	}
+	if (runtimeComplexity !== undefined) {
+		parts.push(formatAccessibleRuntimeComplexity(runtimeComplexity));
+	}
+	return parts.length === 0 ? undefined : parts.join(', ');
+}
+
+function hasComplexityDelta(complexity: ComplexityDelta): boolean {
+	return complexity.cognitiveComplexity !== 0 || complexity.cyclomaticComplexity !== 0;
+}
+
+function formatRuntimeComplexity(runtime: RuntimeComplexityChange): string {
+	if (runtime.original !== undefined && runtime.modified !== undefined) {
+		return l10n.t`Runtime: ${runtime.original} -> ${runtime.modified}`;
+	}
+	return l10n.t`Runtime: ${getOneSidedRuntimeComplexity(runtime)}`;
+}
+
+function formatAccessibleRuntimeComplexity(runtime: RuntimeComplexityChange): string {
+	if (runtime.original !== undefined && runtime.modified !== undefined) {
+		return l10n.t`runtime complexity changed from ${runtime.original} to ${runtime.modified}`;
+	}
+	return l10n.t`runtime complexity ${getOneSidedRuntimeComplexity(runtime)}`;
+}
+
+function getOneSidedRuntimeComplexity(runtime: RuntimeComplexityChange): string {
+	const value = runtime.modified ?? runtime.original;
+	if (value === undefined) {
+		throw new Error('Runtime complexity change must contain an original or modified value');
+	}
+	return value;
 }
 
 function formatDelta(value: number): string {
@@ -637,12 +687,22 @@ function formatAccessibleDelta(value: number): string {
 	return l10n.t`unchanged`;
 }
 
-function formatEntityTooltip(fullLabel: string, description: string, explanations: readonly EntityChangeExplanation[]): string {
-	if (explanations.length === 0) {
-		return l10n.t`${fullLabel} — ${description}`;
+function formatEntityTooltipCaption(fullLabel: string, description: string): string {
+	return l10n.t`${fullLabel} — ${description}`;
+}
+
+function formatEntityTooltip(fullLabel: string, description: string, explanations: readonly EntityChangeExplanation[]): vscode.MarkdownString {
+	const tooltip = new vscode.MarkdownString(undefined, false);
+	tooltip.isTrusted = false;
+	tooltip.supportHtml = false;
+	tooltip.appendMarkdown('**');
+	tooltip.appendText(formatEntityTooltipCaption(fullLabel, description));
+	tooltip.appendMarkdown('**');
+	for (const explanation of explanations) {
+		tooltip.appendMarkdown('\n\n');
+		tooltip.appendText(explanation.explanation);
 	}
-	const explanationLines = explanations.map(explanation => explanation.explanation);
-	return [l10n.t`${fullLabel} — ${description}`, ...explanationLines].join('\n\n');
+	return tooltip;
 }
 
 class MessageItem {
