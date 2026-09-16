@@ -88,25 +88,42 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
-function probeLinuxDocker(): { readonly available: boolean; readonly reason?: string } {
-	const result = cp.spawnSync('docker', ['info', '--format', '{{.OSType}}'], {
-		encoding: 'utf8',
-		timeout: 15_000,
-		windowsHide: true,
+const DOCKER_PROBE_TIMEOUT_MS = 60_000;
+
+function probeLinuxDocker(): Promise<{ readonly available: boolean; readonly reason?: string }> {
+	return new Promise(resolve => {
+		cp.execFile('docker', ['info', '--format', '{{.OSType}}'], {
+			encoding: 'utf8',
+			timeout: DOCKER_PROBE_TIMEOUT_MS,
+			windowsHide: true,
+		}, (error, stdout, stderr) => {
+			const operatingSystem = stdout.trim().toLowerCase();
+			resolve(!error && operatingSystem === 'linux'
+				? { available: true }
+				: {
+					available: false,
+					reason: error?.message
+						?? (stderr.trim() || undefined)
+						?? `Docker daemon reports '${operatingSystem || 'unknown'}' containers`,
+				});
+		});
 	});
-	const operatingSystem = result.stdout?.trim().toLowerCase() ?? '';
-	if (result.status === 0 && operatingSystem === 'linux') {
-		return { available: true };
-	}
-	const stderr = result.stderr?.trim() ?? '';
-	return {
-		available: false,
-		reason: result.error?.message
-			?? (stderr || undefined)
-			?? (operatingSystem
-				? `Docker daemon reports '${operatingSystem}' containers`
-				: `docker info exited with code ${result.status ?? 'unknown'}`),
-	};
+}
+
+function installDockerPrerequisite(logger: Logger, required: boolean): void {
+	before('check Linux Docker availability', async function () {
+		this.timeout(DOCKER_PROBE_TIMEOUT_MS + 15_000);
+		const label = this.test?.parent?.title ?? 'Dev Container';
+		const start = Date.now();
+		logger.log(`${label}: checking Linux Docker availability (timeout ${DOCKER_PROBE_TIMEOUT_MS}ms)`);
+		const docker = await probeLinuxDocker();
+		logger.log(`${label}: Docker probe completed in ${Date.now() - start}ms: ${docker.available ? 'available' : docker.reason}`);
+		if (!docker.available && !required) {
+			logger.log(`Skipping ${label}: ${docker.reason}`);
+			this.skip();
+		}
+		assert.ok(docker.available, `Expected a reachable Linux Docker daemon: ${docker.reason}`);
+	});
 }
 
 export function setup(logger: Logger) {
@@ -183,17 +200,8 @@ export function setup(logger: Logger) {
 
 	});
 
-	const linuxDocker = probeLinuxDocker();
-	const runDevContainerSuite = linuxDocker.available || process.platform === 'linux';
-	if (!linuxDocker.available) {
-		logger.log(process.platform === 'linux'
-			? `Linux Docker probe failed: ${linuxDocker.reason}`
-			: `Skipping Agents Window (Dev Container AgentHost): ${linuxDocker.reason}`);
-	}
-	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container AgentHost)', () => {
-		if (process.platform === 'linux') {
-			before(() => assert.ok(linuxDocker.available, `Expected a reachable Linux Docker daemon: ${linuxDocker.reason}`));
-		}
+	describe('Agents Window (Dev Container AgentHost)', () => {
+		installDockerPrerequisite(logger, process.platform === 'linux');
 
 		const devContainer = setupAgentHostSuite(logger, {
 			serverLabel: 'Dev Container AgentHost',
@@ -212,7 +220,6 @@ export function setup(logger: Logger) {
 
 		it('Starts a session in a Dev Container', async function () {
 			this.timeout(10 * 60 * 1000);
-			cp.execFileSync('docker', ['info'], { stdio: 'pipe' });
 			const app = this.app as Application;
 
 			try {
@@ -256,13 +263,13 @@ export function setup(logger: Logger) {
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
 		const supportedPlatform = process.platform !== 'win32' && (!isCI || process.platform === 'linux');
 		const tunnelRequested = transport === 'ssh' || !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN;
-		const enabled = supportedPlatform && tunnelRequested && (runDevContainerSuite || transport === 'tunnel');
+		const enabled = supportedPlatform && tunnelRequested;
 		if (!enabled) {
-			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : !tunnelRequested ? 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture' : linuxDocker.reason}`);
+			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
 		}
 		(enabled ? describe : describe.skip)(`Agents Window (${label} Dev Container AgentHost)`, () => {
+			installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
 			before(() => {
-				assert.ok(linuxDocker.available, `Expected a reachable Linux Docker daemon: ${linuxDocker.reason}`);
 				if (transport === 'tunnel') {
 					const availability = getTunnelSmokeTestAvailability();
 					assert.ok(availability.available, availability.reason);

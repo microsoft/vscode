@@ -73,6 +73,8 @@ npm run watch
 
 The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. Remote-container suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.
 
+Each selected Dev Container suite checks Docker in its first setup hook, before starting fixture resources, with a fresh `docker info` probe and a 60-second timeout. The probe runs asynchronously and logs its elapsed time and failure reason. Filtered-out suites do not probe Docker. Missing Docker fails the suite on Linux and for an explicitly requested Tunnel test; optional local runs on other platforms are skipped.
+
 Run the local and SSH Dev Container cases:
 
 ```bash
