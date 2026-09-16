@@ -16,11 +16,14 @@ import { isResourceMultiDiffEditorInput } from '../../../../../../common/editor.
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
@@ -228,6 +231,38 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
+		test('logs telemetry when the user toggles the header', () => {
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				readonly events: { readonly name: string; readonly data: unknown }[] = [];
+				override publicLog2(eventName?: string, data?: unknown): void {
+					if (eventName) {
+						this.events.push({ name: eventName, data });
+					}
+				}
+			}();
+			instantiationService.stub(ITelemetryService, telemetryService);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Analyzing code**'),
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			button.click();
+			button.click();
+
+			assert.deepStrictEqual(telemetryService.events, [
+				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: false, thinkingStyle: ThinkingDisplayMode.Collapsed, inThinking: false } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: true, thinkingStyle: ThinkingDisplayMode.Collapsed, inThinking: false } },
+			]);
+		});
+
 		test('should have chat-thinking-box class', () => {
 			const content = createThinkingPart('**Processing**');
 			const context = createMockRenderContext(false);
@@ -352,6 +387,38 @@ suite('ChatThinkingContentPart', () => {
 				expandedAfterToggle: 'true',
 			});
 		});
+	});
+
+	suite('Read-only chats', () => {
+		for (const configuredMode of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
+			test(`uses collapsed preview instead of ${configuredMode} without changing the setting`, () => {
+				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
+				const states = [false, true].map(isComplete => {
+					const part = store.add(instantiationService.createInstance(
+						ChatThinkingContentPart,
+						createThinkingPart('**Reviewing changes**\nChecking the implementation'),
+						{ ...createMockRenderContext(isComplete), readOnly: true },
+						mockMarkdownRenderer,
+						isComplete,
+					));
+					return {
+						collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+						fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
+					};
+				});
+
+				assert.deepStrictEqual({
+					states,
+					configuredMode: mockConfigurationService.getValue(ChatConfiguration.ThinkingStyle),
+				}, {
+					states: [
+						{ collapsed: false, fixedScrolling: false },
+						{ collapsed: true, fixedScrolling: false },
+					],
+					configuredMode,
+				});
+			});
+		}
 	});
 
 	suite('ThinkingDisplayMode.CollapsedPreview', () => {
@@ -1282,6 +1349,54 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 		});
 
+		for (const expanded of [false, true]) {
+			test(`transfers retained tool ownership between rebuilt groups (expanded=${expanded})`, () => {
+				const createGroup = () => disposables.add(instantiationService.createInstance(
+					ChatThinkingContentPart, createThinkingPart('**Working**'), createMockRenderContext(), mockMarkdownRenderer, false,
+				));
+				const first = createGroup();
+				const second = createGroup();
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Checking work' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'tool-call', undefined, {},
+				);
+				let disposeCount = 0;
+				let renderCount = 0;
+				const toolPart = disposables.add(toDisposable(() => disposeCount++));
+				const toolNode = $('div', undefined, 'Tool result');
+				const render = () => {
+					renderCount++;
+					return { domNode: toolNode, disposable: toolPart };
+				};
+				first.appendItem(render, tool.toolId, tool, undefined, undefined, toolPart);
+				if (expanded) {
+					first.expandContent();
+				}
+
+				const detachedPart = first.detachToolPart(tool.toolCallId);
+				second.appendItem(render, tool.toolId, tool, undefined, undefined, detachedPart);
+				first.dispose();
+				const disposedWithFirstGroup = disposeCount;
+				if (expanded) {
+					second.expandContent();
+				}
+				second.dispose();
+
+				assert.deepStrictEqual({
+					detachedOriginal: detachedPart === toolPart,
+					disposedWithFirstGroup,
+					disposedWithSecondGroup: disposeCount,
+					renderCount,
+				}, {
+					detachedOriginal: true,
+					disposedWithFirstGroup: 0,
+					disposedWithSecondGroup: 1,
+					renderCount: expanded ? 2 : 0,
+				});
+			});
+		}
+
 		test('appendItem should use lazy rendering when collapsed', () => {
 			const content = createThinkingPart('**Working**');
 			const context = createMockRenderContext(false);
@@ -2026,24 +2141,47 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(result, true, 'Should accept tool invocations as same content');
 		});
 
-		test('should return false when a tool becomes a parent subagent', () => {
-			const content = createThinkingPart('**Working**', 'id-1');
-			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
-			const toolInvocation = {
-				kind: 'toolInvocation' as const,
-				toolSpecificData: { kind: 'subagent' },
-				subAgentInvocationId: undefined,
-			} as unknown as IChatRendererContent;
+		for (const isComplete of [false, true]) {
+			for (const serialized of [false, true]) {
+				test(`should replace thinking when a tool becomes a parent subagent (complete=${isComplete}, serialized=${serialized})`, () => {
+					const content = createThinkingPart('**Working**', 'id-1');
+					const context = createMockRenderContext(isComplete);
+					const part = store.add(instantiationService.createInstance(
+						ChatThinkingContentPart,
+						content,
+						context,
+						mockMarkdownRenderer,
+						false
+					));
+					const invocation = new ChatToolInvocation(
+						{ toolSpecificData: { kind: 'subagent' } },
+						{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+						'launch', undefined, { mode: 'background' },
+					);
 
-			assert.strictEqual(part.hasSameContent(toolInvocation, [], context.element), false);
-		});
+					assert.strictEqual(part.hasSameContent(serialized ? invocation.toJSON() : invocation, [], context.element), false);
+				});
+			}
+
+			test(`should preserve thinking for ordinary and nested tools (complete=${isComplete})`, () => {
+				const context = createMockRenderContext(isComplete);
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					createThinkingPart('**Working**', 'id-1'),
+					context,
+					mockMarkdownRenderer,
+					false
+				));
+				const toolData = { id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
+				const ordinary = new ChatToolInvocation(undefined, toolData, 'ordinary', undefined, {});
+				const nested = new ChatToolInvocation({ toolSpecificData: { kind: 'subagent' } }, toolData, 'nested', 'parent', {});
+
+				assert.deepStrictEqual(
+					[ordinary, ordinary.toJSON(), nested, nested.toJSON()].map(invocation => part.hasSameContent(invocation, [], context.element)),
+					[true, true, true, true],
+				);
+			});
+		}
 
 		test('should return true for markdown content', () => {
 			const content = createThinkingPart('**Working**', 'id-1');

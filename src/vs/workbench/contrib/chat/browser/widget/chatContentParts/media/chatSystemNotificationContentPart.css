@@ -61,6 +61,45 @@
 	display: none;
 }
 
+.chat-workspace-transition {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	width: 100%;
+	margin: var(--vscode-spacing-size160) 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.chat-workspace-transition-line {
+	flex: 1;
+	height: var(--vscode-strokeThickness);
+	background-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
+}
+
+.chat-workspace-transition-line:first-child {
+	mask-image: linear-gradient(to right, transparent, black);
+	-webkit-mask-image: linear-gradient(to right, transparent, black);
+}
+
+.chat-workspace-transition-line:last-child {
+	mask-image: linear-gradient(to left, transparent, black);
+	-webkit-mask-image: linear-gradient(to left, transparent, black);
+}
+
+.chat-workspace-transition-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-workspace-transition .chat-workspace-transition-label .chat-workspace-transition-icon.codicon {
+	margin-inline: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize-compact);
+	vertical-align: text-bottom;
+}
+
 .chat-system-notification-layout {
 	display: flex;
 	align-items: last baseline;

@@ -91,15 +91,19 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10);
 		const exported = await retry(async () => {
 			const contents = await readFile(exportFile, 'utf8').catch(() => '');
+			const sdkSpanExported = contents.split('\n').some(line =>
+				line.includes('"name":"invoke_agent"')
+				&& line.includes('"gen_ai.operation.name":"invoke_agent"')
+				&& line.includes('"service.name":"github-copilot"')
+			);
 			if (!contents.includes('"traceId"')
 				|| !contents.includes('"spanId"')
 				|| !contents.includes('vscode.agent_host.session.title_changed')
-				|| !contents.includes('"name":"invoke_agent"')
-				|| !contents.includes('"service.name":"github-copilot"')) {
+				|| !sdkSpanExported) {
 				throw new Error(`OTel spans have not reached the file exporter: ${contents}`);
 			}
 			return contents;
-		}, 100, 100);
+		}, 250, 240);
 
 		assert.ok(exported.split('\n').filter(Boolean).length > 0);
 	});

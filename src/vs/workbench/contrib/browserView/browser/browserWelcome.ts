@@ -19,7 +19,7 @@ export function createBrowserWelcome(title: string, subtitle: string): HTMLEleme
 	iconContainer.appendChild(renderIcon(Codicon.globe));
 	content.appendChild(iconContainer);
 
-	const titleElement = $('.browser-welcome-title');
+	const titleElement = $('h2.browser-welcome-title');
 	titleElement.textContent = title;
 	content.appendChild(titleElement);
 

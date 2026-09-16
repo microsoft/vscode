@@ -12,7 +12,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
@@ -125,7 +124,7 @@ suite('AutomationSchedulerCore', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 		const runner = new RecordingRunner(service);
 		// Start as non-leader so individual tests can seed automations
 		// before triggering the leader's catch-up pass.
@@ -156,7 +155,7 @@ suite('AutomationSchedulerCore', () => {
 	test('does not dispatch automations whose provider owns scheduling', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new HostScheduledAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const service = teardown.add(new HostScheduledAutomationService(storage, log, new TestAutomationStorageService(storage)));
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(false);
 		let now = T0;
@@ -240,7 +239,7 @@ suite('AutomationSchedulerCore', () => {
 	test('does not report a run until the runner records its claim', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 		service.setClockForTesting(() => T0);
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const leader = new FakeLeaderElection(false);
@@ -270,7 +269,7 @@ suite('AutomationSchedulerCore', () => {
 	test('retries a still-due automation when target availability changes', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 		service.setClockForTesting(() => T0);
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const runner = new SkippingRunner();
@@ -320,13 +319,13 @@ suite('AutomationSchedulerCore', () => {
 	test('on becoming leader, fails any leftover pending/running runs as crash recovery', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const firstService = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const firstService = teardown.add(createAutomationService(storage, log));
 		firstService.setClockForTesting(() => T0);
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const run = (await firstService.recordRunStart(a.id, 'manual', 1)).run;
 		firstService.dispose();
 
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 		service.setClockForTesting(() => T0);
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
@@ -368,7 +367,7 @@ suite('AutomationSchedulerCore', () => {
 	test('leadership transitions activate and deactivate stale-run recovery', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new RecordingRecoveryAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const service = teardown.add(new RecordingRecoveryAutomationService(storage, log, new TestAutomationStorageService(storage)));
 		const leader = new FakeLeaderElection(false);
 		const core = teardown.add(new AutomationSchedulerCore(service, new RecordingRunner(service), storage, log, {
 			leaderElection: leader,
@@ -397,7 +396,7 @@ suite('AutomationSchedulerCore', () => {
 		// runs that were active across the toggle.
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 		service.setClockForTesting(() => T0);
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const inFlight = (await service.recordRunStart(a.id, 'schedule', 1)).run;
@@ -436,7 +435,7 @@ suite('AutomationSchedulerCore', () => {
 	test('runOneWithTimeout: a hung run is cancelled, marked failed, and the next due automation still fires', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 
 		let now = T0;
 		service.setClockForTesting(() => now);

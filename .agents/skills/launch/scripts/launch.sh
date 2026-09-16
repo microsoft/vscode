@@ -196,9 +196,9 @@ if [[ -n "$SESSION_TITLE" ]]; then
 fi
 PROFILE_READY_MS=$(monotonic_ms)
 
-# Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
-# terminal / agent runtimes; it breaks ./scripts/code.sh.
-unset ELECTRON_RUN_AS_NODE
+# Strip host-only process configuration commonly inherited from VS Code's
+# integrated terminal and agent runtimes.
+unset ELECTRON_RUN_AS_NODE GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 
 CODE_SH="$REPO/scripts/code.sh"
 if [[ ! -x "$CODE_SH" ]]; then
@@ -221,7 +221,8 @@ fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
 	if [[ -n "$SESSION_TITLE" ]]; then
-		ARGS+=("--session-title=$SESSION_TITLE")
+		SESSION_TITLE_BASE64=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' -- "$SESSION_TITLE")
+		ARGS+=("--session-title-base64=$SESSION_TITLE_BASE64")
 	fi
 fi
 if (( ${#EXTRA_ARGS[@]} )); then

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type { Terminal } from '@xterm/xterm';
 import { importAMDNodeModule } from '../../../../../../../amdX.js';
+import { scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -15,8 +17,11 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -33,6 +38,7 @@ import { ChatTerminalThinkingCollapsibleWrapper, ChatTerminalToolOutputSection, 
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalInstance, ITerminalService, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
@@ -302,6 +308,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				false,
 				true,
 				undefined,
+				true,
 			));
 			mainWindow.document.body.appendChild(part.domNode);
 			store.add(toDisposable(() => part.domNode.remove()));
@@ -330,6 +337,66 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				containsTerminal: true,
 				hasShowLink: false,
 			});
+		});
+
+		test('logs telemetry when the user toggles the header', () => {
+			const context: IChatContentPartRenderContext = {
+				element: Object.assign(Object.create(null) as IChatResponseViewModel, {
+					id: 'response',
+					sessionResource: URI.parse('chat-session://test/session'),
+				}),
+				elementIndex: 0,
+				container: mainWindow.document.createElement('div'),
+				content: [],
+				contentIndex: 0,
+				inlineTextModels: Object.create(InlineTextModelCollection.prototype) as InlineTextModelCollection,
+				editorPool: Object.create(EditorPool.prototype) as EditorPool,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				diffEditorPool: Object.create(DiffEditorPool.prototype) as DiffEditorPool,
+				currentWidth: observableValue('testWidth', 500),
+				onDidChangeVisibility: Event.None,
+			};
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				readonly events: { readonly name: string; readonly data: unknown }[] = [];
+				override publicLog2(eventName?: string, data?: unknown): void {
+					if (eventName) {
+						this.events.push({ name: eventName, data });
+					}
+				}
+			}();
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(ITelemetryService, telemetryService);
+			const thinkingStyle = instantiationService.get(IConfigurationService).getValue<string>(ChatConfiguration.ThinkingStyle) ?? 'unknown';
+			const part = store.add(instantiationService.createInstance(
+				ChatTerminalThinkingCollapsibleWrapper,
+				'echo test',
+				undefined,
+				false,
+				mainWindow.document.createElement('div'),
+				context,
+				false,
+				false,
+				false,
+				false,
+				undefined,
+				true,
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			store.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			part.expand();
+			button.click();
+			button.click();
+
+			assert.deepStrictEqual(telemetryService.events, [
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: true, thinkingStyle, inThinking: true } },
+				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: true, inThinking: true, thinkingStyle } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'terminal', previousExpanded: false, thinkingStyle, inThinking: true } },
+				{ name: 'terminal/chatThinkingBlockToggle', data: { previousExpanded: false, inThinking: true, thinkingStyle } },
+			]);
 		});
 	});
 
@@ -536,6 +603,8 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 suite('ChatTerminalToolOutputSection layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => sinon.restore());
+
 	// Mounts the real section with the real snapshot mirror over a faked detached terminal,
 	// so the asserted heights are what actually reaches the DOM. Regression coverage for the
 	// sliced-last-row symptom of #328299: the box height must derive from the mirror's
@@ -654,6 +723,119 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 10));
 	});
 
+	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Keep private layout access type-checked without exposing test-only APIs. */
+	test('scans output once after resizing and preserves native reflow', async () => {
+		const text = 'x'.repeat(100);
+		const section = createSection({ text });
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const scan = sinon.spy(scrollable, 'scanDomNode');
+		const fake = fakes[0];
+		const initialColumns = fake.raw.cols;
+		const initialWriteCalls = fake.counters.writeCalls;
+		const results = [];
+
+		for (const width of [220, 800, 800]) {
+			scan.resetHistory();
+			container.style.width = `${width}px`;
+			await section['_handleResize']();
+			const rows = Math.min(10, Math.ceil(text.length / fake.raw.cols));
+			results.push({
+				scans: scan.callCount,
+				narrower: fake.raw.cols < initialColumns,
+				heightMatchesReflow: boxHeight(section) === expectedHeight(section, rows, 20),
+				rewrites: fake.counters.writeCalls - initialWriteCalls,
+			});
+		}
+
+		assert.deepStrictEqual(results, [
+			{ scans: 1, narrower: true, heightMatchesReflow: true, rewrites: 0 },
+			{ scans: 1, narrower: false, heightMatchesReflow: true, rewrites: 0 },
+			{ scans: 1, narrower: false, heightMatchesReflow: true, rewrites: 0 },
+		]);
+	});
+
+	test('scans output once without a mirror and while collapsed', async () => {
+		const section = createSection(undefined);
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const scan = sinon.spy(scrollable, 'scanDomNode');
+
+		await section['_handleResize']();
+		const expandedScans = scan.callCount;
+		await section.toggle(false);
+		scan.resetHistory();
+		await section['_handleResize']();
+
+		assert.deepStrictEqual({ expandedScans, collapsedScans: scan.callCount }, { expandedScans: 1, collapsedScans: 1 });
+	});
+
+	test('keeps the output row cap when reflow does not change the columns', async () => {
+		const section = createSection({ text: 'line\r\n'.repeat(20) });
+		await section.toggle(true);
+		const columns = fakes[0].raw.cols;
+		section.domNode.style.maxHeight = expectedHeight(section, 2, 20);
+
+		await section['_handleResize']();
+
+		assert.deepStrictEqual({
+			columns: fakes[0].raw.cols,
+			height: boxHeight(section),
+		}, {
+			columns,
+			height: expectedHeight(section, 2, 20),
+		});
+	});
+
+	test('does not lay out or scroll after disposal during reflow', async () => {
+		const section = createSection(undefined);
+		await section.toggle(true);
+		const reflow = new DeferredPromise<{ lineCount: number }>();
+		let layouts = 0;
+		let scrolls = 0;
+		section['_layoutMirrorWidth'] = () => reflow.p;
+		section['_layoutOutput'] = () => layouts++;
+		section['_scrollOutputToBottom'] = () => scrolls++;
+
+		const resize = section['_handleResize']();
+		section.dispose();
+		await reflow.complete({ lineCount: 3 });
+		await resize;
+
+		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
+	});
+
+	test('coalesces scheduled output layouts', async () => {
+		const section = createSection(undefined);
+		let layouts = 0;
+		let scrolls = 0;
+		section['_layoutOutput'] = () => layouts++;
+		section['_scrollOutputToBottom'] = () => scrolls++;
+
+		section['_scheduleOutputRelayout']();
+		section['_scheduleOutputRelayout']();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+
+		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 1, scrolls: 1 });
+	});
+
+	test('cancels scheduled output layout on disposal', async () => {
+		const section = createSection(undefined);
+		let layouts = 0;
+		let scrolls = 0;
+		section['_layoutOutput'] = () => layouts++;
+		section['_scrollOutputToBottom'] = () => scrolls++;
+
+		section['_scheduleOutputRelayout']();
+		section.dispose();
+		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+
+		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
+	});
+	/* eslint-enable local/code-no-bracket-notation-for-identifiers */
+
 	test('relayouts when the mirror announces changed cell metrics', async () => {
 		const section = createSection({ text: 'l1\r\nl2\r\nl3' });
 		await section.toggle(true);
@@ -674,6 +856,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		container.appendChild(host);
 		fake.raw.open(host);
 		await renderFired;
+		await timeout(0);
 
 		assert.strictEqual(boxHeight(section), expectedHeight(section, 3, 30));
 	});

@@ -11,16 +11,21 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IDevContainerAgentHostConnector } from '../../../../../common/devContainerAgentHostService.js';
 import { DevContainerAgentHostService } from '../../browser/devContainerAgentHostService.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
@@ -42,6 +47,7 @@ function devContainerAddress(workspaceUri: URI): string {
 }
 
 class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() implements IDisposable {
+	override configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	private readonly _onDidChangeConnections = new Emitter<void>();
 	override readonly onDidChangeConnections = this._onDidChangeConnections.event;
 	private _connections: IRemoteAgentHostConnectionInfo[] = [];
@@ -139,6 +145,10 @@ class TestSessionsProvidersService extends Disposable implements ISessionsProvid
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly id: string;
+	readonly sessionsChangedEmitter = new Emitter<ISessionChangeEvent>();
+	override readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
+	readonly testSession = new class extends mock<ISession>() { }();
+	sessionPublished = false;
 	wiredConnection: IAgentConnection | undefined;
 	defaultDirectory: string | undefined;
 	status = RemoteAgentHostConnectionStatus.disconnected;
@@ -158,16 +168,37 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		this.status = status;
 	}
 
+	override clearConnection(): void {
+		this.wiredConnection = undefined;
+		this.defaultDirectory = undefined;
+	}
+
+	override getSessions(): ISession[] {
+		return this.sessionPublished ? [this.testSession] : [];
+	}
+
+	publishSession(): void {
+		this.sessionPublished = true;
+		this.sessionsChangedEmitter.fire({ added: [this.testSession], removed: [], changed: [] });
+	}
+
 	override dispose(): void {
 		this.disposed = true;
+		this.sessionsChangedEmitter.dispose();
 	}
 }
 
 class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 	provider: TestProvider | undefined;
+	publishSessionOnCreate = false;
+
+	constructor(...args: [IInstantiationService, IRemoteAgentHostService, ISessionsProvidersService, IStorageService]) {
+		super(...args, new class extends mock<IWorkspaceTrustRequestService>() { }());
+	}
 
 	protected override _createProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
 		this.provider = new TestProvider(config);
+		this.provider.sessionPublished = this.publishSessionOnCreate;
 		return this.provider as unknown as RemoteAgentHostSessionsProvider;
 	}
 
@@ -185,6 +216,7 @@ suite('Dev Container Agent Host Service', () => {
 			instantiationService,
 			remoteAgentHostService,
 			sessionsProvidersService,
+			store.add(new InMemoryStorageService()),
 		));
 
 		const sourceWorkspace = URI.file('/source');
@@ -231,7 +263,14 @@ suite('Dev Container Agent Host Service', () => {
 			connectorCalls,
 			entry: remoteAgentHostService.stagedEntry,
 			provider: service.provider && {
-				config: service.provider.config,
+				config: {
+					address: service.provider.config.address,
+					name: service.provider.config.name,
+					devContainerWorktreeScope: service.provider.config.devContainerWorktreeScope,
+					omitHostFromWorkspaceLabel: service.provider.config.omitHostFromWorkspaceLabel,
+					connectOnDemand: !!service.provider.config.connectOnDemand,
+					disconnectOnDemand: !!service.provider.config.disconnectOnDemand,
+				},
 				connected: service.provider.wiredConnection === connection,
 				defaultDirectory: service.provider.defaultDirectory,
 				status: service.provider.status,
@@ -267,10 +306,12 @@ suite('Dev Container Agent Host Service', () => {
 					name: 'Source Dev Container',
 					devContainerWorktreeScope: getComparisonKey(sourceWorkspace),
 					omitHostFromWorkspaceLabel: true,
+					connectOnDemand: true,
+					disconnectOnDemand: true,
 				},
-				connected: true,
-				defaultDirectory: '/workspace',
-				status: RemoteAgentHostConnectionStatus.connected,
+				connected: false,
+				defaultDirectory: undefined,
+				status: RemoteAgentHostConnectionStatus.disconnected,
 				disposed: true,
 			},
 			registeredProviders: [],
@@ -278,6 +319,245 @@ suite('Dev Container Agent Host Service', () => {
 			connectionDisposed: true,
 			transportDisposed: true,
 		});
+	});
+
+	test('restores a disconnected provider and reconnects it on demand', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		const remoteWorkspace = URI.from({
+			scheme: AGENT_HOST_SCHEME,
+			authority: agentHostAuthority(address),
+			path: '/workspaces/source',
+		});
+
+		const firstInstantiationService = store.add(new TestInstantiationService());
+		const firstRemoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const firstSessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const firstService = store.add(new TestDevContainerAgentHostService(
+			firstInstantiationService,
+			firstRemoteAgentHostService,
+			firstSessionsProvidersService,
+			storageService,
+		));
+		firstInstantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		store.add(firstService.registerConnector({
+			isAvailable: async () => true,
+			createConnection: async (_workspaceUri, stagedAddress) => ({
+				address: stagedAddress,
+				name: 'Source Dev Container',
+				transportFactory: () => undefined as never,
+				workspaceUri: remoteWorkspace,
+			}),
+		}));
+		const target = await firstService.connect(sourceWorkspace, CancellationToken.None);
+		firstService.provider?.publishSession();
+		await target.release();
+		firstService.dispose();
+
+		const secondInstantiationService = store.add(new TestInstantiationService());
+		const secondRemoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const secondSessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const secondService = store.add(new TestDevContainerAgentHostService(
+			secondInstantiationService,
+			secondRemoteAgentHostService,
+			secondSessionsProvidersService,
+			storageService,
+		));
+		const restoredProvider = secondService.provider;
+		let connectorCalls = 0;
+		secondInstantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		const reconnect = restoredProvider?.config.connectOnDemand?.();
+		const statusBeforeConnector = restoredProvider?.status;
+		store.add(secondService.registerConnector({
+			isAvailable: async () => true,
+			createConnection: async (_workspaceUri, stagedAddress) => {
+				connectorCalls++;
+				return {
+					address: stagedAddress,
+					name: 'Source Dev Container',
+					transportFactory: () => undefined as never,
+					workspaceUri: remoteWorkspace,
+				};
+			},
+		}));
+		await reconnect;
+
+		assert.deepStrictEqual({
+			restoredProvider: restoredProvider && {
+				id: restoredProvider.id,
+				status: restoredProvider.status,
+				connectOnDemand: !!restoredProvider.config.connectOnDemand,
+			},
+			registeredProviders: secondSessionsProvidersService.getProviders().map(provider => provider.id),
+			reusedProvider: secondService.provider === restoredProvider,
+			connectorCalls,
+			connected: restoredProvider?.wiredConnection !== undefined,
+			statusBeforeConnector,
+			storageTargets: {
+				machine: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
+				user: storageService.keys(StorageScope.APPLICATION, StorageTarget.USER),
+			},
+		}, {
+			restoredProvider: {
+				id: `agenthost-${agentHostAuthority(address)}`,
+				status: RemoteAgentHostConnectionStatus.connected,
+				connectOnDemand: true,
+			},
+			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
+			reusedProvider: true,
+			connectorCalls: 1,
+			connected: true,
+			statusBeforeConnector: RemoteAgentHostConnectionStatus.connecting,
+			storageTargets: {
+				machine: ['devContainerAgentHost.connections'],
+				user: [],
+			},
+		});
+	});
+
+	test('persists a provider whose sessions were already cached', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sourceWorkspace = URI.file('/source');
+		const address = devContainerAddress(sourceWorkspace);
+		const remoteWorkspace = URI.from({
+			scheme: AGENT_HOST_SCHEME,
+			authority: agentHostAuthority(address),
+			path: '/workspaces/source',
+		});
+
+		const firstInstantiationService = store.add(new TestInstantiationService());
+		const firstRemoteAgentHostService = store.add(new TestRemoteAgentHostService());
+		const firstService = store.add(new TestDevContainerAgentHostService(
+			firstInstantiationService,
+			firstRemoteAgentHostService,
+			store.add(new TestSessionsProvidersService()),
+			storageService,
+		));
+		firstService.publishSessionOnCreate = true;
+		firstInstantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		store.add(firstService.registerConnector({
+			isAvailable: async () => true,
+			createConnection: async (_workspaceUri, stagedAddress) => ({
+				address: stagedAddress,
+				name: 'Source Dev Container',
+				transportFactory: () => undefined as never,
+				workspaceUri: remoteWorkspace,
+			}),
+		}));
+		const target = await firstService.connect(sourceWorkspace, CancellationToken.None);
+		await target.release();
+		firstService.dispose();
+
+		const secondSessionsProvidersService = store.add(new TestSessionsProvidersService());
+		const secondService = store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			secondSessionsProvidersService,
+			storageService,
+		));
+
+		assert.deepStrictEqual({
+			providerId: secondService.provider?.id,
+			status: secondService.provider?.status,
+			registeredProviders: secondSessionsProvidersService.getProviders().map(provider => provider.id),
+		}, {
+			providerId: `agenthost-${agentHostAuthority(address)}`,
+			status: RemoteAgentHostConnectionStatus.disconnected,
+			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
+		});
+	});
+
+	test('restores remote container source identities without merging identical paths on different hosts', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sources = ['ssh:first', 'ssh:second', 'tunnel:first'].map(address => URI.from({
+			scheme: AGENT_HOST_SCHEME,
+			authority: agentHostAuthority(address),
+			path: '/source',
+		}));
+		storageService.store('devContainerAgentHost.connections', JSON.stringify(sources.map(workspace => ({
+			workspaceUri: workspace.toString(),
+			name: 'Remote Dev Container',
+		}))), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+
+		assert.deepStrictEqual(providersService.getProviders().map(provider => ({
+			id: provider.id,
+			status: provider instanceof TestProvider ? provider.status : undefined,
+			remoteWorktree: provider instanceof TestProvider && !!provider.config.resolveDevContainerWorktreeConnection,
+			worktreeScope: provider instanceof TestProvider ? provider.config.devContainerWorktreeScope : undefined,
+		})), sources.map(source => ({
+			id: `agenthost-${agentHostAuthority(devContainerAddress(source))}`,
+			status: RemoteAgentHostConnectionStatus.disconnected,
+			remoteWorktree: true,
+			worktreeScope: getComparisonKey(URI.file('/source')),
+		})));
+	});
+
+	test('restores host-native worktree scopes without losing Windows or UNC URI identity', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const nativeWorkspaces = [
+			URI.from({ scheme: Schemas.file, path: '/c:/Worktrees/project' }),
+			URI.from({ scheme: Schemas.file, authority: 'server', path: '/share/project' }),
+		];
+		const sources = nativeWorkspaces.map(workspace => toAgentHostUri(workspace, agentHostAuthority('ssh:windows')));
+		storageService.store('devContainerAgentHost.connections', JSON.stringify(sources.map(workspace => ({
+			workspaceUri: workspace.toString(),
+			name: 'Windows Dev Container',
+		}))), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+		assert.deepStrictEqual(providersService.getProviders().map(provider => provider instanceof TestProvider ? {
+			id: provider.id,
+			scope: provider.config.devContainerWorktreeScope,
+		} : undefined), nativeWorkspaces.map((workspace, index) => ({
+			id: `agenthost-${agentHostAuthority(devContainerAddress(sources[index]))}`,
+			scope: getComparisonKey(workspace),
+		})));
+	});
+
+	test('stages the source host authority and worktree owner for remote containers', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const remoteService = store.add(new TestRemoteAgentHostService());
+		remoteService.configuredEntries = [{
+			name: 'Server',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:server', hostName: 'server', sshConfigHost: 'server' },
+		}];
+		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, store.add(new TestSessionsProvidersService()), store.add(new InMemoryStorageService())));
+		const source = URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority('ssh:server'), path: '/project' });
+		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+		store.add(service.registerConnector({
+			isAvailable: async () => true,
+			createConnection: async (_workspaceUri, address) => ({
+				address,
+				name: 'Project Dev Container',
+				hostWorkspaceFolder: '/native/project',
+				transportFactory: () => undefined as never,
+				workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/project' }),
+			}),
+		}));
+		const target = await service.connect(source, CancellationToken.None);
+		assert.deepStrictEqual({
+			connection: remoteService.stagedEntry?.connection,
+			remoteWorktree: !!service.provider?.config.resolveDevContainerWorktreeConnection,
+			worktreeScope: service.provider?.config.devContainerWorktreeScope,
+		}, {
+			connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority: 'ssh-remote+server' },
+			remoteWorktree: true,
+			worktreeScope: getComparisonKey(URI.file('/project')),
+		});
+		await target.release();
 	});
 
 	test('disconnect forces teardown while a connection lease is held', async () => {
@@ -288,6 +568,7 @@ suite('Dev Container Agent Host Service', () => {
 			instantiationService,
 			remoteAgentHostService,
 			sessionsProvidersService,
+			store.add(new InMemoryStorageService()),
 		));
 
 		const sourceWorkspace = URI.file('/source');
@@ -337,6 +618,7 @@ suite('Dev Container Agent Host Service', () => {
 			instantiationService,
 			remoteAgentHostService,
 			sessionsProvidersService,
+			store.add(new InMemoryStorageService()),
 		));
 
 		const sourceWorkspace = URI.file('/source');
@@ -399,6 +681,7 @@ suite('Dev Container Agent Host Service', () => {
 			instantiationService,
 			remoteAgentHostService,
 			sessionsProvidersService,
+			store.add(new InMemoryStorageService()),
 		));
 
 		const sourceWorkspace = URI.file('/source');
@@ -457,6 +740,7 @@ suite('Dev Container Agent Host Service', () => {
 			instantiationService,
 			remoteAgentHostService,
 			sessionsProvidersService,
+			store.add(new InMemoryStorageService()),
 		));
 
 		const sourceWorkspace = URI.file('/source');

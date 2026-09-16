@@ -303,6 +303,13 @@ export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	hcLight: null,
 }, localize('statusBarBackground', "Status bar background color when a workspace or folder is opened. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_INACTIVE_BACKGROUND = registerColor('statusBar.inactiveBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null,
+}, localize('statusBarInactiveBackground', "Status bar background color when a workspace or folder is opened and the window is inactive. Debugging and other background overrides take precedence. If not set, the current status bar background is used."));
+
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',
 	light: '#68217A',
@@ -676,13 +683,24 @@ export const SURFACE_BACKGROUND = registerColor('surface.background', {
 export const SURFACE_FOREGROUND = registerColor('surface.foreground', SIDE_BAR_FOREGROUND, localize('surfaceForeground', "Foreground color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 export const SURFACE_BORDER = registerColor('surface.border', {
-	dark: opaque(transparent(foreground, 0.1), SURFACE_BACKGROUND),
-	light: opaque(transparent(foreground, 0.1), SURFACE_BACKGROUND),
+	dark: opaque(transparent(foreground, 0.15), SURFACE_BACKGROUND),
+	light: opaque(transparent(foreground, 0.15), SURFACE_BACKGROUND),
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, localize('editorBorder', "Border color of the editor surface in the modern layout."));
+
+export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
+
+// Dark and light themes use `foreground` at 40% alpha.
+// High contrast themes keep the foreground opaque so the grips stay legible.
+export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
+	dark: transparent(foreground, 0.4),
+	light: transparent(foreground, 0.4),
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('modernSashGripForeground', "Color of the grip handles marking the resizable boundaries between workbench parts when the modern UI is enabled."));
 
 // < --- Modern Tabs --- >
 
@@ -769,6 +787,10 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBac
 	hcDark: null,
 	hcLight: null,
 }, localize('titleBarInactiveBackground', "Title bar background when the window is inactive."));
+
+export const MODERN_UI_SHELL_BACKGROUND = registerColor('modernUI.shellBackground', TITLE_BAR_ACTIVE_BACKGROUND, localize('modernUIShellBackground', "Background color of the shell visible around floating workbench surfaces when the modern UI is enabled."));
+
+export const MODERN_UI_INACTIVE_SHELL_BACKGROUND = registerColor('modernUI.inactiveShellBackground', TITLE_BAR_INACTIVE_BACKGROUND, localize('modernUIInactiveShellBackground', "Background color of the shell visible around floating workbench surfaces when the window is inactive and the modern UI is enabled."));
 
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,

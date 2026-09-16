@@ -29,7 +29,6 @@ export type IChatSurfaceMeta = ITerminalChatSurfaceMeta | IEditorInlineChatSurfa
 
 /** Reads recognized chat-surface metadata, dropping malformed values. */
 export function readChatSurfaceMeta(source: IHasChatSurfaceMeta): IChatSurfaceMeta | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced chat-surface slot.
 	const value = source._meta?.[VSCODE_CHAT_SURFACE_META_KEY];
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;

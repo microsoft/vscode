@@ -186,6 +186,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
+				logId: this.clientId,
 				connectionId: this.clientId,
 				transport: 'local',
 			}))
@@ -422,6 +423,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		return this._requireClient().removeSessionArtifact(session, artifactId);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

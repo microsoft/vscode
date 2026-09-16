@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, resolveDictationBackend, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
@@ -385,6 +385,24 @@ suite('ChatSpeechToTextService', () => {
 		assert.deepStrictEqual(failures, [error]);
 	});
 
+	test('uses MAI on web and preserves the configured backend on desktop', () => {
+		assert.deepStrictEqual({
+			webWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', undefined, true),
+			webWithMai: resolveDictationBackend('mai', undefined, true),
+			webWithLocalPolicy: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', 'nemotron-3.5-asr-streaming-0.6b', true),
+			webWithMaiPolicy: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', 'mai', true),
+			desktopWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', undefined, false),
+			desktopWithMai: resolveDictationBackend('mai', undefined, false),
+		}, {
+			webWithLocalModel: 'mai',
+			webWithMai: 'mai',
+			webWithLocalPolicy: 'nemo',
+			webWithMaiPolicy: 'mai',
+			desktopWithLocalModel: 'nemo',
+			desktopWithMai: 'mai',
+		});
+	});
+
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
 		assert.deepStrictEqual({
 			explicit: resolveDictationLanguage('fr-FR', 'de-DE'),
@@ -742,23 +760,17 @@ suite('ChatSpeechToTextService', () => {
 		};
 
 		await createService()._cleanupWithLanguageModel('control transcript', CancellationToken.None);
-		await createService('auto', 'gpt-5.4-nano')._cleanupWithLanguageModel('Nano experiment transcript', CancellationToken.None);
 		await createService('auto', 'gpt-5.6-luna')._cleanupWithLanguageModel('Luna experiment transcript', CancellationToken.None);
 		await createService('auto', 'unexpected-model')._cleanupWithLanguageModel('unknown experiment transcript', CancellationToken.None);
-		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('configured Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('configured Luna transcript', CancellationToken.None);
 		await createService('copilot-utility-small', 'gpt-5.6-luna')._cleanupWithLanguageModel('configured utility transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(selectors, [
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
-			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
+			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-nano' },
-			{ vendor: 'copilot', id: 'copilot-utility-small' },
-			{ vendor: 'copilot', id: 'copilot-dictation-cleanup-luna' },
+			{ vendor: 'copilot', id: 'gpt-5.6-luna' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 			{ vendor: 'copilot', id: 'copilot-utility-small' },
 		]);
@@ -795,7 +807,6 @@ suite('ChatSpeechToTextService', () => {
 			return service;
 		};
 
-		await createService('gpt-5.4-nano')._cleanupWithLanguageModel('Nano transcript', CancellationToken.None);
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
 		const fallbackService = createService('gpt-5.6-luna');
 		let selectionCall = 0;
@@ -803,7 +814,6 @@ suite('ChatSpeechToTextService', () => {
 		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
-			{ reasoningEffort: 'none' },
 			{ reasoningEffort: 'none' },
 			undefined,
 		]);

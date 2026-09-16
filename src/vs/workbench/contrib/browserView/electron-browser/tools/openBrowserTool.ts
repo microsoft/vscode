@@ -24,7 +24,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
-import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, findExistingPagesByHost, getBrowserNetworkPolicyError, getExistingPagesResult, getExternalTunnelNetworkPolicyError, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 import { getAgentBrowserViewCreationDefaults } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -97,9 +97,9 @@ export class OpenBrowserTool implements IToolImpl {
 
 		params.url = parsed.href; // Ensure URL is in a normalized format
 
-		const uri = URI.parse(params.url);
-		if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
-			throw new Error(this.agentNetworkFilterService.formatError(uri));
+		const networkPolicyError = getBrowserNetworkPolicyError(params.url, this.agentNetworkFilterService);
+		if (networkPolicyError) {
+			throw new Error(networkPolicyError);
 		}
 
 		return {
@@ -136,12 +136,19 @@ export class OpenBrowserTool implements IToolImpl {
 		// In a remote workspace without the remote proxy, the integrated browser
 		// runs locally and cannot reach the remote's localhost directly. Rewrite to
 		// the forwarded local address (if any) so the page can be reached.
-		const rewrite = rewriteRemoteLocalhostUrl(params.url, this.browserViewService, this.remoteExplorerService);
-		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(params.url, rewrite.url) : undefined;
+		const logicalUrl = params.url;
+		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.browserViewService, this.remoteExplorerService);
+		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(logicalUrl, rewrite.url) : undefined;
 		params.url = rewrite.url;
 
 		const withNotice = (result: IToolResult): IToolResult =>
 			rewriteNotice ? { ...result, content: [rewriteNotice, ...result.content] } : result;
+
+		const networkPolicyError = getBrowserNetworkPolicyError(logicalUrl, this.agentNetworkFilterService)
+			?? getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
+		if (networkPolicyError) {
+			return withNotice(errorResult(networkPolicyError));
+		}
 
 		if (!params.forceNew) {
 			// If there are already-shared pages, tell the model to reuse them

@@ -12,7 +12,7 @@ import * as dom from '../../../base/browser/dom.js';
 export function renderSessionsEmptyState(parent: HTMLElement, title: string, description: string): HTMLElement {
 	const container = dom.append(parent, dom.$('.sessions-empty-state'));
 
-	const titleElement = dom.append(container, dom.$('.sessions-empty-state-title'));
+	const titleElement = dom.append(container, dom.$('h2.sessions-empty-state-title'));
 	titleElement.textContent = title;
 
 	const descriptionElement = dom.append(container, dom.$('.sessions-empty-state-description'));

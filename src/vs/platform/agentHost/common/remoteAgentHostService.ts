@@ -18,8 +18,10 @@ import { readUnsupportedProtocolVersionErrorMeta, type IVscodeUpgradeResult } fr
 import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from './reconnectPolicy.js';
 import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
+import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 
 /**
  * Connection status for a remote agent host.
@@ -233,8 +235,10 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
 	/** Stable address for the container connection. */
 	readonly address: string;
-	/** Local source folder containing the Dev Container configuration. */
+	/** Source folder on the parent host containing the Dev Container configuration. */
 	readonly hostPath: string;
+	/** VS Code SSH or tunnel authority of the parent host, absent for local containers. */
+	readonly hostAuthority?: string;
 }
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
@@ -272,6 +276,7 @@ export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDispo
 	 * each transition that must not be repeated per backoff round.
 	 */
 	readonly onDidScheduleReconnect: Event<void>;
+	readonly onDidConnectionDiagnostic: Event<IConnectionDiagnosticEvent>;
 	connect(): Promise<void>;
 	reconnectNow(): boolean;
 	notifyTransportClosed(): void;
@@ -285,6 +290,8 @@ export interface IRemoteAgentHostConnectOptions {
 	 * must never open prompts, pickers or modals.
 	 */
 	readonly userInitiated: boolean;
+	/** Optional client-local observation of transport-specific setup phases. */
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }
 
 /** A built, not-yet-handshaken connection and its owned resources. */
@@ -513,11 +520,11 @@ export function readRemoteAgentHostSettings(configurationService: IConfiguration
 	};
 }
 
-/** Reads WebSocket entries from the effective configuration or its owning target. */
+/** Reads WebSocket entries from the global configuration or its owning target. */
 export function readWebSocketRemoteAgentHostEntries(configurationService: IConfigurationService, targetOnly = false): IRemoteAgentHostEntry[] {
 	const entries = targetOnly
 		? readRemoteAgentHostSettings(configurationService).entries
-		: configurationService.getValue<IRawRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
+		: getGlobalConfigurationValue<IRawRemoteAgentHostEntry[]>(configurationService, RemoteAgentHostsSettingId) ?? [];
 	return entries
 		.filter(isRawRemoteAgentHostEntry)
 		.filter(entry => !isLegacySshRawEntry(entry))
@@ -683,6 +690,7 @@ export const IRemoteAgentHostService = createDecorator<IRemoteAgentHostService>(
  */
 export interface IRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[];
 
 	/** Fires when a remote connection is established or lost. */
 	readonly onDidChangeConnections: Event<void>;
@@ -791,6 +799,7 @@ export interface IRemoteAgentHostConnectionInfo {
 
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];

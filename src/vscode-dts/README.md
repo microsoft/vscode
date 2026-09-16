@@ -18,3 +18,25 @@ This is the place for the stable API and for API proposals.
 1. declare and implement your proposal
 1. make sure to use the `checkProposedApiEnabled` and/or `isProposedApiEnabled`-utils to enforce the API being proposed. Make sure to invoke them with your proposal's name which got generated into `extensionsApiProposals.ts`
 1. Most likely will need to add your proposed api to vscode-api-tests as well
+
+## Keep the proposal registry in sync
+
+After adding, removing, or renaming a proposal, include the updated
+[API proposal registry](../vs/platform/extensions/common/extensionsApiProposals.ts) with your change.
+Developer compilation, `npm run watch`, and `npm run build-fast` regenerate it automatically.
+To regenerate it explicitly from the repository root, run:
+
+```sh
+npm run gulp compile-api-proposal-names
+```
+
+To check it without changing any source files, run:
+
+```sh
+npm run gulp check-api-proposal-names
+```
+
+Production and PR CI run this check as the first step of `core-ci`, before type-checking,
+transpilation, and bundling. Unlike the legacy production regeneration step, this check
+fails on a stale or missing registry rather than repairing it. It reuses the generator
+to compare the complete generated contents, allowing both LF and CRLF line endings.

@@ -21,6 +21,14 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -79,12 +87,17 @@ suite('AgentCustomizationContentExpander', () => {
 				},
 			]);
 
-			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
+			const logService = new TestLogService();
+			const expander = new AgentCustomizationContentExpander(fileService, logService);
 			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
 
-			assert.deepStrictEqual(items.map(i => ({ type: i.type, name: i.name, description: i.description })), [
-				{ type: PromptsType.skill, name: 'Lint', description: 'Runs linting' },
-			]);
+			assert.deepStrictEqual({
+				items: items.map(i => ({ type: i.type, name: i.name, description: i.description })),
+				traces: logService.traces,
+			}, {
+				items: [{ type: PromptsType.skill, name: 'Lint', description: 'Runs linting' }],
+				traces: [],
+			});
 		});
 
 		test('uses folder name as fallback when SKILL.md has no name frontmatter', async () => {

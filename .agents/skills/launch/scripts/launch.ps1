@@ -328,6 +328,8 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	# Core only, and `powershell.exe` is still the built-in Windows shell.
 	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
 	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
 
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $processInfo
@@ -506,7 +508,8 @@ try {
 	if ($agents) {
 		$launchArgs.Add('--agents')
 		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-			$launchArgs.Add("--session-title=$sessionTitle")
+			$sessionTitleBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionTitle)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+			$launchArgs.Add("--session-title-base64=$sessionTitleBase64")
 		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")

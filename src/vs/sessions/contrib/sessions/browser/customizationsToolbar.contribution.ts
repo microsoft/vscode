@@ -124,7 +124,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
 	const session = sessionsService.activeSession.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
@@ -293,6 +293,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				super({
 					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
 					title: CUSTOMIZATION_OVERVIEW_ITEM.label,
+					precondition: ChatContextKeys.enabled,
 					menu: {
 						id: Menus.SidebarCustomizations,
 						group: 'navigation',

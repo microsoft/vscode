@@ -62,18 +62,17 @@ export class NewChatInSessionWidget extends Disposable {
 			return true;
 		});
 
-		const loading = derived(_reader => false);
-
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
-			loading,
+			loading: constObservable(false),
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
 			petHostPreferred: _options.petHostPreferred,
+			renderRepositoryControls: false,
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 		}));

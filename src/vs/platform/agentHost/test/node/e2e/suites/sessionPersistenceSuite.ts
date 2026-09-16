@@ -11,6 +11,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
@@ -18,7 +19,7 @@ import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/
 import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, ToolResultContentType, type ChatState, type SessionState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 
@@ -176,7 +177,13 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
 			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
-				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+				.find((content): content is ToolResultFileEditContent =>
+					content.type === ToolResultContentType.FileEdit
+					&& !!content.before?.content.uri
+					&& !!content.after?.content.uri
+					&& !!parseSessionDbUri(content.before.content.uri)
+					&& !!parseSessionDbUri(content.after.content.uri)
+				);
 			assert.ok(edit?.before?.content.uri);
 			assert.ok(edit.after?.content.uri);
 
@@ -208,7 +215,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		await restartAndInitialize(`archive-unrestored-reconnect-${config.provider}`, workspace);
 		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		const before = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		assert.strictEqual(before.items.some(item => item.resource === sessionUri), true);
+		const beforeSession = before.items.find(item => item.resource === sessionUri);
+		assert.ok(beforeSession);
+		const isRead = (beforeSession.status & SessionStatus.IsRead) === 0;
 		context.client.clearReceived();
 		context.client.dispatch({
 			channel: sessionUri,
@@ -220,6 +229,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
 			&& (((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsArchived) !== 0,
 		);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 2,
+			action: { type: ActionType.SessionIsReadChanged, isRead },
+		});
+		await context.client.waitForNotification(notification =>
+			notification.method === 'root/sessionSummaryChanged'
+			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
+			&& (notification.params as SessionSummaryChangedParams).changes.status !== undefined
+			&& ((((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsRead) !== 0) === isRead,
+		);
 
 		await restartAndInitialize(`archive-unrestored-verify-${config.provider}`, workspace);
 		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI, includeArchived: true });
@@ -228,10 +249,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		assert.deepStrictEqual({
 			restored: restored !== undefined,
 			isArchived: restored !== undefined && (restored.status & SessionStatus.IsArchived) !== 0,
+			isRead: restored !== undefined && (restored.status & SessionStatus.IsRead) !== 0,
 		}, {
 			restored: true,
 			isArchived: true,
+			isRead,
 		});
+
+		await context.client.call('disposeSession', { channel: sessionUri }, getAgentHostE2ETestTimeout(30_000, 90_000));
+		const trackedIndex = createdSessions.indexOf(sessionUri);
+		if (trackedIndex >= 0) {
+			createdSessions.splice(trackedIndex, 1);
+		}
 	});
 
 	const peerChatPersistenceEnabled = config.supportsMultipleChats

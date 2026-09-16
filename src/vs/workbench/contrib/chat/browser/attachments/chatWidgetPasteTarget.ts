@@ -45,13 +45,8 @@ export class ChatWidgetPasteTarget implements IChatPasteTarget {
 		this.addInlineReference(toAttachedContextDynamicVariable(entry, range));
 	}
 
-	addInlineReference(reference: IDynamicVariable, expectedText?: string, expectedRangeOffset?: number): void {
-		this.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference(reference, expectedText, expectedRangeOffset);
-		this.widget.refreshParsedInput();
-	}
-
-	removeInlineReference(reference: IDynamicVariable): void {
-		this.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.removeReference(reference);
+	addInlineReference(reference: IDynamicVariable): void {
+		this.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference(reference);
 		this.widget.refreshParsedInput();
 	}
 

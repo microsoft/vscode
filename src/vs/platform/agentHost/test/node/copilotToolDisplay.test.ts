@@ -211,6 +211,27 @@ suite('getPermissionDisplay — read confirmation title', () => {
 	});
 });
 
+suite('getPermissionDisplay — server tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the plain-language set_workspace confirmation without raw input', () => {
+		assert.deepStrictEqual(
+			getPermissionDisplay(customToolPermissionRequest('set_workspace', {
+				workspaceFolder: '/workspace/app',
+				isolation: false,
+			})),
+			{
+				confirmationTitle: 'Continue in app?',
+				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				toolInput: undefined,
+				permissionKind: 'custom-tool',
+				permissionPath: undefined,
+			},
+		);
+	});
+});
+
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -416,6 +437,36 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
 		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
 		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Write to agent `math-helper`');
+	});
+
+	for (const [toolName, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
+		test(`uses the canonical agent name in streaming, ready, and completed ${toolName} messages`, () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const parameters = { agent_id: agentId };
+			const resolveAgentName = (id: string) => id === agentId ? 'catalog-perf' : undefined;
+			const displayName = getToolDisplayName(toolName);
+			const messages = [
+				getStreamingInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
+				getInvocationMessage(toolName, displayName, parameters, undefined, resolveAgentName),
+				getPastTenseMessage(toolName, displayName, parameters, true, undefined, undefined, resolveAgentName),
+			].map(message => typeof message === 'string' ? message : message.markdown);
+
+			assert.deepStrictEqual({ messages, parameters }, {
+				messages: Array(3).fill(`${verb} \`catalog-perf\``),
+				parameters: { agent_id: agentId },
+			});
+		});
+	}
+
+	test('keeps the execution id as the display fallback when the agent name is unknown or blank', () => {
+		const names: Record<string, string | undefined> = { 'blank-agent': '   ' };
+		assert.deepStrictEqual({
+			unknown: getInvocationMessage('read_agent', 'Read Agent', { agent_id: 'unknown-agent' }, undefined, id => names[id]),
+			blank: getInvocationMessage('read_agent', 'Read Agent', { agent_id: 'blank-agent' }, undefined, id => names[id]),
+		}, {
+			unknown: { markdown: 'Read agent `unknown-agent`' },
+			blank: { markdown: 'Read agent `blank-agent`' },
+		});
 	});
 
 	test('agent tools fall back to a generic phrase without an agent id', () => {

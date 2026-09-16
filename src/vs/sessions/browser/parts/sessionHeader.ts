@@ -26,6 +26,8 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
@@ -85,6 +87,7 @@ export class SessionHeader extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -129,6 +132,7 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		// Report height changes so the host can re-layout.
@@ -431,6 +435,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -442,6 +447,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		this._setVisible(false);

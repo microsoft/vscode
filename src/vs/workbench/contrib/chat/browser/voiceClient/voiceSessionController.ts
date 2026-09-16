@@ -765,6 +765,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _voiceProgressListeners = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _voiceProgressSessionByResponse = new Map<string, string>();
 	private readonly _lastSpokenAtBySession = new Map<string, number>();
+	private static readonly _SESSION_REF_RELEASE_TIMEOUT_MS = 5 * 60 * 1000;
+	private readonly _sessionRefReleaseWatchers = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _floatingResponseWatchers = this._register(new DisposableMap<string, DisposableStore>());
 
 	/**
 	 * Narrations the backend bounced (`narration_ack` `busy`) or cancelled
@@ -2371,6 +2374,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pendingNarrationRetries.clear();
 		this._voiceProgressListeners.clearAndDisposeAll();
 		this._voiceProgressSessionByResponse.clear();
+		this._sessionRefReleaseWatchers.clearAndDisposeAll();
+		this._floatingResponseWatchers.clearAndDisposeAll();
 		this._lastSpokenAtBySession.clear();
 		for (const [narrationId, pending] of this._pendingSolicitedNarrations) {
 			this._clearPendingSolicitedNarration(narrationId, pending);
@@ -3639,12 +3644,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (model) {
 						const lastReq = model.getRequests().at(-1);
 						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
-							const responseDisposable = lastReq.response.onDidChange(() => {
-								if (lastReq.response!.isComplete || lastReq.response!.isCanceled) {
-									responseDisposable.dispose();
-									ref.dispose();
-								}
-							});
+							this._holdSessionRefUntilResponseStops(lastReq.response, ref);
 						} else {
 							ref.dispose();
 						}
@@ -3699,6 +3699,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
+	private _holdSessionRefUntilResponseStops(response: IChatResponseModel, ref: IChatModelReference): void {
+		const disposables = new DisposableStore();
+		const releaseRef = () => this._sessionRefReleaseWatchers.deleteAndDispose(response.id);
+		const releaseWhenSettled = () => {
+			if (response.isComplete || response.isCanceled) {
+				releaseRef();
+			}
+		};
+
+		disposables.add(response.onDidChange(releaseWhenSettled));
+		disposables.add(disposableTimeout(releaseRef, VoiceSessionController._SESSION_REF_RELEASE_TIMEOUT_MS));
+		disposables.add({ dispose: () => ref.dispose() });
+		this._sessionRefReleaseWatchers.set(response.id, disposables);
+		releaseWhenSettled();
+	}
+
 	private async _prepareNewSessionTarget(createNewSession: boolean, text: string): Promise<VoiceNewSessionPreparationResult> {
 		if (!createNewSession) {
 			return 'prepared';
@@ -3731,6 +3747,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!model) {
 			return;
 		}
+		const sessionKey = sessionResource.toString();
 
 		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
 		// and includes last_response_summary in the patch.
@@ -3739,6 +3756,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const disposables = new DisposableStore();
 		let lastText = '';
+		const disposeWatcher = () => this._floatingResponseWatchers.deleteAndDispose(sessionKey);
 
 		const updateFromResponse = () => {
 			const lastReq = model.lastRequest;
@@ -3762,7 +3780,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '', pendingId: '', lastResponseSummary: '' });
 				this._sendContext();
 				this.voiceClientService.flushSessionContext();
-				disposables.dispose();
+				disposeWatcher();
 			}
 		};
 
@@ -3781,10 +3799,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				checkResponse();
 			}
 		}));
+		this._floatingResponseWatchers.set(sessionKey, disposables);
 		checkResponse();
 
 		// Safety: dispose after 5 minutes in case the response never completes
-		const timeout = setTimeout(() => disposables.dispose(), 5 * 60 * 1000);
+		const timeout = setTimeout(disposeWatcher, 5 * 60 * 1000);
 		disposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
@@ -6511,17 +6530,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 						: s.status === AgentSessionStatus.Completed ? 'idle'
 							: 'unknown';
-				// If this idle transition is deferred until the model loads, keep
-				// reporting the prior state so the backend doesn't narrate a
-				// premature, summary-less completion. See _pendingIdleNarration.
-				// If we already cached a summary while the model was resident we
-				// can narrate now, so don't hold in that case.
-				if (fallbackState === 'idle' && this._pendingIdleNarration.has(sessionIdStr) && !this._lastResponseSummaryById.has(sessionIdStr)) {
-					const prev = this._prevSessionStates.get(sessionIdStr);
-					if (prev?.state) {
-						fallbackState = prev.state;
-					}
-				}
 				// A confirmation whose model isn't resident has no detail yet; report `thinking` (and load the model) so the backend's state tracking doesn't briefly show a detail-less confirmation. Narration follows once the detail renders.
 				if (fallbackState === 'waiting_for_confirmation') {
 					this._ensureModelLoaded(s.resource);

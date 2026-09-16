@@ -10,6 +10,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
 import { isTahoeOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -101,23 +102,24 @@ class DockBadgeManager {
 	private readonly counts = new Map<number, number>();
 
 	acquireBadge(window: IBaseWindow): IDisposable {
-		this.attention.add(window.id);
+		const windowId = window.id;
+		this.attention.add(windowId);
 
 		this.update();
 
 		return {
 			dispose: () => {
-				this.attention.delete(window.id);
+				this.attention.delete(windowId);
 
 				this.update();
 			}
 		};
 	}
 
-	setCount(window: IBaseWindow, count: number): void {
+	setCount(windowId: number, count: number): void {
 		if (count > 0) {
-			this.counts.set(window.id, count);
-		} else if (!this.counts.delete(window.id)) {
+			this.counts.set(windowId, count);
+		} else if (!this.counts.delete(windowId)) {
 			return; // window had no count to begin with
 		}
 
@@ -141,6 +143,8 @@ class DockBadgeManager {
 }
 
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
+
+	private applicationBadgeWindowId: number | undefined;
 
 	//#region Events
 
@@ -295,7 +299,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Release this window's share of the application wide badge, so that a
 		// closed or crashed window cannot leave a phantom count behind.
-		this._register(toDisposable(() => DockBadgeManager.INSTANCE.setCount(this, 0)));
+		this._register(toDisposable(() => {
+			if (this.applicationBadgeWindowId !== undefined) {
+				DockBadgeManager.INSTANCE.setCount(this.applicationBadgeWindowId, 0);
+			}
+		}));
 	}
 
 	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
@@ -394,7 +402,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// macOS (dock) and Linux (Unity launcher) render the count themselves,
 		// on a badge shared by the whole application.
 		else {
-			DockBadgeManager.INSTANCE.setCount(this, count);
+			this.applicationBadgeWindowId ??= this.id;
+			DockBadgeManager.INSTANCE.setCount(this.applicationBadgeWindowId, count);
 		}
 	}
 
@@ -693,6 +702,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
+	private readonly _iconPath: URI | undefined;
+	get iconPath(): URI | undefined { return this._iconPath; }
+
 	private _config: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this._config; }
 
@@ -769,6 +781,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
+			if (iconPath) {
+				options.icon = iconPath;
+			}
+			this._iconPath = iconPath ? URI.file(iconPath) : undefined;
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');

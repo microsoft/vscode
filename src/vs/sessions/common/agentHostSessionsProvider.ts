@@ -46,6 +46,20 @@ export interface IAgentHostAutoConnect {
 	setEnabled(enabled: boolean): void;
 }
 
+/** Localized labels shared by connection banners and recovery screens. */
+export interface IAgentHostConnectionLabels {
+	readonly unavailableTitle: string;
+	readonly unavailableDescription?: string;
+	readonly unavailable: string;
+	readonly connectingTitle: string;
+	readonly connectingDescription?: string;
+	readonly connecting: string;
+	readonly reconnecting: string;
+	reconnectingIn(seconds: number): string;
+	readonly incompatibleTitle: string;
+	readonly incompatible: string;
+}
+
 /**
  * Declares that a provider is one of many interchangeable members of a single
  * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
@@ -141,6 +155,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * it. Present on remote providers that manage their own transport.
 	 */
 	disconnect?(): Promise<void>;
+	/** Permanently remove this host from the user-visible host inventory. */
+	remove?(): Promise<void>;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
@@ -152,6 +168,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * starting is not something VS Code can do.
 	 */
 	readonly autoConnect?: IAgentHostAutoConnect;
+
+	/** Optional labels for providers whose display name does not name the host. */
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -165,12 +184,18 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	// -- Dev Container drafts (optional, local provider only) --
 
+	/** Fires when Dev Container workspace availability should be checked again. */
+	readonly onDidChangeDevContainerAvailability?: Event<void>;
+	/** Whether this workspace supports Dev Container execution. */
+	isDevContainerWorkspaceAvailable?(workspaceUri: URI): Promise<boolean>;
 	/** Whether this draft's workspace supports Dev Container execution. */
 	isDevContainerAvailable?(sessionId: string): boolean;
 	/** Whether this draft should be prepared on a Dev Container Agent Host. */
 	isDevContainerEnabled?(sessionId: string): boolean;
 	/** Set whether this draft should run on a Dev Container Agent Host. */
 	setDevContainerEnabled?(sessionId: string, enabled: boolean): void;
+	/** Enable Dev Container execution once availability resolves for this draft. */
+	preferDevContainer?(sessionId: string): void;
 
 	// -- Dynamic Session Config --
 
@@ -186,6 +211,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	/** Tracks a draft configuration side effect that must finish before the first request. */
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**
 	 * Replaces the full set of running-session config values atomically.
 	 *
