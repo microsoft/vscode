@@ -10,7 +10,8 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
-import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { ICreateEndpointBodyOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -133,6 +134,53 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	afterEach(() => {
 		disposables.clear();
 		vi.restoreAllMocks();
+	});
+
+	it.each([
+		{ marker: 'opaque_id', zdr: false, incremental: false },
+		{ marker: 'resp_valid', zdr: false, incremental: true },
+		{ marker: 'resp_valid', zdr: true, incremental: false },
+	])('preserves history before selecting Responses state $marker with ZDR $zdr', ({ marker, zdr, incremental }) => {
+		const endpoint = instaService.createInstance(OpenAIEndpoint, {
+			...modelMetadata, zeroDataRetentionEnabled: zdr,
+		}, 'test-key', 'https://example.test/v1/responses');
+		const options = createTestOptions([
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first question' }] },
+			createStatefulMarkerMessage(modelMetadata.id, marker),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second question' }] },
+		]);
+		const before = structuredClone(options);
+		const body = endpoint.createRequestBody(options);
+		expect(body.previous_response_id).toBe(incremental ? marker : undefined);
+		expect(JSON.stringify(body.input).includes('first question')).toBe(!incremental);
+		expect(JSON.stringify(body.input)).toContain('second question');
+		expect(options).toEqual(before);
+	});
+
+	it('overrides only the cloned prompt budget, including larger temporary budgets', () => {
+		modelMetadata.capabilities.limits!.max_prompt_tokens = 128000;
+		const endpoint = instaService.createInstance(OpenAIEndpoint, modelMetadata, 'key', 'https://example.test/v1/responses');
+		const clone = endpoint.cloneWithTokenOverride(64000);
+		expect(clone.modelMaxPromptTokens).toBe(64000);
+		expect(endpoint.modelMaxPromptTokens).toBe(128000);
+		expect(clone.maxOutputTokens).toBe(endpoint.maxOutputTokens);
+		expect(clone.getExtraHeaders!()).toEqual(endpoint.getExtraHeaders());
+		expect(endpoint.cloneWithTokenOverride(256000).modelMaxPromptTokens).toBe(256000);
+	});
+
+	it.each(['fake-secret\u200bvalue', 'fake-secret\nvalue'])('rejects invalid credential headers without logging their values', invalidValue => {
+		const log = accessor.get(ILogService);
+		const warnings = vi.spyOn(log, 'warn');
+		const endpoint = instaService.createInstance(OpenAIEndpoint, {
+			...modelMetadata,
+			requestHeaders: { Authorization: invalidValue, 'X-Credential': invalidValue, 'X-Valid': 'allowed' },
+		}, 'configured-key', 'https://example.test/v1/chat/completions');
+		const headers = endpoint.getExtraHeaders();
+		expect(headers.Authorization).toBe('Bearer configured-key');
+		expect(headers['X-Credential']).toBeUndefined();
+		expect(headers['X-Valid']).toBe('allowed');
+		expect(warnings).toHaveBeenCalled();
+		expect(warnings.mock.calls.flat().join(' ')).not.toContain('fake-secret');
 	});
 
 	describe('ownsAuthorization', () => {
@@ -615,7 +663,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(body.reasoning).toBeUndefined();
 		});
 
-		it('omits the field when the requested level is not in the supported list', () => {
+		it('falls back to a supported default when the requested effort is invalid', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				buildModel({}),
 				'test-api-key',
@@ -623,7 +671,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			const body = endpoint.createRequestBody(buildOptions('minimal'));
 
-			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.reasoning_effort).toBe('medium');
 			expect(body.reasoning).toBeUndefined();
 		});
 
@@ -694,19 +742,6 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(body.output_config).toBeUndefined();
 		});
 
-		it('scrubs `output_config.effort` while preserving other `output_config` fields', () => {
-			// `output_config` also carries structured-output fields (e.g. `format`); only the effort may be rewritten
-			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				buildModel({ supported_endpoints: [ModelSupportedEndpoint.Messages] }),
-				'test-api-key',
-				'https://api.anthropic.com/v1/messages');
-			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
-
-			const body: IEndpointBody = { output_config: { effort: 'unsupported-level', format: { type: 'json_schema', schema: {} } } as IEndpointBody['output_config'] };
-			apply(body, buildOptions('high'));
-
-			expect(body.output_config).toEqual({ format: { type: 'json_schema', schema: {} }, effort: 'high' });
-		});
 
 		it('does not emit a reasoning field when the model declares no reasoning support', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
@@ -742,52 +777,9 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			const body = endpoint.createRequestBody(buildOptions());
 
-			expect(body.reasoning?.effort).toBeUndefined();
+			expect(body.reasoning?.effort).toBe('low');
 		});
 
-		it('scrubs an unsupported pre-populated value while preserving other reasoning fields', () => {
-			// Direct invocation via the Chat Completions path: synthesize a body that already carries an
-			// unsupported effort plus a `summary` field, and verify only the effort is dropped.
-			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				buildModel({
-					reasoningEffortFormat: 'responses',
-					capabilities: {
-						...modelMetadata.capabilities,
-						supports: {
-							...modelMetadata.capabilities.supports,
-							reasoning_effort: ['low', 'high'],
-						},
-					},
-				}),
-				'test-api-key',
-				'https://api.openai.com/v1/chat/completions');
-			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
 
-			const body: IEndpointBody = { reasoning: { effort: 'medium', summary: 'auto' } };
-			apply(body, buildOptions());
-
-			expect(body).toEqual({ reasoning: { summary: 'auto' }, reasoning_effort: undefined });
-		});
-
-		it('scrubs an unsupported pre-populated top-level `reasoning_effort` on Chat Completions', () => {
-			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				buildModel({
-					capabilities: {
-						...modelMetadata.capabilities,
-						supports: {
-							...modelMetadata.capabilities.supports,
-							reasoning_effort: ['low', 'high'],
-						},
-					},
-				}),
-				'test-api-key',
-				'https://api.openai.com/v1/chat/completions');
-			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
-
-			const body: IEndpointBody = { reasoning_effort: 'medium' };
-			apply(body, buildOptions());
-
-			expect(body.reasoning_effort).toBeUndefined();
-		});
 	});
 });

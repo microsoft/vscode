@@ -11,6 +11,48 @@ import { LanguageModelChatMessageRole, LanguageModelDataPart, LanguageModelTextP
 import { apiMessageToGeminiMessage } from '../geminiMessageConverter';
 
 describe('GeminiMessageConverter', () => {
+	it('matches UUID results to their calls in reverse result order', () => {
+		const first = 'e865f38a-86e4-425d-851c-d2472e357f30';
+		const second = '903750bb-4593-43ab-91f6-a39fe4a7a31b';
+		const { contents } = apiMessageToGeminiMessage([
+			{ role: LanguageModelChatMessageRole.Assistant, name: undefined, content: [
+				new LanguageModelToolCallPart(first, 'read_file', { path: 'a.ts' }),
+				new LanguageModelToolCallPart(second, 'read_file', { path: 'b.ts' }),
+			] },
+			{ role: LanguageModelChatMessageRole.User, name: undefined, content: [
+				new LanguageModelToolResultPart(second, [new LanguageModelTextPart('{"file":"b"}')]),
+				new LanguageModelToolResultPart(first, [new LanguageModelTextPart('{"file":"a"}')]),
+			] },
+		]);
+		expect(contents[1].parts).toEqual([
+			{ functionResponse: { name: 'read_file', response: { file: 'b' } } },
+			{ functionResponse: { name: 'read_file', response: { file: 'a' } } },
+		]);
+	});
+
+	it('rejects orphan results and conflicting names without including tool data', () => {
+		expect(() => apiMessageToGeminiMessage([
+			{ role: LanguageModelChatMessageRole.User, name: undefined, content: [new LanguageModelToolResultPart('orphan', [new LanguageModelTextPart('private result')])] },
+		])).toThrow('Missing Gemini function call for tool result.');
+		expect(() => apiMessageToGeminiMessage([
+			{ role: LanguageModelChatMessageRole.Assistant, name: undefined, content: [new LanguageModelToolCallPart('same', 'read_file', {}), new LanguageModelToolCallPart('same', 'write_file', {})] },
+		])).toThrow('Conflicting Gemini tool call names for the same call ID.');
+		const { contents } = apiMessageToGeminiMessage([
+			{ role: LanguageModelChatMessageRole.Assistant, name: undefined, content: [new LanguageModelToolCallPart('same', 'read_file', {}), new LanguageModelToolCallPart('same', 'read_file', {})] },
+			{ role: LanguageModelChatMessageRole.User, name: undefined, content: [new LanguageModelToolResultPart('same', [new LanguageModelTextPart('result')])] },
+		]);
+		expect(contents[1].parts).toEqual([{ functionResponse: { name: 'read_file', response: { result: 'result' } } }]);
+	});
+
+	it('preserves separate system instructions in order and skips whitespace', () => {
+		const system = (text: string): LanguageModelChatMessage => ({ role: LanguageModelChatMessageRole.System, name: undefined, content: [new LanguageModelTextPart(text)] });
+		const user: LanguageModelChatMessage = { role: LanguageModelChatMessageRole.User, name: undefined, content: [new LanguageModelTextPart('question')] };
+		const result = apiMessageToGeminiMessage([system('A'), user, system(' \n '), system('B')]);
+		expect(result.systemInstruction?.parts).toEqual([{ text: 'A' }, { text: 'B' }]);
+		expect(result.contents).toEqual([{ role: 'user', parts: [{ text: 'question' }] }]);
+		expect(apiMessageToGeminiMessage([system(' \n ')]).systemInstruction).toBeUndefined();
+	});
+
 	it('should convert basic user and assistant messages', () => {
 		const messages: LanguageModelChatMessage[] = [
 			{
@@ -102,49 +144,62 @@ describe('GeminiMessageConverter', () => {
 	});
 
 	it('should extract functionResponse parts from model message into subsequent user message and prune empty model', () => {
-		// Simulate a model message that (incorrectly) contains only a tool result part
-		const toolResult = new LanguageModelToolResultPart('myTool_12345', [new LanguageModelTextPart('{"foo":"bar"}')]);
+		// Paired history: assistant issues the call, tool result follows in the same message
 		const messages: LanguageModelChatMessage[] = [
 			{
 				role: LanguageModelChatMessageRole.Assistant,
-				content: [toolResult],
+				content: [
+					new LanguageModelToolCallPart('myTool_12345', 'myTool', { target: 'file.ts' }),
+					new LanguageModelToolResultPart('myTool_12345', [new LanguageModelTextPart('{"foo":"bar"}')])
+				],
 				name: undefined
 			}
 		];
 
 		const { contents } = apiMessageToGeminiMessage(messages);
 
-		// The original (empty) model message should be pruned; we expect a single user message with functionResponse
-		expect(contents).toHaveLength(1);
-		expect(contents[0].role).toBe('user');
-		expect(contents[0].parts![0]).toHaveProperty('functionResponse');
-		const fr: any = contents[0].parts![0];
-		expect(fr.functionResponse.name).toBe('myTool'); // extracted from callId prefix
+		// Model message keeps the functionCall; functionResponse is split into a subsequent user message
+		expect(contents).toHaveLength(2);
+		expect(contents[0].role).toBe('model');
+		expect(contents[1].role).toBe('user');
+		expect(contents[1].parts![0]).toHaveProperty('functionResponse');
+		const fr: any = contents[1].parts![0];
+		expect(fr.functionResponse.name).toBe('myTool');
 		expect(fr.functionResponse.response).toEqual({ foo: 'bar' });
 	});
 
 	it('should wrap array responses in an object', () => {
-		const toolResult = new LanguageModelToolResultPart('listRepos_12345', [new LanguageModelTextPart('["repo1", "repo2"]')]);
 		const messages: LanguageModelChatMessage[] = [
 			{
 				role: LanguageModelChatMessageRole.Assistant,
-				content: [toolResult],
+				content: [
+					new LanguageModelToolCallPart('listRepos_12345', 'listRepos', {}),
+					new LanguageModelToolResultPart('listRepos_12345', [new LanguageModelTextPart('["repo1", "repo2"]')])
+				],
 				name: undefined
 			}
 		];
 
 		const result = apiMessageToGeminiMessage(messages);
 
-		expect(result.contents).toHaveLength(1);
-		expect(result.contents[0].role).toBe('user');
-		const fr: any = result.contents[0].parts![0];
+		expect(result.contents).toHaveLength(2);
+		expect(result.contents[0].role).toBe('model');
+		expect(result.contents[1].role).toBe('user');
+		const fr: any = result.contents[1].parts![0];
 		expect(fr.functionResponse.response).toEqual({ result: ['repo1', 'repo2'] });
 	});
 
 	it('should be idempotent when called multiple times (no duplication)', () => {
-		const toolResult = new LanguageModelToolResultPart('doThing_12345', [new LMText('{"value":42}')]);
 		const messages: LanguageModelChatMessage[] = [
-			{ role: LanguageModelChatMessageRole.Assistant, content: [new LMText('Result:'), toolResult], name: undefined }
+			{
+				role: LanguageModelChatMessageRole.Assistant,
+				content: [
+					new LMText('Result:'),
+					new LanguageModelToolCallPart('doThing_12345', 'doThing', {}),
+					new LanguageModelToolResultPart('doThing_12345', [new LMText('{"value":42}')])
+				],
+				name: undefined
+			}
 		];
 		const first = apiMessageToGeminiMessage(messages);
 		const second = apiMessageToGeminiMessage(messages); // Re-run with same original messages
@@ -210,11 +265,13 @@ describe('GeminiMessageConverter', () => {
 			const imagePart = new LanguageModelDataPart(imageData, 'image/jpeg');
 			const textPart = new LanguageModelTextPart('{"success": true}');
 
-			const toolResult = new LanguageModelToolResultPart('processImage_12345', [textPart, imagePart as any]);
 			const messages: LanguageModelChatMessage[] = [
 				{
 					role: LanguageModelChatMessageRole.Assistant,
-					content: [toolResult],
+					content: [
+						new LanguageModelToolCallPart('processImage_12345', 'processImage', {}),
+						new LanguageModelToolResultPart('processImage_12345', [textPart, imagePart as any])
+					],
 					name: undefined
 				}
 			];
@@ -222,11 +279,11 @@ describe('GeminiMessageConverter', () => {
 			const result = apiMessageToGeminiMessage(messages);
 
 			// Should have a user message with function response
-			expect(result.contents).toHaveLength(1);
-			expect(result.contents[0].role).toBe('user');
-			expect(result.contents[0].parts![0]).toHaveProperty('functionResponse');
+			expect(result.contents).toHaveLength(2);
+			expect(result.contents[1].role).toBe('user');
+			expect(result.contents[1].parts![0]).toHaveProperty('functionResponse');
 
-			const fr: any = result.contents[0].parts![0];
+			const fr: any = result.contents[1].parts![0];
 			expect(fr.functionResponse.name).toBe('processImage');
 			expect(fr.functionResponse.response.success).toBe(true);
 			expect(fr.functionResponse.response.images).toBeDefined();
@@ -241,21 +298,23 @@ describe('GeminiMessageConverter', () => {
 			const imagePart1 = new LanguageModelDataPart(imageData1, 'image/jpeg');
 			const imagePart2 = new LanguageModelDataPart(imageData2, 'image/png');
 
-			const toolResult = new LanguageModelToolResultPart('generateImages_12345', [imagePart1 as any, imagePart2 as any]);
 			const messages: LanguageModelChatMessage[] = [
 				{
 					role: LanguageModelChatMessageRole.Assistant,
-					content: [toolResult],
+					content: [
+						new LanguageModelToolCallPart('generateImages_12345', 'generateImages', {}),
+						new LanguageModelToolResultPart('generateImages_12345', [imagePart1 as any, imagePart2 as any])
+					],
 					name: undefined
 				}
 			];
 
 			const result = apiMessageToGeminiMessage(messages);
 
-			expect(result.contents).toHaveLength(1);
-			expect(result.contents[0].role).toBe('user');
+			expect(result.contents).toHaveLength(2);
+			expect(result.contents[1].role).toBe('user');
 
-			const fr: any = result.contents[0].parts![0];
+			const fr: any = result.contents[1].parts![0];
 			expect(fr.functionResponse.name).toBe('generateImages');
 			expect(fr.functionResponse.response.images).toHaveLength(2);
 
@@ -276,18 +335,20 @@ describe('GeminiMessageConverter', () => {
 			const statefulMarker = new LanguageModelDataPart(new Uint8Array([1, 2, 3]), CustomDataPartMimeTypes.StatefulMarker);
 			const textPart = new LanguageModelTextPart('Result text');
 
-			const toolResult = new LanguageModelToolResultPart('mixedContent_12345', [textPart, validImage as any, statefulMarker as any]);
 			const messages: LanguageModelChatMessage[] = [
 				{
 					role: LanguageModelChatMessageRole.Assistant,
-					content: [toolResult],
+					content: [
+						new LanguageModelToolCallPart('mixedContent_12345', 'mixedContent', {}),
+						new LanguageModelToolResultPart('mixedContent_12345', [textPart, validImage as any, statefulMarker as any])
+					],
 					name: undefined
 				}
 			];
 
 			const result = apiMessageToGeminiMessage(messages);
 
-			const fr: any = result.contents[0].parts![0];
+			const fr: any = result.contents[1].parts![0];
 			expect(fr.functionResponse.name).toBe('mixedContent');
 			// Should include text and valid image, but not stateful marker
 			expect(fr.functionResponse.response.result).toContain('Result text');

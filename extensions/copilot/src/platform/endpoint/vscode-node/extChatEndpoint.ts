@@ -24,7 +24,7 @@ import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation 
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
-import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
+import { CustomDataPartMimeTypes, decodeToolCallStreamData, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
@@ -252,6 +252,11 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.ContextManagement) {
 						const contextManagement = JSON.parse(new TextDecoder().decode(chunk.data)) as ContextManagementResponse;
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
+					} else if (chunk.mimeType === CustomDataPartMimeTypes.ToolCallStream) {
+						const decoded = decodeToolCallStreamData(chunk.data);
+						if (decoded) {
+							await streamRecorder.callback?.(text, 0, { text: '', beginToolCalls: decoded.beginToolCalls, copilotToolCallStreamUpdates: decoded.copilotToolCallStreamUpdates });
+						}
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						try {
 							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;

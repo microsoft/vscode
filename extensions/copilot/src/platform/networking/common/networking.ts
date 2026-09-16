@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string };
+	reasoning?: { effort?: string; summary?: string; enabled?: boolean; exclude?: boolean };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -86,6 +86,8 @@ export interface IEndpointBody {
 	prompt?: string;
 	/** OpenAI Chat Completions API top-level reasoning effort (BYOK chat-completions shape). Mirrors the nested `reasoning.effort` used by the Responses API. */
 	reasoning_effort?: string;
+	enable_thinking?: boolean;
+	chat_template_kwargs?: { enable_thinking: boolean };
 	/** Embeddings endpoints only: */
 	dimensions?: number;
 	embed?: boolean;
