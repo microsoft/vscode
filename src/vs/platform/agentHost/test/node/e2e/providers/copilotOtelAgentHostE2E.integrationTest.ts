@@ -89,27 +89,18 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-export', 'Reply exactly "traced".', 1);
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10);
-		// The Agent Host synthetic spans (session + title_changed) reach the file
-		// as soon as the turn completes, but the SDK/CLI's own `invoke_agent` root
-		// span only closes at turn end and is exported through the runtime's
-		// `otlp-http` AsyncBatchSpanProcessor, whose default scheduled delay batches
-		// it out ~5s later. Poll well past that batch cadence so the assertion waits
-		// for the batched SDK span instead of racing it.
-		//
-		// Match the `invoke_agent` root span by name *prefix* rather than exact
-		// value: following the GenAI semantic convention, the runtime now names the
-		// span `invoke_agent {gen_ai.agent.name}` (e.g. `invoke_agent copilot` for
-		// the default agent, `invoke_agent explorer` for a subagent), so an exact
-		// `"name":"invoke_agent"` match no longer holds. The contract this test
-		// exercises is that the SDK-emitted `invoke_agent` span flows through the
-		// Agent Host file exporter, which the prefix still verifies.
+		// Poll beyond the SDK batch delay and accept exact/default or named `invoke_agent {agent}` spans.
 		const exported = await retry(async () => {
 			const contents = await readFile(exportFile, 'utf8').catch(() => '');
+			const sdkSpanExported = contents.split('\n').some(line =>
+				(line.includes('"name":"invoke_agent"') || line.includes('"name":"invoke_agent '))
+				&& line.includes('"gen_ai.operation.name":"invoke_agent"')
+				&& line.includes('"service.name":"github-copilot"')
+			);
 			if (!contents.includes('"traceId"')
 				|| !contents.includes('"spanId"')
 				|| !contents.includes('vscode.agent_host.session.title_changed')
-				|| !contents.includes('"name":"invoke_agent')
-				|| !contents.includes('"service.name":"github-copilot"')) {
+				|| !sdkSpanExported) {
 				throw new Error(`OTel spans have not reached the file exporter: ${contents}`);
 			}
 			return contents;
