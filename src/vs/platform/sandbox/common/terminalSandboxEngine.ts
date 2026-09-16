@@ -682,12 +682,12 @@ export class TerminalSandboxEngine extends Disposable {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(macFileSystemSetting.denyRead ?? []), configFilePath]));
-			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
+			denyWritePaths = await this._resolveDenyWritePaths(macFileSystemSetting.denyWrite, configFilePath);
 		} else if (this._os === OperatingSystem.Linux) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(linuxFileSystemSetting.denyRead ?? []), configFilePath]));
-			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
+			denyWritePaths = await this._resolveDenyWritePaths(linuxFileSystemSetting.denyWrite, configFilePath);
 		}
 		const sandboxSettings = this._os === OperatingSystem.Windows ? await this._windowsMxcRuntime.createConfig({
 			command: this._commandLine ?? '',
@@ -751,12 +751,12 @@ export class TerminalSandboxEngine extends Disposable {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(macFileSystemSetting.denyRead ?? []), ...(configFilePath ? [configFilePath] : [])]));
-			denyWritePaths = macFileSystemSetting.denyWrite ? await this._resolveFileSystemPaths(macFileSystemSetting.denyWrite) : undefined;
+			denyWritePaths = await this._resolveDenyWritePaths(macFileSystemSetting.denyWrite, configFilePath);
 		} else if (this._os === OperatingSystem.Linux) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
 			allowReadPaths = await this._resolveFileSystemPaths(await this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 			denyReadPaths = await this._resolveFileSystemPaths(this._updateDenyReadPathsWithHome([...(linuxFileSystemSetting.denyRead ?? []), ...(configFilePath ? [configFilePath] : [])]));
-			denyWritePaths = await this._resolveFileSystemPaths(linuxFileSystemSetting.denyWrite);
+			denyWritePaths = await this._resolveDenyWritePaths(linuxFileSystemSetting.denyWrite, configFilePath);
 		}
 
 		return { allowReadPaths, allowWritePaths, denyReadPaths, denyWritePaths };
@@ -944,6 +944,16 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 		const userHome = this._userHome ? this._getUriPath(this._userHome) : undefined;
 		return [...new Set([...(configuredDenyRead ?? []), ...(userHome ? [userHome] : [])])];
+	}
+
+	private async _resolveDenyWritePaths(configuredDenyWrite: string[] | undefined, configFilePath: string | undefined): Promise<string[]> {
+		if (!configFilePath) {
+			return this._resolveFileSystemPaths(configuredDenyWrite);
+		}
+		const path = this._os === OperatingSystem.Windows ? win32 : posix;
+		const configDirectoryPaths = await this._resolveFileSystemPath(path.dirname(configFilePath));
+		const configFilePaths = configDirectoryPaths.map(directory => path.join(directory, path.basename(configFilePath)));
+		return this._resolveFileSystemPaths([...(configuredDenyWrite ?? []), ...configFilePaths]);
 	}
 
 	private async _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
