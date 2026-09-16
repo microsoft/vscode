@@ -97,6 +97,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			},
 			onDidClose: Event.None,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
+			onWillReinitialize: Event.None,
+			onDidReinitialize: Event.None,
 			onDidNotification: Event.None,
 			onDidAction: Event.None,
 			onMcpNotification: Event.None,
@@ -191,6 +193,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		instantiationService.stubInstance(AgentHostProtocolClient, {
 			onDidClose: Event.None,
 			onDidChangeConnectionState: Event.None,
+			onWillReinitialize: Event.None,
+			onDidReinitialize: Event.None,
 			listSessions: async () => sessions,
 			dispose: () => { },
 		});

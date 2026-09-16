@@ -632,6 +632,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			}));
 		}
 
+		this._attachConnectionReinitializationListeners(connection, this._connectionListeners);
 		this._attachConnectionListeners(connection, this._connectionListeners);
 
 		// Always refresh sessions when a connection is (re)established.

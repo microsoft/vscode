@@ -1099,6 +1099,10 @@ export interface IAgentConnection {
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
+	/** Fires before reconnect falls back to a fresh initialize after the host forgot this client. */
+	readonly onWillReinitialize: Event<void>;
+	/** Fires after a reconnect that required a fresh initialize has completed. */
+	readonly onDidReinitialize: Event<void>;
 	readonly onDidNotification: Event<INotification>;
 	readonly onDidAction: Event<ActionEnvelope>;
 	/**
