@@ -19,6 +19,7 @@ export interface IProjectBoardConfiguration {
 	readonly columns: readonly IProjectBoardAxis[];
 	readonly placements: readonly (IProjectBoardPlacement & { readonly cardId: string })[];
 	readonly autoIncludeSessions: boolean;
+	readonly openChatInSidePanel?: boolean;
 	readonly display?: IProjectBoardDisplayOptions;
 }
 

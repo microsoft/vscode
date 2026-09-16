@@ -64,6 +64,15 @@ export class ProjectBoardState extends Disposable {
 		});
 	}
 
+	setOpenChatInSidePanel(enabled: boolean): void {
+		this.mutate(configuration => {
+			if (typeof enabled !== 'boolean') {
+				throw new Error(localize('projectBoard.invalidOpenChatInSidePanel', "The chat opening option is invalid."));
+			}
+			return { ...configuration, openChatInSidePanel: enabled };
+		});
+	}
+
 	reset(): void {
 		try {
 			this.save(defaultConfiguration());
@@ -245,6 +254,7 @@ function freezeConfiguration(configuration: IProjectBoardConfiguration): IProjec
 		columns: Object.freeze(configuration.columns.map(axis => Object.freeze({ ...axis }))),
 		placements: Object.freeze(configuration.placements.map(placement => Object.freeze({ ...placement }))),
 		autoIncludeSessions: configuration.autoIncludeSessions,
+		...(configuration.openChatInSidePanel !== undefined ? { openChatInSidePanel: configuration.openChatInSidePanel } : {}),
 		...(configuration.display ? { display: Object.freeze({ ...configuration.display }) } : {}),
 	});
 }
@@ -261,11 +271,14 @@ function hasKeys(value: unknown, keys: readonly string[], optionalKeys: readonly
 
 function parseConfiguration(raw: string): IProjectBoardConfiguration {
 	const value: unknown = JSON.parse(raw);
-	if (!hasKeys(value, ['version', 'rows', 'columns', 'placements'], ['autoIncludeSessions', 'display']) || value.version !== 1) {
+	if (!hasKeys(value, ['version', 'rows', 'columns', 'placements'], ['autoIncludeSessions', 'display', 'openChatInSidePanel']) || value.version !== 1) {
 		throw new Error(localize('projectBoard.invalidVersion', "The saved board format or version is not supported."));
 	}
 	if (Object.hasOwn(value, 'autoIncludeSessions') && typeof value.autoIncludeSessions !== 'boolean') {
 		throw new Error(localize('projectBoard.invalidSavedAutoIncludeSessions', "The saved auto-include sessions option is invalid."));
+	}
+	if (Object.hasOwn(value, 'openChatInSidePanel') && typeof value.openChatInSidePanel !== 'boolean') {
+		throw new Error(localize('projectBoard.invalidSavedOpenChatInSidePanel', "The saved chat opening option is invalid."));
 	}
 	let display: IProjectBoardDisplayOptions | undefined;
 	if (Object.hasOwn(value, 'display')) {
@@ -317,6 +330,7 @@ function parseConfiguration(raw: string): IProjectBoardConfiguration {
 		columns: value.columns,
 		placements,
 		autoIncludeSessions: value.autoIncludeSessions !== false,
+		...(typeof value.openChatInSidePanel === 'boolean' ? { openChatInSidePanel: value.openChatInSidePanel } : {}),
 		...(display ? { display } : {}),
 	};
 }

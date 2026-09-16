@@ -75,7 +75,8 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 	}
 
 	private async _syncTarget(target: DetailPanelTarget, generation: number): Promise<void> {
-		if (generation !== this._generation || !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+		if (generation !== this._generation || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)
+			|| !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 			return;
 		}
 

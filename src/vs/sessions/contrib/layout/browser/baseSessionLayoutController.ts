@@ -38,7 +38,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewSupportsAuxiliaryBarContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -752,9 +752,12 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
-					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
-						CustomViewVisibleContext.negate()
+					precondition: ContextKeyExpr.or(
+						ContextKeyExpr.and(CustomViewVisibleContext, CustomViewSupportsAuxiliaryBarContext),
+						ContextKeyExpr.and(
+							ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
+							CustomViewVisibleContext.negate()
+						)
 					),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
@@ -806,7 +809,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// default, which would reveal the docked editor) and it survives a reload.
 		if (this._isEditorPartVisibilityPerSession) {
 			const editorPartHidden = this._editorPartHiddenBySession.get(from.resource)
-				?? (replacedSessionIsActive ? !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) : undefined);
+				?? (replacedSessionIsActive && !this._isCustomViewVisible() ? !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) : undefined);
 			if (editorPartHidden !== undefined) {
 				this._editorPartHiddenBySession.set(to.resource, editorPartHidden);
 			}
