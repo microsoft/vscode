@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -30,6 +31,42 @@ suite('ChatCustomConfirmationWidget', () => {
 	function button(label: string, moreActions?: IChatConfirmationButton<boolean>[]): IChatConfirmationButton<boolean> {
 		return { label, data: true, moreActions };
 	}
+
+	test('runs the current primary action with its original button data', () => {
+		const widget = createWidget([button('Allow Once', [button('Always Allow')]), button('Skip')]);
+		const clicks: { label: string; data: boolean; isTouchClick: boolean }[] = [];
+		store.add(widget.onDidClick(({ button, isTouchClick }) => clicks.push({ label: button.label, data: button.data, isTouchClick })));
+
+		widget.runPrimaryAction();
+		widget.updateButtons([{ label: 'Deny Once', data: false, moreActions: [button('Always Deny')] }]);
+		widget.runPrimaryAction();
+		widget.updateButtons([]);
+		widget.runPrimaryAction();
+
+		assert.deepStrictEqual(clicks, [
+			{ label: 'Allow Once', data: true, isTouchClick: false },
+			{ label: 'Deny Once', data: false, isTouchClick: false },
+		]);
+	});
+
+	test('does not run a disabled primary action or fall through to a secondary action', () => {
+		const disablement = store.add(new Emitter<boolean>());
+		const widget = createWidget([
+			{ ...button('Reveal Selected'), disabled: true, onDidChangeDisablement: disablement.event },
+			{ label: 'Cancel', data: false, isSecondary: true },
+		]);
+		const clicks: string[] = [];
+		store.add(widget.onDidClick(({ button }) => clicks.push(button.label)));
+
+		widget.runPrimaryAction();
+		const initiallyDisabled = [...clicks];
+		disablement.fire(false);
+		widget.runPrimaryAction();
+		disablement.fire(true);
+		widget.runPrimaryAction();
+
+		assert.deepStrictEqual({ initiallyDisabled, clicks }, { initiallyDisabled: [], clicks: ['Reveal Selected'] });
+	});
 
 	test('preserves focused button when buttons reorder', () => {
 		const widget = createWidget([button('Allow'), button('Skip')]);

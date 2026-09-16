@@ -35,6 +35,8 @@ export interface ISessionPullRequestOptions {
 	readonly expectedContext?: ISessionPullRequestContext;
 }
 
+export type ISessionPullRequestChatOptions = Omit<ISessionPullRequestOptions, 'title' | 'description'>;
+
 export interface ISessionPullRequestDetails {
 	readonly title: string;
 	readonly description: string;
@@ -56,7 +58,7 @@ export interface ISessionPullRequestCreation {
 	/** Generates editable details without changing the repository or creating a pull request. */
 	prepare(token: CancellationToken): Promise<ISessionPullRequestDetails>;
 	/** Validates prepared identity and carries submission choices with a normal chat request. */
-	prepareChatRequest(query: string, options: ISessionPullRequestOptions): Promise<ISendRequestOptions>;
+	prepareChatRequest(query: string, options: ISessionPullRequestChatOptions): Promise<ISendRequestOptions>;
 	/** Returns an optional plain-text outcome, including any post-creation warnings. */
 	create(options: ISessionPullRequestOptions): Promise<string | void>;
 }

@@ -565,6 +565,11 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
 
+// Root config key forwarded from the renderer when the `chat.agentHost.sessionCatalog.enabled`
+// setting changes. When `false`, the host lists sessions from provider metadata and per-session
+// storage instead of the central catalog, and performs no catalog import or background repair.
+export const AgentHostSessionCatalogEnabledConfigKey = 'sessionCatalogEnabled';
+
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
@@ -896,6 +901,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
+	}),
+	[AgentHostSessionCatalogEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.sessionCatalogEnabled.title', "Session Catalog"),
+		description: localize('agentHost.config.sessionCatalogEnabled.description', "Whether the session list is served from the central catalog. When disabled, sessions are listed from provider metadata and per-session storage instead."),
+		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

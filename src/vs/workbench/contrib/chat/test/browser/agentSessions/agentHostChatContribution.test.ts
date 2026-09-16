@@ -8158,7 +8158,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
-		test('history requests get per-turn modelId from usage or message model', async () => {
+		test('history requests get per-turn model selection from usage or message model', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
 				['agent-host-copilot:sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Sonnet 4.6', pricing: '2x' })],
@@ -8182,7 +8182,7 @@ suite('AgentHostChatContribution', () => {
 					},
 					{
 						id: 'turn-2',
-						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
+						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'xhigh' } } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-2', content: 'A2' }],
 						usage: undefined,
 						state: TurnState.Complete,
@@ -8191,7 +8191,7 @@ suite('AgentHostChatContribution', () => {
 				activeTurn: {
 					id: 'turn-active',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
+					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'max' } } },
 					responseParts: [],
 					usage: { _meta: { cost: 1 } },
 				},
@@ -8203,11 +8203,11 @@ suite('AgentHostChatContribution', () => {
 
 			const requests = session.history.filter((h): h is IChatSessionRequestHistoryItem => h.type === 'request');
 			assert.deepStrictEqual(
-				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId })),
+				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
 				[
-					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7' },
-					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6' },
-					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6' },
+					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7', modelConfiguration: undefined },
+					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6', modelConfiguration: { reasoningEffort: 'xhigh' } },
+					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6', modelConfiguration: { reasoningEffort: 'max' } },
 				],
 			);
 
@@ -12415,7 +12415,12 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 			const metadata = { 'test.request': { enabled: true } };
-			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: { metadata } });
+			const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+			pendingRequests.push({
+				request,
+				kind: ChatRequestQueueKind.Queued,
+				sendOptions: { metadata, userSelectedModelId: 'agent-host-copilot:claude-opus-4.8', userSelectedModelConfiguration: modelConfiguration },
+			});
 			chatModel.firePendingRequestsChanged();
 
 			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
@@ -12441,6 +12446,7 @@ suite('AgentHostChatContribution', () => {
 						text,
 						origin: { kind: MessageKind.User },
 						_meta: metadata,
+						model: { id: 'claude-opus-4.8', config: modelConfiguration },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
@@ -12502,6 +12508,7 @@ suite('AgentHostChatContribution', () => {
 					message: {
 						text: 'queued elsewhere',
 						origin: { kind: MessageKind.User },
+						model: { id: 'auto' },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
@@ -12520,7 +12527,7 @@ suite('AgentHostChatContribution', () => {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
 					id: 'remote-steering-1',
-					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User } },
+					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User }, model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } } },
 				} as ChatAction,
 				serverSeq: 2,
 				origin: undefined,
@@ -12531,6 +12538,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
 				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
+				selections: last?.requests.map(r => ({ modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
 				elementCorrelationId: elementVariable ? getElementAttachmentCorrelationId(elementVariable) : undefined,
 				echoedActions: agentHostService.dispatchedActions.filter(d =>
 					d.action.type === ActionType.ChatPendingMessageSet
@@ -12545,6 +12553,10 @@ suite('AgentHostChatContribution', () => {
 				protocol: [
 					{ id: 'remote-steering-1', kind: ChatRequestQueueKind.Steering, message: 'steered elsewhere' },
 					{ id: 'remote-queued-1', kind: ChatRequestQueueKind.Queued, message: 'queued elsewhere' },
+				],
+				selections: [
+					{ modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } },
+					{ modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
 				],
 				elementCorrelationId: 'remote-element',
 				echoedActions: [],
@@ -12680,6 +12692,7 @@ suite('AgentHostChatContribution', () => {
 					message: withMessageRequestHiddenFromTranscript({
 						text: 'Continue in the requested workspace.',
 						origin: { kind: MessageKind.SystemNotification },
+						model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } },
 						_meta: toAgentWorkspaceContinuationMessageMeta(),
 					}, true),
 				} as ChatAction,
@@ -12691,8 +12704,8 @@ suite('AgentHostChatContribution', () => {
 
 			// onDidStartServerRequest should have fired, carrying the provider turn id
 			assert.deepStrictEqual(
-				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden })),
-				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true }],
+				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden, modelId: e.modelId, modelConfiguration: e.modelConfiguration })),
+				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true, modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } }],
 			);
 
 			// isCompleteObs should be false (turn in progress)
