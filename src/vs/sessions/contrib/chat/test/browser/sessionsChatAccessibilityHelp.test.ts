@@ -5,8 +5,11 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -14,9 +17,11 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { COMPARE_AGENTS_ENABLED_SETTING } from '../../common/constants.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
-import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -136,8 +141,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			archiveComparison: enabledProvider.provideContent().includes('check-mark Archive Comparison action'),
 			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs input in an inactive visible pane'),
-			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
+			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Solution, Validation, Code quality'),
 			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
+			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
 			focusAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to focus another attempt'),
 			additionalInstructions: enabledProvider.provideContent().includes('choose Additional Synthesis Instructions'),
 			submitInstructions: enabledProvider.provideContent().includes('Activate Start Synthesis with Instructions'),
@@ -167,12 +173,82 @@ suite('SessionsChatAccessibilityHelp', () => {
 			inactivePaneNotification: true,
 			rationaleOrder: true,
 			attemptLinks: true,
+			accessibleView: true,
 			focusAttempts: true,
 			additionalInstructions: true,
 			submitInstructions: true,
 			customSynthesis: true,
 			customSynthesisScroll: true,
 			choiceButtons: true,
+		});
+	});
+
+	test('provides the focused Judge result as plain text and restores focus', () => {
+		const judgeResource = URI.parse('test:///judge');
+		const comparison: ISessionComparison = {
+			id: 'comparison',
+			groupId: 'group',
+			title: 'Comparison',
+			createdAt: 0,
+			workspace: URI.file('/repo'),
+			prompt: 'Implement',
+			participants: [{
+				id: 'attempt',
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Codex' },
+				completion: { elapsedMs: 3_000, tokenCount: 42 },
+			}, {
+				id: 'judge',
+				role: SessionComparisonParticipantRole.Judge,
+				sessionResource: judgeResource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Judge' },
+			}],
+			verdict: {
+				recommendedParticipantId: 'attempt',
+				explanation: 'Best result.',
+				conflicts: [],
+				attempts: [],
+			},
+		};
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
+				sessionId: 'judge',
+				resource: judgeResource,
+			}));
+		}());
+		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+			override readonly comparisons = constObservable([comparison]);
+		}());
+		const origin = mainWindow.document.createElement('button');
+		mainWindow.document.body.appendChild(origin);
+		store.add({ dispose: () => origin.remove() });
+		origin.focus();
+
+		const provider = new SessionComparisonAccessibleView().getProvider(instantiationService);
+		assert.ok(provider);
+		store.add(provider);
+		const content = provider?.provideContent();
+		provider?.onClose();
+
+		assert.deepStrictEqual({
+			type: provider?.options.type,
+			content,
+			focusRestored: mainWindow.document.activeElement === origin,
+		}, {
+			type: AccessibleViewType.View,
+			content: [
+				'Comparison result',
+				'Attempt 1 (Codex) won',
+				'',
+				'Why it won',
+				'Best result.',
+				'',
+				'Attempt time and token usage',
+				'Attempt 1 (Codex): Total time 3s; Total tokens 42',
+			].join('\n'),
+			focusRestored: true,
 		});
 	});
 });

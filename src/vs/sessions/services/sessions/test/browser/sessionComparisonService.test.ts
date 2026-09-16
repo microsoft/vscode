@@ -620,10 +620,20 @@ suite('SessionComparisonService', () => {
 				affectedFiles: ['src/parser.ts'],
 				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Use ${attempt.harness.label}` })),
 				recommendedParticipantId: attempts[1].id,
+			}, {
+				id: 'validation',
+				title: 'Validation',
+				description: 'Choose the validation scope.',
+				affectedFiles: ['test/parser.test.ts'],
+				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Validate with ${attempt.harness.label}` })),
+				recommendedParticipantId: attempts[0].id,
 			}],
 		});
 		service.setSynthesisPlan(comparison.id, {
-			selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+			selections: [
+				{ sectionId: 'error-handling', participantId: attempts[0].id },
+				{ sectionId: 'validation', participantId: attempts[1].id },
+			],
 			instructions: 'Preserve the public API and add focused tests.',
 		});
 		let synthesisBeforeCreateReturned: {
@@ -655,9 +665,12 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
-				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+				selections: [
+					{ sectionId: 'error-handling', participantId: attempts[0].id },
+					{ sectionId: 'validation', participantId: attempts[1].id },
+				],
 				instructions: 'Preserve the public API and add focused tests.',
 			},
 			synthesisBeforeCreateReturned: {

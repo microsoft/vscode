@@ -13,18 +13,26 @@ import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonDecisionSection, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+
+export const SessionComparisonResultFocused = new RawContextKey<boolean>('sessionComparisonResultFocused', false);
 
 export class SessionComparisonResult extends Disposable {
 
@@ -35,6 +43,7 @@ export class SessionComparisonResult extends Disposable {
 	private renderedComparisonId: string | undefined;
 	private renderedVerdict: ISessionComparison['verdict'];
 	private renderedParticipants: ISessionComparison['participants'] | undefined;
+	private winnerTitle: string | undefined;
 
 	constructor(
 		currentSession: IObservable<ISession | undefined>,
@@ -44,11 +53,25 @@ export class SessionComparisonResult extends Disposable {
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.domNode.hidden = true;
+		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'region');
 		this.domNode.setAttribute('aria-labelledby', this.titleId);
+		const focusContext = SessionComparisonResultFocused.bindTo(contextKeyService);
+		const focusTracker = this._register(dom.trackFocus(this.domNode));
+		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
+		this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
+		this._register(toDisposable(() => focusContext.reset()));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(AccessibilityVerbositySettingId.SessionsChat)) {
+				this.updateAriaLabel();
+			}
+		}));
 
 		this._register(autorun(reader => {
 			const session = currentSession.read(reader);
@@ -64,15 +87,24 @@ export class SessionComparisonResult extends Disposable {
 		}));
 	}
 
+	layout(availableWidth: number): void {
+		const centeredContentWidth = Math.min(availableWidth, AGENTS_CENTERED_CONTENT_MAX_WIDTH);
+		this.domNode.style.width = `calc(${availableWidth}px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))`;
+		this.domNode.style.marginLeft = `${(centeredContentWidth - availableWidth) / 2}px`;
+		this.domNode.style.marginRight = '0';
+	}
+
 	private render(comparison: ISessionComparison | undefined): void {
 		this.renderedComparisonId = comparison?.id;
 		this.renderedVerdict = comparison?.verdict;
 		this.renderedParticipants = comparison?.participants;
 		this.renderStore.clear();
 		dom.clearNode(this.domNode);
+		this.winnerTitle = undefined;
 		const wasHidden = this.domNode.hidden;
 		this.domNode.hidden = !comparison;
 		if (!comparison?.verdict) {
+			this.updateAriaLabel();
 			if (!wasHidden) {
 				this.onDidChangeLayout();
 			}
@@ -89,6 +121,8 @@ export class SessionComparisonResult extends Disposable {
 		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
 		title.id = this.titleId;
 		const winnerTitle = localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
+		this.winnerTitle = winnerTitle;
+		this.updateAriaLabel();
 		const winnerLabelOffset = winnerTitle.indexOf(winnerLabel);
 		if (winner.sessionResource && winnerLabelOffset >= 0) {
 			title.append(winnerTitle.slice(0, winnerLabelOffset));
@@ -219,7 +253,24 @@ export class SessionComparisonResult extends Disposable {
 		}
 	}
 
+	private updateAriaLabel(): void {
+		if (!this.winnerTitle) {
+			this.domNode.removeAttribute('aria-label');
+			this.domNode.setAttribute('aria-labelledby', this.titleId);
+			return;
+		}
+		this.domNode.removeAttribute('aria-labelledby');
+		const accessibleViewKeybinding = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SessionsChat)
+			? this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel()
+			: undefined;
+		this.domNode.setAttribute('aria-label', accessibleViewKeybinding
+			? localize('sessionComparisonResult.ariaLabelWithAccessibleViewHint', "{0}. Use {1} to open the comparison result in the Accessible View.", this.winnerTitle, accessibleViewKeybinding)
+			: this.winnerTitle);
+	}
+
 	private renderAttemptMetrics(attempts: readonly ISessionComparisonParticipant[]): void {
+		const timeWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs);
+		const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCount);
 		const details = dom.append(this.domNode, dom.$('details.session-comparison-result-metrics'));
 		const summary = dom.append(details, dom.$('summary.session-comparison-result-metrics-summary'));
 		summary.id = `session-comparison-metrics-${generateUuid()}`;
@@ -250,13 +301,28 @@ export class SessionComparisonResult extends Disposable {
 			const attemptHeader = dom.append(row, dom.$('th'));
 			attemptHeader.setAttribute('scope', 'row');
 			attemptHeader.textContent = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1);
-			dom.append(row, dom.$('td')).textContent = attempt.completion?.elapsedMs === undefined
+			const timeCell = dom.append(row, dom.$('td'));
+			timeCell.append(attempt.completion?.elapsedMs === undefined
 				? localize('sessionComparisonResult.unavailable', "Unavailable")
-				: formatElapsedTime(attempt.completion.elapsedMs);
-			dom.append(row, dom.$('td')).textContent = attempt.completion?.tokenCount === undefined
+				: formatElapsedTime(attempt.completion.elapsedMs));
+			if (timeWinners.has(attempt.id)) {
+				this.renderMetricWinnerBadge(timeCell, localize('sessionComparisonResult.timeWinner', "Time winner"));
+			}
+			const tokenCell = dom.append(row, dom.$('td'));
+			tokenCell.append(attempt.completion?.tokenCount === undefined
 				? localize('sessionComparisonResult.unavailable', "Unavailable")
-				: attempt.completion.tokenCount.toLocaleString();
+				: attempt.completion.tokenCount.toLocaleString());
+			if (tokenWinners.has(attempt.id)) {
+				this.renderMetricWinnerBadge(tokenCell, localize('sessionComparisonResult.tokenWinner', "Token usage winner"));
+			}
 		}
+	}
+
+	private renderMetricWinnerBadge(cell: HTMLElement, ariaLabel: string): void {
+		cell.append(' ');
+		const badge = dom.append(cell, dom.$('span.session-comparison-result-metric-winner'));
+		badge.textContent = localize('sessionComparisonResult.metricWinner', "Winner");
+		badge.setAttribute('aria-label', ariaLabel);
 	}
 
 	private renderRationale(verdict: ISessionComparisonVerdict): void {
@@ -264,13 +330,21 @@ export class SessionComparisonResult extends Disposable {
 			this.renderMarkdown(dom.append(this.domNode, dom.$('.session-comparison-result-explanation')), verdict.explanation);
 			return;
 		}
-		const entries = [
+		const primaryEntries = [
 			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: verdict.rationale.comparison },
-			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
-			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: verdict.rationale.codeQuality },
 			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: verdict.rationale.solution },
 		];
-		const list = dom.append(this.domNode, dom.$('dl.session-comparison-result-rationale'));
+		const supportingEntries = [
+			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
+			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: verdict.rationale.codeQuality },
+		];
+		const rationale = dom.append(this.domNode, dom.$('.session-comparison-result-rationale'));
+		this.renderRationaleEntries(rationale, primaryEntries, true);
+		this.renderRationaleEntries(rationale, supportingEntries, false);
+	}
+
+	private renderRationaleEntries(container: HTMLElement, entries: readonly { label: string; point: string }[], primary: boolean): void {
+		const list = dom.append(container, dom.$(`dl.session-comparison-result-rationale-section.${primary ? 'primary' : 'supporting'}`));
 		for (const entry of entries) {
 			dom.append(list, dom.$('dt.session-comparison-result-rationale-category')).textContent = entry.label;
 			const value = dom.append(list, dom.$('dd'));
@@ -556,6 +630,115 @@ export class SessionComparisonResult extends Disposable {
 
 }
 
+export function buildSessionComparisonAccessibleContent(comparison: ISessionComparison): string {
+	const verdict = comparison.verdict;
+	if (!verdict) {
+		return '';
+	}
+	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+	const winner = attempts.find(participant => participant.id === verdict.recommendedParticipantId);
+	if (!winner) {
+		return '';
+	}
+	const attemptLabels = new Map(attempts.map((attempt, index) => [attempt.id, getSessionComparisonAttemptLabel(attempt, index + 1)]));
+	const winnerLabel = attemptLabels.get(winner.id) ?? winner.id;
+	const lines = [
+		localize('sessionComparisonAccessibleView.title', "Comparison result"),
+		localize('sessionComparisonResult.winner', "{0} won", winnerLabel),
+		'',
+		localize('sessionComparisonResult.whyWinner', "Why it won"),
+	];
+	if (verdict.rationale) {
+		lines.push(
+			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.comparison', "Comparison"), toPlainText(verdict.rationale.comparison)),
+			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.solution', "Solution"), toPlainText(verdict.rationale.solution)),
+			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.validation', "Validation"), toPlainText(verdict.rationale.validation)),
+			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), toPlainText(verdict.rationale.codeQuality)),
+		);
+	} else {
+		lines.push(toPlainText(verdict.explanation));
+	}
+
+	const otherAttempts = attempts.filter(attempt => attempt.id !== winner.id);
+	if (otherAttempts.length > 0) {
+		lines.push('', localize('sessionComparisonResult.otherStrengths', "Strong points from other attempts"));
+		for (const attempt of otherAttempts) {
+			const attemptVerdict = verdict.attempts.find(candidate => candidate.participantId === attempt.id);
+			const strengths = attemptVerdict?.notableDifferences.length
+				? attemptVerdict.notableDifferences
+				: attemptVerdict?.summary ? [attemptVerdict.summary] : [];
+			lines.push(formatAccessibleLabelValue(
+				attemptLabels.get(attempt.id) ?? attempt.id,
+				strengths.length > 0
+					? strengths.map(toPlainText).join('; ')
+					: localize('sessionComparisonResult.noStrengths', "No distinct strong points reported"),
+			));
+		}
+	}
+
+	lines.push('', localize('sessionComparisonResult.attemptMetrics', "Attempt time and token usage"));
+	const timeWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs);
+	const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCount);
+	for (const attempt of attempts) {
+		const elapsed = attempt.completion?.elapsedMs === undefined
+			? localize('sessionComparisonResult.unavailable', "Unavailable")
+			: formatElapsedTime(attempt.completion.elapsedMs);
+		const tokens = attempt.completion?.tokenCount === undefined
+			? localize('sessionComparisonResult.unavailable', "Unavailable")
+			: attempt.completion.tokenCount.toLocaleString();
+		lines.push(localize(
+			'sessionComparisonAccessibleView.attemptMetrics',
+			"{0}: Total time {1}{2}; Total tokens {3}{4}",
+			attemptLabels.get(attempt.id) ?? attempt.id,
+			elapsed,
+			timeWinners.has(attempt.id) ? localize('sessionComparisonAccessibleView.winner', " (winner)") : '',
+			tokens,
+			tokenWinners.has(attempt.id) ? localize('sessionComparisonAccessibleView.winner', " (winner)") : '',
+		));
+	}
+
+	if (verdict.decisionSections?.length) {
+		const storedSelections = new Map(comparison.synthesisPlan?.selections.map(selection => [selection.sectionId, selection.participantId]));
+		lines.push('', localize('sessionComparisonResult.customSynthesis', "Custom Synthesis"));
+		for (const section of verdict.decisionSections) {
+			lines.push('', toPlainText(section.title), toPlainText(section.description));
+			if (section.affectedFiles.length > 0) {
+				lines.push(localize('sessionComparisonAccessibleView.affectedFiles', "Affected files: {0}", section.affectedFiles.join(', ')));
+			}
+			const selectedParticipantId = storedSelections.has(section.id)
+				? storedSelections.get(section.id)
+				: section.recommendedParticipantId;
+			for (const option of section.options) {
+				const assessment = getAssessmentLabel(option.assessment ?? (
+					option.participantId === section.recommendedParticipantId
+						? SessionComparisonDecisionAssessment.Better
+						: SessionComparisonDecisionAssessment.Neutral
+				));
+				lines.push(localize(
+					'sessionComparisonAccessibleView.decisionOption',
+					"{0}: {1}. {2}{3}",
+					attemptLabels.get(option.participantId) ?? option.participantId,
+					assessment,
+					toPlainText(option.approach),
+					option.participantId === selectedParticipantId ? localize('sessionComparisonAccessibleView.selected', " Selected.") : '',
+				));
+			}
+			if (selectedParticipantId === undefined) {
+				lines.push(localize('sessionComparisonAccessibleView.synthesizerSelected', "Synthesizer decides. Selected."));
+			}
+		}
+	}
+	return lines.join('\n');
+}
+
+function toPlainText(markdown: string): string {
+	return renderAsPlaintext(new MarkdownString(markdown), { omitMarkdownSyntax: true });
+}
+
+function formatAccessibleLabelValue(label: string, value: string): string {
+	return localize('sessionComparisonAccessibleView.labelValue', "{0}: {1}", label, value);
+}
+
 function formatElapsedTime(elapsedMs: number): string {
 	const totalSeconds = Math.max(0, Math.round(elapsedMs / 1000));
 	if (totalSeconds < 60) {
@@ -566,6 +749,20 @@ function formatElapsedTime(elapsedMs: number): string {
 	return seconds === 0
 		? localize('sessionComparisonResult.minutes', "{0}m", minutes)
 		: localize('sessionComparisonResult.minutesSeconds', "{0}m {1}s", minutes, seconds);
+}
+
+function getMetricWinnerIds(
+	attempts: readonly ISessionComparisonParticipant[],
+	getValue: (attempt: ISessionComparisonParticipant) => number | undefined,
+): ReadonlySet<string> {
+	const available = attempts
+		.map(attempt => ({ id: attempt.id, value: getValue(attempt) }))
+		.filter((entry): entry is { id: string; value: number } => entry.value !== undefined);
+	if (available.length < 2) {
+		return new Set();
+	}
+	const winningValue = Math.min(...available.map(entry => entry.value));
+	return new Set(available.filter(entry => entry.value === winningValue).map(entry => entry.id));
 }
 
 function getAssessmentLabel(assessment: SessionComparisonDecisionAssessment): string {
@@ -611,7 +808,7 @@ function normalizeSynthesisInstructions(value: string): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function isJudgeSession(comparison: ISessionComparison, session: ISession): boolean {
+export function isJudgeSession(comparison: ISessionComparison, session: ISession): boolean {
 	return comparison.participants.some(participant =>
 		participant.role === SessionComparisonParticipantRole.Judge
 		&& !!participant.sessionResource

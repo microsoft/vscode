@@ -662,6 +662,7 @@ export class ChatView extends AbstractChatView {
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
+		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
 		this._widget.layout(widgetHeight, width);
 		this._layoutStickyScrollBackground();

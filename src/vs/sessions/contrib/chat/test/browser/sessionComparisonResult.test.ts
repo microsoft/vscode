@@ -13,14 +13,21 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
-import { SessionComparisonResult } from '../../browser/sessionComparisonResult.js';
+import { buildSessionComparisonAccessibleContent, SessionComparisonResult, SessionComparisonResultFocused } from '../../browser/sessionComparisonResult.js';
 
 suite('Sessions - Comparison Result', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -121,6 +128,20 @@ suite('Sessions - Comparison Result', () => {
 		let synthesized = 0;
 		let layouts = 0;
 		const instantiationService = store.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({
+			[AccessibilityVerbositySettingId.SessionsChat]: true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() {
+			override lookupKeybinding(commandId: string) {
+				return commandId === AccessibilityCommandId.OpenAccessibleView
+					? upcastPartial<ReturnType<IKeybindingService['lookupKeybinding']>>({ getAriaLabel: () => 'Option+F2' })
+					: undefined;
+			}
+		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override comparisons = comparisons;
 			override selectAttempt(_comparisonId: string, participantId: string): void {
@@ -197,9 +218,25 @@ suite('Sessions - Comparison Result', () => {
 		const metricsTable = result.domNode.querySelector<HTMLTableElement>('.session-comparison-result-metrics-table');
 		const panelHiddenBefore = synthesisPanel?.hidden;
 		const instructionsHiddenBefore = instructionsPanel?.hidden;
+		const regionLabelWithHint = result.domNode.getAttribute('aria-label');
+		await configurationService.setUserConfiguration(AccessibilityVerbositySettingId.SessionsChat, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === AccessibilityVerbositySettingId.SessionsChat,
+			affectedKeys: new Set([AccessibilityVerbositySettingId.SessionsChat]),
+		}));
+		const regionLabelWithoutHint = result.domNode.getAttribute('aria-label');
+		await configurationService.setUserConfiguration(AccessibilityVerbositySettingId.SessionsChat, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === AccessibilityVerbositySettingId.SessionsChat,
+			affectedKeys: new Set([AccessibilityVerbositySettingId.SessionsChat]),
+		}));
+		result.domNode.dispatchEvent(new mainWindow.FocusEvent('focus'));
 		const accessibility = {
 			regionRole: result.domNode.getAttribute('role'),
-			regionLabelledBy: result.domNode.getAttribute('aria-labelledby'),
+			regionLabelWithHint,
+			regionLabelWithoutHint,
+			regionTabIndex: result.domNode.tabIndex,
+			focusContext: contextKeyService.getContextKeyValue(SessionComparisonResultFocused.key),
 			titleId: title?.id,
 			tableLabelledBy: strengthsTable?.getAttribute('aria-labelledby'),
 			strengthsTitleId: strengthsTitle?.id,
@@ -217,7 +254,7 @@ suite('Sessions - Comparison Result', () => {
 			startWithInstructionsLabel: startWithInstructions?.getAttribute('aria-label'),
 			columnHeaders: [...decisionTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
 			rowHeaderScope: decisionTable?.querySelector('tbody th')?.getAttribute('scope'),
-			rationaleElement: rationaleList?.tagName,
+			rationaleSections: [...rationaleList?.querySelectorAll('.session-comparison-result-rationale-section') ?? []].map(section => section.classList.contains('primary') ? 'primary' : 'supporting'),
 			rationaleCategories: [...rationaleList?.querySelectorAll('dt') ?? []].map(item => item.textContent),
 			rationaleItems: [...rationaleList?.querySelectorAll('dd li') ?? []].map(item => item.textContent),
 			metricsCollapsed: !metricsDetails?.open,
@@ -225,6 +262,10 @@ suite('Sessions - Comparison Result', () => {
 			metricsSummaryId: metricsDetails?.querySelector('summary')?.id,
 			metricsHeaders: [...metricsTable?.querySelectorAll('thead th') ?? []].map(header => header.textContent),
 			metricsRows: [...metricsTable?.querySelectorAll('tbody tr') ?? []].map(row => [...row.children].map(cell => cell.textContent)),
+			metricWinnerBadges: [...metricsTable?.querySelectorAll('.session-comparison-result-metric-winner') ?? []].map(badge => ({
+				text: badge.textContent,
+				ariaLabel: badge.getAttribute('aria-label'),
+			})),
 			winnerLink: { text: winnerLink?.textContent, href: winnerLink?.getAttribute('href') },
 			otherAttemptLink: { text: otherAttemptLink?.textContent, href: otherAttemptLink?.getAttribute('href') },
 		};
@@ -307,6 +348,13 @@ suite('Sessions - Comparison Result', () => {
 			panel: !!result.domNode.querySelector('.session-comparison-synthesis-plan'),
 			recommended: [...result.domNode.querySelectorAll<HTMLElement>('.monaco-button')].some(button => button.textContent === 'Synthesize Recommended'),
 		};
+		result.layout(1200);
+		const comparisonLayout = {
+			width: result.domNode.style.width,
+			marginLeft: result.domNode.style.marginLeft,
+			marginRight: result.domNode.style.marginRight,
+		};
+		const accessibleContent = buildSessionComparisonAccessibleContent(comparison);
 
 		assert.deepStrictEqual({
 			content: {
@@ -339,6 +387,8 @@ suite('Sessions - Comparison Result', () => {
 			synthesisPlans,
 			hiddenOutsideJudge,
 			singleDecisionCustomSynthesis,
+			comparisonLayout,
+			accessibleContent,
 			layoutNotified: layouts >= 5,
 			panelHiddenBefore,
 			instructionsHiddenBefore,
@@ -426,6 +476,42 @@ suite('Sessions - Comparison Result', () => {
 				panel: false,
 				recommended: true,
 			},
+			comparisonLayout: {
+				width: 'calc(1200px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))',
+				marginLeft: '-125px',
+				marginRight: '0px',
+			},
+			accessibleContent: [
+				'Comparison result',
+				'Attempt 2 (Codex) won',
+				'',
+				'Why it won',
+				'Comparison: Resolved the failure that the other attempt left open.',
+				'Solution: Handled the edge case with typed diagnostics.',
+				'Validation: Passed focused tests, build, lint, and diagnostics.',
+				'Code quality: Kept the change small and aligned with existing types.',
+				'',
+				'Strong points from other attempts',
+				'Attempt 1 (Claude): Clearer naming',
+				'',
+				'Attempt time and token usage',
+				'Attempt 1 (Claude): Total time 1m 35s (winner); Total tokens 38',
+				'Attempt 2 (Codex): Total time 2m; Total tokens 25 (winner)',
+				'',
+				'Custom Synthesis',
+				'',
+				'Error handling',
+				'Choose how parse failures are represented.',
+				'Affected files: src/parser.ts',
+				'Attempt 1 (Claude): Worse choice. Throw structured errors.',
+				'Attempt 2 (Codex): Better choice. Return typed diagnostics. Selected.',
+				'',
+				'Validation',
+				'Choose the validation scope.',
+				'Affected files: test/parser.test.ts',
+				'Attempt 1 (Claude): Neutral choice. Run parser tests.',
+				'Attempt 2 (Codex): Better choice. Run parser and integration tests. Selected.',
+			].join('\n'),
 			layoutNotified: true,
 			panelHiddenBefore: true,
 			instructionsHiddenBefore: true,
@@ -452,7 +538,10 @@ suite('Sessions - Comparison Result', () => {
 			},
 			accessibility: {
 				regionRole: 'region',
-				regionLabelledBy: title?.id,
+				regionLabelWithHint: 'Attempt 2 (Codex) won. Use Option+F2 to open the comparison result in the Accessible View.',
+				regionLabelWithoutHint: 'Attempt 2 (Codex) won',
+				regionTabIndex: 0,
+				focusContext: true,
 				titleId: title?.id,
 				tableLabelledBy: strengthsTitle?.id,
 				strengthsTitleId: strengthsTitle?.id,
@@ -470,21 +559,25 @@ suite('Sessions - Comparison Result', () => {
 				startWithInstructionsLabel: 'Start recommended synthesis with the additional instructions',
 				columnHeaders: ['Decision', 'Attempt 1 (Claude)', 'Attempt 2 (Codex)', 'Synthesizer'],
 				rowHeaderScope: 'row',
-				rationaleElement: 'DL',
-				rationaleCategories: ['Comparison', 'Validation', 'Code quality', 'Solution'],
+				rationaleSections: ['primary', 'supporting'],
+				rationaleCategories: ['Comparison', 'Solution', 'Validation', 'Code quality'],
 				rationaleItems: [
 					'Resolved the failure that the other attempt left open.',
+					'Handled the edge case with typed diagnostics.',
 					'Passed focused tests, build, lint, and diagnostics.',
 					'Kept the change small and aligned with existing types.',
-					'Handled the edge case with typed diagnostics.',
 				],
 				metricsCollapsed: true,
 				metricsTableLabelledBy: metricsDetails?.querySelector('summary')?.id,
 				metricsSummaryId: metricsDetails?.querySelector('summary')?.id,
 				metricsHeaders: ['Attempt', 'Total time', 'Total tokens'],
 				metricsRows: [
-					['Attempt 1 (Claude)', '1m 35s', '38'],
-					['Attempt 2 (Codex)', '2m', '25'],
+					['Attempt 1 (Claude)', '1m 35s Winner', '38'],
+					['Attempt 2 (Codex)', '2m', '25 Winner'],
+				],
+				metricWinnerBadges: [
+					{ text: 'Winner', ariaLabel: 'Time winner' },
+					{ text: 'Winner', ariaLabel: 'Token usage winner' },
 				],
 				winnerLink: { text: 'Attempt 2 (Codex)', href: '#' },
 				otherAttemptLink: { text: 'Attempt 1 (Claude)', href: '#' },
@@ -492,9 +585,9 @@ suite('Sessions - Comparison Result', () => {
 			metricsExpanded: true,
 			renderedMarkdown: [
 				'Resolved the failure that the other attempt left open.',
+				'Handled the `edge case` with typed diagnostics.',
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
-				'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 				'`Error` handling',
 				'Choose how `parse` failures are represented.',
@@ -505,9 +598,9 @@ suite('Sessions - Comparison Result', () => {
 				'Run parser tests.',
 				'Run parser and integration tests.',
 				'Resolved the failure that the other attempt left open.',
+				'Handled the `edge case` with typed diagnostics.',
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
-				'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 			],
 		});

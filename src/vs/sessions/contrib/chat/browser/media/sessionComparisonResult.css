@@ -16,6 +16,11 @@
 	color: var(--vscode-editorWidget-foreground);
 }
 
+.session-comparison-result:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .session-comparison-result-title {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading3);
@@ -44,6 +49,12 @@
 }
 
 .session-comparison-result-rationale {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-comparison-result-rationale-section {
 	display: grid;
 	grid-template-columns: max-content minmax(0, 1fr);
 	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
@@ -51,16 +62,30 @@
 	text-align: left;
 }
 
+.session-comparison-result-rationale-section.primary {
+	padding: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-textBlockQuote-background);
+}
+
+.session-comparison-result-rationale-section.primary .session-comparison-result-rationale-point {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-result-rationale-section.supporting {
+	color: var(--vscode-descriptionForeground);
+}
+
 .session-comparison-result-rationale-category {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-result-rationale dd {
+.session-comparison-result-rationale-section dd {
 	min-width: 0;
 	margin: 0;
 }
 
-.session-comparison-result-rationale ul {
+.session-comparison-result-rationale-section ul {
 	margin: 0;
 	padding-left: var(--vscode-spacing-size200);
 }
@@ -142,6 +167,16 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	text-align: left;
 	white-space: nowrap;
+}
+
+.session-comparison-result-metric-winner {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-agentsBadge-background);
+	color: var(--vscode-agentsBadge-foreground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .session-comparison-result-actions {
