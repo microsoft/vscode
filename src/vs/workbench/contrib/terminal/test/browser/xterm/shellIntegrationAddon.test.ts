@@ -30,14 +30,15 @@ class TestShellIntegrationAddon extends ShellIntegrationAddon {
 suite('ShellIntegrationAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	let TerminalCtor: typeof import('@xterm/xterm').Terminal;
 	let xterm: Terminal;
 	let shellIntegrationAddon: TestShellIntegrationAddon;
 	let capabilities: ITerminalCapabilityStore;
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger }));
-		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('', true, undefined, undefined, new NullLogService()));
+		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('nonce', true, undefined, undefined, new NullLogService()));
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});
@@ -53,9 +54,18 @@ suite('ShellIntegrationAddon', () => {
 
 		test('should pass cwd sequence to the capability as trusted when nonce matches', async () => {
 			const mock = shellIntegrationAddon.getCwdDectionMock();
-			// The addon is constructed with nonce '' so a trailing ';' produces args[1]==='' which matches
 			mock.expects('updateCwd').once().withExactArgs('/foo', true);
-			await writeP(xterm, '\x1b]633;P;Cwd=/foo;\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo;nonce\x07');
+			mock.verify();
+		});
+
+		test('should not trust an empty configured nonce', async () => {
+			const addon = store.add(new TestShellIntegrationAddon('', true, undefined, undefined, new NullLogService()));
+			const mock = addon.getCwdDectionMock();
+			mock.expects('updateCwd').once().withExactArgs('/foo', false);
+			const terminal = store.add(new TerminalCtor({ allowProposedApi: true }));
+			terminal.loadAddon(addon);
+			await writeP(terminal, '\x1b]633;P;Cwd=/foo;\x07');
 			mock.verify();
 		});
 

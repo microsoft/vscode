@@ -586,7 +586,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						// without a matching nonce are treated as untrusted to mitigate spoofing
 						// via OSC sequences injected through arbitrary terminal output.
 						const nonce = args[1];
-						this._updateCwd(value, nonce !== undefined && nonce === this._nonce);
+						this._updateCwd(value, !!this._nonce && nonce !== undefined && nonce === this._nonce);
 						return true;
 					}
 					case 'IsWindows': {

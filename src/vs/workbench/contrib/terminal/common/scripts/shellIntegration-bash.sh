@@ -264,7 +264,7 @@ __vsc_update_cwd() {
 	else
 		__vsc_cwd="$PWD"
 	fi
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
+	builtin printf '\e]633;P;Cwd=%s;%s\a' "$(__vsc_escape_value "$__vsc_cwd")" "$__vsc_nonce"
 }
 
 __updateEnvCacheAA() {
