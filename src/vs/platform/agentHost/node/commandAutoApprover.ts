@@ -663,8 +663,8 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
 	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 	...sortAutoApproveRules,
-	tree: true,
-	'/^tree\\b.*\\s-o\\b/': false,
+	'/^tree\\b.*\\s-[^-\\s]*o/': false,
+	'/^tree\\b.*\\s(?:[\'"]|\\\\)+[^\\s]*o/': false,
 	'/^xxd$/': true,
 	'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 

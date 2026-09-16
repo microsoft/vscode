@@ -139,7 +139,14 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('sort --check=quiet input.txt'),
 				approver.shouldAutoApprove('sort "--check" input.txt'),
 				approver.shouldAutoApprove('sort --buffer-size=1K input.txt'),
+				approver.shouldAutoApprove('sort<input.txt'),
 				approver.shouldAutoApprove('sort -o output.txt input.txt'),
+				approver.shouldAutoApprove('sort -ooutput.txt input.txt'),
+				approver.shouldAutoApprove('sort -ro output.txt input.txt'),
+				approver.shouldAutoApprove('sort --output=output.txt input.txt'),
+				approver.shouldAutoApprove('sort "-o" output.txt input.txt'),
+				approver.shouldAutoApprove('sort "--output=output.txt" input.txt'),
+				approver.shouldAutoApprove('sort \\-\\o output.txt input.txt'),
 				approver.shouldAutoApprove('sort -S 1G input.txt'),
 				approver.shouldAutoApprove('sort --compress-program=/bin/sh input.txt'),
 				approver.shouldAutoApprove('sort --compress-program /bin/sh input.txt'),
@@ -154,11 +161,18 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('sort --"compress-program=/bin/sh" input.txt'),
 				approver.shouldAutoApprove('sort $\'--compress-program=/bin/sh\' input.txt'),
 			], [
-				'approved',
-				'approved',
-				'approved',
-				'approved',
-				'approved',
+				'noMatch',
+				'noMatch',
+				'noMatch',
+				'noMatch',
+				'noMatch',
+				'noMatch',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
 				'denied',
 				'denied',
 				'denied',
@@ -174,6 +188,31 @@ suite('CommandAutoApprover', () => {
 				'denied',
 				'denied',
 			]);
+		});
+
+		test('requires approval for tree commands', () => {
+			const commands = [
+				'tree',
+				'tree .',
+				'tree -i .',
+				'tree -o output.txt .',
+				'tree -io output.txt .',
+				'tree -R -L 2 .',
+				'tree "-o" output.txt .',
+				'tree \\-\\o output.txt .',
+			];
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command)), [
+				'noMatch',
+				'noMatch',
+				'noMatch',
+				'denied',
+				'denied',
+				'noMatch',
+				'denied',
+				'denied',
+			]);
+			assert.strictEqual(approver.shouldAutoApprove('tree .', { autoApproveRules: { '/^tree\\b/': true } }), 'approved');
+			assert.strictEqual(approver.shouldAutoApprove('tree -io output.txt .', { autoApproveRules: { '/^tree\\b/': true, '/^tree\\b.*\\s-[^-\\s]*o/': false } }), 'denied');
 		});
 
 		test('handles sed with blocked args', () => {
@@ -390,8 +429,7 @@ suite('CommandAutoApprover', () => {
 		test('input redirections do not block auto-approval', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('cat < file.txt'),
-				approver.shouldAutoApprove('sort<input.txt'),
-			], ['approved', 'approved']);
+			], ['approved']);
 		});
 
 		// Redirections to /dev/null and other known-safe sinks do not write
