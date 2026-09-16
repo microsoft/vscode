@@ -2081,7 +2081,7 @@ interface ISessionsListDndDelegate {
 	isSessionPinned(session: ISession): boolean;
 	/** Whether the dragged sessions may be reordered relative to the given target. */
 	canDropOn(dragged: ISession[], target: ISession): boolean;
-	/** Whether positional placement is supported for the membership change. */
+	/** Whether the sessions would be siblings after joining or leaving a group. */
 	canReorderAfterGroupChange(dragged: ISession[], target: ISession, groupId: string | undefined): boolean;
 	/** Apply the reorder, placing the dragged sessions before/after the target. */
 	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
@@ -2605,6 +2605,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		childrenByParentSessionId: new Map(),
 	});
 	private listedSessionIds = new Set<string>();
+	private groupDropPreview: {
+		readonly hierarchy: ISessionHierarchy;
+		readonly sessions: readonly ISession[];
+		readonly groupId: string | undefined;
+		readonly parentByChildSessionId: ISessionHierarchy['parentByChildSessionId'];
+	} | undefined;
 	private revealedSession: ISession | undefined;
 	private readonly sessionStructureObservers = this._register(new MutableDisposable<DisposableStore>());
 	private readonly sessionStructureUpdate = this._register(new RunOnceScheduler(() => {
@@ -3347,14 +3353,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
-	private buildSessionHierarchy(sessions: readonly ISession[]): ISessionHierarchy {
+	private buildSessionHierarchy(sessions: readonly ISession[], groupChange?: { readonly sessionIds: ReadonlySet<string>; readonly groupId: string | undefined }): ISessionHierarchy {
 		const byResource = new ResourceMap<ISession>(sessions.map(session => [session.resource, session] as const), resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 		const parentByChildSessionId = new Map<ISession['sessionId'], ISession>();
-		const isEligible = (session: ISession) => !session.isArchived.get() && !this.isSessionPinned(session) && !isQuickChatSession(session);
+		const isPinned = (session: ISession) => groupChange?.groupId !== undefined && groupChange.sessionIds.has(session.sessionId) ? false : this.isSessionPinned(session);
+		const groupId = (session: ISession) => groupChange?.sessionIds.has(session.sessionId) ? groupChange.groupId : this.getRenderedSessionGroup(session)?.id;
+		const isEligible = (session: ISession) => !session.isArchived.get() && !isPinned(session) && !isQuickChatSession(session);
 		for (const session of sessions) {
 			const reference = session.createdBySession?.get();
 			const parent = reference && byResource.get(reference.session);
-			if (parent && parent !== session && isEligible(session) && isEligible(parent) && this.getRenderedSessionGroup(session)?.id === this.getRenderedSessionGroup(parent)?.id) {
+			if (parent && parent !== session && isEligible(session) && isEligible(parent) && groupId(session) === groupId(parent)) {
 				parentByChildSessionId.set(session.sessionId, parent);
 			}
 		}
@@ -3395,6 +3403,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	update(expandAll?: boolean): void {
 		this.sessionStructureUpdate.cancel();
+		this.groupDropPreview = undefined;
 		const activeSession = this._sessionsService.activeSession.get();
 		const archiveOnboardingSession = this.archiveOnboardingSession.get();
 		const savedCollapseState = this.readCollapseState();
@@ -3986,11 +3995,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/**
 	 * Whether the dragged sessions can be reordered relative to the target.
-	 * Only top-level sessions can be reordered, within their existing group or workspace.
+	 * Reordering stays within the same scope: dragged sessions must share the
+	 * target's parent and group membership. Roots also share a workspace when
+	 * grouping by workspace.
 	 */
 	private canReorderOnto(dragged: ISession[], target: ISession): boolean {
 		const parentByChildSessionId = this.hierarchy.get().parentByChildSessionId;
-		if (parentByChildSessionId.has(target.sessionId) || dragged.some(session => parentByChildSessionId.has(session.sessionId))) {
+		const targetParent = parentByChildSessionId.get(target.sessionId);
+		if (dragged.some(session => parentByChildSessionId.get(session.sessionId) !== targetParent)) {
 			return false;
 		}
 		const targetPinned = this.isSessionPinned(target);
@@ -4005,15 +4017,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (dragged.some(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) !== targetGroup)) {
 			return false;
 		}
-		if (targetGroup === undefined && this.options.grouping() === SessionsGrouping.Workspace) {
+		if (!targetParent && targetGroup === undefined && this.options.grouping() === SessionsGrouping.Workspace) {
 			const targetLabel = sessionWorkspaceLabel(target);
 			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
 		}
 		return true;
 	}
 
-	private canReorderAfterGroupChange(dragged: ISession[], target: ISession, _groupId: string | undefined): boolean {
-		return !target.createdBySession?.get() && dragged.every(session => !session.createdBySession?.get());
+	private canReorderAfterGroupChange(dragged: ISession[], target: ISession, groupId: string | undefined): boolean {
+		const hierarchy = this.hierarchy.get();
+		if (!this.groupDropPreview || this.groupDropPreview.hierarchy !== hierarchy || this.groupDropPreview.groupId !== groupId
+			|| this.groupDropPreview.sessions.length !== dragged.length || this.groupDropPreview.sessions.some((session, index) => session !== dragged[index])) {
+			const prospective = this.buildSessionHierarchy(this.sessions.filter(session => this.listedSessionIds.has(session.sessionId)), {
+				sessionIds: new Set(dragged.map(session => session.sessionId)),
+				groupId,
+			});
+			this.groupDropPreview = { hierarchy, sessions: [...dragged], groupId, parentByChildSessionId: prospective.parentByChildSessionId };
+		}
+		const parentByChildSessionId = this.groupDropPreview.parentByChildSessionId;
+		const targetParent = parentByChildSessionId.get(target.sessionId);
+		return dragged.every(session => parentByChildSessionId.get(session.sessionId) === targetParent);
 	}
 
 	/**
@@ -4029,19 +4052,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// sees.
 		const targetPinned = this.isSessionPinned(target);
 		const parentByChildSessionId = this.hierarchy.get().parentByChildSessionId;
-		let scope = this.getVisibleSessions().filter(s => this.isReorderable(s) && !parentByChildSessionId.has(s.sessionId));
+		const targetParent = parentByChildSessionId.get(target.sessionId);
+		const candidates = new Set([...this.getVisibleSessions(), ...dragged]);
+		let scope = [...candidates].filter(s => this.isReorderable(s) && parentByChildSessionId.get(s.sessionId) === targetParent);
 		scope = scope.filter(s => this.isSessionPinned(s) === targetPinned);
 		if (!targetPinned) {
 			const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
 			scope = scope.filter(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) === targetGroup);
-			if (targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
+			if (!targetParent && targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
 				const targetLabel = sessionWorkspaceLabel(target);
 				scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
 			}
 		}
 
 		const draggedIds = new Set(dragged.map(s => s.sessionId));
-		const draggedOrdered = scope.filter(s => draggedIds.has(s.sessionId));
+		const draggedOrdered = scope.filter(s => draggedIds.has(s.sessionId)).sort((a, b) => getKey(b) - getKey(a));
 		if (draggedOrdered.length === 0) {
 			return;
 		}

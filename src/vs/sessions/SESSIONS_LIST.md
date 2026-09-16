@@ -111,8 +111,7 @@ Filters compose across session type, status, archive/read state, and provider. T
 
 Drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
 
-- top-level sessions may reorder within valid sections; nested-session order is not editable;
-- group membership moves involving creator relationships offer group-only placement rather than positional insertion;
+- sessions may reorder among siblings within valid sections, without changing creator relationships;
 - sessions may move into user-created groups;
 - non-archived sessions may move into the pinned section;
 - user groups and workspace sections may reorder where the grouping mode allows;

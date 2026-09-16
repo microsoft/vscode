@@ -2149,7 +2149,7 @@ suite('Sessions - SessionsList', () => {
 		}
 
 		for (const relationship of ['unrelated', 'siblings', 'parent'] as const) {
-			test(`keeps ${relationship} creator-linked group moves non-positional`, () => {
+			test(`uses prospective ${relationship} relationships for group-drop positioning`, () => {
 				const parent = createTestSession('Parent').session;
 				const target: ISession = {
 					...createTestSession('Target').session,
@@ -2177,14 +2177,32 @@ suite('Sessions - SessionsList', () => {
 					targetLevel: sessionRow(container, 'Target').getAttribute('aria-level'),
 					draggedLevel: sessionRow(container, dragged.title.get()).getAttribute('aria-level'),
 				}, {
-					feedback: { headers: [group.name], before: false },
+					feedback: { headers: [group.name], before: relationship === 'siblings' },
 					addedToGroup: [dragged.sessionId],
-					reordered: [],
+					reordered: relationship === 'siblings' ? [[dragged.sessionId]] : [],
 					targetLevel: '3',
 					draggedLevel: relationship === 'siblings' ? '3' : '2',
 				});
 			});
 		}
+
+		test('positions an incoming root even when its old sort key places it beyond the destination cap', () => {
+			const roots = Array.from({ length: 6 }, (_, index) => ({
+				...createTestSession(`Root ${index}`).session,
+				createdAt: new Date(Date.now() - index * 1000),
+			}));
+			const dragged = { ...createTestSession('Dragged').session, createdAt: new Date(2020, 0, 1) };
+			const memberships = new Map(roots.map(session => [session.sessionId, group.id]));
+			const { container, list, addedToGroup, sortChanges } = renderGroupedList([...roots, dragged], memberships);
+			list.layout(1000, 400);
+			const feedback = dropBefore(sessionRow(container, 'Dragged'), sessionRow(container, 'Root 0'), container);
+
+			assert.deepStrictEqual({
+				feedback,
+				addedToGroup,
+				reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+			}, { feedback: { headers: [group.name], before: true }, addedToGroup: ['Dragged'], reordered: [['Dragged']] });
+		});
 
 		test('offers only workspace membership when ungrouping a root onto a nested session', () => {
 			const parent = createTestSession('Parent').session;
@@ -3100,6 +3118,31 @@ suite('Sessions - SessionsList', () => {
 				read: ['Child'],
 				sessionPayload: { sessionId: child.sessionId, resource: child.resource.toString() },
 				chatPayload: undefined,
+			});
+		});
+
+		test('reorders only siblings, including siblings in different repositories', () => {
+			const parent = createTestSession('Parent').session;
+			const first = childOf({ ...createTestSession('First', { workspaceLabel: 'Repo A' }).session, createdAt: new Date(2025, 1, 2) }, parent);
+			const second = childOf({ ...createTestSession('Second', { workspaceLabel: 'Repo B' }).session, createdAt: new Date(2025, 1, 1) }, parent);
+			const { container, sortChanges } = renderList([parent, first, second]);
+			const dragBefore = (sourceTitle: string, targetTitle: string) => {
+				const source = rowFor(container, sourceTitle);
+				const target = rowFor(container, targetTitle);
+				const dataTransfer = new DataTransfer();
+				const clientY = target.getBoundingClientRect().top + 1;
+				source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+				target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientY }));
+				target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientY }));
+				source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+			};
+			dragBefore('Second', 'Parent');
+			const acrossBranches = sortChanges.length;
+			dragBefore('Second', 'First');
+
+			assert.deepStrictEqual({ acrossBranches, reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]) }, {
+				acrossBranches: 0,
+				reordered: [['Second']],
 			});
 		});
 
