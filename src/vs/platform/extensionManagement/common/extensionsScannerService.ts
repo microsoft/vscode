@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { getNodeType, parse, ParseError } from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
@@ -942,7 +943,7 @@ interface IExtensionCacheData {
 
 class CachedExtensionsScanner extends ExtensionsScanner {
 
-	private input: ExtensionScannerInput | undefined;
+	private readonly pendingValidations = new ResourceMap<ExtensionScannerInput>();
 	private readonly cacheValidatorThrottler: ThrottledDelayer<void> = this._register(new ThrottledDelayer(3000));
 
 	private readonly _onDidChangeCache = this._register(new Emitter<void>());
@@ -964,13 +965,11 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
 		const cacheFile = this.getCacheFile(input);
 		const cacheContents = await this.readExtensionCache(cacheFile);
-		this.input = input;
-		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
+		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, input)) {
 			this.logService.debug('Using cached extensions scan result', input.type === ExtensionType.System ? 'system' : 'user', input.location.toString());
-			// Built-in extensions of an installed product cannot change on disk behind our back
-			if (input.type !== ExtensionType.System || input.devMode) {
-				this.cacheValidatorThrottler.trigger(() => this.validateCache());
-			}
+			// Each cache file needs validating on its own, scanning one language says nothing about the others
+			this.pendingValidations.set(cacheFile, input);
+			this.cacheValidatorThrottler.trigger(() => this.validatePendingCaches());
 			return cacheContents.result.map((extension) => {
 				// revive URI object
 				extension.location = URI.revive(extension.location);
@@ -1003,13 +1002,13 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 	}
 
-	private async validateCache(): Promise<void> {
-		if (!this.input) {
-			// Input has been unset by the time we get here, so skip validation
-			return;
-		}
+	private async validatePendingCaches(): Promise<void> {
+		const pending = [...this.pendingValidations.entries()];
+		this.pendingValidations.clear();
+		await Promise.all(pending.map(([cacheFile, input]) => this.validateCache(cacheFile, input)));
+	}
 
-		const cacheFile = this.getCacheFile(this.input);
+	private async validateCache(cacheFile: URI, input: ExtensionScannerInput): Promise<void> {
 		const cacheContents = await this.readExtensionCache(cacheFile);
 		if (!cacheContents) {
 			// Cache has been deleted by someone else, which is perfectly fine...
@@ -1017,7 +1016,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 
 		const actual = cacheContents.result;
-		const expected = JSON.parse(JSON.stringify(await super.scanExtensions(this.input)));
+		const expected = JSON.parse(JSON.stringify(await super.scanExtensions(input)));
 		if (objects.equals(expected, actual)) {
 			// Cache is valid and running with it is perfectly fine...
 			return;

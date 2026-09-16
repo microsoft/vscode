@@ -533,22 +533,22 @@ suite('NativeExtensionsScanerService Test', () => {
 			assert.deepStrictEqual(await cacheFileNames(), [getManifestCacheFileName(ExtensionType.User, 'en')]);
 		});
 
-		test('a system cache hit does not validate the cache by scanning again', async () => {
+		test('a system cache hit validates the cache by scanning again', async () => {
 			await runWithFakedTimers({}, async () => {
 				const extensionLocation = await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 				await testObject.scanSystemExtensions({ language: 'en' });
 
-				// A validation scan would notice this and drop the now stale cache file
+				// Leaves the mtime of the scanned location untouched, so the next scan still hits the cache
 				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
 				await testObject.scanSystemExtensions({ language: 'en' });
 				await timeout(CACHE_VALIDATION_DELAY);
 
-				assert.deepStrictEqual(await cacheFileNames(), [getManifestCacheFileName(ExtensionType.System, 'en')]);
+				assert.deepStrictEqual(await cacheFileNames(), []);
 			});
 		});
 
-		test('a user cache hit still validates the cache by scanning again', async () => {
+		test('a user cache hit validates the cache by scanning again', async () => {
 			await runWithFakedTimers({}, async () => {
 				const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 				const profileLocation = instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource;
@@ -560,6 +560,23 @@ suite('NativeExtensionsScanerService Test', () => {
 				// Leaves the mtime of the scanned profile resource untouched, so the next scan still hits the cache
 				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
 				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+				await timeout(CACHE_VALIDATION_DELAY);
+
+				assert.deepStrictEqual(await cacheFileNames(), []);
+			});
+		});
+
+		test('cache hits in several languages are all validated, not just the last one', async () => {
+			await runWithFakedTimers({}, async () => {
+				const extensionLocation = await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+				await testObject.scanSystemExtensions({ language: 'en' });
+				await testObject.scanSystemExtensions({ language: 'de' });
+
+				// Leaves the mtime of the scanned location untouched, so both scans still hit their cache
+				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+				await testObject.scanSystemExtensions({ language: 'en' });
+				await testObject.scanSystemExtensions({ language: 'de' });
 				await timeout(CACHE_VALIDATION_DELAY);
 
 				assert.deepStrictEqual(await cacheFileNames(), []);
