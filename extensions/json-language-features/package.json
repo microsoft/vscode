@@ -175,9 +175,7 @@
         "url": "http://json-schema.org/draft-07/schema#"
       },
       {
-        "fileMatch": [
-          "arazzo.json"
-        ],
+        "fileMatch": "arazzo.json",
         "url": "https://www.schemastore.org/openapi-arazzo-1.X.json"
       },
       {
