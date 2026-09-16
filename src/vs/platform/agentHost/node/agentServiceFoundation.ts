@@ -21,17 +21,22 @@ import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProx
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
-import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { IAgentHostSessionToolCallbacks, SessionCreationBudget, type IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
-export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
-	private callbacks: IAgentServiceCallbacks | undefined;
+export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder, IAgentHostSessionToolCallbacks {
+	declare readonly _serviceBrand: undefined;
 
-	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
+	private callbacks: IAgentServiceCallbacks | undefined;
+	readonly sessionCreationBudget = new SessionCreationBudget();
+
+	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor & { readonly sessionCreationBudget: SessionCreationBudget } = {
+		sessionCreationBudget: this.sessionCreationBudget,
 		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
+		restoreSession: session => this.value.sessionServerToolAccessor.restoreSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
@@ -50,6 +55,8 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 	};
+
+	readonly accessor = this.sessionServerToolAccessor;
 
 	bind(callbacks: IAgentServiceCallbacks): void {
 		if (this.callbacks) {
@@ -128,6 +135,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostFeatureAuthenticationRegistry, featureAuthenticationRegistry);
+	options.services.set(IAgentHostSessionToolCallbacks, callbackAdapter);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
 	options.services.set(IAgentHostProxyResolver, proxyResolver);
 	options.services.set(IRequestService, requestService);

@@ -20,13 +20,36 @@ import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.
 import { agentHostAuthority } from '../../common/agentHostUri.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import type { IAgentSubscription } from '../../common/state/agentSubscription.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ActionType, isChatAction, type ChatAction } from '../../common/state/sessionActions.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildDefaultChatUri, isDefaultChatUri, MessageKind, ResponsePartKind, StateComponents, TurnState, type ActiveTurn, type AgentSelection, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallResult, type ToolDefinition, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AgentInfo, ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 
 const REMOTE_AGENT_PROVIDER_DATA_VERSION = 1;
+
+const enum RemoteAgentSubscriptionErrorKind {
+	Recoverable,
+	Terminal,
+}
+
+function classifyRemoteAgentSubscriptionError(error: Error): RemoteAgentSubscriptionErrorKind {
+	if (error instanceof ProtocolError) {
+		switch (error.code) {
+			case JsonRpcErrorCodes.InvalidRequest:
+			case JsonRpcErrorCodes.MethodNotFound:
+			case JsonRpcErrorCodes.InvalidParams:
+			case AhpErrorCodes.SessionNotFound:
+			case AhpErrorCodes.ProviderNotFound:
+			case AhpErrorCodes.UnsupportedProtocolVersion:
+			case AhpErrorCodes.NotFound:
+				return RemoteAgentSubscriptionErrorKind.Terminal;
+		}
+	}
+	return RemoteAgentSubscriptionErrorKind.Recoverable;
+}
 
 interface IRemoteAgentProviderData {
 	readonly version: typeof REMOTE_AGENT_PROVIDER_DATA_VERSION;
@@ -82,6 +105,7 @@ class RemoteAgentChatBinding extends Disposable {
 	private _knownState: ChatState | undefined;
 	private _localChatRegistered = false;
 	private _pendingProgress: ChatAction[] = [];
+	private _subscriptionRecoveryPending = false;
 
 	constructor(
 		readonly localChat: URI,
@@ -127,6 +151,7 @@ class RemoteAgentChatBinding extends Disposable {
 			this._activeTurn.cancellation = undefined;
 		}
 		this._activeTurn = turn;
+		this._subscriptionRecoveryPending = false;
 	}
 
 	markActiveTurnDispatched(turn: IRemoteTurn): boolean {
@@ -144,10 +169,45 @@ class RemoteAgentChatBinding extends Disposable {
 			return false;
 		}
 		this._activeTurn = undefined;
+		this._subscriptionRecoveryPending = false;
 		turn.cancelled ||= cancelPending;
 		turn.cancellation?.dispose(cancelPending);
 		turn.cancellation = undefined;
 		return true;
+	}
+
+	markSubscriptionReady(): void {
+		this._subscriptionRecoveryPending = false;
+	}
+
+	private beginSubscriptionRecovery(): boolean {
+		if (!this._activeTurn?.dispatched || this._subscriptionRecoveryPending) {
+			return false;
+		}
+		this._subscriptionRecoveryPending = true;
+		return true;
+	}
+
+	private failActiveTurn(error: Error): void {
+		const activeTurn = this._activeTurn;
+		if (!activeTurn?.dispatched) {
+			return;
+		}
+		const remoteAction: ChatAction = {
+			type: ActionType.ChatError,
+			turnId: activeTurn.remoteTurnId,
+			duration: Math.max(0, Date.now() - activeTurn.startedAt),
+			part: {
+				kind: ResponsePartKind.Error,
+				error: {
+					errorType: 'remoteAgentSubscriptionError',
+					message: error.message,
+				},
+			},
+		};
+		this.applyKnownAction(remoteAction);
+		this.clearActiveTurn(activeTurn);
+		this.emitProgress({ ...remoteAction, turnId: activeTurn.localTurnId });
 	}
 
 	ensureSubscription(connection: IAgentConnection): IAgentSubscription<ChatState> {
@@ -167,9 +227,20 @@ class RemoteAgentChatBinding extends Disposable {
 				if (reference.object.onDidError) {
 					lifetime.add(reference.object.onDidError(error => {
 						this._logService.warn(`[RemoteAgent] Chat subscription failed for ${this.remoteChat.toString()}: ${error.message}`);
+						const errorKind = classifyRemoteAgentSubscriptionError(error);
+						if (errorKind === RemoteAgentSubscriptionErrorKind.Terminal) {
+							this.failActiveTurn(error);
+						}
 						queueMicrotask(() => {
 							if (this._connection === connection && this._subscription === reference.object) {
 								this.releaseConnection(connection);
+								if (errorKind === RemoteAgentSubscriptionErrorKind.Recoverable) {
+									if (this.beginSubscriptionRecovery()) {
+										this.ensureSubscription(connection);
+									} else {
+										this.failActiveTurn(error);
+									}
+								}
 							}
 						});
 					}));
@@ -838,6 +909,7 @@ export class RemoteAgent extends Disposable implements IAgent {
 	}
 
 	private _acceptSnapshot(binding: RemoteAgentChatBinding, state: ChatState): void {
+		binding.markSubscriptionReady();
 		const previousState = binding.replaceKnownState(state);
 		const activeTurn = state.activeTurn;
 		const previousActiveTurn = binding.activeTurn;

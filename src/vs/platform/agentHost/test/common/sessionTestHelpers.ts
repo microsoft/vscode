@@ -86,6 +86,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return Object.fromEntries(Object.keys(obj).map(key => [key, this._metadata.get(key)])) as { [K in keyof T]: string | undefined };
 	}
 
+	async getMetadataByPrefix(prefix: string): Promise<ReadonlyMap<string, string>> {
+		return new Map(Array.from(this._metadata).filter(([key]) => key.startsWith(prefix)));
+	}
+
 	async setMetadata(key: string, value: string): Promise<void> {
 		this.setMetadataCalls.push({ key, value });
 		this._metadata.set(key, value);

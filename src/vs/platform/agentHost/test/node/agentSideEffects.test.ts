@@ -69,6 +69,7 @@ import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_C
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
+import { registerNoopRemoteSessionDelegationServices } from './remoteSessionDelegationTestUtils.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 
@@ -165,6 +166,7 @@ function createTestSideEffects(
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
 	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
+	onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void,
 ): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -197,7 +199,9 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
-	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
+	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService);
+	services.set(IAgentHostTurnService, turnService);
+	onDidCreateTurnService?.(turnService);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -207,6 +211,7 @@ function createTestSideEffects(
 	services.set(IAgentHostLocalTurns, localTurns);
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
+	registerNoopRemoteSessionDelegationServices(services);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
 		...options,
@@ -1657,7 +1662,7 @@ suite('AgentSideEffects', () => {
 			const noAgentSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => undefined,
 				agents: emptyAgents,
-				sessionDataService: {} as ISessionDataService,
+				sessionDataService: createNullSessionDataService(),
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -1782,7 +1787,7 @@ suite('AgentSideEffects', () => {
 			const resolvingSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
-				sessionDataService: {} as ISessionDataService,
+				sessionDataService: createNullSessionDataService(),
 				resolveWorkingDirectoryBeforeSend: async () => { throw resolutionError; },
 			});
 			const turnStarted = {
@@ -7630,6 +7635,101 @@ suite('AgentSideEffects', () => {
 				chat: defaultChatUri,
 				turnId: 'turn-1',
 			}]);
+		});
+
+		test('host-authored accepted send resolves as accepted', async () => {
+			setupSession();
+			let turnService: IAgentHostTurnService | undefined;
+			createTestSideEffects(
+				disposables,
+				stateManager,
+				{
+					getAgent: () => agent,
+					agents: agentList,
+					sessionDataService: createNullSessionDataService(),
+				},
+				undefined,
+				NullTelemetryService,
+				new FakeChangesetService(),
+				undefined,
+				NULL_CHECKPOINT_SERVICE,
+				value => turnService = value,
+			);
+
+			const outcome = await turnService?.startTurnMessage(URI.parse(defaultChatUri), {
+				text: 'hello',
+				origin: { kind: MessageKind.Agent },
+			});
+
+			assert.deepStrictEqual(outcome, { kind: 'accepted' });
+		});
+
+		test('host-authored cancellation during send resolves as cancelled', async () => {
+			setupSession();
+			const sendGate = new DeferredPromise<void>();
+			const originalSendMessage = agent.chats.sendMessage;
+			agent.chats.sendMessage = async (...args) => {
+				await originalSendMessage(...args);
+				await sendGate.p;
+			};
+			let turnService: IAgentHostTurnService | undefined;
+			const localSideEffects = createTestSideEffects(
+				disposables,
+				stateManager,
+				{
+					getAgent: () => agent,
+					agents: agentList,
+					sessionDataService: createNullSessionDataService(),
+				},
+				undefined,
+				NullTelemetryService,
+				new FakeChangesetService(),
+				undefined,
+				NULL_CHECKPOINT_SERVICE,
+				value => turnService = value,
+			);
+
+			const outcome = turnService!.startTurnMessage(URI.parse(defaultChatUri), {
+				text: 'hello',
+				origin: { kind: MessageKind.Agent },
+			});
+			await waitForSendMessageCalls(1);
+			const turnId = stateManager.getActiveTurnId(defaultChatUri);
+			assert.ok(turnId);
+			const cancellation = { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const;
+			stateManager.dispatchServerAction(defaultChatUri, cancellation);
+			localSideEffects.handleAction(defaultChatUri, cancellation);
+			sendGate.complete();
+
+			assert.deepStrictEqual(await outcome, { kind: 'cancelled' });
+		});
+
+		test('host-authored send rejection resolves as not dispatched', async () => {
+			setupSession();
+			agent.sendMessageError = new Error('send failed');
+			let turnService: IAgentHostTurnService | undefined;
+			createTestSideEffects(
+				disposables,
+				stateManager,
+				{
+					getAgent: () => agent,
+					agents: agentList,
+					sessionDataService: createNullSessionDataService(),
+				},
+				undefined,
+				NullTelemetryService,
+				new FakeChangesetService(),
+				undefined,
+				NULL_CHECKPOINT_SERVICE,
+				value => turnService = value,
+			);
+
+			const outcome = await turnService?.startTurnMessage(URI.parse(defaultChatUri), {
+				text: 'hello',
+				origin: { kind: MessageKind.Agent },
+			});
+
+			assert.deepStrictEqual(outcome, { kind: 'not-dispatched' });
 		});
 
 		test('chat truncation discards pending turn starts for that chat', async () => {

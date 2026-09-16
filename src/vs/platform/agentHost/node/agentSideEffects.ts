@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type ISendTurnMessageOptions, type SendTurnMessageOutcome } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
@@ -248,7 +248,7 @@ export class AgentSideEffects extends Disposable {
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
-			sendTurnMessage: options => void this._sendTurnMessage(options),
+			sendTurnMessage: options => this._sendTurnMessage(options),
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -1382,7 +1382,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
 				}
-				this._turnService.handleTurnStarted(channel, action, clientId, clientContext);
+				void this._turnService.handleTurnStarted(channel, action, clientId, clientContext);
 				break;
 			}
 			case ActionType.ChatTurnResume: {
@@ -1719,7 +1719,7 @@ export class AgentSideEffects extends Disposable {
 	 * dispatches {@link ActionType.ChatError} on the turn channel, and marks the
 	 * turn errored.
 	 */
-	private async _sendTurnMessage(options: ISendTurnMessageOptions): Promise<void> {
+	private async _sendTurnMessage(options: ISendTurnMessageOptions): Promise<SendTurnMessageOutcome> {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, clientContext, turnStopWatch } = options;
 
 		const chatUri = URI.parse(chat);
@@ -1757,16 +1757,21 @@ export class AgentSideEffects extends Disposable {
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
 			const sendContext = { ...clientOperationContext, ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
-			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				return { kind: 'cancelled' };
+			}
 			if (!this._stateManager.isEphemeralSession(sessionChannel)) {
 				await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
 			}
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
-				return;
+				return { kind: 'cancelled' };
 			}
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
+			return this._cancelledTurnIds.get(turnChannel)?.has(turnId)
+				? { kind: 'cancelled' }
+				: { kind: 'accepted' };
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
@@ -1792,6 +1797,9 @@ export class AgentSideEffects extends Disposable {
 				});
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
+			return this._cancelledTurnIds.get(turnChannel)?.has(turnId)
+				? { kind: 'cancelled' }
+				: { kind: 'not-dispatched' };
 		}
 	}
 

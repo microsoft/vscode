@@ -24,6 +24,12 @@ export const SESSION_DB_FILENAME = 'session.db';
  */
 export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
 
+/** Opaque provider data for a session's default chat. */
+export const DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY = 'defaultChatProviderData';
+
+/** Persisted `create_session` depth used to restore session delegation limits. */
+export const REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY = 'remoteSessionDelegation.spawnDepth';
+
 export function isSessionAttachmentPath(sessionDataService: ISessionDataService, session: URI, filePath: string): boolean {
 	const attachmentsDir = normalizePath(URI.joinPath(sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME));
 	const fileUri = normalizePath(URI.file(filePath));
@@ -315,6 +321,9 @@ export interface ISessionDatabase extends IDisposable {
 	 * Gets a bulk of metadata. For example `getMetadataObject({ foo: true }) ->  { foo: 'data' }`
 	 */
 	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
+
+	/** Gets all metadata entries whose keys start with `prefix`. */
+	getMetadataByPrefix(prefix: string): Promise<ReadonlyMap<string, string>>;
 
 	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.

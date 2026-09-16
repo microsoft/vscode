@@ -99,9 +99,9 @@ tools in A.
 - Streaming, cancellation, errors, and history.
 - Persisted backing and restoration.
 - Permission and user-input routing.
-- Client-tool execution.
-- `create_remote_session`.
-- Durable session-creation and tool-execution deduplication.
+- [x] Client-tool execution.
+- [x] `create_remote_session`.
+- [x] Durable session-creation and tool-execution deduplication.
 
 Independent demo:
 

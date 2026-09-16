@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, readSessionSpawnDepth, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -41,6 +41,7 @@ import {
 	getListSessionsArgs,
 	sessionServerToolDefinitions,
 	sessionToolRequiresConfirmation,
+	SessionCreationBudget,
 	serializeSessions,
 	type IChatContextSnapshot,
 	type ISessionServerToolAccessor,
@@ -69,11 +70,12 @@ suite('SessionServerTools', () => {
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
+			restoreSession: overrides?.restoreSession ?? (async () => { }),
 			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
-			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
+			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); return true; }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
@@ -82,6 +84,7 @@ suite('SessionServerTools', () => {
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => { }),
+			sessionCreationBudget: overrides?.sessionCreationBudget ?? new SessionCreationBudget(),
 		};
 	}
 
@@ -1391,12 +1394,22 @@ suite('SessionServerTools', () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const depths = new Map<string, number>();
-		const group = createSessionServerToolGroup(createAccessor({ depths }));
+		let created: IAgentCreateSessionConfig | undefined;
+		const group = createSessionServerToolGroup(createAccessor({
+			depths,
+			onCreate: config => created = config,
+		}));
 		const args = { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' };
 
 		// From a top-level (depth 0) session, the created session is stamped depth 1.
 		await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args);
-		assert.strictEqual(depths.get('copilot:/new'), 1);
+		assert.deepStrictEqual({
+			creationDepth: readSessionSpawnDepth(created?._meta),
+			liveDepth: depths.get('copilot:/new'),
+		}, {
+			creationDepth: 1,
+			liveDepth: 1,
+		});
 
 		// A session already at the max spawn depth may not create further sessions.
 		depths.set('copilot:/deep', 3);
@@ -1404,6 +1417,43 @@ suite('SessionServerTools', () => {
 			async () => { await group.execute(stateManager, executionContext('copilot:/deep'), SessionServerToolName.CreateSession, args); },
 			/recursion limit/,
 		);
+		store.dispose();
+	});
+
+	test('session creation budget accounts idempotently by planned child', () => {
+		const budget = new SessionCreationBudget(1);
+		const first = budget.claim('copilot:/planned-child');
+		first.commit();
+		const replay = budget.claim('copilot:/planned-child');
+		replay.commit();
+
+		assert.throws(() => budget.claim('copilot:/different-child'), /more than 1 sessions/);
+	});
+
+	test('create_session rejects an ambiguously missing parent spawn depth', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let createCalls = 0;
+		const group = createSessionServerToolGroup(createAccessor({
+			getSessionSpawnDepth: () => undefined,
+			createSession: async () => {
+				createCalls++;
+				return URI.parse('copilot:/unexpected');
+			},
+		}));
+
+		await assert.rejects(
+			async () => {
+				await group.execute(
+					stateManager,
+					executionContext('copilot:/ambiguous-child'),
+					SessionServerToolName.CreateSession,
+					{ relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' },
+				);
+			},
+			/spawn depth/,
+		);
+		assert.strictEqual(createCalls, 0);
 		store.dispose();
 	});
 
@@ -1418,6 +1468,39 @@ suite('SessionServerTools', () => {
 			await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args);
 		}
 		await assert.rejects(async () => { await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args); }, /more than 25 sessions/);
+		store.dispose();
+	});
+
+	test('create_session reserves the breadth budget atomically', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const creationGate = new DeferredPromise<void>();
+		let started = 0;
+		const group = createSessionServerToolGroup(createAccessor({
+			createSession: async () => {
+				const id = started++;
+				await creationGate.p;
+				return URI.parse(`copilot:/concurrent-${id}`);
+			},
+		}));
+		const args = { relationship: 'independent', workspace: workspace.toString(), prompt: 'go', title: 'Spawned Task' };
+		const executions = Array.from({ length: 26 }, () => Promise.resolve(
+			group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, args),
+		));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const startedBeforeRelease = started;
+		creationGate.complete();
+		const settled = await Promise.allSettled(executions);
+
+		assert.deepStrictEqual({
+			startedBeforeRelease,
+			fulfilled: settled.filter(result => result.status === 'fulfilled').length,
+			rejected: settled.filter(result => result.status === 'rejected').length,
+		}, {
+			startedBeforeRelease: 25,
+			fulfilled: 25,
+			rejected: 1,
+		});
 		store.dispose();
 	});
 

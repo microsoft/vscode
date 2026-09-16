@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
-import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
+import { DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY, ISessionDatabase, ISessionDataService, REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -38,7 +38,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, getSessionRelatedPullRequestUrls, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_SPAWN_DEPTH_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, getSessionRelatedPullRequestUrls, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -195,6 +195,24 @@ function parsePersistedSourceControlState(value: string): ISessionSourceControlS
 	return state;
 }
 
+class InvalidPersistedSessionSpawnDepthError extends Error {
+	constructor(session: string, value: string) {
+		super(`Invalid persisted session spawn depth for ${session}: ${value}`);
+		this.name = 'InvalidPersistedSessionSpawnDepthError';
+	}
+}
+
+function parsePersistedSessionSpawnDepth(value: string | undefined, session: string): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const depth = Number(value);
+	if (!Number.isInteger(depth) || depth < 0 || String(depth) !== value) {
+		throw new InvalidPersistedSessionSpawnDepthError(session, value);
+	}
+	return depth;
+}
+
 /**
  * Grace period before an idle resource watch is torn down after its last
  * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
@@ -304,9 +322,6 @@ function readPersistedAnnotationsState(value: unknown, session: string): Annotat
 	}
 	return { annotations };
 }
-
-/** Opaque provider data for the session's default chat. */
-const DEFAULT_CHAT_PROVIDER_DATA_METADATA_KEY = 'defaultChatProviderData';
 
 /**
  * Session-database metadata key written on a chat's backing SDK session.
@@ -1175,6 +1190,7 @@ export class AgentService extends Disposable implements IAgentService {
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
+			restoreSession: session => this.restoreSession(session),
 			getWorktreeRoots: workspace => this._gitService.getWorktreeRoots(workspace),
 			createSession: config => this.createSession(config),
 			getModels: () => {
@@ -1193,8 +1209,14 @@ export class AgentService extends Disposable implements IAgentService {
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
-			// Reads the `create_session` spawn depth from a session's `_meta` (0 when absent).
-			getSessionSpawnDepth: session => readSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta),
+			getSessionSpawnDepth: session => {
+				const meta = this._stateManager.getSessionSummary(session.toString())?._meta;
+				const value = meta?.[SESSION_META_SPAWN_DEPTH_KEY];
+				if (value === undefined) {
+					return readSessionCreationReference(meta) ? undefined : 0;
+				}
+				return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+			},
 			// Stamps a session's `create_session` spawn depth into its `_meta` (merging existing keys).
 			setSessionSpawnDepth: (session, depth) => this._stateManager.dispatchServerAction(session.toString(), {
 				type: ActionType.SessionMetaChanged,
@@ -1275,22 +1297,23 @@ export class AgentService extends Disposable implements IAgentService {
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
-	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta): Promise<void> {
+	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta): Promise<boolean> {
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.Agent },
 			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
 		};
-		await this._startSessionMessage(chat, message);
+		return this._startSessionMessage(chat, message);
 	}
 
 	private async _startAutomationMessage(session: URI, message: Message): Promise<void> {
 		await this._startSessionMessage(URI.parse(buildDefaultChatUri(session)), message);
 	}
 
-	private async _startSessionMessage(chat: URI, message: Message): Promise<void> {
-		this._turnService.startTurnMessage(chat, message);
+	private async _startSessionMessage(chat: URI, message: Message): Promise<boolean> {
+		const outcome = await this._turnService.startTurnMessage(chat, message);
+		return outcome.kind === 'accepted';
 	}
 
 	private async _cancelAutomationSession(session: URI): Promise<boolean> {
@@ -2948,7 +2971,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 		const creationReference = readSessionCreationReference(config?._meta);
 		const devContainerWorktree = readAgentDevContainerWorktreeMetadata(config?._meta);
-		if ((creationReference || devContainerWorktree) && !isEphemeral) {
+		const spawnDepthValue = config?._meta?.[SESSION_META_SPAWN_DEPTH_KEY];
+		if (spawnDepthValue !== undefined && (typeof spawnDepthValue !== 'number' || !Number.isInteger(spawnDepthValue) || spawnDepthValue < 0)) {
+			await this._rollbackProviderSession(provider, session);
+			throw new Error(`Invalid session spawn depth for ${session.toString()}.`);
+		}
+		if ((creationReference || devContainerWorktree || spawnDepthValue !== undefined) && !isEphemeral) {
 			try {
 				const metadata: Record<string, string> = {};
 				if (creationReference) {
@@ -2956,6 +2984,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				if (devContainerWorktree) {
 					metadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY] = JSON.stringify(devContainerWorktree);
+				}
+				if (spawnDepthValue !== undefined) {
+					metadata[REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY] = String(spawnDepthValue);
 				}
 				await persistSessionMetadataValues(this._sessionDataService, session.toString(), metadata);
 			} catch (err) {
@@ -5723,6 +5754,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_EHCLI_ADOPTED_DB_KEY]: true,
 							[AH_META_EHCLI_LAST_TURN_DB_KEY]: true,
 							[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
+							[REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY]: true,
 							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
 							[SESSION_ARTIFACTS_KEY]: true,
@@ -5801,6 +5833,10 @@ export class AgentService extends Disposable implements IAgentService {
 						if (creationReference) {
 							sessionMetadata = withSessionCreationReference(sessionMetadata, creationReference);
 						}
+						const spawnDepth = parsePersistedSessionSpawnDepth(m[REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY], sessionStr);
+						if (spawnDepth !== undefined) {
+							sessionMetadata = withSessionSpawnDepth(sessionMetadata, spawnDepth);
+						}
 						if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
 							try {
 								const metadata = readAgentDevContainerWorktreeMetadata({
@@ -5830,7 +5866,10 @@ export class AgentService extends Disposable implements IAgentService {
 						}
 					}
 				}
-			} catch {
+			} catch (error) {
+				if (error instanceof InvalidPersistedSessionSpawnDepthError) {
+					throw error;
+				}
 				// Best-effort: fall back to agent-provided metadata
 			}
 		}
@@ -5873,10 +5912,11 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: restoredMeta,
 		};
 
-		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
+		const hydrationContext = {
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
-		}, {});
+		};
+		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat(hydrationContext, {});
 		// This overlay stays here rather than moving into `ChatDraftContribution`: it seeds
 		// the draft's model from `IAgent`-supplied session metadata, so it is provider-shaped,
 		// and moving it would put provider metadata into `IHydrationContext` for one consumer.
@@ -5897,6 +5937,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._invalidateSessionList();
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
+		await this._chatContributions.didHydrateChat(hydrationContext);
 		this._logService.trace(`[AgentService] restore: hydrated state for ${sessionStr} with ${mergedTurns.length} turn(s)`);
 		this._serverToolHost.advertise(sessionStr);
 
@@ -6077,6 +6118,7 @@ export class AgentService extends Disposable implements IAgentService {
 				inheritedTurnId,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
+			await this._chatContributions.didHydrateChat({ session: session.toString(), chat: chatUri.toString() });
 		}
 	}
 
@@ -7418,6 +7460,7 @@ export class AgentService extends Disposable implements IAgentService {
 					turns: [...await this._resolveRestoredSubagentTurns(agent, parentSession, chatUri, origin)],
 				}),
 			});
+			await this._chatContributions.didHydrateChat({ session: parentSessionStr, chat: chatUri });
 			if (existing && (!existing.title || existing.title === subagentChatTitle(undefined, undefined))) {
 				this._stateManager.updateChatTitle(parentSessionStr, chatUri, title);
 			}

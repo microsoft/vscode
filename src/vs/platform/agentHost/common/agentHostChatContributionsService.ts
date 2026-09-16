@@ -169,10 +169,16 @@ export interface ISendTurnMessageOptions {
 	readonly turnStopWatch: StopWatch;
 }
 
+/** Result of routing a started turn through admission and provider send. */
+export type SendTurnMessageOutcome =
+	| { readonly kind: 'accepted' }
+	| { readonly kind: 'cancelled' }
+	| { readonly kind: 'not-dispatched' };
+
 /** The host operations that remain owned by {@link AgentSideEffects}. */
 export interface IAgentHostChatContributionHost {
 	readonly hostLaunchKind: AgentHostLaunchKind;
-	sendTurnMessage(options: ISendTurnMessageOptions): void;
+	sendTurnMessage(options: ISendTurnMessageOptions): Promise<SendTurnMessageOutcome>;
 }
 
 type MementoKeySegment = string | boolean | number;
@@ -294,6 +300,11 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * an already-restored title or draft.
 	 */
 	onHydrateChat?(context: IHydrationContext, restored: IRestoredChat): IRestoredChat | Promise<IRestoredChat>;
+	/**
+	 * Runs after a hydrated chat and its owning session have entered host state.
+	 * Use this for restore side effects that must not run from metadata hydration.
+	 */
+	onDidHydrateChat?(context: IHydrationContext): void | Promise<void>;
 }
 
 export type IAgentHostChatContributionSignature<Services extends BrandedService[]> = new (context: IAgentHostChatContributionContext, ...services: Services) => IAgentHostChatContribution;
@@ -321,6 +332,7 @@ export interface IAgentHostChatContributions extends IDisposable {
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat>;
+	didHydrateChat(context: IHydrationContext): Promise<void>;
 	disposeChatState(chat: ProtocolURI): void;
 	disposeSessionState(session: ProtocolURI): void;
 }

@@ -55,6 +55,7 @@ import { createNoopGitStateService, createNullSessionDataService } from '../comm
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
+import { registerNoopRemoteSessionDelegationServices } from './remoteSessionDelegationTestUtils.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
@@ -279,6 +280,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		registerNoopRemoteSessionDelegationServices(services);
 		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

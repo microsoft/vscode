@@ -9,7 +9,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
+import { IAgentHostChatContributions, type SendTurnMessageOutcome } from '../common/agentHostChatContributionsService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import type { ChatTurnStartedAction } from '../common/state/protocol/actions.js';
 import { createErrorResponsePart, parseRequiredSessionUriFromChatUri, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -26,11 +26,11 @@ export interface IDeferredAgentHostTurn {
 /** Starts host-authored turns through the standard admission and provider-send path. */
 export interface IAgentHostTurnService {
 	readonly _serviceBrand: undefined;
-	startTurnMessage(chat: URI, message: Message): void;
+	startTurnMessage(chat: URI, message: Message): Promise<SendTurnMessageOutcome>;
 	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn;
 	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean;
 	failDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, error: ErrorInfo): boolean;
-	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): void;
+	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): Promise<SendTurnMessageOutcome>;
 }
 
 /** Standard turn admission and provider routing shared by client- and host-authored turns. */
@@ -46,10 +46,10 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
-	startTurnMessage(chat: URI, message: Message): void {
+	startTurnMessage(chat: URI, message: Message): Promise<SendTurnMessageOutcome> {
 		const channel = chat.toString();
 		const action = this._dispatchTurnStarted(channel, message);
-		this.handleTurnStarted(channel, action);
+		return this.handleTurnStarted(channel, action);
 	}
 
 	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn {
@@ -72,7 +72,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			this._deferredTurns.delete(channel);
 			return false;
 		}
-		this.handleTurnStarted(channel, { ...action, message });
+		void this.handleTurnStarted(channel, { ...action, message });
 		this._deferredTurns.delete(channel);
 		return true;
 	}
@@ -103,7 +103,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		return true;
 	}
 
-	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): void {
+	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): Promise<SendTurnMessageOutcome> {
 		const host = this._chatContributions.getHost();
 		if (!host) {
 			throw new Error('Agent Host turn routing is unavailable.');
@@ -130,9 +130,9 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			turnStopWatch,
 		});
 		if (!started) {
-			return;
+			return Promise.resolve({ kind: 'not-dispatched' });
 		}
-		host.sendTurnMessage({
+		return host.sendTurnMessage({
 			agent: started.agent,
 			sessionChannel,
 			turnChannel: channel,

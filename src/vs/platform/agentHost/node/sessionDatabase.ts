@@ -823,6 +823,12 @@ export class SessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async getMetadataByPrefix(prefix: string): Promise<ReadonlyMap<string, string>> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT key, value FROM session_metadata WHERE substr(key, 1, ?) = ? ORDER BY key', [prefix.length, prefix]);
+		return new Map(rows.map(row => [row.key as string, row.value as string]));
+	}
+
 	setMetadata(key: string, value: string): Promise<void> {
 		return this._track(() => this._metadataSequencer.queue(() => this._queueMutation(async db => {
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);

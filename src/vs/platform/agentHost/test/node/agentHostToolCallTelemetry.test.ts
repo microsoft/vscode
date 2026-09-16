@@ -51,6 +51,7 @@ import { createNoopGitStateService, createNullSessionDataService } from '../comm
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
+import { registerNoopRemoteSessionDelegationServices } from './remoteSessionDelegationTestUtils.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
@@ -293,6 +294,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		registerNoopRemoteSessionDelegationServices(services);
 		// Blocked/unblocked tool-call telemetry is reported by
 		// `SessionInputNeededContribution`, so the built-in contributions must be
 		// registered for this graph to mirror production wiring.

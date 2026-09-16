@@ -2,8 +2,9 @@
 
 Tracking issue: [#336199](https://github.com/microsoft/vscode/issues/336199)
 
-Status: prototype steps 0-7 implemented. This document describes the target
-architecture and release gates; it does not define a public API.
+Status: prototype steps 0-7 and brokered delegation steps 11-12 implemented.
+This document describes the target architecture and release gates; it does not
+define a public API.
 
 For the one-page coworker handoff and ownership split, start with
 [REMOTE_AGENT_WORK_SPLIT.md](./REMOTE_AGENT_WORK_SPLIT.md).
@@ -370,7 +371,7 @@ route permission/user-input requests with exact ownership.
 **Done when:** restart restores the same downstream conversation; release does
 not delete it; approve/deny/cancel reaches the right request once.
 
-### 11. Client-tool callback - Person 2
+### 11. Client-tool callback - Person 2 (implemented)
 
 Register a diagnostic client tool on B under A's actual initialized client
 identity. Execute only calls assigned to A and complete them through normal AHP.
@@ -378,7 +379,7 @@ identity. Execute only calls assigned to A and complete them through normal AHP.
 **Done when:** B invokes the tool, A executes it once, B receives the result, and
 another client cannot complete A's call.
 
-### 12. `create_remote_session` - Person 2
+### 12. `create_remote_session` - Person 2 (implemented)
 
 Replace the stub with a tool that resolves an allowed target handle, creates a
 normal session through A's RemoteAgent for C, dispatches the initial prompt, and
@@ -389,6 +390,10 @@ invocation deduplication immediately before side effects.
 
 **Done when:** scripted B invokes the tool, C starts exactly one conversation, A
 shows one normal session, and replaying the invocation creates no duplicate.
+
+The implementation uses the downstream session's `toolClientExecution` state
+callback, persists invocation and result records in A's source-session database,
+and refuses to retry a claimed invocation whose durable result is missing.
 
 ### 13. Recovery - Joint
 

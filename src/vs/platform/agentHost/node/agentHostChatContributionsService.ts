@@ -266,6 +266,20 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		return hydrated;
 	}
 
+	async didHydrateChat(context: IHydrationContext): Promise<void> {
+		for (const registration of this._getOrderedContributions()) {
+			const { contribution } = registration;
+			if (!contribution.onDidHydrateChat) {
+				continue;
+			}
+			try {
+				await contribution.onDidHydrateChat(context);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
 	disposeChatState(chat: ProtocolURI): void {
 		for (const context of this._contributionContexts()) {
 			context.disposeChatState(chat);

@@ -1053,6 +1053,20 @@ suite('SessionDatabase', () => {
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
 		});
 
+		test('getMetadataByPrefix returns only matching entries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				'delegation.progress.one': 'one',
+				'delegation.progress.two': 'two',
+				'delegation.result.one': 'result',
+			});
+
+			assert.deepStrictEqual([...await db.getMetadataByPrefix('delegation.progress.')], [
+				['delegation.progress.one', 'one'],
+				['delegation.progress.two', 'two'],
+			]);
+		});
+
 		test('deleteMetadata removes only the requested keys', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.setMetadataValues({

@@ -19,7 +19,9 @@ import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.
 import { agentHostAuthority } from '../../common/agentHostUri.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../../common/state/agentSubscription.js';
+import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ActionType, isChatAction, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, type ChatState, type ComponentToState, type RootState } from '../../common/state/sessionState.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -162,6 +164,14 @@ class TestAgentConnection extends mock<IAgentConnection>() {
 
 	sendServerAction(channel: URI, action: ChatAction): void {
 		this._receive(channel.toString(), action);
+	}
+
+	failSubscription(resource: URI, error: Error): void {
+		const subscription = this._subscriptions.getSubscriptionUnmanaged<ChatState>(resource);
+		if (!subscription || !('setError' in subscription) || typeof subscription.setError !== 'function') {
+			throw new Error(`Cannot fail inactive test subscription: ${resource.toString()}`);
+		}
+		subscription.setError(error);
 	}
 
 	override async disposeSession(session: URI): Promise<void> {
@@ -841,6 +851,148 @@ suite('RemoteAgent', () => {
 		}, {
 			history: [],
 			subscribeCount: 2,
+		});
+	});
+
+	test('recovers an active turn after a recoverable subscription error', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('active-retry-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'active-retry-host', connection.clientId, 'Active Retry Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'active-retry-session');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Keep running', undefined, undefined, 'active-retry-turn');
+		const started = connection.dispatchCalls[0];
+		assert.strictEqual(started.action.type, ActionType.ChatTurnStarted);
+		const remoteChat = URI.parse(started.channel);
+		connection.setChatState(remoteChat, {
+			...emptyChatState(remoteChat),
+			status: SessionStatus.InProgress,
+			activeTurn: {
+				id: started.action.turnId,
+				startedAt: '2026-09-15T20:00:00.000Z',
+				message: started.action.message,
+				responseParts: [],
+				usage: undefined,
+			},
+		});
+
+		connection.failSubscription(remoteChat, new Error('subscription unavailable after reconnect'));
+		await waitFor(() => connection.subscribeCount === 2 && connection.getActiveSubscriptions()[0]?.status === 'snapshot');
+		await agent.chats.abort(localChat, localSession);
+		await agent.chats.releaseChat(localChat, localSession);
+
+		assert.deepStrictEqual({
+			targetConnectionUnchanged: target.connection.get() === connection,
+			dispatches: connection.dispatchCalls.map(call => call.action.type === ActionType.ChatTurnStarted || call.action.type === ActionType.ChatTurnCancelled
+				? { type: call.action.type, turnId: call.action.turnId }
+				: { type: call.action.type }),
+		}, {
+			targetConnectionUnchanged: true,
+			dispatches: [{
+				type: ActionType.ChatTurnStarted,
+				turnId: `remote:${connection.clientId}:turn:active-retry-turn`,
+			}, {
+				type: ActionType.ChatTurnCancelled,
+				turnId: `remote:${connection.clientId}:turn:active-retry-turn`,
+			}],
+		});
+	});
+
+	test('terminal subscription error fails an active turn and makes abort a no-op', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('active-terminal-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'active-terminal-host', connection.clientId, 'Active Terminal Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'active-terminal-session');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const progress: ChatAction[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push(signal.action);
+			}
+		}));
+		await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Fail after dispatch', undefined, undefined, 'active-terminal-turn');
+		const remoteChat = URI.parse(connection.dispatchCalls[0].channel);
+
+		connection.failSubscription(remoteChat, new ProtocolError(AhpErrorCodes.SessionNotFound, 'remote chat no longer exists'));
+		await waitFor(() => connection.getActiveSubscriptions().length === 0);
+		await agent.chats.abort(localChat, localSession);
+		await agent.chats.releaseChat(localChat, localSession);
+
+		assert.deepStrictEqual({
+			targetConnectionUnchanged: target.connection.get() === connection,
+			progress: progress.map(action => action.type === ActionType.ChatError
+				? { type: action.type, turnId: action.turnId, error: action.part.error }
+				: { type: action.type }),
+			dispatches: connection.dispatchCalls.map(call => call.action.type),
+		}, {
+			targetConnectionUnchanged: true,
+			progress: [{
+				type: ActionType.ChatError,
+				turnId: 'active-terminal-turn',
+				error: {
+					errorType: 'remoteAgentSubscriptionError',
+					message: 'remote chat no longer exists',
+				},
+			}],
+			dispatches: [ActionType.ChatTurnStarted],
+		});
+	});
+
+	test('terminal subscription error preserves history failure and subsequent retry', async () => {
+		const providers = createProviderService();
+		const remoteAgents = new TestRemoteAgentsService();
+		const connection = disposables.add(new TestAgentConnection('history-terminal-client'));
+		const target = disposables.add(new TestRemoteTargetHandle('fixed', 'history-terminal-host', connection.clientId, 'History Terminal Host', connection));
+		createContribution(remoteAgents, providers);
+		remoteAgents.setTargets([target]);
+		const agent = providers.getProviders()[0];
+		const localSession = AgentSession.uri(agent.id, 'history-terminal-session');
+		const localChat = URI.parse(buildDefaultChatUri(localSession));
+		const progress: ChatAction[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && isChatAction(signal.action)) {
+				progress.push(signal.action);
+			}
+		}));
+		await agent.chats.createChat(localChat, localSession);
+		await agent.chats.sendMessage(localChat, 'Fail before history', undefined, undefined, 'history-terminal-turn');
+		const remoteChat = URI.parse(connection.dispatchCalls[0].channel);
+		const subscriptionError = new ProtocolError(AhpErrorCodes.SessionNotFound, 'remote history is unavailable');
+
+		connection.failSubscription(remoteChat, subscriptionError);
+		const failedHistory = agent.chats.getMessages(localChat, localSession);
+		await assert.rejects(failedHistory, error => error === subscriptionError);
+		await waitFor(() => connection.getActiveSubscriptions().length === 0);
+		const history = await agent.chats.getMessages(localChat, localSession);
+		await agent.chats.releaseChat(localChat, localSession);
+
+		assert.deepStrictEqual({
+			history,
+			subscribeCount: connection.subscribeCount,
+			progress: progress.map(action => action.type === ActionType.ChatError
+				? { type: action.type, turnId: action.turnId, error: action.part.error }
+				: { type: action.type }),
+		}, {
+			history: [],
+			subscribeCount: 2,
+			progress: [{
+				type: ActionType.ChatError,
+				turnId: 'history-terminal-turn',
+				error: {
+					errorType: 'remoteAgentSubscriptionError',
+					message: 'remote history is unavailable',
+				},
+			}],
 		});
 	});
 

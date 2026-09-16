@@ -34,7 +34,7 @@ import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMerge
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType } from '../../common/agentHostGitService.js';
@@ -42,7 +42,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionSpawnDepth, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -64,6 +64,7 @@ import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } fr
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { MAX_SESSION_SPAWN_DEPTH } from '../../node/shared/sessionServerTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
@@ -8707,6 +8708,82 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionCreationReference(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), creationReference);
 		});
 
+		test('restores ordinary child spawn depth across restart and enforces the descendant limit', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const database = new TestSessionDatabase();
+			const backendAgent = disposables.add(new MockAgent('copilot'));
+			const { session } = await createAgentSession(backendAgent);
+			await database.setMetadata(REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY, String(MAX_SESSION_SPAWN_DEPTH - 1));
+
+			const restoredService = disposables.add(createTestAgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(database),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+			));
+			const restoredAgent = disposables.add(new ServerToolAgent('copilot'));
+			await createAgentSession(restoredAgent, { session });
+			registerTestAgentProvider(restoredService, restoredAgent);
+			await restoredService.restoreSession(session);
+
+			const sessionsBeforeDescendant = new Set(getStateManager(restoredService).getSessionUris());
+			await restoredAgent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.CreateSession, {
+				relationship: 'independent',
+				workspace: URI.file('/workspace').toString(),
+				prompt: 'create the final allowed descendant',
+				title: 'Final Descendant',
+			});
+			const descendant = getStateManager(restoredService).getSessionUris().find(uri => !sessionsBeforeDescendant.has(uri));
+			assert.ok(descendant);
+			await assert.rejects(
+				async () => {
+					await restoredAgent.serverToolHost!.executeTool(buildDefaultChatUri(descendant), SessionServerToolName.CreateSession, {
+						relationship: 'independent',
+						workspace: URI.file('/workspace').toString(),
+						prompt: 'create one descendant too many',
+						title: 'Too Deep',
+					});
+				},
+				/recursion limit/,
+			);
+
+			assert.deepStrictEqual({
+				restoredDepth: readSessionSpawnDepth(getStateManager(restoredService).getSessionSummary(session.toString())?._meta),
+				descendantDepth: readSessionSpawnDepth(getStateManager(restoredService).getSessionSummary(descendant)?._meta),
+			}, {
+				restoredDepth: MAX_SESSION_SPAWN_DEPTH - 1,
+				descendantDepth: MAX_SESSION_SPAWN_DEPTH,
+			});
+		});
+
+		test('rejects invalid persisted ordinary child spawn depth', async () => {
+			const database = new TestSessionDatabase();
+			const backendAgent = disposables.add(new MockAgent('copilot'));
+			const { session } = await createAgentSession(backendAgent);
+			await database.setMetadata(REMOTE_SESSION_DELEGATION_SPAWN_DEPTH_METADATA_KEY, 'not-a-depth');
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(database),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+			));
+			const restoredAgent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(restoredAgent, { session });
+			registerTestAgentProvider(localService, restoredAgent);
+
+			await assert.rejects(localService.restoreSession(session), /Invalid persisted session spawn depth/);
+			assert.strictEqual(getStateManager(localService).getSessionState(session.toString()), undefined);
+		});
+
 		test('restores persisted source-control provenance', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -12631,9 +12708,10 @@ suite('AgentService (node dispatcher)', () => {
 				title: 'New Session',
 			});
 			const createdSessionUri = getStateManager(localService).getSessionUris().find(uri => !sessionUrisBeforeCreation.has(uri));
-			const delegatedMessage = createdSessionUri
-				? getStateManager(localService).getChatState(buildDefaultChatUri(createdSessionUri))?.activeTurn?.message
+			const delegatedChat = createdSessionUri
+				? getStateManager(localService).getChatState(buildDefaultChatUri(createdSessionUri))
 				: undefined;
+			const delegatedMessage = delegatedChat?.activeTurn?.message ?? delegatedChat?.turns.at(-1)?.message;
 			const createdIsolation = createdSessionUri
 				? getStateManager(localService).getSessionState(createdSessionUri)?.config?.values[SessionConfigKey.Isolation]
 				: undefined;

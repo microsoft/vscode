@@ -37,9 +37,13 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { IAgentHostRemoteAgentsService } from '../../node/agentHostRemoteAgentsService.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
+const remoteAgentsServices = new WeakMap<AgentService, IAgentHostRemoteAgentsService>();
+const managedSettingsServices = new WeakMap<AgentService, IAgentHostManagedSettingsService>();
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
 	private _delegate: IAgentHostWorktreeIsolation = new NullAgentHostWorktreeIsolation();
@@ -85,6 +89,22 @@ export function getTestAgentStateManager(agentService: AgentService): AgentHostS
 
 export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
 	return getTestAgentServiceComposition(agentService).providerService;
+}
+
+export function getTestAgentHostRemoteAgentsService(agentService: AgentService): IAgentHostRemoteAgentsService {
+	const service = remoteAgentsServices.get(agentService);
+	if (!service) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return service;
+}
+
+export function getTestAgentHostManagedSettingsService(agentService: AgentService): IAgentHostManagedSettingsService {
+	const service = managedSettingsServices.get(agentService);
+	if (!service) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return service;
 }
 
 export function registerTestAgentProvider(agentService: AgentService, provider: import('../../common/agent.js').IAgent): void {
@@ -230,6 +250,8 @@ export function createTestAgentService(
 		composition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService)));
 		compositions.set(composition.agentService, composition);
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
+		remoteAgentsServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostRemoteAgentsService)));
+		managedSettingsServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostManagedSettingsService)));
 		return composition.agentService;
 	} catch (error) {
 		composition.agentService.dispose();
