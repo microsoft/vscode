@@ -81,7 +81,7 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 - Create a session, send a bounded prompt, close its standalone window, move its card to General/P1 and reopen it. Verify title and transcript.
 - Check both closing while Busy and after completion.
 - Scroll to the lowest cards; expand a cell and verify its contents remain reachable.
-- Use the chevrons beside row/column labels and Unassigned to collapse them. Verify compact headers/counts stay visible, Needs Input counts update, and hidden cards cannot receive keyboard navigation. Expand again and check pending answers remain entered. Drop into a collapsed cell to reveal it; reopening a board resets its local collapse state.
+- Use the chevrons at the right of row/column headers and Unassigned to collapse them. Verify frameless controls retain keyboard focus feedback, compact session counts stay visible, Needs Input counts update, and hidden cards cannot receive keyboard navigation. Expand again and check pending answers remain entered. Drop into a collapsed cell to reveal it; reopening a board resets its local collapse state.
 - Check the themed board titlebar, maximize/restore and minimize controls. Its fixed title and window controls must not alter the Agents owner window, and the board scroll viewport must stay below the titlebar.
 - Type, Backspace/Delete, select/replace text and undo/redo in a new standalone draft and a published chat.
 - Use arrows to move focus, Home/End for first/last card, Enter/Space to open, and Escape to close.
