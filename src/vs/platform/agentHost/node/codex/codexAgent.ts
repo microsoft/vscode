@@ -596,6 +596,12 @@ interface ICodexTargetChat {
 	readonly configurationResource: URI;
 }
 
+interface ICodexSessionHookTrust {
+	readonly grants: Record<string, JsonValue>;
+	/** Working directory and Workspace Trust snapshot that authorized the grants. */
+	readonly contextSignature: string;
+}
+
 interface ICodexSession {
 	/** Caller-facing session id used in the `codex:/<id>` URI; may differ from the codex thread id. */
 	readonly sessionId: string;
@@ -748,7 +754,7 @@ interface ICodexSession {
 	/** Signature of the workspace hook trust overlay applied to the thread. */
 	materializedHookTrustSig: string | undefined;
 	/** Hook trust discovered from a provisional thread and pending application to its replacement. */
-	pendingHookTrustState: Record<string, JsonValue> | undefined;
+	pendingHookTrustState: ICodexSessionHookTrust | undefined;
 	/** Model provider backing the current materialized thread. */
 	materializedModelProvider: string | undefined;
 	pendingModelProviderSwitch?: { readonly threadId: string; readonly fromProvider: string };
@@ -972,8 +978,8 @@ function mcpServersSignature(servers: Record<string, ICodexMcpServerConfigJson>)
 	return names.map(name => `${name}\u0000${JSON.stringify(servers[name])}`).join('\u0001');
 }
 
-function hookTrustSignature(trust: Record<string, JsonValue>): string {
-	return Object.keys(trust).sort().map(key => `${key}\u0000${JSON.stringify(trust[key])}`).join('\u0001');
+function hookTrustSignature(trust: ICodexSessionHookTrust): string {
+	return Object.keys(trust.grants).sort().map(key => `${key}\u0000${JSON.stringify(trust.grants[key])}`).join('\u0001');
 }
 
 /**
@@ -4876,7 +4882,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const conn = await this._ensureConnection();
 			const resolvedModel = parseCodexModelSelection(model);
 			const sessionHookTrust = await this._buildSessionHookTrustState(conn.client, workingDirectory.fsPath);
-			this._applySessionHookTrustState(threadConfig, sessionHookTrust);
+			this._applySessionHookTrustState(threadConfig, sessionHookTrust, workingDirectory.fsPath);
 			this._assertCurrentConnection(conn);
 			const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 				cwd: workingDirectory.fsPath,
@@ -5254,7 +5260,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
-			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd));
+			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd), forkCwd);
 			this._assertCurrentConnection(forkConnection);
 			forkResult = await forkConnection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
 				threadId: sourceThreadId,
@@ -5510,8 +5516,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		// connection that died during preparation is never used for thread/start.
 		const conn = await this._ensureConnection();
 		const pendingHookTrustState = session.pendingHookTrustState;
-		const sessionHookTrust = pendingHookTrustState ?? await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath);
-		this._applySessionHookTrustState(threadConfig, sessionHookTrust);
+		const sessionHookTrust = pendingHookTrustState && this._isCurrentSessionHookTrustState(pendingHookTrustState, session.workingDirectory.fsPath)
+			? pendingHookTrustState
+			: await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath);
+		this._applySessionHookTrustState(threadConfig, sessionHookTrust, session.workingDirectory.fsPath);
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
@@ -6613,9 +6621,16 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				const baseResumeConfig = { ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model) };
 				let sessionHookTrust = await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
-				const resumeWithHookTrust = (hookTrust: Record<string, JsonValue>) => {
+				const resumeWithHookTrust = async () => {
+					if (!this._isCurrentSessionHookTrustState(sessionHookTrust, session.workingDirectory?.fsPath)) {
+						sessionHookTrust = await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
+					}
+					if (session.disposed) {
+						throw new CancellationError();
+					}
+					this._assertCurrentConnection(conn);
 					const resumeConfig = { ...baseResumeConfig };
-					this._applySessionHookTrustState(resumeConfig, hookTrust);
+					this._applySessionHookTrustState(resumeConfig, sessionHookTrust, session.workingDirectory?.fsPath);
 					return conn.client.request<'thread/resume', ThreadResumeResponse>(
 						'thread/resume',
 						{
@@ -6648,9 +6663,10 @@ export class CodexAgent extends Disposable implements IAgent {
 					}
 					this._assertCurrentConnection(conn);
 				}
-				let resumeResult = await resumeWithHookTrust(sessionHookTrust);
+				let resumeResult = await resumeWithHookTrust();
 				this._assertCurrentConnection(conn);
-				if (hookTrustSignature(sessionHookTrust) === '') {
+				// Non-project hooks must not suppress a recheck for late project hooks.
+				if (Object.keys(sessionHookTrust.grants).length === 0) {
 					const discoveredSessionHookTrust = await this._tryBuildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
 					this._assertCurrentConnection(conn);
 					if (discoveredSessionHookTrust !== undefined && hookTrustSignature(discoveredSessionHookTrust) !== '') {
@@ -6660,7 +6676,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						}
 						this._assertCurrentConnection(conn);
 						sessionHookTrust = discoveredSessionHookTrust;
-						resumeResult = await resumeWithHookTrust(sessionHookTrust);
+						resumeResult = await resumeWithHookTrust();
 						this._assertCurrentConnection(conn);
 					}
 				}
@@ -7608,14 +7624,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		return [...codexSkillsToContainers(effectiveSkills), ...codexHooksToContainers(effectiveHooks)];
 	}
 
-	/** Builds per-thread trust for the project hooks Codex discovered from the primary workspace. */
-	private async _buildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<Record<string, JsonValue>> {
-		return await this._tryBuildSessionHookTrustState(client, cwd) ?? {};
+	/** Builds per-thread project-hook grants bound to the current Workspace Trust snapshot. */
+	private async _buildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<ICodexSessionHookTrust> {
+		return await this._tryBuildSessionHookTrustState(client, cwd) ?? { grants: {}, contextSignature: this._sessionHookTrustContext(cwd) };
 	}
 
-	private async _tryBuildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<Record<string, JsonValue> | undefined> {
+	private async _tryBuildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<ICodexSessionHookTrust | undefined> {
 		if (!cwd || !this._isWorkspaceTrusted(URI.file(cwd))) {
-			return {};
+			return { grants: {}, contextSignature: this._sessionHookTrustContext(cwd) };
 		}
 
 		let response: HooksListResponse;
@@ -7626,6 +7642,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
+		const workspaceTrust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
 		const trust: Record<string, JsonValue> = {};
 		for (const entry of response.data) {
 			for (const error of entry.errors) {
@@ -7635,16 +7652,26 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Codex] hooks/list for session hook trust: ${warning}`);
 			}
 			for (const hook of entry.hooks) {
-				if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath))) {
+				if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath), workspaceTrust)) {
 					trust[hook.key] = { trusted_hash: hook.currentHash };
 				}
 			}
 		}
-		return this._isWorkspaceTrusted(URI.file(cwd)) ? trust : {};
+		return {
+			grants: this._isWorkspaceTrusted(URI.file(cwd), workspaceTrust) ? trust : {},
+			contextSignature: this._sessionHookTrustContext(cwd, workspaceTrust),
+		};
 	}
 
-	private _isWorkspaceTrusted(resource: URI): boolean {
-		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+	private _sessionHookTrustContext(cwd: string | undefined, trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)): string {
+		return JSON.stringify([cwd, trust]);
+	}
+
+	private _isCurrentSessionHookTrustState(trust: ICodexSessionHookTrust, cwd: string | undefined): boolean {
+		return trust.contextSignature === this._sessionHookTrustContext(cwd);
+	}
+
+	private _isWorkspaceTrusted(resource: URI, trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)): boolean {
 		if (!trust) {
 			return false;
 		}
@@ -7660,10 +7687,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/** Adds a non-empty hook trust map to the per-thread Codex config. */
-	private _applySessionHookTrustState(config: Record<string, JsonValue>, trust: Record<string, JsonValue>): void {
-		if (Object.keys(trust).length > 0) {
-			config['hooks.state'] = trust;
+	/** Adds current hook grants to the per-thread config, rejecting a changed authorization context. */
+	private _applySessionHookTrustState(config: Record<string, JsonValue>, trust: ICodexSessionHookTrust, cwd: string | undefined): void {
+		if (!this._isCurrentSessionHookTrustState(trust, cwd)) {
+			throw new CancellationError();
+		}
+		if (Object.keys(trust.grants).length > 0) {
+			config['hooks.state'] = trust.grants;
 		}
 	}
 
