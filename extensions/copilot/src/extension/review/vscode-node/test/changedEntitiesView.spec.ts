@@ -47,7 +47,7 @@ vi.mock('vscode', async importOriginal => {
 
 import type { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import type { API, Change, Repository } from '../../../../platform/git/vscode/git';
-import { TypeScriptChangeClassification, type ICodeReviewService, type TypeScriptChangeClassificationCoverage, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeTag, type TypeScriptMetricsResult } from '../../../../platform/languageContextProvider/common/codeReviewService';
+import { TypeScriptChangeClassification, type ICodeReviewService, type TypeScriptChangeClassificationCoverage, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeTag, type TypeScriptMetricsResult, type TypeScriptReviewLineChange } from '../../../../platform/languageContextProvider/common/codeReviewService';
 import type { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -116,7 +116,7 @@ suite('Changed entities view', () => {
 					entityLink,
 					changes: [
 						{ changeType: 'changed', range: { start: 1, end: 2 }, classifications: [coverage(TypeScriptChangeClassification.Signature, { start: 1, end: 2 })] },
-						{ changeType: 'added', range: { start: 3, end: 4 }, classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 })] },
+						{ changeType: 'added', range: { start: 2, end: 3 }, classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 })] },
 					],
 				},
 				{
@@ -126,7 +126,7 @@ suite('Changed entities view', () => {
 					range: { start: 5, end: 8 },
 					entityLink: closeEntityLink,
 					changes: [
-						{ changeType: 'added', range: { start: 5, end: 8 }, classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 5, end: 8 })] },
+						{ changeType: 'added', range: { start: 3, end: 4 }, classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 3, end: 4 })] },
 					],
 				},
 			],
@@ -220,6 +220,42 @@ suite('Changed entities view', () => {
 				tooltip: serializeTooltip(member.treeItem.tooltip),
 				accessibilityLabel: member.treeItem.accessibilityInformation?.label,
 			}));
+			const pendingContextValues = {
+				file: files[0].treeItem.contextValue,
+				parent: entities[1].treeItem.contextValue,
+				child: members[0].treeItem.contextValue,
+			};
+			await provider.setReviewed(members[0], true);
+			const acceptedReviewState = {
+				file: {
+					contextValue: files[0].treeItem.contextValue,
+					description: files[0].treeItem.description,
+				},
+				parent: {
+					contextValue: entities[1].treeItem.contextValue,
+					description: entities[1].treeItem.description,
+				},
+				child: {
+					contextValue: members[0].treeItem.contextValue,
+					description: members[0].treeItem.description,
+					accessibilityLabel: members[0].treeItem.accessibilityInformation?.label,
+				},
+			};
+			await provider.setReviewed(members[0], false);
+			await provider.setReviewed(entities[1], true);
+			const acceptedParentState = {
+				contextValue: entities[1].treeItem.contextValue,
+				description: entities[1].treeItem.description,
+				accessibilityLabel: entities[1].treeItem.accessibilityInformation?.label,
+			};
+			await provider.setReviewed(entities[1], false);
+			await provider.setReviewed(files[0], true);
+			const acceptedFileState = {
+				contextValue: files[0].treeItem.contextValue,
+				description: files[0].treeItem.description,
+				accessibilityLabel: files[0].treeItem.accessibilityInformation?.label,
+			};
+			await provider.setReviewed(files[0], false);
 			const explanationInputsBeforeHover = [...codeReviewService.explanationInputs];
 			await provider.resolveTreeItem(namespaceMembers[0].treeItem, namespaceMembers[0], CancellationToken.None);
 			for (const member of members) {
@@ -233,9 +269,23 @@ suite('Changed entities view', () => {
 				fileTooltip: serializeTooltip(files[0].treeItem.tooltip),
 				fileAccessibilityLabel: files[0].treeItem.accessibilityInformation?.label,
 				fileIcon: files[0].treeItem.iconPath instanceof vscode.ThemeIcon ? files[0].treeItem.iconPath.id : undefined,
-				fileRefreshEvents: refreshEvents.map(element => element === files[0]),
+				refreshCounts: {
+					file: refreshEvents.filter(element => element === files[0]).length,
+					entity: refreshEvents.filter(element => element !== files[0]).length,
+				},
 				inputs: codeReviewService.inputs,
 				metricInputs: codeReviewService.metricInputs,
+				review: {
+					pendingContextValues,
+					acceptedReviewState,
+					acceptedParentState,
+					acceptedFileState,
+					calls: codeReviewService.reviewedChanges.map(call => ({
+						entityLink: call.entityLink.toString(),
+						changeIds: call.changes.map(change => change.id),
+						reviewed: call.reviewed,
+					})),
+				},
 				explanationInputsBeforeHover,
 				initialEntityState,
 				explanationInputs: codeReviewService.explanationInputs.map(input => ({
@@ -280,7 +330,10 @@ suite('Changed entities view', () => {
 				fileTooltip: 'src\\reader.ts — CC: [0/-5]',
 				fileAccessibilityLabel: 'Changed file src\\reader.ts, cognitive complexity unchanged, cyclomatic complexity decreased by 5',
 				fileIcon: 'file',
-				fileRefreshEvents: [true],
+				refreshCounts: {
+					file: 7,
+					entity: 36,
+				},
 				inputs: [{
 					filePath: uri.fsPath,
 					modified: {
@@ -297,6 +350,60 @@ suite('Changed entities view', () => {
 					{ filePath: uri.fsPath, content: modified },
 					{ filePath: uri.fsPath, content: original },
 				],
+				review: {
+					pendingContextValues: {
+						file: 'copilotChangedEntityPending',
+						parent: 'copilotChangedEntityPending',
+						child: 'copilotChangedEntityPending',
+					},
+					acceptedReviewState: {
+						file: {
+							contextValue: 'copilotChangedEntityPending',
+							description: 'src — CC: [0/-5]',
+						},
+						parent: {
+							contextValue: 'copilotChangedEntityPending',
+							description: undefined,
+						},
+						child: {
+							contextValue: 'copilotChangedEntityAccepted',
+							description: 'Signature change, Statement addition — CC: [+2/+3], Runtime: O(1) -> O(n) ✓',
+							accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity changed from O(1) to O(n). Open diff. Accepted and hidden from diff.',
+						},
+					},
+					acceptedParentState: {
+						contextValue: 'copilotChangedEntityAccepted',
+						description: '✓',
+						accessibilityLabel: 'Reader, class changed entity group. Accepted and hidden from diff.',
+					},
+					acceptedFileState: {
+						contextValue: 'copilotChangedEntityAccepted',
+						description: 'src — CC: [0/-5] ✓',
+						accessibilityLabel: 'Changed file src\\reader.ts, cognitive complexity unchanged, cyclomatic complexity decreased by 5. Accepted and hidden from diff.',
+					},
+					calls: [
+						{
+							entityLink: entityLink.toString(),
+							changeIds: ['changed:1:2:1:2'],
+							reviewed: true,
+						},
+						{
+							entityLink: entityLink.toString(),
+							changeIds: ['changed:1:2:1:2'],
+							reviewed: false,
+						},
+						...[
+							{ reviewed: true },
+							{ reviewed: false },
+							{ reviewed: true },
+							{ reviewed: false },
+						].map(({ reviewed }) => ({
+							entityLink: entityLink.toString(),
+							changeIds: ['changed:1:2:1:2', 'added:3:3:3:4'],
+							reviewed,
+						})),
+					],
+				},
 				explanationInputsBeforeHover: [],
 				initialEntityState: [
 					{
@@ -347,9 +454,9 @@ suite('Changed entities view', () => {
 							id: 'change-2',
 							path: ['Reader', 'listen'],
 							changeType: 'added',
-							classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 3, end: 4 })],
+							classifications: [coverage(TypeScriptChangeClassification.Statement, { start: 2, end: 3 })],
 							original: undefined,
-							modified: '\t\tlog();',
+							modified: '\t\tstart();',
 							},
 						],
 					},
@@ -359,9 +466,9 @@ suite('Changed entities view', () => {
 							id: 'change-3',
 							path: ['Reader', 'close'],
 							changeType: 'added',
-							classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 5, end: 8 })],
+							classifications: [coverage(TypeScriptChangeClassification.Declaration, { start: 3, end: 4 })],
 							original: undefined,
-							modified: '}',
+							modified: '\t\tlog();',
 						}],
 					},
 					{
@@ -474,6 +581,7 @@ class TestCodeReviewService implements ICodeReviewService {
 	readonly inputs: TypeScriptChangeClassificationInput[] = [];
 	readonly metricInputs: { readonly filePath: string; readonly content?: string }[] = [];
 	readonly explanationInputs: TypeScriptChangeExplanationInput[] = [];
+	readonly reviewedChanges: { readonly entityLink: vscode.Uri; readonly changes: readonly TypeScriptReviewLineChange[]; readonly reviewed: boolean }[] = [];
 
 	constructor(
 		private readonly result: TypeScriptChangeClassificationResult,
@@ -498,6 +606,11 @@ class TestCodeReviewService implements ICodeReviewService {
 	async classifyChanges(input: TypeScriptChangeClassificationInput): Promise<TypeScriptChangeClassificationResult> {
 		this.inputs.push(input);
 		return this.result;
+	}
+
+	setChangesReviewed(entityLink: vscode.Uri, changes: readonly TypeScriptReviewLineChange[], reviewed: boolean): boolean {
+		this.reviewedChanges.push({ entityLink, changes, reviewed });
+		return true;
 	}
 
 	async openDiff(): Promise<void> { }

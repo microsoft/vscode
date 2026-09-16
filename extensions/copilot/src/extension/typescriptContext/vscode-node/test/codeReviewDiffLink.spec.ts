@@ -122,6 +122,30 @@ suite('Code review service', () => {
 			const diffCall = mocks.executeCommand.mock.calls[2];
 			const originalUri = diffCall[1] as vscode.Uri;
 			const modifiedUri = diffCall[2] as vscode.Uri;
+			const documentChanges: vscode.Uri[] = [];
+			const documentChangeListener = mocks.provider?.onDidChange?.(uri => documentChanges.push(uri));
+			const reviewChanges = [
+				{
+					id: 'changed:0:1:0:1',
+					original: { start: 0, end: 1 },
+					modified: { start: 0, end: 1 },
+				},
+				{
+					id: 'deleted:1:2:1:1',
+					original: { start: 1, end: 2 },
+					modified: { start: 1, end: 1 },
+				},
+				{
+					id: 'added:2:2:1:2',
+					original: { start: 2, end: 2 },
+					modified: { start: 1, end: 2 },
+				},
+			];
+			const accepted = service.setChangesReviewed(link, reviewChanges, true);
+			const acceptedOriginal = mocks.provider?.provideTextDocumentContent(originalUri, {} as vscode.CancellationToken);
+			const restored = service.setChangesReviewed(link, reviewChanges, false);
+			const restoredOriginal = mocks.provider?.provideTextDocumentContent(originalUri, {} as vscode.CancellationToken);
+			documentChangeListener?.dispose();
 			assert.deepStrictEqual({
 				link: {
 					scheme: link.scheme,
@@ -136,6 +160,13 @@ suite('Code review service', () => {
 					title: diffCall[3],
 					selectionLine: diffCall[4].selection.start.line,
 				},
+				review: {
+					accepted,
+					acceptedOriginal,
+					restored,
+					restoredOriginal,
+					documentChangeSides: documentChanges.map(uri => new URLSearchParams(uri.query).get('side')),
+				},
 			}, {
 				link: {
 					scheme: 'vscode-insiders',
@@ -149,6 +180,17 @@ suite('Code review service', () => {
 					modified: modifiedContent,
 					title: 'reader.ts — Reader.listen',
 					selectionLine: 20,
+				},
+				review: {
+					accepted: true,
+					acceptedOriginal: [
+						'modified 0',
+						'modified 1',
+						...Array.from({ length: 38 }, (_, index) => `original ${index + 2}`),
+					].join('\n'),
+					restored: true,
+					restoredOriginal: originalContent,
+					documentChangeSides: ['original', 'original'],
 				},
 			});
 		} finally {

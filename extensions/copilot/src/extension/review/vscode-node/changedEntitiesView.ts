@@ -9,15 +9,17 @@ import * as vscode from 'vscode';
 
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import type { Change, Repository } from '../../../platform/git/vscode/git';
-import { ICodeReviewService, TypeScriptChangeClassification, type TypeScriptChangeBucket, type TypeScriptChangeToExplain, type TypeScriptClassifiedModifiedLines, type TypeScriptClassifiedOriginalLines, type TypeScriptMetrics, type TypeScriptMetricsResult } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { ICodeReviewService, TypeScriptChangeClassification, type TypeScriptChangeBucket, type TypeScriptChangeToExplain, type TypeScriptClassifiedModifiedLines, type TypeScriptClassifiedOriginalLines, type TypeScriptMetrics, type TypeScriptMetricsResult, type TypeScriptReviewLineChange } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
-import { computeLineChangeRanges } from '../node/lineChangeRanges';
+import { computeLineChangeRanges, type LineChangeOperation } from '../node/lineChangeRanges';
 
 export const changedEntitiesViewId = 'github.copilot.changedEntities';
 
 const openChangedEntityDiffCommand = 'github.copilot.openChangedEntityDiff';
+const acceptChangedEntityCommand = 'github.copilot.changedEntities.accept';
+const restoreChangedEntityCommand = 'github.copilot.changedEntities.restore';
 const supportedExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
 const maxExplanationSnippetLength = 4000;
 
@@ -40,6 +42,12 @@ export class ChangedEntitiesViewContribution extends Disposable implements IExte
 		}));
 		this._register(vscode.commands.registerCommand(openChangedEntityDiffCommand, async (uri: vscode.Uri) => {
 			await codeReviewService.openDiff(uri);
+		}));
+		this._register(vscode.commands.registerCommand(acceptChangedEntityCommand, async (element: ChangedEntitiesTreeElement) => {
+			await provider.setReviewed(element, true);
+		}));
+		this._register(vscode.commands.registerCommand(restoreChangedEntityCommand, async (element: ChangedEntitiesTreeElement) => {
+			await provider.setReviewed(element, false);
 		}));
 	}
 }
@@ -69,6 +77,33 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 
 	getTreeItem(element: ChangedEntitiesTreeElement): vscode.TreeItem {
 		return element.treeItem;
+	}
+
+	async setReviewed(element: ChangedEntitiesTreeElement, reviewed: boolean): Promise<void> {
+		if (!(element instanceof ChangedFileItem) && !(element instanceof ChangedEntityItem)) {
+			return;
+		}
+		const file = element instanceof ChangedFileItem ? element : element.getFile();
+		if (element instanceof ChangedFileItem && file.getEntityItems().length === 0) {
+			await this.getChildren(file);
+		}
+		const reviewChanges = element.getReviewChanges();
+		const entityLink = element.getEntityLink();
+		const alreadyInState = reviewed
+			? reviewChanges.every(change => file.isReviewed(change))
+			: reviewChanges.every(change => !file.isReviewed(change));
+		if (entityLink === undefined || reviewChanges.length === 0 || alreadyInState) {
+			return;
+		}
+		if (!this.codeReviewService.setChangesReviewed(entityLink, reviewChanges, reviewed)) {
+			await vscode.window.showWarningMessage(l10n.t`This code review is no longer available. Refresh the Changed Entities view.`);
+			return;
+		}
+		file.setReviewState(reviewChanges, reviewed);
+		this.changeEmitter.fire(file);
+		for (const item of file.getEntityItems().flatMap(item => item.getAllItems())) {
+			this.changeEmitter.fire(item);
+		}
 	}
 
 	async resolveTreeItem(item: vscode.TreeItem, element: ChangedEntitiesTreeElement, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
@@ -183,6 +218,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 				},
 			});
 			if (result === undefined) {
+				file.setEntityItems([]);
 				return [MessageItem.unavailable()];
 			}
 
@@ -200,11 +236,14 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 				indexMetrics(originalMetrics),
 			);
 			if (entities.length === 0) {
+				file.setEntityItems([]);
 				return [MessageItem.empty()];
 			}
+			this.prepareReviewChanges(entities, ranges.operations);
 			this.prepareExplanations(entities, original, modified, ranges.changed, ranges.originalChanged);
 
-			const entityItems = createEntityTreeItems(file.id, file.uri.fsPath, entities);
+			const entityItems = createEntityTreeItems(file, entities);
+			file.setEntityItems(entityItems);
 			const fileComplexity = rollUpComplexity(undefined, entityItems);
 			if (fileComplexity !== undefined && hasComplexityDelta(fileComplexity)) {
 				file.setComplexityRollup(fileComplexity);
@@ -212,6 +251,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			}
 			return entityItems;
 		} catch (error) {
+			file.setEntityItems([]);
 			this.logService.error(error, `Failed to classify changed entities for '${file.uri.fsPath}'`);
 			return [MessageItem.error()];
 		}
@@ -249,6 +289,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 					changes: [...bucket.changes],
 					metrics: undefined,
 					explanationRequests: [],
+					reviewChanges: [],
 				});
 			} else {
 				existing.entityLink ??= bucket.entityLink;
@@ -271,6 +312,24 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			}
 		}
 		return Array.from(result.values()).sort((left, right) => left.rangeStart - right.rangeStart);
+	}
+
+	private prepareReviewChanges(entities: readonly EntityViewModel[], operations: readonly LineChangeOperation[]): void {
+		for (const entity of entities) {
+			const reviewChanges = new Map<string, LineChangeOperation>();
+			for (const change of entity.changes) {
+				for (const operation of operations) {
+					if (operation.changeType !== change.changeType) {
+						continue;
+					}
+					const range = change.changeType === 'deleted' ? operation.original : operation.modified;
+					if (change.range.start <= range.start && change.range.end >= range.end) {
+						reviewChanges.set(operation.id, operation);
+					}
+				}
+			}
+			entity.reviewChanges.push(...reviewChanges.values());
+		}
 	}
 
 	private prepareExplanations(
@@ -327,6 +386,10 @@ class ChangedFileItem {
 	readonly treeItem: vscode.TreeItem;
 	readonly changes: Change[];
 	private readonly directory: string | undefined;
+	private readonly reviewedChangeIds = new Set<string>();
+	private entityItems: readonly ChangedEntityItem[] | undefined;
+	private baseDescription: string | undefined;
+	private baseAccessibilityLabel: string;
 
 	constructor(readonly repository: Repository, change: Change) {
 		this.uri = change.uri;
@@ -340,14 +403,53 @@ class ChangedFileItem {
 		this.treeItem.iconPath = vscode.ThemeIcon.File;
 		const directory = path.dirname(this.relativePath);
 		this.directory = directory === '.' ? undefined : directory;
-		this.treeItem.description = this.directory;
-		this.treeItem.contextValue = 'copilotChangedEntitiesFile';
-		this.treeItem.accessibilityInformation = {
-			label: l10n.t`Changed file ${this.relativePath}`,
-		};
+		this.baseDescription = this.directory;
+		this.baseAccessibilityLabel = l10n.t`Changed file ${this.relativePath}`;
+		this.updateReviewPresentation();
 	}
 
 	readonly uri: vscode.Uri;
+
+	setEntityItems(items: readonly ChangedEntityItem[]): void {
+		this.entityItems = items;
+		this.updateReviewPresentation();
+	}
+
+	getReviewChanges(): readonly TypeScriptReviewLineChange[] {
+		const result = new Map<string, TypeScriptReviewLineChange>();
+		for (const item of this.entityItems ?? []) {
+			for (const change of item.getReviewChanges()) {
+				result.set(change.id, change);
+			}
+		}
+		return Array.from(result.values());
+	}
+
+	getEntityLink(): vscode.Uri | undefined {
+		return this.entityItems?.map(item => item.getEntityLink()).find(link => link !== undefined);
+	}
+
+	setReviewState(changes: readonly TypeScriptReviewLineChange[], reviewed: boolean): void {
+		for (const change of changes) {
+			if (reviewed) {
+				this.reviewedChangeIds.add(change.id);
+			} else {
+				this.reviewedChangeIds.delete(change.id);
+			}
+		}
+		for (const item of this.entityItems ?? []) {
+			item.updateReviewPresentation();
+		}
+		this.updateReviewPresentation();
+	}
+
+	isReviewed(change: TypeScriptReviewLineChange): boolean {
+		return this.reviewedChangeIds.has(change.id);
+	}
+
+	getEntityItems(): readonly ChangedEntityItem[] {
+		return this.entityItems ?? [];
+	}
 
 	setComplexityRollup(complexity: ComplexityDelta): void {
 		const metricsDescription = formatMetrics(complexity, undefined);
@@ -355,12 +457,26 @@ class ChangedFileItem {
 		if (metricsDescription === undefined || accessibleMetricsDescription === undefined) {
 			return;
 		}
-		this.treeItem.description = this.directory === undefined
+		this.baseDescription = this.directory === undefined
 			? metricsDescription
 			: l10n.t`${this.directory} — ${metricsDescription}`;
 		this.treeItem.tooltip = l10n.t`${this.relativePath} — ${metricsDescription}`;
+		this.baseAccessibilityLabel = l10n.t`Changed file ${this.relativePath}, ${accessibleMetricsDescription}`;
+		this.updateReviewPresentation();
+	}
+
+	private updateReviewPresentation(): void {
+		const reviewChanges = this.getReviewChanges();
+		const reviewable = this.entityItems === undefined || reviewChanges.length > 0;
+		const reviewed = reviewChanges.length > 0 && reviewChanges.every(change => this.isReviewed(change));
+		this.treeItem.description = reviewed ? appendAcceptedCheckmark(this.baseDescription) : this.baseDescription;
+		this.treeItem.contextValue = reviewable
+			? reviewed ? 'copilotChangedEntityAccepted' : 'copilotChangedEntityPending'
+			: 'copilotChangedEntitiesFile';
 		this.treeItem.accessibilityInformation = {
-			label: l10n.t`Changed file ${this.relativePath}, ${accessibleMetricsDescription}`,
+			label: reviewed
+				? l10n.t`${this.baseAccessibilityLabel}. Accepted and hidden from diff.`
+				: this.baseAccessibilityLabel,
 		};
 	}
 }
@@ -374,6 +490,7 @@ interface EntityViewModel {
 	readonly changes: ClassifiedChange[];
 	metrics: EntityChangeMetrics | undefined;
 	readonly explanationRequests: EntityExplanationRequest[];
+	readonly reviewChanges: TypeScriptReviewLineChange[];
 }
 
 interface MutableEntityTreeNode {
@@ -417,22 +534,28 @@ class ChangedEntityItem {
 	readonly complexityRollup: ComplexityDelta | undefined;
 	readonly fallbackTooltip: string;
 	private readonly explanationRequests: readonly EntityExplanationRequest[];
-	private readonly filePath: string;
+	private readonly file: ChangedFileItem;
 	private readonly tooltipLabel: string;
 	private readonly tooltipDescription: string | undefined;
+	private readonly entityLink: vscode.Uri | undefined;
+	private readonly reviewChanges: readonly TypeScriptReviewLineChange[];
+	private readonly baseDescription: string | undefined;
+	private readonly baseAccessibilityLabel: string;
 
-	constructor(fileId: string, filePath: string, node: MutableEntityTreeNode) {
-		this.filePath = filePath;
+	constructor(file: ChangedFileItem, node: MutableEntityTreeNode) {
+		this.file = file;
 		this.explanationRequests = node.entity?.explanationRequests ?? [];
+		this.entityLink = node.entity?.entityLink;
+		this.reviewChanges = node.entity?.reviewChanges ?? [];
 		this.children = Array.from(node.children.values())
 			.sort(compareEntityTreeNodes)
-			.map(child => new ChangedEntityItem(fileId, filePath, child));
+			.map(child => new ChangedEntityItem(file, child));
 		this.complexityRollup = rollUpComplexity(node.entity?.metrics, this.children);
 		this.treeItem = new vscode.TreeItem(
 			node.label,
 			this.children.length === 0 ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded,
 		);
-		this.treeItem.id = `${changedEntitiesViewId}.entity.${fileId}.${JSON.stringify(node.path)}`;
+		this.treeItem.id = `${changedEntitiesViewId}.entity.${file.id}.${JSON.stringify(node.path)}`;
 		this.treeItem.iconPath = new vscode.ThemeIcon(getEntityIcon(node.kind));
 
 		const fullLabel = node.path.length === 0 ? node.label : node.path.join('.');
@@ -441,16 +564,14 @@ class ChangedEntityItem {
 		const metricsDescription = formatMetrics(this.complexityRollup, node.entity?.metrics?.runtimeComplexity);
 		const accessibleMetricsDescription = formatAccessibleMetrics(this.complexityRollup, node.entity?.metrics?.runtimeComplexity);
 		if (node.entity === undefined) {
-			this.treeItem.description = metricsDescription;
+			this.baseDescription = metricsDescription;
 			this.treeItem.tooltip = metricsDescription === undefined ? fullLabel : l10n.t`${fullLabel} — ${metricsDescription}`;
 			this.fallbackTooltip = this.treeItem.tooltip;
 			this.tooltipDescription = undefined;
-			this.treeItem.contextValue = 'copilotChangedEntityGroup';
-			this.treeItem.accessibilityInformation = {
-				label: accessibleMetricsDescription === undefined
-					? l10n.t`${fullLabel}, ${kindLabel} changed entity group`
-					: l10n.t`${fullLabel}, ${kindLabel} changed entity group, ${accessibleMetricsDescription}`,
-			};
+			this.baseAccessibilityLabel = accessibleMetricsDescription === undefined
+				? l10n.t`${fullLabel}, ${kindLabel} changed entity group`
+				: l10n.t`${fullLabel}, ${kindLabel} changed entity group, ${accessibleMetricsDescription}`;
+			this.updateReviewPresentation();
 			return;
 		}
 
@@ -461,15 +582,13 @@ class ChangedEntityItem {
 		const accessibleDescription = accessibleMetricsDescription === undefined
 			? changesDescription
 			: l10n.t`${changesDescription}, ${accessibleMetricsDescription}`;
-		this.treeItem.description = description;
+		this.baseDescription = description;
 		this.fallbackTooltip = formatEntityTooltipCaption(fullLabel, description);
 		this.tooltipDescription = description;
-		this.treeItem.contextValue = 'copilotChangedEntity';
-		this.treeItem.accessibilityInformation = {
-			label: node.entity.entityLink === undefined
-				? l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}`
-				: l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}. Open diff`,
-		};
+		this.baseAccessibilityLabel = node.entity.entityLink === undefined
+			? l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}`
+			: l10n.t`${fullLabel}, ${kindLabel}, ${accessibleDescription}. Open diff`;
+		this.updateReviewPresentation();
 		if (node.entity.entityLink !== undefined) {
 			this.treeItem.command = {
 				command: openChangedEntityDiffCommand,
@@ -483,9 +602,40 @@ class ChangedEntityItem {
 		return this.explanationRequests.length > 0;
 	}
 
+	getFile(): ChangedFileItem {
+		return this.file;
+	}
+
+	getReviewChanges(): readonly TypeScriptReviewLineChange[] {
+		const result = new Map<string, TypeScriptReviewLineChange>();
+		for (const change of this.reviewChanges) {
+			result.set(change.id, change);
+		}
+		for (const child of this.children) {
+			for (const change of child.getReviewChanges()) {
+				result.set(change.id, change);
+			}
+		}
+		return Array.from(result.values());
+	}
+
+	getEntityLink(): vscode.Uri | undefined {
+		if (this.reviewChanges.length > 0) {
+			return this.entityLink;
+		}
+		return this.children
+			.filter(child => child.getReviewChanges().length > 0)
+			.map(child => child.getEntityLink())
+			.find(link => link !== undefined);
+	}
+
+	getAllItems(): readonly ChangedEntityItem[] {
+		return [this, ...this.children.flatMap(child => child.getAllItems())];
+	}
+
 	async resolveTooltip(codeReviewService: ICodeReviewService, token: vscode.CancellationToken): Promise<string | vscode.MarkdownString> {
 		const explanations = await codeReviewService.explainChanges({
-			filePath: this.filePath,
+			filePath: this.file.uri.fsPath,
 			changes: this.explanationRequests.map(request => request.request),
 		}, token);
 		if (explanations === undefined) {
@@ -503,9 +653,27 @@ class ChangedEntityItem {
 			? this.fallbackTooltip
 			: formatEntityTooltip(this.tooltipLabel, this.tooltipDescription, resolvedExplanations);
 	}
+
+	updateReviewPresentation(): void {
+		for (const child of this.children) {
+			child.updateReviewPresentation();
+		}
+		const reviewChanges = this.getReviewChanges();
+		const reviewable = this.getEntityLink() !== undefined && reviewChanges.length > 0;
+		const reviewed = reviewable && reviewChanges.every(change => this.file.isReviewed(change));
+		this.treeItem.description = reviewed ? appendAcceptedCheckmark(this.baseDescription) : this.baseDescription;
+		this.treeItem.contextValue = reviewable
+			? reviewed ? 'copilotChangedEntityAccepted' : 'copilotChangedEntityPending'
+			: this.children.length > 0 ? 'copilotChangedEntityGroup' : 'copilotChangedEntity';
+		this.treeItem.accessibilityInformation = {
+			label: reviewed
+				? l10n.t`${this.baseAccessibilityLabel}. Accepted and hidden from diff.`
+				: this.baseAccessibilityLabel,
+		};
+	}
 }
 
-function createEntityTreeItems(fileId: string, filePath: string, entities: readonly EntityViewModel[]): ChangedEntityItem[] {
+function createEntityTreeItems(file: ChangedFileItem, entities: readonly EntityViewModel[]): ChangedEntityItem[] {
 	const roots = new Map<string, MutableEntityTreeNode>();
 	for (const entity of entities) {
 		if (entity.path.length === 0) {
@@ -549,7 +717,7 @@ function createEntityTreeItems(fileId: string, filePath: string, entities: reado
 
 	return Array.from(roots.values())
 		.sort(compareEntityTreeNodes)
-		.map(root => new ChangedEntityItem(fileId, filePath, root));
+		.map(root => new ChangedEntityItem(file, root));
 }
 
 function compareEntityTreeNodes(left: MutableEntityTreeNode, right: MutableEntityTreeNode): number {
@@ -675,6 +843,10 @@ function getOneSidedRuntimeComplexity(runtime: RuntimeComplexityChange): string 
 
 function formatDelta(value: number): string {
 	return value > 0 ? `+${value}` : value.toString();
+}
+
+function appendAcceptedCheckmark(description: string | undefined): string {
+	return description === undefined ? '✓' : l10n.t`${description} ✓`;
 }
 
 function formatAccessibleDelta(value: number): string {

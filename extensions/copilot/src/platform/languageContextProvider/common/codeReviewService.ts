@@ -139,6 +139,16 @@ export interface TypeScriptChangeExplanation {
 	readonly explanation: string;
 }
 
+export interface TypeScriptReviewLineChange {
+	readonly id: string;
+	/**
+	 * Paired zero-based, end-exclusive ranges. Additions have an empty original
+	 * range and deletions have an empty modified range.
+	 */
+	readonly original: LineRange;
+	readonly modified: LineRange;
+}
+
 export const ICodeReviewService = createServiceIdentifier<ICodeReviewService>('ICodeReviewService');
 
 export interface ICodeReviewService extends vscode.Disposable {
@@ -163,6 +173,11 @@ export interface ICodeReviewService extends vscode.Disposable {
 	explainChanges(input: TypeScriptChangeExplanationInput, token: vscode.CancellationToken): Promise<readonly TypeScriptChangeExplanation[] | undefined>;
 
 	/**
+	 * Marks line changes as reviewed or pending in the diff identified by an entity link.
+	 */
+	setChangesReviewed(entityLink: vscode.Uri, changes: readonly TypeScriptReviewLineChange[], reviewed: boolean): boolean;
+
+	/**
 	 * Opens a code-review entity link created by {@link classifyChanges}.
 	 */
 	openDiff(uri: vscode.Uri): Promise<void>;
@@ -181,6 +196,10 @@ export class NullCodeReviewService implements ICodeReviewService {
 
 	async explainChanges(): Promise<undefined> {
 		return undefined;
+	}
+
+	setChangesReviewed(): boolean {
+		return false;
 	}
 
 	async openDiff(): Promise<void> { }

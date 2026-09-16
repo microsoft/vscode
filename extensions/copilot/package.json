@@ -2591,6 +2591,16 @@
     ],
     "commands": [
       {
+        "command": "github.copilot.changedEntities.accept",
+        "title": "%copilot.changedEntities.accept%",
+        "icon": "$(check)"
+      },
+      {
+        "command": "github.copilot.changedEntities.restore",
+        "title": "%copilot.changedEntities.restore%",
+        "icon": "$(discard)"
+      },
+      {
         "command": "github.copilot.chat.triggerPermissiveSignIn",
         "title": "%github.copilot.command.triggerPermissiveSignIn%"
       },
@@ -5802,6 +5812,14 @@
       ],
       "commandPalette": [
         {
+          "command": "github.copilot.changedEntities.accept",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.changedEntities.restore",
+          "when": "false"
+        },
+        {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
         },
@@ -6158,6 +6176,26 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "github.copilot.changedEntities.accept",
+          "when": "view == github.copilot.changedEntities && viewItem == copilotChangedEntityPending",
+          "group": "inline@1"
+        },
+        {
+          "command": "github.copilot.changedEntities.accept",
+          "when": "view == github.copilot.changedEntities && viewItem == copilotChangedEntityPending",
+          "group": "1_review@1"
+        },
+        {
+          "command": "github.copilot.changedEntities.restore",
+          "when": "view == github.copilot.changedEntities && viewItem == copilotChangedEntityAccepted",
+          "group": "inline@1"
+        },
+        {
+          "command": "github.copilot.changedEntities.restore",
+          "when": "view == github.copilot.changedEntities && viewItem == copilotChangedEntityAccepted",
+          "group": "1_review@1"
+        },
         {
           "command": "github.copilot.chat.debug.showRawRequestBody",
           "when": "view == copilot-chat && viewItem == request",

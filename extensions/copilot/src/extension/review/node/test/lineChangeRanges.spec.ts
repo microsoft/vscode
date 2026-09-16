@@ -19,12 +19,24 @@ suite('Line change ranges', () => {
 				changed: [],
 				originalChanged: [],
 				deleted: [],
+				operations: [{
+					id: 'added:2:2:2:3',
+					changeType: 'added',
+					original: { start: 2, end: 2 },
+					modified: { start: 2, end: 3 },
+				}],
 			},
 			deleted: {
 				added: [],
 				changed: [],
 				originalChanged: [],
 				deleted: [{ start: 1, end: 2 }],
+				operations: [{
+					id: 'deleted:1:2:1:1',
+					changeType: 'deleted',
+					original: { start: 1, end: 2 },
+					modified: { start: 1, end: 1 },
+				}],
 			},
 		});
 	});
@@ -39,12 +51,40 @@ suite('Line change ranges', () => {
 				changed: [{ start: 1, end: 2 }],
 				originalChanged: [{ start: 1, end: 2 }],
 				deleted: [],
+				operations: [
+					{
+						id: 'changed:1:2:1:2',
+						changeType: 'changed',
+						original: { start: 1, end: 2 },
+						modified: { start: 1, end: 2 },
+					},
+					{
+						id: 'added:2:2:2:3',
+						changeType: 'added',
+						original: { start: 2, end: 2 },
+						modified: { start: 2, end: 3 },
+					},
+				],
 			},
 			moreOriginal: {
 				added: [],
 				changed: [{ start: 1, end: 2 }],
 				originalChanged: [{ start: 1, end: 2 }],
 				deleted: [{ start: 2, end: 3 }],
+				operations: [
+					{
+						id: 'changed:1:2:1:2',
+						changeType: 'changed',
+						original: { start: 1, end: 2 },
+						modified: { start: 1, end: 2 },
+					},
+					{
+						id: 'deleted:2:3:2:2',
+						changeType: 'deleted',
+						original: { start: 2, end: 3 },
+						modified: { start: 2, end: 2 },
+					},
+				],
 			},
 		});
 	});
@@ -55,6 +95,12 @@ suite('Line change ranges', () => {
 			changed: [{ start: 1, end: 2 }],
 			originalChanged: [{ start: 1, end: 2 }],
 			deleted: [],
+			operations: [{
+				id: 'changed:1:2:1:2',
+				changeType: 'changed',
+				original: { start: 1, end: 2 },
+				modified: { start: 1, end: 2 },
+			}],
 		});
 	});
 });

@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { packageJson } from '../../../platform/env/common/packagejson';
-import { ICodeReviewService, NullCodeReviewService, type TypeScriptChangeBucket, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptMetricsResult } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { ICodeReviewService, NullCodeReviewService, type TypeScriptChangeBucket, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptMetricsResult, type TypeScriptReviewLineChange } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -29,6 +29,7 @@ interface CodeReviewSource {
 	readonly filePath: string;
 	readonly original: string;
 	readonly modified: string;
+	readonly reviewedChanges: Map<string, TypeScriptReviewLineChange>;
 }
 
 export class CodeReviewService implements ICodeReviewService {
@@ -36,6 +37,7 @@ export class CodeReviewService implements ICodeReviewService {
 
 	private readonly disposables = new DisposableStore();
 	private readonly reviewSources = new Map<string, CodeReviewSource>();
+	private readonly reviewDocumentChangeEmitter = this.disposables.add(new vscode.EventEmitter<vscode.Uri>());
 	private provider: CodeReviewProvider;
 
 	constructor(
@@ -43,6 +45,7 @@ export class CodeReviewService implements ICodeReviewService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.disposables.add(vscode.workspace.registerTextDocumentContentProvider(codeReviewDiffScheme, {
+			onDidChange: this.reviewDocumentChangeEmitter.event,
 			provideTextDocumentContent: uri => this.provideTextDocumentContent(uri),
 		}));
 		this.disposables.add(this.configurationService.onDidChangeConfiguration(event => {
@@ -142,6 +145,37 @@ export class CodeReviewService implements ICodeReviewService {
 			modified: result.modified.map(addLink),
 			original: result.original.map(addLink),
 		};
+	}
+
+	setChangesReviewed(entityLink: vscode.Uri, changes: readonly TypeScriptReviewLineChange[], reviewed: boolean): boolean {
+		if (entityLink.path !== CodeReviewDiffUriPath) {
+			throw new Error(`Unsupported code review URI path '${entityLink.path}'`);
+		}
+		const reviewId = new URLSearchParams(entityLink.query).get('id');
+		const source = reviewId === null ? undefined : this.reviewSources.get(reviewId);
+		if (reviewId === null || source === undefined) {
+			return false;
+		}
+
+		let didChange = false;
+		for (const change of changes) {
+			CodeReviewService.validateReviewLineChange(change, source);
+			const existing = source.reviewedChanges.get(change.id);
+			if (reviewed) {
+				if (existing === undefined) {
+					source.reviewedChanges.set(change.id, change);
+					didChange = true;
+				} else if (!CodeReviewService.isSameReviewLineChange(existing, change)) {
+					throw new Error(`TypeScript review change '${change.id}' conflicts with an existing change`);
+				}
+			} else if (source.reviewedChanges.delete(change.id)) {
+				didChange = true;
+			}
+		}
+		if (didChange) {
+			this.reviewDocumentChangeEmitter.fire(this.createSnapshotUri(source.filePath, reviewId, 'original'));
+		}
+		return true;
 	}
 
 	async openDiff(uri: vscode.Uri): Promise<void> {
@@ -259,7 +293,7 @@ export class CodeReviewService implements ICodeReviewService {
 			&& explanation.explanation.trim().length > 0);
 	}
 
-	private cacheReviewSource(source: CodeReviewSource): string {
+	private cacheReviewSource(source: Omit<CodeReviewSource, 'reviewedChanges'>): string {
 		while (this.reviewSources.size >= maxCachedReviews) {
 			const oldest = this.reviewSources.keys().next().value;
 			if (oldest === undefined) {
@@ -268,7 +302,7 @@ export class CodeReviewService implements ICodeReviewService {
 			this.reviewSources.delete(oldest);
 		}
 		const id = generateUuid();
-		this.reviewSources.set(id, source);
+		this.reviewSources.set(id, { ...source, reviewedChanges: new Map() });
 		return id;
 	}
 
@@ -308,6 +342,69 @@ export class CodeReviewService implements ICodeReviewService {
 		if (reviewId === null || (side !== 'original' && side !== 'modified')) {
 			return undefined;
 		}
-		return this.reviewSources.get(reviewId)?.[side];
+		const source = this.reviewSources.get(reviewId);
+		if (source === undefined) {
+			return undefined;
+		}
+		return side === 'modified' ? source.modified : CodeReviewService.createReviewedOriginal(source);
+	}
+
+	private static validateReviewLineChange(change: TypeScriptReviewLineChange, source: CodeReviewSource): void {
+		if (change.id.length === 0
+			|| !CodeReviewService.isValidReviewRange(change.original)
+			|| !CodeReviewService.isValidReviewRange(change.modified)
+			|| (change.original.start === change.original.end && change.modified.start === change.modified.end)
+			|| change.original.end > CodeReviewService.splitLines(source.original).length
+			|| change.modified.end > CodeReviewService.splitLines(source.modified).length) {
+			throw new Error(`TypeScript review change '${change.id}' contains invalid line information`);
+		}
+	}
+
+	private static isValidReviewRange(range: { start: number; end: number }): boolean {
+		return Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end >= range.start;
+	}
+
+	private static isSameReviewLineChange(left: TypeScriptReviewLineChange, right: TypeScriptReviewLineChange): boolean {
+		return left.original.start === right.original.start
+			&& left.original.end === right.original.end
+			&& left.modified.start === right.modified.start
+			&& left.modified.end === right.modified.end;
+	}
+
+	private static createReviewedOriginal(source: CodeReviewSource): string {
+		if (source.reviewedChanges.size === 0) {
+			return source.original;
+		}
+		const originalLines = CodeReviewService.splitLines(source.original);
+		const modifiedLines = CodeReviewService.splitLines(source.modified);
+		const changes = Array.from(source.reviewedChanges.values())
+			.sort((left, right) =>
+				right.original.start - left.original.start
+				|| right.modified.start - left.modified.start);
+		for (const change of changes) {
+			originalLines.splice(
+				change.original.start,
+				change.original.end - change.original.start,
+				...modifiedLines.slice(change.modified.start, change.modified.end),
+			);
+		}
+		return CodeReviewService.joinLines(originalLines, source.modified);
+	}
+
+	private static splitLines(content: string): string[] {
+		if (content.length === 0) {
+			return [];
+		}
+		const lines = content.split(/\r\n|\r|\n/);
+		if (lines[lines.length - 1] === '') {
+			lines.pop();
+		}
+		return lines;
+	}
+
+	private static joinLines(lines: readonly string[], modified: string): string {
+		const eol = modified.match(/\r\n|\r|\n/)?.[0] ?? '\n';
+		const hasFinalLineBreak = /(?:\r\n|\r|\n)$/.test(modified);
+		return `${lines.join(eol)}${hasFinalLineBreak && lines.length > 0 ? eol : ''}`;
 	}
 }

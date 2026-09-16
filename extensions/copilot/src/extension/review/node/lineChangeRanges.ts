@@ -11,14 +11,23 @@ export interface LineChangeRanges {
 	readonly changed: readonly LineRange[];
 	readonly originalChanged: readonly LineRange[];
 	readonly deleted: readonly LineRange[];
+	readonly operations: readonly LineChangeOperation[];
+}
+
+export interface LineChangeOperation {
+	readonly id: string;
+	readonly changeType: 'added' | 'changed' | 'deleted';
+	readonly original: LineRange;
+	readonly modified: LineRange;
 }
 
 export function computeLineChangeRanges(original: string, modified: string): LineChangeRanges {
-	const result: { added: LineRange[]; changed: LineRange[]; originalChanged: LineRange[]; deleted: LineRange[] } = {
+	const result: { added: LineRange[]; changed: LineRange[]; originalChanged: LineRange[]; deleted: LineRange[]; operations: LineChangeOperation[] } = {
 		added: [],
 		changed: [],
 		originalChanged: [],
 		deleted: [],
+		operations: [],
 	};
 	const changes = diffArrays(splitLines(original), splitLines(modified));
 	let originalLine = 0;
@@ -32,19 +41,18 @@ export function computeLineChangeRanges(original: string, modified: string): Lin
 			if (added?.added) {
 				const addedCount = added.value.length;
 				const changedCount = Math.min(count, addedCount);
-				pushRange(result.changed, modifiedLine, modifiedLine + changedCount);
-				pushRange(result.originalChanged, originalLine, originalLine + changedCount);
-				pushRange(result.deleted, originalLine + changedCount, originalLine + count);
-				pushRange(result.added, modifiedLine + changedCount, modifiedLine + addedCount);
+				addOperation(result, 'changed', { start: originalLine, end: originalLine + changedCount }, { start: modifiedLine, end: modifiedLine + changedCount });
+				addOperation(result, 'deleted', { start: originalLine + changedCount, end: originalLine + count }, { start: modifiedLine + changedCount, end: modifiedLine + changedCount });
+				addOperation(result, 'added', { start: originalLine + changedCount, end: originalLine + changedCount }, { start: modifiedLine + changedCount, end: modifiedLine + addedCount });
 				originalLine += count;
 				modifiedLine += addedCount;
 				index++;
 			} else {
-				pushRange(result.deleted, originalLine, originalLine + count);
+				addOperation(result, 'deleted', { start: originalLine, end: originalLine + count }, { start: modifiedLine, end: modifiedLine });
 				originalLine += count;
 			}
 		} else if (change.added) {
-			pushRange(result.added, modifiedLine, modifiedLine + count);
+			addOperation(result, 'added', { start: originalLine, end: originalLine }, { start: modifiedLine, end: modifiedLine + count });
 			modifiedLine += count;
 		} else {
 			originalLine += count;
@@ -53,6 +61,36 @@ export function computeLineChangeRanges(original: string, modified: string): Lin
 	}
 
 	return result;
+}
+
+function addOperation(
+	result: { added: LineRange[]; changed: LineRange[]; originalChanged: LineRange[]; deleted: LineRange[]; operations: LineChangeOperation[] },
+	changeType: LineChangeOperation['changeType'],
+	original: LineRange,
+	modified: LineRange,
+): void {
+	const range = changeType === 'deleted' ? original : modified;
+	if (range.start === range.end) {
+		return;
+	}
+	result.operations.push({
+		id: `${changeType}:${original.start}:${original.end}:${modified.start}:${modified.end}`,
+		changeType,
+		original,
+		modified,
+	});
+	switch (changeType) {
+		case 'added':
+			pushRange(result.added, modified.start, modified.end);
+			break;
+		case 'changed':
+			pushRange(result.originalChanged, original.start, original.end);
+			pushRange(result.changed, modified.start, modified.end);
+			break;
+		case 'deleted':
+			pushRange(result.deleted, original.start, original.end);
+			break;
+	}
 }
 
 function splitLines(content: string): string[] {
