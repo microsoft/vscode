@@ -676,7 +676,10 @@ suite('SessionComparisonService', () => {
 			synthesisBeforeCreateReturned: {
 				sessionResource: 'test:/synthesis',
 				plan: {
-					selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+					selections: [
+						{ sectionId: 'error-handling', participantId: attempts[0].id },
+						{ sectionId: 'validation', participantId: attempts[1].id },
+					],
 					instructions: 'Preserve the public API and add focused tests.',
 				},
 			},
