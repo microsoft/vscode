@@ -62,7 +62,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, RENAME_SESSION_LIST_CHAT_ACTION_ID, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -638,6 +638,13 @@ registerAction2(class RenameChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, context?: IChatRenameContext): Promise<void> {
+		if (!context) {
+			const sessionsList = getSessionsList(accessor);
+			const focusedChat = sessionsList?.getFocusedChatItem();
+			if (focusedChat && sessionsList?.beginRenameChat(focusedChat)) {
+				return;
+			}
+		}
 		const target = getChatRenameContext(accessor, context);
 		if (target) {
 			await renameChatWithQuickInput(accessor, target);
@@ -648,7 +655,7 @@ registerAction2(class RenameChatAction extends Action2 {
 registerAction2(class RenameSessionListChatAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.list.renameChat',
+			id: RENAME_SESSION_LIST_CHAT_ACTION_ID,
 			title: localize2('renameChat', "Rename..."),
 			f1: false,
 			menu: {

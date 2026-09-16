@@ -47,6 +47,8 @@ import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, norm
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
+import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
@@ -132,6 +134,12 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 }
 
 export class RemoteAgentHostService extends Disposable implements IRemoteAgentHostService {
+	private readonly _diagnostics = new ConnectionDiagnosticBuffer();
+
+	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] {
+		return this._diagnostics.getEvents();
+	}
+
 	private static readonly ConnectionWaitTimeout = 10000;
 	/**
 	 * How long to wait for a server-upgrade trigger to be acknowledged.
@@ -583,9 +591,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		let createdConnection: IRemoteAgentHostCreatedConnection;
+		const attemptId = generateUuid();
+		const onDiagnostic: ConnectionDiagnosticObserver = event => this._diagnostics.record(address, { ...event, attemptId });
+		const diagnostic = new ConnectionDiagnosticOperation(onDiagnostic, `factory.${entryToCreate.connection.type}`, `userInitiated=${options.userInitiated}`);
 		try {
-			createdConnection = await factory.createConnection(entryToCreate, options);
+			createdConnection = await factory.createConnection(entryToCreate, { ...options, onDiagnostic });
+			diagnostic.succeeded(`clientId=${createdConnection.connection.clientId}`);
 		} catch (err) {
+			diagnostic.failed(err);
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			// A factory can fail before any client exists — a stopped WSL distro is
 			// rejected by its precondition check, never reaching the handshake below.
@@ -628,6 +641,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		const store = new DisposableStore();
 		const client = store.add(createdConnection.connection);
+		store.add(client.onDidConnectionDiagnostic(event => this._diagnostics.record(address, event)));
 		const entry: IConnectionEntry = {
 			store,
 			client,
@@ -795,6 +809,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// `maxAttempts: n` actually performs n attempts rather than n - 1.
 		const previousAttempts = this._reconnectAttempts.get(address) ?? 0;
 		if (hasExhaustedReconnectAttempts(reconnectPolicy, previousAttempts)) {
+			this._diagnostics.record(address, { operationId: generateUuid(), phase: 'factory.retry', outcome: 'info', timestamp: Date.now(), detail: `exhausted after ${previousAttempts} attempts` });
 			this._logService.warn(`[RemoteAgentHost] Stopped reconnecting to ${address}: reached attempt limit (${previousAttempts})`);
 			return;
 		}
@@ -803,6 +818,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._reconnectAttempts.set(address, attempt);
 
 		const delay = computeReconnectDelay(reconnectPolicy, attempt);
+		this._diagnostics.record(address, { operationId: generateUuid(), phase: 'factory.retry', outcome: 'info', timestamp: Date.now(), detail: `attempt=${attempt}; delayMs=${delay}; nextAttemptAt=${new Date(Date.now() + delay).toISOString()}` });
 
 		this._logService.info(`[RemoteAgentHost] Scheduling reconnect to ${address} in ${delay}ms (attempt ${attempt})`);
 

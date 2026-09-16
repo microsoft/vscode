@@ -10,6 +10,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promis
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -53,6 +54,8 @@ class TestLogService extends NullLogService {
 
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
+	readonly relayStarted = new DeferredPromise<void>();
+	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
 	readonly devContainerArgs: string[][] = [];
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
@@ -277,7 +280,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		_token: CancellationToken,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
-		return Promise.resolve(this.relay);
+		void this.relayStarted.complete();
+		return this.relayResult ?? Promise.resolve(this.relay);
 	}
 }
 
@@ -476,6 +480,27 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	}
 
+	test('disconnect cancels a launch immediately and disposes a late relay', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const result = new DeferredPromise<IDevContainerRelay>();
+		service.relayResult = result.p;
+		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
+		await service.relayStarted.p;
+		await service.disconnect('cancelled');
+		await result.complete(service.relay);
+		await assert.rejects(connecting, CancellationError);
+		await assert.rejects(service.relaySend('cancelled', 'frame'), /not available/);
+		assert.strictEqual(service.relay.disposed, true);
+	});
+
+	test('disconnect in the same turn cancels a pending launch', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
+		await service.disconnect('cancelled');
+		await assert.rejects(connecting, CancellationError);
+		assert.strictEqual(service.relay.disposed, true);
+	});
+
 	test('reuses a standalone endpoint and exposes its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const output: string[] = [];
@@ -501,6 +526,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				address: 'devcontainer:container-id',
 				name: 'Project Dev Container',
 				remoteWorkspaceFolder: '/workspaces/project',
+				hostWorkspaceFolder: '/workspace',
 			},
 			devContainerArgs: [['up', '--log-level', 'debug', '--workspace-folder', '/workspace']],
 			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',

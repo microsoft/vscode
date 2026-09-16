@@ -16,12 +16,14 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -35,6 +37,8 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
+import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -71,7 +75,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		let rediscoveries = 0;
 		const service = new class extends mock<IConnectionDiagnosticsService>() {
 			override readonly onDidChangeHostManagement = Event.None;
-			override getSnapshot(): IConnectionDiagnosticsSnapshot { return current; }
+			override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return current; }
 			override getHostManagementState(): IConnectionHostManagementState { return { hosts: [], isDiscovering: false }; }
 			override async runHostAction(): Promise<void> { }
 			override async rediscover(): Promise<boolean> { rediscoveries++; return options.discoverySucceeded !== false; }
@@ -123,6 +127,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			store.add(toDisposable(() => container.remove()));
 			const contribution = createContribution(service, clipboard, () => container, false, web);
 			const closed = contribution.show();
+			await Promise.resolve();
 			const help = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);
 			const text = help.provideContent();
 			await closed;
@@ -204,6 +209,64 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({ copied, snapshot: report.getSnapshot(), rediscoveries: rediscoveries() }, { copied: [snapshot.text, next.text], snapshot: next, rediscoveries: 1 });
 	});
 
+	test('a late snapshot cannot overwrite a newer refresh', async () => {
+		const { report, service } = createReport(async () => { }, undefined, { rediscoverOnRefresh: false });
+		const first = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		const second = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		let calls = 0;
+		service.getSnapshot = () => ++calls === 1 ? first.p : second.p;
+		const older = report.refresh();
+		const newer = report.refresh();
+		const latest = { ...snapshot, text: 'Newer captured evidence' };
+		await second.complete(latest);
+		await newer;
+		await first.complete({ ...snapshot, text: 'Older captured evidence' });
+		await older;
+		assert.strictEqual(report.getSnapshot(), latest);
+	});
+
+	test('disposing while collecting a snapshot does not render it', async () => {
+		const { report, service } = createReport(async () => { }, undefined, { rediscoverOnRefresh: false });
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		let renders = 0;
+		store.add(report.onDidChangeFocusTargets(() => renders++));
+		const refreshing = report.refresh();
+		report.dispose();
+		await pending.complete({ ...snapshot, text: 'Late evidence' });
+		await refreshing;
+		assert.deepStrictEqual({ renders, snapshot: report.getSnapshot() }, { renders: 0, snapshot });
+	});
+
+	test('concurrent opens share one modal after asynchronous capture', async () => {
+		const { service, clipboard } = createReport(async () => { });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contribution = createContribution(service, clipboard, () => container);
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		const first = contribution.show();
+		const second = contribution.show();
+		await pending.complete(snapshot);
+		assert.strictEqual(container.querySelectorAll('[role="dialog"]').length, 1);
+		container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+		await Promise.all([first, second]);
+	});
+
+	test('disposing during initial capture does not open a modal', async () => {
+		const { service, clipboard } = createReport(async () => { });
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contribution = createContribution(service, clipboard, () => container);
+		const pending = new DeferredPromise<IConnectionDiagnosticsSnapshot>();
+		service.getSnapshot = () => pending.p;
+		const opening = contribution.show();
+		contribution.dispose();
+		await pending.complete(snapshot);
+		await opening;
+		assert.strictEqual(container.querySelectorAll('[role="dialog"]').length, 0);
+	});
+
 	test('refresh reports discovery failure without failing the local snapshot refresh', async () => {
 		const { container, report, rediscoveries } = createReport(async () => { }, () => { }, { discoverySucceeded: false });
 		await report.refresh();
@@ -249,7 +312,7 @@ suite('ConnectionDiagnosticsReport', () => {
 		};
 		const service = new class extends mock<IConnectionDiagnosticsService>() {
 			override readonly onDidChangeHostManagement = Event.None;
-			override getSnapshot(): IConnectionDiagnosticsSnapshot { return hostSnapshot; }
+			override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return hostSnapshot; }
 			override getHostManagementState() {
 				return {
 					hosts: [{
@@ -343,6 +406,33 @@ suite('ConnectionDiagnosticsReport', () => {
 			snapshotActions: 2,
 			hiddenSections: 0,
 			snapshot: hostSnapshot.text,
+		});
+	});
+
+	test('only exposes the categorized Show command in AI-enabled Agents windows', () => {
+		const command = MenuRegistry.getCommand(ShowConnectionDiagnosticsCommandId)!;
+		const menu = MenuRegistry.getMenuItems(MenuId.CommandPalette).find(item => isIMenuItem(item) && item.command.id === ShowConnectionDiagnosticsCommandId);
+		assert.ok(menu && isIMenuItem(menu));
+		const visible = (sessions: boolean, chat: boolean) => {
+			const context = new Context(0, null);
+			context.setValue(IsSessionsWindowContext.key, sessions);
+			context.setValue(ChatContextKeys.enabled.key, chat);
+			return menu.when?.evaluate(context);
+		};
+		assert.deepStrictEqual({
+			title: typeof command.title === 'string' ? command.title : command.title.value,
+			category: typeof command.category === 'string' ? command.category : command.category?.value,
+			agents: visible(true, true),
+			editor: visible(false, true),
+			aiDisabled: visible(true, false),
+			copyCommand: CommandsRegistry.getCommand('sessions.copyConnectionDiagnostics'),
+		}, {
+			title: 'Show Connection Information',
+			category: 'Remote Agent Hosts',
+			agents: true,
+			editor: false,
+			aiDisabled: false,
+			copyCommand: undefined,
 		});
 	});
 
@@ -588,6 +678,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			background.focus();
 			const contribution = createContribution(service, clipboard, () => container, verbosity);
 			const closed = contribution.show();
+			await Promise.resolve();
 			const liveRegion = container.querySelector<HTMLElement>('[role="dialog"] [role="status"]')!;
 			assert.deepStrictEqual({
 				backgroundInert: background.inert,
@@ -628,6 +719,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			const contribution = createContribution(service, clipboard, () => activeContainer);
 
 			const auxiliaryClosed = contribution.show();
+			await Promise.resolve();
 			if (lifecycle === 'unregister') {
 				registration.dispose();
 			} else {
@@ -635,6 +727,7 @@ suite('ConnectionDiagnosticsReport', () => {
 			}
 			activeContainer = mainContainer;
 			const mainClosed = contribution.show();
+			await Promise.resolve();
 			assert.deepStrictEqual({
 				auxiliaryDialogs: auxiliaryContainer.querySelectorAll('[role="dialog"]').length,
 				auxiliaryBackgroundInert: background.inert,
@@ -648,20 +741,27 @@ suite('ConnectionDiagnosticsReport', () => {
 	}
 
 	for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
-		test(`disposing accessible ${type} without onClose clears the snapshot used by Copy`, async () => {
+		test(`closing accessible ${type} restores captured evidence while Show captures fresh evidence`, async () => {
 			const copied: string[] = [];
 			const { service, clipboard, update } = createReport(async text => { copied.push(text); });
 			const container = dom.append(mainWindow.document.body, dom.$('div'));
 			store.add(toDisposable(() => container.remove()));
-			const contribution = createContribution(service, clipboard, () => container);
+			const contribution = createContribution(service, clipboard, () => container, false, false);
 			const closed = contribution.show();
+			await Promise.resolve();
 			const provider = store.add(contribution.getAccessibleProvider(type)!);
 			await closed;
 			update({ ...snapshot, text: 'Current connection state' });
-			await contribution.copy();
-			// ContextView replacement disposes the provider without invoking its onClose callback.
+			provider.onClose();
+			container.querySelector<HTMLButtonElement>('button[aria-label="Copy Diagnostics"]')!.click();
+			const restored = store.add(contribution.getAccessibleProvider(type)!);
+			restored.dispose();
 			provider.dispose();
-			await contribution.copy();
+			const freshClosed = contribution.show();
+			await Promise.resolve();
+			container.querySelector<HTMLButtonElement>('button[aria-label="Copy Diagnostics"]')!.click();
+			container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+			await freshClosed;
 			assert.deepStrictEqual({
 				copied,
 				dialogs: container.querySelectorAll('[role="dialog"]').length,
@@ -669,24 +769,26 @@ suite('ConnectionDiagnosticsReport', () => {
 		});
 	}
 
-	test('disposing an older accessible provider does not clear a replacement showing the same snapshot', async () => {
-		const copied: string[] = [];
-		const { service, clipboard, update } = createReport(async text => { copied.push(text); });
+	test('disposing an older accessible provider does not clear ownership of its replacement', async () => {
+		const { service, clipboard } = createReport(async () => { });
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
-		const contribution = createContribution(service, clipboard, () => container);
+		const contribution = createContribution(service, clipboard, () => container, false, false);
 		const closed = contribution.show();
+		await Promise.resolve();
 		const previous = store.add(contribution.getAccessibleProvider(AccessibleViewType.Help)!);
 		await closed;
 		previous.onClose();
 		const current = store.add(contribution.getAccessibleProvider(AccessibleViewType.View)!);
-		update({ ...snapshot, text: 'New connection state' });
-
+		let disposed = false;
+		const onDispose = current.onDispose;
+		current.onDispose = () => {
+			onDispose?.();
+			disposed = true;
+		};
 		previous.dispose();
-		await contribution.copy();
-		current.dispose();
-		await contribution.copy();
-		assert.deepStrictEqual(copied, [snapshot.text, 'New connection state']);
+		contribution.dispose();
+		assert.strictEqual(disposed, true);
 	});
 
 	for (const appearance of ['sidebar', 'titlebar'] as const) {

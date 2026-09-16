@@ -2525,6 +2525,7 @@ export class ActionListWidget<T> extends Disposable {
 						hover: hover ? { content: hover } : undefined,
 						tooltip: child.label,
 						onRemove: extendedChild.onRemove,
+						submenuActions: child instanceof SubmenuAction ? [new SubmenuAction(child.id, '', child.actions)] : undefined,
 					});
 				}
 				if (gi < groupsWithActions.length - 1) {
