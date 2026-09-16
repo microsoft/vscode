@@ -1138,6 +1138,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const subscriptions = new DisposableStore();
 		try {
 			this._invalidateSessionList();
+			// A newly registered provider may resolve sessions that were parked
+			// while it was absent or still downloading its SDK.
+			this._catalogReconciliationService.wakeParkedSessions();
 			this._catalogReconciliationService.schedule();
 			provider.setServerToolHost?.(this._serverToolHost);
 			provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(sessions));
@@ -1878,10 +1881,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			return { status: 'providerUnavailable' };
 		}
-		const isChatBacking = await this._isChatBacking(registered.session);
-		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, isChatBacking);
+		const metadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session));
 		if (!metadata) {
-			return { status: 'providerUnavailable' };
+			// The provider is registered but cannot vouch for this session, so
+			// there is nothing authoritative to project. Reported distinctly from
+			// an unregistered provider so reconciliation can park it instead of
+			// re-opening its storage on every pass.
+			return { status: 'sourceUnresolvable' };
 		}
 		let status = metadata.status ?? SessionStatus.Idle;
 		let metadataFallbacks: Readonly<Record<string, string>> = {};
@@ -1966,7 +1972,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _getCatalogReconciliationMetadata(agent: IAgent, registered: IRegisteredSession, isChatBacking: boolean): Promise<IAgentSessionMetadata | undefined> {
+	/**
+	 * `isChatBacking` is resolved lazily: it reads session storage, and a
+	 * session whose provider returns no metadata never reaches the branch that
+	 * needs it.
+	 */
+	private async _getCatalogReconciliationMetadata(agent: IAgent, registered: IRegisteredSession, isChatBacking: () => Promise<boolean>): Promise<IAgentSessionMetadata | undefined> {
 		const providerMetadata = await this._registeredSessionMetadata(agent, registered.session, registered.external);
 		const liveSummary = this._stateManager.getSessionSummary(registered.session.toString());
 		if (!providerMetadata) {
@@ -1976,7 +1987,7 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedTime: Date.parse(liveSummary.modifiedAt),
 			}, liveSummary) : undefined;
 		}
-		if (isChatBacking || !liveSummary) {
+		if (!liveSummary || await isChatBacking()) {
 			return providerMetadata;
 		}
 		return this._withLiveSessionMetadata(providerMetadata, liveSummary, false, !this._stateManager.getSurfacedSessionSummary(registered.session.toString()));
@@ -7497,6 +7508,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _markCatalogPayloadDirty(session: string): Promise<void> {
+		// A mutation is fresh evidence about this session, so a parked row must
+		// be re-attempted rather than waiting for the periodic verification.
+		this._catalogReconciliationService.wakeParkedSessions(session);
 		try {
 			await this._orchestratorDatabase.markSessionV2PayloadDirty(session);
 		} catch (error) {
