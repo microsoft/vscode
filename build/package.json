@@ -56,7 +56,7 @@
     "jws": "^4.0.1",
     "mime": "^1.4.1",
     "source-map": "0.6.1",
-    "svgo": "2.8.3",
+    "svgo": "2.8.4",
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
     "tree-sitter": "^0.22.4",
