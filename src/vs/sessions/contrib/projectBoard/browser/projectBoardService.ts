@@ -300,9 +300,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				lines.push(localize('projectBoard.accessibleCard', "{0}, {1}, {2}", card.title, card.sessionTitle, this.getStatusLabel(card)));
 			}
 		};
-		if (this.boardState.configuration.get().autoIncludeSessions) {
-			appendGroup(localize('projectBoard.unassigned', "Unassigned"), this.model.getUnassignedCards(this.showArchived), this.unassignedCollapsed);
-		}
+		appendGroup(localize('projectBoard.unassigned', "Unassigned"), this.model.getUnassignedCards(this.showArchived), this.unassignedCollapsed);
 		for (const row of this.model.rows) {
 			for (const column of this.model.columns) {
 				appendGroup(localize('projectBoard.cell', "{0}, {1}", row.label, column.label), this.model.getCards(row.id, column.id, this.showArchived), this.isCollapsed({ rowId: row.id, columnId: column.id }));
@@ -675,17 +673,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			board.appendChild(warning);
 		}
 
-		if (this.boardState.configuration.get().autoIncludeSessions) {
-			const unassigned = this.createCardGroup(
-				document,
-				localize('projectBoard.unassigned', "Unassigned"),
-				this.model.getUnassignedCards(this.showArchived),
-				undefined,
-				store,
-			);
-			unassigned.classList.add('project-board-unassigned');
-			board.appendChild(unassigned);
-		}
+		const unassigned = this.createCardGroup(
+			document,
+			localize('projectBoard.unassigned', "Unassigned"),
+			this.model.getUnassignedCards(this.showArchived),
+			undefined,
+			store,
+		);
+		unassigned.classList.add('project-board-unassigned');
+		board.appendChild(unassigned);
 
 		const grid = document.createElement('section');
 		grid.className = 'project-board-grid';
