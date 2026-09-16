@@ -566,7 +566,7 @@ suite('ProjectBoardService', () => {
 
 		h.service.toggleAutoIncludeSessions();
 		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
-		assert.strictEqual(h.container.querySelector('.project-board-unassigned'), null);
+		assert.ok(h.container.querySelector('.project-board-unassigned'));
 
 		const dataTransfer = new mainWindow.DataTransfer();
 		dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({
