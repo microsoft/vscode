@@ -113,7 +113,6 @@ const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 /** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
 const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 
-export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
@@ -2705,7 +2704,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				compact: () => this.isCompact(),
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
-				toolbarMenuId: SessionItemToolbarMenuId,
+				toolbarMenuId: Menus.SessionItemToolbar,
 				onDidRequestRename: session => {
 					this.commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session).catch(onUnexpectedError);
 				},
@@ -4938,7 +4937,7 @@ export class SessionsFlatList extends Disposable {
 				// This list renders no nested chat rows, so the session row is the
 				// only place an approval on any of its chats can surface.
 				aggregateChatApprovals: true,
-				toolbarMenuId: this.options.toolbarMenuId ?? SessionItemToolbarMenuId,
+				toolbarMenuId: this.options.toolbarMenuId ?? Menus.SessionItemToolbar,
 				handleToolbarAction: this.options.onToolbarAction,
 			},
 			approvalModel,

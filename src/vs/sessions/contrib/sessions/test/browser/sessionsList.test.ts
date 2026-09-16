@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -38,7 +38,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -50,7 +50,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, 
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -66,6 +66,7 @@ import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
+import { Menus } from '../../../../browser/menus.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -2274,11 +2275,10 @@ suite('Sessions - SessionsList', () => {
 				});
 				const actions = [
 					harness.instantiationService.createInstance(MenuItemAction, { id: ARCHIVE_SESSION_COMMAND_ID, title: 'Archive', icon: Codicon.archive }, undefined, undefined, undefined, undefined),
-					harness.instantiationService.createInstance(MenuItemAction, { id: 'unpin', title: 'Unpin', icon: Codicon.pinned }, undefined, undefined, undefined, undefined),
 				];
 				harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 					override createMenu(menuId: MenuId): IMenu {
-						return { onDidChange: Event.None, getActions: () => menuId === SessionItemToolbarMenuId ? [['navigation', actions]] : [], dispose: () => { } };
+						return { onDidChange: Event.None, getActions: () => menuId === Menus.SessionItemToolbar ? [['navigation', actions]] : [], dispose: () => { } };
 					}
 				}());
 				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
@@ -2304,11 +2304,88 @@ suite('Sessions - SessionsList', () => {
 				const after = findOnboardingTarget(mainWindow, target.targetId)?.checkVisibility() ?? false;
 				assert.deepStrictEqual({
 					during, afterRerender, after,
-					unpinVisibleAfter: container.querySelector<HTMLElement>('.codicon-pinned')?.checkVisibility(),
+					archiveVisibleAfter: container.querySelector<HTMLElement>('.codicon-archive')?.checkVisibility(),
 					remainingClasses: container.querySelectorAll('.archive-onboarding').length,
-				}, { during: true, afterRerender: true, after: false, unpinVisibleAfter: pinned, remainingClasses: 0 });
+				}, { during: true, afterRerender: true, after: false, archiveVisibleAfter: false, remainingClasses: 0 });
 			});
 		}
+
+		test('scopes New Chat visibility to reactive and recycled session rows', () => {
+			const supported = createTestSession('Supported');
+			supported.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const unsupported = createTestSession('Unsupported');
+			const quickChat = createTestSession('Quick chat', { isQuickChat: true });
+			quickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const archived = createTestSession('Archived', { isArchived: true });
+			archived.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const sessions = [supported.session, unsupported.session, quickChat.session, archived.session];
+			const harness = createListHarness(disposables, sessions, instantiationService => {
+				const action = instantiationService.createInstance(MenuItemAction, {
+					id: 'sessions.test.newChatInSession',
+					title: 'New Chat in This Session',
+					icon: Codicon.add,
+				}, undefined, undefined, undefined, undefined);
+				instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
+						const menuStore = new DisposableStore();
+						const onDidChange = menuStore.add(new Emitter<IMenuChangeEvent>());
+						const menu: IMenu = {
+							onDidChange: onDidChange.event,
+							getActions: () => menuId === Menus.SessionItemToolbar
+								&& contextKeyService.getContextKeyValue<boolean>(SessionSupportsMultipleChatsContext.key)
+								&& !contextKeyService.getContextKeyValue<boolean>(IsQuickChatSessionContext.key)
+								&& !contextKeyService.getContextKeyValue<boolean>(SessionIsArchivedContext.key)
+								? [['navigation', [action]]]
+								: [],
+							dispose: () => menuStore.dispose(),
+						};
+						menuStore.add(contextKeyService.onDidChangeContext(() => onDidChange.fire({
+							menu,
+							isStructuralChange: true,
+							isEnablementChange: false,
+							isToggleChange: false,
+						})));
+						return menu;
+					}
+				}());
+			});
+			harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions(sessions);
+			list.layout(300, 400);
+
+			const hasNewChatAction = (title: string) => !![...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(item => item.querySelector('.session-title')?.textContent === title)
+				?.querySelector('.codicon-add');
+			const initial = sessions.map(session => [session.title.get(), hasNewChatAction(session.title.get())]);
+
+			supported.capabilities.set({ supportsMultipleChats: false }, undefined);
+			unsupported.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const afterCapabilityChange = sessions.map(session => [session.title.get(), hasNewChatAction(session.title.get())]);
+
+			list.setSessions([unsupported.session]);
+			const renderedBeforeRecycle = container.querySelector<HTMLElement>('.session-item');
+			list.setSessions([quickChat.session]);
+			const renderedAfterRecycle = container.querySelector<HTMLElement>('.session-item');
+
+			assert.deepStrictEqual({
+				initial,
+				afterCapabilityChange,
+				recycledTemplate: renderedBeforeRecycle === renderedAfterRecycle,
+				recycledTitle: renderedAfterRecycle?.querySelector('.session-title')?.textContent,
+				recycledAction: renderedAfterRecycle?.querySelector('.codicon-add') !== null,
+			}, {
+				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', false], ['Archived', false]],
+				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', false], ['Archived', false]],
+				recycledTemplate: true,
+				recycledTitle: 'Quick chat',
+				recycledAction: false,
+			});
+		});
 
 		test('temporarily reveals a filtered session without changing its filters', () => {
 			const session = createTestSession('Filtered session').session;
@@ -2384,7 +2461,7 @@ suite('Sessions - SessionsList', () => {
 					override createMenu(menuId: MenuId): IMenu {
 						return {
 							onDidChange: Event.None,
-							getActions: () => menuId === SessionItemToolbarMenuId ? [['navigation', [action]]] : [],
+							getActions: () => menuId === Menus.SessionItemToolbar ? [['navigation', [action]]] : [],
 							dispose: () => { },
 						};
 					}

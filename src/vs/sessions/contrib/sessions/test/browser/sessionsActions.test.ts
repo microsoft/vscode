@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -32,7 +32,7 @@ import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, SessionItemToolbarMenuId } from '../../browser/views/sessionsList.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -60,10 +60,10 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('contributes New Chat to the session list toolbar and context menu', () => {
-		const action = (menuId: typeof SessionItemToolbarMenuId) => MenuRegistry.getMenuItems(menuId)
+		const action = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.chatCompositeBar.addChat');
-		const toolbarAction = action(SessionItemToolbarMenuId);
+		const toolbarAction = action(Menus.SessionItemToolbar);
 		const contextMenuAction = action(Menus.SessionItemContextMenu);
 
 		assert.deepStrictEqual({
@@ -105,13 +105,13 @@ suite('Sessions - Actions', () => {
 				'sessionsViewPane.unpinSession',
 				ARCHIVE_SESSION_COMMAND_ID,
 			]);
-			const snapshot = (menuId: typeof SessionItemToolbarMenuId) => MenuRegistry.getMenuItems(menuId)
+			const snapshot = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 				.filter(isIMenuItem)
 				.filter(item => actionIds.has(item.command.id))
 				.map(item => ({ id: item.command.id, group: item.group, order: item.order }));
 
 			assert.deepStrictEqual({
-				toolbar: snapshot(SessionItemToolbarMenuId),
+				toolbar: snapshot(Menus.SessionItemToolbar),
 				contextMenu: snapshot(Menus.SessionItemContextMenu),
 			}, {
 				toolbar: [
