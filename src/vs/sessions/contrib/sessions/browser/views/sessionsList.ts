@@ -2593,6 +2593,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	get element(): HTMLElement { return this.listContainer; }
 
+	private isCompact(): boolean {
+		return (this.options.compact?.() ?? false) && !IsPhoneLayoutContext.getValue(this.contextKeyService);
+	}
+
 	async resetAutomationsNewBadge(): Promise<void> {
 		if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
 			this.customViewService.hideCustomView();
@@ -2643,7 +2647,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
-		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.listContainer.classList.toggle('compact', this.isCompact());
 		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
 			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -2692,7 +2696,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
-				compact: () => this.options.compact?.() ?? false,
+				compact: () => this.isCompact(),
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
@@ -2765,7 +2769,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
 			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
-			() => this.options.compact?.() ?? false,
+			() => this.isCompact(),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
 			undefined,
 			true /* useCompactQuickChatRows */,
@@ -3036,15 +3040,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!e.affectsSome(phoneKeys)) {
 				return;
 			}
-			const updateNodeHeights = (node: ITreeNode<SessionListItem | null, FuzzyScore>): void => {
-				if (node.element && (isSessionItem(node.element) || isSessionChatItem(node.element))) {
-					this.tree.updateElementHeight(node.element, delegate.getHeight(node.element));
-				}
-				for (const child of node.children) {
-					updateNodeHeights(child);
-				}
-			};
-			updateNodeHeights(this.tree.getNode());
+			this.setCompact();
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -3716,7 +3712,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	setCompact(): void {
-		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
 	}
 
