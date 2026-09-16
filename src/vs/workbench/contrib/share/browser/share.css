@@ -35,15 +35,21 @@ div.share-private-gist-preview {
 	display: none;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
-	margin-left: 2px;
+	width: 22px;
+	height: 22px;
+	margin: 2px 0 0 4px;
 	border-radius: 4px;
 	cursor: pointer;
-	color: var(--vscode-editorLightBulb-foreground, var(--vscode-inputOption-activeForeground));
+	color: var(--vscode-editorLightBulb-foreground, #ffcc00);
 	background: var(--vscode-editor-background);
-	box-shadow: 0 0 0 1px var(--vscode-widget-border, transparent);
+	box-shadow: 0 0 0 1px var(--vscode-widget-border, rgba(0, 0, 0, 0.2));
 	pointer-events: auto;
+	z-index: 50;
+}
+
+.monaco-editor .share-selection-lightbulb .codicon {
+	font-size: 16px;
+	color: var(--vscode-editorLightBulb-foreground, #ffcc00);
 }
 
 .monaco-editor .share-selection-lightbulb.visible {
