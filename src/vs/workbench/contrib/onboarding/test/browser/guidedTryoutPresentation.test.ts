@@ -8,16 +8,16 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GuidedTryoutPresentation, GUIDED_TRYOUT_PRESENTATION_KIND } from '../../browser/guidedTryoutPresentation.js';
-import { onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { IOnboardingScenario } from '../../common/onboardingScenario.js';
 import { IOnboardingSequenceStep, IOnboardingSequenceStepContext, IOnboardingSequenceStepPresentation, IOnboardingSequenceStepResult, onboardingSequenceStepPresentationRegistry } from '../../common/onboardingSequence.js';
-import { IOnboardingTryoutPresentation, IOnboardingTryoutRunContext, OnboardingTryoutAvailability, OnboardingTryoutPreparation } from '../../common/onboardingTryout.js';
+import { IOnboardingTryoutPresentation, IOnboardingTryoutRunContext, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation } from '../../common/onboardingTryout.js';
 import { IGuidedTryoutPayload } from '../../common/onboardingTryoutActions.js';
 
 class TestLaunchPresentation implements IOnboardingTryoutPresentation {
 	readonly kind = 'test.launch';
 	readonly events: string[] = [];
 	availability: OnboardingTryoutAvailability = { kind: 'ready' };
+	targetScope: string | undefined;
 
 	getAvailability(): OnboardingTryoutAvailability {
 		this.events.push('availability');
@@ -30,7 +30,7 @@ class TestLaunchPresentation implements IOnboardingTryoutPresentation {
 			kind: 'ready',
 			run: async () => {
 				this.events.push('launch');
-				return { kind: 'opened' };
+				return { kind: 'opened', targetScope: this.targetScope };
 			},
 		};
 	}
@@ -44,7 +44,7 @@ class TestGuidanceStep implements IOnboardingSequenceStepPresentation {
 	constructor(private readonly events: string[]) { }
 
 	async runStep(step: IOnboardingSequenceStep, context: IOnboardingSequenceStepContext): Promise<IOnboardingSequenceStepResult> {
-		this.events.push(`guide:${step.id}:${context.visualStepIndex + 1}/${context.visualStepCount}`);
+		this.events.push(`guide:${step.id}:${context.visualStepIndex + 1}/${context.visualStepCount}:${context.targetScope ?? 'global'}`);
 		return this.action;
 	}
 }
@@ -79,13 +79,14 @@ suite('GuidedTryoutPresentation', () => {
 	function registerLaunchAndGuidance() {
 		const launch = new TestLaunchPresentation();
 		const guidance = new TestGuidanceStep(launch.events);
-		disposables.add(onboardingPresentationRegistry.register(launch));
+		disposables.add(onboardingTryoutPresentationRegistry.register(launch));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(guidance));
 		return { launch, guidance };
 	}
 
 	test('launches before showing guidance and returns the launch result', async () => {
 		const { launch } = registerLaunchAndGuidance();
+		launch.targetScope = 'prepared-instance';
 		const presentation = disposables.add(new GuidedTryoutPresentation());
 		const scenario = createScenario();
 
@@ -101,14 +102,14 @@ suite('GuidedTryoutPresentation', () => {
 		assert.deepStrictEqual({ availability, eventsBeforeRun, result, events: launch.events }, {
 			availability: { kind: 'ready' },
 			eventsBeforeRun: ['availability', 'prepare:test.launch'],
-			result: { kind: 'opened' },
-			events: ['availability', 'prepare:test.launch', 'launch', 'guide:control:1/1'],
+			result: { kind: 'opened', targetScope: 'prepared-instance' },
+			events: ['availability', 'prepare:test.launch', 'launch', 'guide:control:1/1:prepared-instance'],
 		});
 	});
 
 	test('does not prepare when a guidance kind is unavailable', async () => {
 		const launch = new TestLaunchPresentation();
-		disposables.add(onboardingPresentationRegistry.register(launch));
+		disposables.add(onboardingTryoutPresentationRegistry.register(launch));
 		const presentation = disposables.add(new GuidedTryoutPresentation());
 		const scenario = createScenario('missing.guidance');
 
@@ -135,7 +136,7 @@ suite('GuidedTryoutPresentation', () => {
 		const result = await preparation.run();
 		assert.deepStrictEqual({ result, events: launch.events }, {
 			result: { kind: 'unavailable', message: 'The control could not be highlighted.' },
-			events: ['prepare:test.launch', 'launch', 'guide:control:1/1'],
+			events: ['prepare:test.launch', 'launch', 'guide:control:1/1:global'],
 		});
 	});
 
@@ -151,7 +152,7 @@ suite('GuidedTryoutPresentation', () => {
 			},
 		});
 		const guidance = new TestGuidanceStep(launch.events);
-		disposables.add(onboardingPresentationRegistry.register(launch));
+		disposables.add(onboardingTryoutPresentationRegistry.register(launch));
 		disposables.add(onboardingSequenceStepPresentationRegistry.register(guidance));
 		const presentation = disposables.add(new GuidedTryoutPresentation());
 		const preparation = await presentation.prepare(createScenario(), createContext(cancellation.token));

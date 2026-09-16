@@ -18,7 +18,9 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { OnboardingTryoutService } from '../../browser/onboardingTryoutService.js';
+import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
+import { OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
 import { createOnboardingTryoutUri, IOnboardingTryout, IOnboardingTryoutRunContext, OnboardingTryoutAvailability, OnboardingTryoutPreparation, parseOnboardingTryoutArguments, parseOnboardingTryoutUri, registerOnboardingTryout, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
 
 suite('OnboardingTryoutService', () => {
@@ -86,6 +88,31 @@ suite('OnboardingTryoutService', () => {
 		});
 	});
 
+	test('tryout and automatic presentations use independent kind namespaces', () => {
+		const { service } = createService();
+		const automatic: IOnboardingPresentation = {
+			kind: 'test.tryoutPresentation',
+			run: async () => ({
+				outcome: OnboardingOutcome.Completed,
+				shown: false,
+				dismissReason: OnboardingDismissReason.Completed,
+				lastStepIndex: 0,
+				stepCount: 0,
+			}),
+		};
+		store.add(onboardingPresentationRegistry.register(automatic));
+		registerPresentation(async () => ({ kind: 'ready', run: async () => ({ kind: 'executed' }) }));
+		registerTryout();
+
+		assert.deepStrictEqual({
+			automatic: onboardingPresentationRegistry.get(automatic.kind) === automatic,
+			tryoutAvailability: service.getAvailability('test.tryout'),
+		}, {
+			automatic: true,
+			tryoutAvailability: { kind: 'ready' },
+		});
+	});
+
 	test('runs with prepared context and disposes its lifetime afterward', async () => {
 		const { service } = createService();
 		const events: string[] = [];
@@ -138,6 +165,73 @@ suite('OnboardingTryoutService', () => {
 			results: [{ kind: 'executed' }, { kind: 'executed' }],
 			preparations: 1,
 			executions: 1,
+		});
+	});
+
+	test('a different invocation cancels the active run before starting', async () => {
+		const { service } = createService();
+		const firstStarted = new DeferredPromise<void>();
+		const firstPreparation = new DeferredPromise<OnboardingTryoutPreparation>();
+		const events: string[] = [];
+		registerTryout();
+		registerTryout({ id: 'test.otherTryout' });
+		registerPresentation(async context => {
+			events.push(`prepare:${context.id}`);
+			if (context.id === 'test.tryout') {
+				firstStarted.complete();
+				return firstPreparation.p;
+			}
+			return {
+				kind: 'ready',
+				run: async () => {
+					events.push(`run:${context.id}`);
+					return { kind: 'executed' };
+				},
+			};
+		});
+
+		const first = service.run('test.tryout');
+		await firstStarted.p;
+		const second = service.run('test.otherTryout');
+
+		assert.deepStrictEqual(await Promise.all([first, second]), [
+			{ kind: 'cancelled' },
+			{ kind: 'executed' },
+		]);
+		assert.deepStrictEqual(events, [
+			'prepare:test.tryout',
+			'prepare:test.otherTryout',
+			'run:test.otherTryout',
+		]);
+	});
+
+	test('a cancelled invocation does not absorb a new request for the same ID', async () => {
+		const { service } = createService();
+		const cancellation = store.add(new CancellationTokenSource());
+		const firstStarted = new DeferredPromise<void>();
+		const firstPreparation = new DeferredPromise<OnboardingTryoutPreparation>();
+		let preparations = 0;
+		registerTryout();
+		registerPresentation(async () => {
+			preparations++;
+			if (preparations === 1) {
+				firstStarted.complete();
+				return firstPreparation.p;
+			}
+			return { kind: 'ready', run: async () => ({ kind: 'executed' }) };
+		});
+
+		const first = service.run('test.tryout', cancellation.token);
+		await firstStarted.p;
+		cancellation.cancel();
+		const second = service.run('test.tryout');
+
+		assert.deepStrictEqual({
+			results: await Promise.all([first, second]),
+			preparations,
+		}, {
+			results: [{ kind: 'cancelled' }, { kind: 'executed' }],
+			preparations: 2,
 		});
 	});
 

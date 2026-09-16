@@ -183,8 +183,9 @@ interface IRenderSessionTypePickerHarness {
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
+	readonly _session: IObservable<IActiveSession | undefined>;
 	readonly _workspacePicker: {
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly onboardingTargetScope?: () => string | undefined }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
 	_workspacePickerRow: HTMLElement | undefined;
@@ -259,9 +260,10 @@ suite('NewChatWidget', () => {
 	test('workspace row hosts the workspace picker before the multiple-harness and context pickers', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
-		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
+		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined; readonly targetScope: string | undefined }[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
 			_workspacePickerVisibleKey: { set: () => { } },
+			_session: constObservable(upcastPartial<IActiveSession>({ sessionId: 'new-session' })),
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
 					const row = document.createElement('div');
@@ -270,7 +272,7 @@ suite('NewChatWidget', () => {
 						const item = document.createElement('div');
 						item.textContent = trigger.label ?? 'More';
 						row.appendChild(item);
-						workspaceTriggers.push({ tooltip: trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
+						workspaceTriggers.push({ tooltip: trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext, targetScope: trigger.onboardingTargetScope?.() });
 					}
 					return row;
 				},
@@ -305,7 +307,7 @@ suite('NewChatWidget', () => {
 			],
 		);
 		assert.deepStrictEqual(workspaceTriggers, [
-			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
+			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false, targetScope: 'new-session' },
 		]);
 	});
 

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { constObservable } from '../../../../../base/common/observable.js';
-import { PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/onboarding/modelPickerTryout.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { PREPARE_UNIFIED_WORKSPACE_PICKER_TRYOUT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/onboarding/workspacePickerTryout.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import '../../browser/modelPickerTryout.js';
+import '../../browser/workspacePickerTryout.js';
 
-suite('Model picker tryout preparation', () => {
+suite('Unified workspace picker tryout preparation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('only opens the unsent new-session composer', async () => {
@@ -27,7 +27,7 @@ suite('Model picker tryout preparation', () => {
 				return { session: undefined, trustDeclined: false };
 			},
 		});
-		const command = CommandsRegistry.getCommand(PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID);
+		const command = CommandsRegistry.getCommand(PREPARE_UNIFIED_WORKSPACE_PICKER_TRYOUT_COMMAND_ID);
 		assert.ok(command);
 
 		const result = await instantiationService.invokeFunction(accessor => command.handler(accessor));

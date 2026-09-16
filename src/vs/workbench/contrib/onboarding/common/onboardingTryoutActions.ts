@@ -10,6 +10,8 @@ import { IOnboardingSequenceStep } from './onboardingSequence.js';
 export interface ICommandTryoutPayload {
 	readonly commandId: string;
 	readonly arguments?: readonly unknown[];
+	/** Uses the command's `{ targetScope }` result to bind subsequent guided steps to one UI instance. */
+	readonly captureTargetScope?: boolean;
 }
 
 export interface IViewTryoutPayload {
@@ -40,7 +42,8 @@ export interface IGuidedTryoutPayload {
 export function isCommandTryoutPayload(value: unknown): value is ICommandTryoutPayload {
 	return typeof value === 'object' && value !== null
 		&& 'commandId' in value && typeof value.commandId === 'string' && value.commandId.length > 0
-		&& (!('arguments' in value) || value.arguments === undefined || Array.isArray(value.arguments));
+		&& (!('arguments' in value) || value.arguments === undefined || Array.isArray(value.arguments))
+		&& (!('captureTargetScope' in value) || value.captureTargetScope === undefined || typeof value.captureTargetScope === 'boolean');
 }
 
 export function isViewTryoutPayload(value: unknown): value is IViewTryoutPayload {

@@ -86,9 +86,16 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUriIsDefault?: boolean;
 	readonly sessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
-	/** A registered feature example to run once in the destination, without persisting it in window or workspace state. */
-	readonly tryoutId?: string;
+	/** A feature example request to deliver once without persisting it in window or workspace state. */
+	readonly tryoutRequest?: IOnboardingTryoutWindowRequest;
 }
+
+export interface IOnboardingTryoutWindowRequest {
+	readonly requestId: string;
+	readonly tryoutId: string;
+}
+
+export type OnboardingTryoutWindowRequestResult = 'accepted' | 'cancelled' | 'rejected' | 'superseded';
 
 export interface ICPUProperties {
 	model: string;
@@ -275,7 +282,9 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
+	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<OnboardingTryoutWindowRequestResult | undefined>;
+	cancelOnboardingTryout(requestId: string): Promise<void>;
+	completeOnboardingTryout(requestId: string, result: OnboardingTryoutWindowRequestResult): Promise<void>;
 
 	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,

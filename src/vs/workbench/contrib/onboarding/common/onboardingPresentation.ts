@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IOnboardingRunResult, IOnboardingScenario } from './onboardingScenario.js';
-import type { IOnboardingTryoutPresentation } from './onboardingTryout.js';
 
 /**
  * Context handed to a presentation for a single scenario run. Exposes only what
@@ -27,6 +26,9 @@ export interface IOnboardingRunContext {
 	 * its `run` promise with an aborted result.
 	 */
 	readonly onAbort: Event<void>;
+
+	/** Limits owner-marked target resolution to one prepared UI instance. */
+	readonly targetScope?: string;
 }
 
 /**
@@ -52,20 +54,20 @@ export interface IOnboardingPresentation {
  */
 export interface IOnboardingPresentationRegistry {
 	/** Register a presentation. Throws if the kind is already registered. */
-	register(presentation: IOnboardingPresentation | IOnboardingTryoutPresentation): IDisposable;
+	register(presentation: IOnboardingPresentation): IDisposable;
 	/** Look up a presentation by kind. */
-	get(kind: string): IOnboardingPresentation | IOnboardingTryoutPresentation | undefined;
+	get(kind: string): IOnboardingPresentation | undefined;
 	readonly onDidChange: Event<void>;
 }
 
 class OnboardingPresentationRegistry implements IOnboardingPresentationRegistry {
 
-	private readonly _presentations = new Map<string, IOnboardingPresentation | IOnboardingTryoutPresentation>();
+	private readonly _presentations = new Map<string, IOnboardingPresentation>();
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	register(presentation: IOnboardingPresentation | IOnboardingTryoutPresentation): IDisposable {
+	register(presentation: IOnboardingPresentation): IDisposable {
 		const kind = presentation.kind;
 		if (this._presentations.has(kind)) {
 			throw new Error(`An onboarding presentation with kind '${kind}' is already registered.`);
@@ -82,7 +84,7 @@ class OnboardingPresentationRegistry implements IOnboardingPresentationRegistry 
 		};
 	}
 
-	get(kind: string): IOnboardingPresentation | IOnboardingTryoutPresentation | undefined {
+	get(kind: string): IOnboardingPresentation | undefined {
 		return this._presentations.get(kind);
 	}
 }

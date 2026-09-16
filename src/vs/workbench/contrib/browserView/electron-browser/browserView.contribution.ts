@@ -36,7 +36,6 @@ import './features/browserEditorErrorFeatures.js';
 import './features/browserEditorZoomFeature.js';
 import './features/browserEditorEmulationFeatures.js';
 import './features/browserAutoReloadFeatures.js';
-import './features/browserAutoReloadTryout.contribution.js';
 import './features/browserEditorFindFeature.js';
 import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';

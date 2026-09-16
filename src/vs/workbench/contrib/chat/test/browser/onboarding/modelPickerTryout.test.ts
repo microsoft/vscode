@@ -33,6 +33,7 @@ suite('Model picker tryout', () => {
 						kind: 'command',
 						payload: {
 							commandId: PREPARE_MODEL_PICKER_TRYOUT_COMMAND_ID,
+							captureTargetScope: true,
 						},
 					},
 					steps: [{

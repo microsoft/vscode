@@ -10,7 +10,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -28,14 +28,8 @@ import { workbenchConfigurationNodeBase } from '../../../../common/configuration
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
-import { markOnboardingTarget } from '../../../onboarding/browser/onboarding.js';
 
-export const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
-export const BROWSER_AUTO_RELOAD_ONBOARDING_TARGET_ID = 'browser.autoReload';
-
-export function registerBrowserAutoReloadOnboardingTarget(element: HTMLElement, openMenu: () => void): IDisposable {
-	return markOnboardingTarget(element, BROWSER_AUTO_RELOAD_ONBOARDING_TARGET_ID, { open: openMenu });
-}
+const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
 
 function getFileUri(url: string): URI | undefined {
 	if (!url) {
@@ -230,17 +224,6 @@ class BrowserAutoReloadWorkbenchContribution implements IWorkbenchContribution {
 	) { }
 }
 
-class BrowserAutoReloadActionViewItem extends DropdownWithPrimaryActionViewItem {
-	private readonly _onboardingTarget = this._register(new MutableDisposable<IDisposable>());
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		if (this._dropdownContainer) {
-			this._onboardingTarget.value = registerBrowserAutoReloadOnboardingTarget(this._dropdownContainer, () => this.showDropdown());
-		}
-	}
-}
-
 class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 	private readonly _onDidChangeActionViewItems = this._register(new Emitter<void>());
 	override readonly onDidChangeActionViewItems = this._onDidChangeActionViewItems.event;
@@ -289,7 +272,7 @@ class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 			: action;
 
 		return instantiationService.createInstance(
-			BrowserAutoReloadActionViewItem,
+			DropdownWithPrimaryActionViewItem,
 			primaryAction,
 			toAction({
 				id: 'workbench.browser.reloadMenu',

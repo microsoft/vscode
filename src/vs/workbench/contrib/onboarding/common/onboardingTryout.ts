@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -12,7 +12,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { onboardingPresentationRegistry } from './onboardingPresentation.js';
 import { onboardingScenarioRegistry } from './onboardingRegistry.js';
 import { IOnboardingPresentationRef, IOnboardingScenario } from './onboardingScenario.js';
 
@@ -49,7 +48,8 @@ export type OnboardingTryoutAvailability =
 	| IOnboardingTryoutUnavailable;
 
 export type OnboardingTryoutResult =
-	| { readonly kind: 'opened' | 'executed' | 'prepared' | 'routed' }
+	| { readonly kind: 'opened' | 'executed' | 'prepared'; readonly targetScope?: string }
+	| { readonly kind: 'routed' }
 	| { readonly kind: 'cancelled' }
 	| IOnboardingTryoutUnavailable;
 
@@ -70,6 +70,40 @@ export interface IOnboardingTryoutPresentation {
 	getAvailability(scenario: IOnboardingScenario): OnboardingTryoutAvailability;
 	prepare(scenario: IOnboardingScenario, context: IOnboardingTryoutRunContext): Promise<OnboardingTryoutPreparation>;
 }
+
+export interface IOnboardingTryoutPresentationRegistry {
+	register(presentation: IOnboardingTryoutPresentation): IDisposable;
+	get(kind: string): IOnboardingTryoutPresentation | undefined;
+	readonly onDidChange: Event<void>;
+}
+
+class OnboardingTryoutPresentationRegistry implements IOnboardingTryoutPresentationRegistry {
+	private readonly presentations = new Map<string, IOnboardingTryoutPresentation>();
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	register(presentation: IOnboardingTryoutPresentation): IDisposable {
+		if (this.presentations.has(presentation.kind)) {
+			throw new Error(`An onboarding tryout presentation with kind '${presentation.kind}' is already registered.`);
+		}
+		this.presentations.set(presentation.kind, presentation);
+		this._onDidChange.fire();
+		return {
+			dispose: () => {
+				if (this.presentations.get(presentation.kind) === presentation) {
+					this.presentations.delete(presentation.kind);
+					this._onDidChange.fire();
+				}
+			}
+		};
+	}
+
+	get(kind: string): IOnboardingTryoutPresentation | undefined {
+		return this.presentations.get(kind);
+	}
+}
+
+export const onboardingTryoutPresentationRegistry: IOnboardingTryoutPresentationRegistry = new OnboardingTryoutPresentationRegistry();
 
 export interface IOnboardingTryoutPresentationDefinition<TPayload> {
 	readonly kind: string;
@@ -101,6 +135,10 @@ export interface IOnboardingTryoutService {
 
 export function isOnboardingTryoutId(value: unknown): value is string {
 	return typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(value);
+}
+
+export function isOnboardingTargetScope(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0 && value.length <= 512;
 }
 
 export function parseOnboardingTryoutArguments(args: readonly unknown[]): string {
@@ -145,7 +183,7 @@ export function registerOnboardingTryoutPresentation<TPayload>(definition: IOnbo
 		}
 		return payload;
 	};
-	return onboardingPresentationRegistry.register({
+	return onboardingTryoutPresentationRegistry.register({
 		kind: definition.kind,
 		onDidChangeAvailability: definition.onDidChangeAvailability,
 		getAvailability: scenario => definition.getAvailability(getPayload(scenario)),

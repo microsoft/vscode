@@ -53,6 +53,7 @@ import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessi
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { WORKSPACE_PICKER_ONBOARDING_TARGET_ID } from '../../../../workbench/contrib/chat/common/onboarding/workspacePickerTryout.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -129,6 +130,7 @@ export interface IWorkspacePickerTrigger {
 	readonly hideWhenWorkspaceSelected?: boolean;
 	readonly hideWhenNoWorkspaceSelected?: boolean;
 	readonly hideWhenNoGitHubRepository?: boolean;
+	readonly onboardingTargetScope?: string | (() => string | undefined);
 }
 
 export interface IWorkspacePickerContextAction {
@@ -614,10 +616,9 @@ export class WorkspacePicker extends Disposable {
 		if (options?.tooltip) {
 			triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
 		}
-		// Onboarding spotlight target — id is referenced by the "new session" tour
-		// in vs/sessions/contrib/onboardingTours.
-		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker', {
+		triggerDisposables.add(markOnboardingTarget(trigger, WORKSPACE_PICKER_ONBOARDING_TARGET_ID, {
 			open: () => this.showPicker(false, trigger, options?.group, options?.attachesContext),
+			scope: options?.onboardingTargetScope,
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));

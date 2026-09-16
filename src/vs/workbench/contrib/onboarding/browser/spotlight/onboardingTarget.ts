@@ -20,6 +20,8 @@ export const ONBOARDING_TARGET_PULSE_CLASS = 'onboarding-target-pulse';
 export interface IOnboardingTargetOptions {
 	/** Opens or expands the target before its spotlight step is shown. */
 	readonly open?: () => Promise<void> | void;
+	/** Identifies the prepared UI instance that owns this target. */
+	readonly scope?: string | (() => string | undefined);
 }
 
 interface IOnboardingTargetRegistration {
@@ -69,11 +71,19 @@ export function pulseOnboardingTarget(element: HTMLElement): IDisposable {
  * This is the *only* place onboarding queries the DOM, and it matches solely on
  * the onboarding attribute — never on foreign classes or structure.
  */
-export function findOnboardingTarget(targetWindow: Window, id: string): HTMLElement | undefined {
+export function findOnboardingTarget(targetWindow: Window, id: string, scope?: string): HTMLElement | undefined {
 	const selector = `[${ONBOARDING_TARGET_ATTR}="${CSS.escape(id)}"]`;
 	// eslint-disable-next-line no-restricted-syntax -- matching only our own onboarding attribute (never foreign classes/structure) is the whole point of this helper
 	const targets = Array.from(targetWindow.document.querySelectorAll<HTMLElement>(selector));
-	return targets.find(target => isVisibleOnboardingTarget(targetWindow, target));
+	return targets.find(target => isVisibleOnboardingTarget(targetWindow, target) && matchesScope(target, scope));
+}
+
+function matchesScope(target: HTMLElement, scope: string | undefined): boolean {
+	if (scope === undefined) {
+		return true;
+	}
+	const registeredScope = onboardingTargetRegistrations.get(target)?.options.scope;
+	return (typeof registeredScope === 'function' ? registeredScope() : registeredScope) === scope;
 }
 
 function isVisibleOnboardingTarget(targetWindow: Window, target: HTMLElement): boolean {

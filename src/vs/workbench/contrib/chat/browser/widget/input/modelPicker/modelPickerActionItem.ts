@@ -17,7 +17,6 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { ChatOnboardingTarget } from '../../../../common/onboarding/modelPickerTryout.js';
 import { markOnboardingTarget } from '../../../../../onboarding/browser/onboarding.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
@@ -30,6 +29,11 @@ export interface IModelPickerPresentationOptions {
 	readonly showFeatured: boolean;
 	readonly showAutoModel: boolean;
 	readonly showModelIcon: boolean;
+}
+
+export interface IModelPickerOnboardingTarget {
+	readonly id: string;
+	readonly scope: () => string | undefined;
 }
 
 export interface IModelPickerDelegate {
@@ -76,6 +80,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		action: IAction,
 		delegate: IModelPickerDelegate,
 		private readonly pickerOptions: IChatInputPickerOptions,
+		private readonly onboardingTarget: IModelPickerOnboardingTarget | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -106,9 +111,12 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._container = container;
 		this._pickerWidget.render(container);
 		this.element = this._pickerWidget.domNode;
-		this._renderDisposables.add(markOnboardingTarget(container, ChatOnboardingTarget.ModelPicker, {
-			open: () => this.openModelPicker(),
-		}));
+		if (this.onboardingTarget) {
+			this._renderDisposables.add(markOnboardingTarget(container, this.onboardingTarget.id, {
+				open: () => this.openModelPicker(),
+				scope: this.onboardingTarget.scope,
+			}));
+		}
 		this._updateTooltip();
 		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._updateMinimumWidth(this._pickerWidget.minimumWidth);

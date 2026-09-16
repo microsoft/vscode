@@ -6,16 +6,6 @@ Open this file, then run **Developer: Open Current File as Release Notes**.
 
 This page demonstrates several useful levels of interaction. A release-note feature does not need to reproduce its complete behavior to provide value.
 
-## Guide me: Problems filter
-
-Use this pattern when locating a control and understanding its role is sufficient.
-
-This example opens the Problems view, highlights its filter control, and shows an anchored message. The filter remains interactive while the spotlight is visible, but the example does not manufacture workspace diagnostics.
-
-<!-- %IF TRYOUTS %
-[Try Filtering Problems](command:workbench.action.onboarding.tryFeature?%5B%22problems.filter%22%5D)
-%ENDIF % -->
-
 ## Try it: Smart diff layout
 
 Use this pattern when the behavior can be prepared safely with isolated sample data.
@@ -42,16 +32,6 @@ The tour advances after your real sidebar selection. Nothing is saved until you 
 [Try Creating an Automation](command:workbench.action.onboarding.tryFeature?%5B%22automations.create%22%5D)
 %ENDIF % -->
 
-## Use my context: GitHub attachments
-
-Use this pattern when the feature must bind an action to a specific session, editor, or widget instead of relying on whichever UI was last focused.
-
-The action prepares a separate Chat draft and opens its GitHub attachment picker. It must not replace another draft or send a request. Missing setup or attachment support is reported explicitly.
-
-<!-- %IF TRYOUTS %
-[Try GitHub Attachments](command:workbench.action.onboarding.tryFeature?%5B%22chat.github-attachments%22%5D)
-%ENDIF % -->
-
 ## Guide me: Model and provider selection
 
 Use this pattern for a control whose choices have important capability, speed, provider, or billing implications.
@@ -62,14 +42,24 @@ The action opens a new unsent composer in the Agents window, highlights the mode
 [Explore Models and Providers](command:workbench.action.onboarding.tryFeature?%5B%22chat.model-provider-selection%22%5D)
 %ENDIF % -->
 
-## Help me get ready: Automatic browser reload
+## Guide me: Unified workspace and repository picker
 
-Use this pattern when the highlighted control only exists after the user chooses an applicable resource.
+Use this pattern when users primarily need to know where a feature lives.
 
-Before starting, open a local HTML file in the Integrated Browser. If a local browser tab is not active, the action opens **Quick Open Browser Tab** so you can choose one. It then highlights the reload menu and explains **Refresh Automatically** without navigating, reloading, or changing the setting.
+The action opens a new unsent composer in the Agents window, highlights **Workspace**, and opens the unified list of local folders, GitHub repositories, Cloud repositories, and remote targets. It does not select a workspace or send a prompt. If the experimental setting is disabled, the action offers to open the setting without changing it.
 
 <!-- %IF TRYOUTS %
-[Find Automatic Browser Reload](command:workbench.action.onboarding.tryFeature?%5B%22browser.auto-reload%22%5D)
+[Explore the Unified Workspace Picker](command:workbench.action.onboarding.tryFeature?%5B%22chat.unified-workspace-picker%22%5D)
+%ENDIF % -->
+
+## Try it: Built-in Codicons chat background
+
+Use this pattern when a reversible appearance preference is the feature.
+
+The action replaces the Agents chat background for the current color theme with the built-in, theme-aware **Codicons** pattern. It does not change a session, workspace, model, or prompt. Use **Chat: Set Background...** to change or remove it later. Chat backgrounds remain unavailable in high contrast themes.
+
+<!-- %IF TRYOUTS %
+[Try the Codicons Chat Background](command:workbench.action.onboarding.tryFeature?%5B%22chat.codicons-background%22%5D)
 %ENDIF % -->
 
 ## Explain safely: unavailable example

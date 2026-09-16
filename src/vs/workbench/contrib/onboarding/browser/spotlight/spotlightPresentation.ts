@@ -68,7 +68,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			return { action: 'abort', shown: false };
 		}
 
-		const target = await this._resolveTarget(context.targetWindow, step.targetId, context.cancellationToken, step.missingTarget);
+		const target = await this._resolveTarget(context.targetWindow, step.targetId, context.targetScope, context.cancellationToken, step.missingTarget);
 		if (!target) {
 			return context.cancellationToken.isCancellationRequested || step.missingTarget?.kind === 'abort'
 				? { action: 'abort', shown: false }
@@ -173,7 +173,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 					break;
 				}
 
-				const target = await this._resolveTarget(context.targetWindow, step.targetId, targetResolutionCancellation.token, step.missingTarget);
+				const target = await this._resolveTarget(context.targetWindow, step.targetId, context.targetScope, targetResolutionCancellation.token, step.missingTarget);
 				if (aborted) {
 					break;
 				}
@@ -231,11 +231,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		}
 	}
 
-	private async _resolveTarget(targetWindow: Window, targetId: string, cancellationToken: CancellationToken, behavior?: SpotlightMissingTargetBehavior): Promise<HTMLElement | undefined> {
+	private async _resolveTarget(targetWindow: Window, targetId: string, targetScope: string | undefined, cancellationToken: CancellationToken, behavior?: SpotlightMissingTargetBehavior): Promise<HTMLElement | undefined> {
 		if (cancellationToken.isCancellationRequested) {
 			return undefined;
 		}
-		let element = findOnboardingTarget(targetWindow, targetId);
+		let element = findOnboardingTarget(targetWindow, targetId, targetScope);
 		if (element || behavior?.kind === 'skip' || behavior?.kind === 'abort') {
 			return element;
 		}
@@ -250,7 +250,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				}
 				throw error;
 			}
-			element = findOnboardingTarget(targetWindow, targetId);
+			element = findOnboardingTarget(targetWindow, targetId, targetScope);
 		}
 		return element;
 	}

@@ -63,6 +63,46 @@ suite('SpotlightPresentation', () => {
 		};
 	}
 
+	test('resolves a target within the prepared instance scope', async () => {
+		const container = createContainer();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+		const opened: string[] = [];
+		const targetId = 'test.spotlight.scoped';
+		createTarget(container, targetId, { scope: 'first', open: () => { opened.push('first'); } });
+		const second = createTarget(container, targetId, {
+			scope: 'second',
+			open: () => {
+				opened.push('second');
+				second.click();
+			},
+		});
+
+		const result = await presentation.run(createScenario('test.spotlight.scoped', {
+			id: 'scoped',
+			targetId,
+			title: 'Scoped target',
+			description: 'Use the prepared target.',
+			openTarget: true,
+			advanceOnTargetClick: true,
+		}), {
+			targetWindow: mainWindow,
+			targetScope: 'second',
+			onAbort: Event.None,
+		});
+
+		assert.deepStrictEqual({ opened, result }, {
+			opened: ['second'],
+			result: {
+				outcome: OnboardingOutcome.Completed,
+				shown: true,
+				dismissReason: OnboardingDismissReason.TargetClick,
+				lastStepIndex: 0,
+				stepCount: 1,
+			},
+		});
+	});
+
 	test('waits for a late target and skips a missing target immediately', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));

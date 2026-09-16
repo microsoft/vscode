@@ -5,12 +5,13 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
+import { isObject } from '../../../../base/common/types.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IOnboardingTryoutPresentationDefinition, IOnboardingTryoutRunContext, OnboardingTryoutAvailability, OnboardingTryoutPreparation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { IOnboardingTryoutPresentationDefinition, IOnboardingTryoutRunContext, isOnboardingTargetScope, OnboardingTryoutAvailability, OnboardingTryoutPreparation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
 import { ICommandTryoutPayload, isCommandTryoutPayload, isViewTryoutPayload, IViewTryoutPayload } from '../common/onboardingTryoutActions.js';
 
 export class CommandTryoutPresentation implements IOnboardingTryoutPresentationDefinition<ICommandTryoutPayload> {
@@ -30,7 +31,9 @@ export class CommandTryoutPresentation implements IOnboardingTryoutPresentationD
 
 	getAvailability(payload: ICommandTryoutPayload): OnboardingTryoutAvailability {
 		const precondition = MenuRegistry.getCommand(payload.commandId)?.precondition;
-		if (payload.commandId === RUN_ONBOARDING_TRYOUT_COMMAND_ID || (precondition && !this.contextKeyService.contextMatchesRules(precondition))) {
+		if (payload.commandId === RUN_ONBOARDING_TRYOUT_COMMAND_ID
+			|| !CommandsRegistry.getCommand(payload.commandId)
+			|| (precondition && !this.contextKeyService.contextMatchesRules(precondition))) {
 			return { kind: 'unavailable', message: localize('onboarding.tryout.commandUnavailable', "This command is not available in the current context.") };
 		}
 		return { kind: 'ready' };
@@ -47,8 +50,17 @@ export class CommandTryoutPresentation implements IOnboardingTryoutPresentationD
 				if (availability.kind === 'unavailable') {
 					return availability;
 				}
-				await this.commandService.executeCommand(payload.commandId, ...(payload.arguments ?? []));
-				return { kind: 'executed' };
+				const result = await this.commandService.executeCommand(payload.commandId, ...(payload.arguments ?? []));
+				if (!payload.captureTargetScope) {
+					return { kind: 'executed' };
+				}
+				const targetScope = isObject(result)
+					? (result as { readonly targetScope?: unknown }).targetScope
+					: undefined;
+				if (!isOnboardingTargetScope(targetScope)) {
+					return { kind: 'unavailable', message: localize('onboarding.tryout.targetUnavailable', "The example opened, but its target is no longer available.") };
+				}
+				return { kind: 'executed', targetScope };
 			},
 		};
 	}

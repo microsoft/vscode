@@ -37,7 +37,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	protected readonly _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
-	protected _dropdownContainer: HTMLElement | null = null;
+	private _dropdownContainer: HTMLElement | null = null;
 
 	get onDidChangeDropdownVisibility(): Event<boolean> {
 		return this._dropdown.onDidChangeVisibility;

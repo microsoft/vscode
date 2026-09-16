@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorMessage } from '../../../../base/common/errors.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { equals } from '../../../../base/common/objects.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -15,15 +14,15 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
-import { IOnboardingTryoutService, parseOnboardingTryoutArguments, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { IOnboardingTryoutService, onboardingTryoutPresentationRegistry, parseOnboardingTryoutArguments, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
 import { GuidedTryoutPresentation } from './guidedTryoutPresentation.js';
 import { EditorSampleTryoutPresentation } from './onboardingSamplePresentation.js';
 import { CommandTryoutPresentation, ViewTryoutPresentation } from './onboardingTryoutActions.js';
 import { OnboardingTryoutService } from './onboardingTryoutService.js';
+import { runOnboardingTryout } from './onboardingTryoutRunner.js';
 
 registerSingleton(IOnboardingTryoutService, OnboardingTryoutService, InstantiationType.Delayed);
 
@@ -36,7 +35,7 @@ class OnboardingTryoutContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._register(registerOnboardingTryoutPresentation(instantiationService.createInstance(CommandTryoutPresentation)));
 		this._register(registerOnboardingTryoutPresentation(instantiationService.createInstance(ViewTryoutPresentation)));
-		this._register(onboardingPresentationRegistry.register(this._register(new GuidedTryoutPresentation())));
+		this._register(onboardingTryoutPresentationRegistry.register(this._register(new GuidedTryoutPresentation())));
 		const samples = this._register(instantiationService.createInstance(EditorSampleTryoutPresentation));
 		this._register(registerOnboardingTryoutPresentation(samples));
 	}
@@ -57,38 +56,14 @@ registerAction2(class extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
-		try {
-			const id = parseOnboardingTryoutArguments(args);
-			const result = await tryoutService.run(id);
-			if (result.kind === 'unavailable') {
-				const action = result.action;
-				if (action) {
-					notificationService.prompt(Severity.Info, result.message, [{
-						label: action.label,
-						run: async () => {
-							const current = tryoutService.getAvailability(id);
-							if (current.kind !== 'unavailable' || !current.action || !equals(current.action, action)) {
-								notificationService.info(localize('onboarding.tryout.setupChanged', "The example's availability changed. Try opening it again."));
-								return;
-							}
-							try {
-								await commandService.executeCommand(current.action.command.id, ...(current.action.command.arguments ?? []));
-							} catch (error) {
-								logService.error('[OnboardingTryout] Setup failed', error);
-								notificationService.error(getErrorMessage(error));
-							}
-						},
-					}]);
-				} else {
-					notificationService.info(result.message);
-				}
-			}
-			return result;
-		} catch (error) {
-			logService.error('[OnboardingTryout] Launch failed', error);
-			notificationService.error(getErrorMessage(error));
-			throw error;
-		}
+		return runOnboardingTryout(
+			parseOnboardingTryoutArguments(args),
+			CancellationToken.None,
+			tryoutService,
+			commandService,
+			notificationService,
+			logService,
+		);
 	}
 });
 

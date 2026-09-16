@@ -7,19 +7,24 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChatEntitlementService, chatRequiresSetup } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../common/onboardingScenario.js';
-import { IOnboardingTryoutScenario, IOnboardingTryoutService, IOnboardingTryoutUnavailable, OnboardingTryoutAvailability, OnboardingTryoutResult, parseOnboardingTryoutArguments, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { IOnboardingTryoutScenario, IOnboardingTryoutService, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutResult, parseOnboardingTryoutArguments, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
 
 function isTryout(scenario: IOnboardingScenario): scenario is IOnboardingTryoutScenario {
 	return !!scenario.tryout && scenario.trigger.kind === 'command' && scenario.trigger.commandId === RUN_ONBOARDING_TRYOUT_COMMAND_ID;
+}
+
+interface IActiveTryoutRun {
+	readonly id: string;
+	readonly store: DisposableStore;
+	readonly cancellation: CancellationTokenSource;
+	promise: Promise<OnboardingTryoutResult>;
 }
 
 export class OnboardingTryoutService extends Disposable implements IOnboardingTryoutService {
@@ -30,8 +35,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly presentationListeners = this._register(new DisposableStore());
-	private readonly activeRuns = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly inFlight = new Map<string, Promise<OnboardingTryoutResult>>();
+	private activeRun: IActiveTryoutRun | undefined;
 	private readonly contextKeys = new Set<string>();
 	private windowOpener: ((id: string, token: CancellationToken) => Promise<void>) | undefined;
 
@@ -43,7 +47,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 		super();
 
 		this._register(onboardingScenarioRegistry.onDidChange(() => this.refreshContributions()));
-		this._register(onboardingPresentationRegistry.onDidChange(() => this.refreshContributions()));
+		this._register(onboardingTryoutPresentationRegistry.onDidChange(() => this.refreshContributions()));
 		this._register(contextKeyService.onDidChangeContext(event => {
 			if (event.affectsSome(this.contextKeys)) {
 				this._onDidChange.fire();
@@ -52,6 +56,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 		this._register(chatEntitlementService.onDidChangeSentiment(() => this._onDidChange.fire()));
 		this._register(chatEntitlementService.onDidChangeEntitlement(() => this._onDidChange.fire()));
 		this._register(chatEntitlementService.onDidChangeAnonymous(() => this._onDidChange.fire()));
+		this._register(toDisposable(() => this.activeRun?.store.dispose()));
 		this.refreshContributions();
 	}
 
@@ -66,8 +71,8 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 			kinds.add(scenario.presentation.kind);
 		}
 		for (const kind of kinds) {
-			const presentation = onboardingPresentationRegistry.get(kind);
-			if (presentation && hasKey(presentation, { prepare: true }) && presentation.onDidChangeAvailability) {
+			const presentation = onboardingTryoutPresentationRegistry.get(kind);
+			if (presentation?.onDidChangeAvailability) {
 				this.presentationListeners.add(presentation.onDidChangeAvailability(() => this._onDidChange.fire()));
 			}
 		}
@@ -134,8 +139,8 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 			};
 		}
 
-		const presentation = onboardingPresentationRegistry.get(scenario.presentation.kind);
-		if (!presentation || !hasKey(presentation, { prepare: true })) {
+		const presentation = onboardingTryoutPresentationRegistry.get(scenario.presentation.kind);
+		if (!presentation) {
 			return this.unavailable();
 		}
 		return presentation.getAvailability(scenario);
@@ -157,17 +162,23 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 
 	run(id: string, token = CancellationToken.None): Promise<OnboardingTryoutResult> {
 		parseOnboardingTryoutArguments([id]);
-		const pending = this.inFlight.get(id);
-		if (pending) {
-			return pending;
+		if (this.activeRun?.id === id && !this.activeRun.cancellation.token.isCancellationRequested) {
+			return this.activeRun.promise;
 		}
 
 		const store = new DisposableStore();
-		this.activeRuns.set(id, store);
+		this.activeRun?.store.dispose();
 		const cancellation = new CancellationTokenSource(token);
+		const activeRun: IActiveTryoutRun = {
+			id,
+			store,
+			cancellation,
+			promise: Promise.resolve({ kind: 'cancelled' }),
+		};
+		this.activeRun = activeRun;
 		store.add(toDisposable(() => cancellation.dispose(true)));
 
-		const promise = (async (): Promise<OnboardingTryoutResult> => {
+		activeRun.promise = (async (): Promise<OnboardingTryoutResult> => {
 			await Promise.resolve();
 			try {
 				if (cancellation.token.isCancellationRequested || this._store.isDisposed) {
@@ -190,8 +201,8 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 					return { kind: 'routed' };
 				}
 
-				const presentation = onboardingPresentationRegistry.get(scenario.presentation.kind);
-				if (!presentation || !hasKey(presentation, { prepare: true })) {
+				const presentation = onboardingTryoutPresentationRegistry.get(scenario.presentation.kind);
+				if (!presentation) {
 					return this.unavailable();
 				}
 				const prepared = await raceCancellationError(presentation.prepare(scenario, { id, token: cancellation.token, store }), cancellation.token);
@@ -201,7 +212,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 				if (cancellation.token.isCancellationRequested) {
 					return { kind: 'cancelled' };
 				}
-				if (this.getTryout(id) !== scenario || onboardingPresentationRegistry.get(scenario.presentation.kind) !== presentation) {
+				if (this.getTryout(id) !== scenario || onboardingTryoutPresentationRegistry.get(scenario.presentation.kind) !== presentation) {
 					return this.unavailable();
 				}
 				const currentAvailability = this.getAvailability(id);
@@ -215,12 +226,13 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 				}
 				throw error;
 			} finally {
-				this.inFlight.delete(id);
-				this.activeRuns.deleteAndDispose(id);
+				if (this.activeRun === activeRun) {
+					this.activeRun = undefined;
+				}
+				store.dispose();
 			}
 		})();
-		this.inFlight.set(id, promise);
-		return promise;
+		return activeRun.promise;
 	}
 
 	private unavailable(): IOnboardingTryoutUnavailable {

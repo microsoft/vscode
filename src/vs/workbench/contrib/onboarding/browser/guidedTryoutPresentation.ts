@@ -6,12 +6,10 @@
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { IOnboardingScenario, OnboardingOutcome } from '../common/onboardingScenario.js';
 import { ONBOARDING_SEQUENCE_PRESENTATION_KIND, onboardingSequenceStepPresentationRegistry } from '../common/onboardingSequence.js';
-import { IOnboardingTryoutPresentation, IOnboardingTryoutRunContext, IOnboardingTryoutUnavailable, OnboardingTryoutAvailability, OnboardingTryoutPreparation, OnboardingTryoutResult } from '../common/onboardingTryout.js';
+import { IOnboardingTryoutPresentation, IOnboardingTryoutRunContext, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation, OnboardingTryoutResult } from '../common/onboardingTryout.js';
 import { IGuidedTryoutPayload, isGuidedTryoutPayload } from '../common/onboardingTryoutActions.js';
 import { OnboardingSequencePresentation } from './sequence/sequencePresentation.js';
 
@@ -20,7 +18,7 @@ export const GUIDED_TRYOUT_PRESENTATION_KIND = 'guidedTryout';
 export class GuidedTryoutPresentation extends Disposable implements IOnboardingTryoutPresentation {
 	readonly kind = GUIDED_TRYOUT_PRESENTATION_KIND;
 	readonly onDidChangeAvailability = Event.any(
-		onboardingPresentationRegistry.onDidChange,
+		onboardingTryoutPresentationRegistry.onDidChange,
 		onboardingSequenceStepPresentationRegistry.onDidChange,
 	);
 
@@ -56,6 +54,9 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 				if (!this.didLaunch(launchResult) || context.token.isCancellationRequested) {
 					return context.token.isCancellationRequested ? { kind: 'cancelled' } : launchResult;
 				}
+				const targetScope = launchResult.kind === 'opened' || launchResult.kind === 'executed' || launchResult.kind === 'prepared'
+					? launchResult.targetScope
+					: undefined;
 
 				const guidanceStore = new DisposableStore();
 				const abort = guidanceStore.add(new Emitter<void>());
@@ -69,6 +70,7 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 				}, {
 					targetWindow: mainWindow,
 					onAbort: abort.event,
+					targetScope,
 				}).finally(() => guidanceStore.dispose());
 
 				if (context.token.isCancellationRequested) {
@@ -91,8 +93,7 @@ export class GuidedTryoutPresentation extends Disposable implements IOnboardingT
 	}
 
 	private getLaunchPresentation(payload: IGuidedTryoutPayload): IOnboardingTryoutPresentation | undefined {
-		const presentation = onboardingPresentationRegistry.get(payload.launch.kind);
-		return presentation && hasKey(presentation, { prepare: true }) ? presentation : undefined;
+		return onboardingTryoutPresentationRegistry.get(payload.launch.kind);
 	}
 
 	private createLaunchScenario(scenario: IOnboardingScenario, payload: IGuidedTryoutPayload): IOnboardingScenario {

@@ -5,28 +5,40 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isUUID } from '../../../../../base/common/uuid.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
+import { INativeHostService, IOnboardingTryoutWindowRequest, IOpenAgentsWindowOptions, OnboardingTryoutWindowRequestResult } from '../../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IOnboardingTryoutScenario, IOnboardingTryoutService, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
+import { IOnboardingTryoutScenario, IOnboardingTryoutService, OnboardingTryoutAvailability, OnboardingTryoutResult, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
 import { NativeOnboardingTryoutWindow } from '../../electron-browser/onboardingTryoutWindow.js';
 
 class TestTryoutService extends mock<IOnboardingTryoutService>() {
 	readonly tryouts = new Map<string, IOnboardingTryoutScenario>();
+	readonly runs: { readonly id: string; readonly token: CancellationToken }[] = [];
 	windowOpener: Parameters<IOnboardingTryoutService['registerWindowOpener']>[0] | undefined;
+	runHandler: (id: string, token: CancellationToken) => Promise<OnboardingTryoutResult> = async () => ({ kind: 'executed' });
 
 	override getTryout(id: string): IOnboardingTryoutScenario | undefined {
 		return this.tryouts.get(id);
+	}
+
+	override getAvailability(): OnboardingTryoutAvailability {
+		return { kind: 'ready' };
+	}
+
+	override run(id: string, token = CancellationToken.None): Promise<OnboardingTryoutResult> {
+		this.runs.push({ id, token });
+		return this.runHandler(id, token);
 	}
 
 	override registerWindowOpener(opener: NonNullable<TestTryoutService['windowOpener']>) {
@@ -57,20 +69,26 @@ suite('NativeOnboardingTryoutWindow', () => {
 		tryout: { title: 'Example', description: 'An Agents window example.', targetWindow: 'agents' },
 		presentation: { kind: 'test', payload: undefined },
 	};
+	const createRequest = (tryoutId = tryout.id, requestId = '01234567-89ab-4cde-8fab-0123456789ab'): IOnboardingTryoutWindowRequest => ({ requestId, tryoutId });
 
 	function createWindow(isSessionsWindow = true, whenRestored = Promise.resolve()) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const requests = store.add(new Emitter<readonly unknown[]>());
+		const cancellations = store.add(new Emitter<readonly unknown[]>());
 		const tryoutService = new TestTryoutService();
 		tryoutService.tryouts.set(tryout.id, tryout);
 		const commands = new TestCommandService();
 		const nativeCalls: IOpenAgentsWindowOptions[] = [];
+		const nativeCancellations: string[] = [];
+		const nativeCompletions: { readonly requestId: string; readonly result: OnboardingTryoutWindowRequestResult }[] = [];
 		const notificationErrors: (string | Error)[] = [];
 		const loggedErrors: unknown[][] = [];
 		instantiationService.stub(IOnboardingTryoutService, tryoutService);
 		instantiationService.stub(ICommandService, commands);
 		instantiationService.stub(INativeHostService, {
-			openAgentsWindow: async options => { nativeCalls.push(options ?? {}); },
+			openAgentsWindow: async options => { nativeCalls.push(options ?? {}); return 'accepted'; },
+			cancelOnboardingTryout: async requestId => { nativeCancellations.push(requestId); },
+			completeOnboardingTryout: async (requestId, result) => { nativeCompletions.push({ requestId, result }); },
 		});
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
@@ -84,9 +102,9 @@ suite('NativeOnboardingTryoutWindow', () => {
 				loggedErrors.push([message, ...args]);
 			}
 		}));
-		const createBridge = () => store.add(instantiationService.createInstance(NativeOnboardingTryoutWindow, requests.event, whenRestored));
+		const createBridge = () => store.add(instantiationService.createInstance(NativeOnboardingTryoutWindow, requests.event, cancellations.event, whenRestored));
 		const bridge = createBridge();
-		return { bridge, createBridge, requests, tryoutService, commands, nativeCalls, notificationErrors, loggedErrors, instantiationService };
+		return { bridge, createBridge, requests, cancellations, tryoutService, commands, nativeCalls, nativeCancellations, nativeCompletions, notificationErrors, loggedErrors, instantiationService };
 	}
 
 	test('registers a native opener that forwards only the registered identifier', async () => {
@@ -94,15 +112,20 @@ suite('NativeOnboardingTryoutWindow', () => {
 		assert.ok(context.tryoutService.windowOpener);
 
 		await context.tryoutService.windowOpener(tryout.id, CancellationToken.None);
+		const forwarded = context.nativeCalls[0].tryoutRequest;
 		context.bridge.dispose();
 
 		assert.deepStrictEqual({
-			nativeCalls: context.nativeCalls,
-			commands: context.commands.calls,
+			requestCount: context.nativeCalls.length,
+			tryoutId: forwarded?.tryoutId,
+			validRequestId: forwarded ? isUUID(forwarded.requestId) : false,
+			runs: context.tryoutService.runs,
 			opener: context.tryoutService.windowOpener,
 		}, {
-			nativeCalls: [{ tryoutId: tryout.id }],
-			commands: [],
+			requestCount: 1,
+			tryoutId: tryout.id,
+			validRequestId: true,
+			runs: [],
 			opener: undefined,
 		});
 	});
@@ -113,6 +136,26 @@ suite('NativeOnboardingTryoutWindow', () => {
 
 		await assert.rejects(context.tryoutService.windowOpener(tryout.id, CancellationToken.Cancelled), isCancellationError);
 		assert.deepStrictEqual(context.nativeCalls, []);
+	});
+
+	test('cancels a native request while the Agents window is opening', async () => {
+		const context = createWindow(false);
+		const nativeResult = new DeferredPromise<OnboardingTryoutWindowRequestResult>();
+		context.instantiationService.stub(INativeHostService, 'openAgentsWindow', async (options?: IOpenAgentsWindowOptions) => {
+			context.nativeCalls.push(options ?? {});
+			return nativeResult.p;
+		});
+		const cancellation = store.add(new CancellationTokenSource());
+		assert.ok(context.tryoutService.windowOpener);
+
+		const pending = context.tryoutService.windowOpener(tryout.id, cancellation.token);
+		await timeout(0);
+		cancellation.cancel();
+		await timeout(0);
+		nativeResult.complete('cancelled');
+
+		await assert.rejects(pending, isCancellationError);
+		assert.deepStrictEqual(context.nativeCancellations, [context.nativeCalls[0].tryoutRequest?.requestId]);
 	});
 
 	test('propagates native open failures to the shared command', async () => {
@@ -129,135 +172,254 @@ suite('NativeOnboardingTryoutWindow', () => {
 		const context = createWindow(true, restored.p);
 		context.tryoutService.tryouts.clear();
 
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		await timeout(0);
-		const beforeRestore = context.commands.calls.length;
+		const beforeRestore = context.tryoutService.runs.length;
 		context.tryoutService.tryouts.set(tryout.id, tryout);
 		await restored.complete();
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			beforeRestore,
-			commands: context.commands.calls,
+			runs: context.tryoutService.runs.map(run => run.id),
+			completions: context.nativeCompletions,
 			errors: context.notificationErrors,
 		}, {
 			beforeRestore: 0,
-			commands: [{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: [tryout.id] }],
+			runs: [tryout.id],
+			completions: [{ requestId: createRequest().requestId, result: 'accepted' }],
 			errors: [],
 		});
 	});
 
-	test('dispatches a reused-window request through the shared availability-checking command', async () => {
+	test('dispatches a reused-window request through the guarded service', async () => {
 		const context = createWindow();
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		await timeout(0);
 
-		assert.deepStrictEqual(context.commands.calls, [{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: [tryout.id] }]);
+		assert.deepStrictEqual({
+			runs: context.tryoutService.runs.map(run => run.id),
+			completions: context.nativeCompletions,
+		}, {
+			runs: [tryout.id],
+			completions: [{ requestId: createRequest().requestId, result: 'accepted' }],
+		});
 	});
 
 	test('does not replay a consumed initial request when the receiver is recreated', async () => {
 		const context = createWindow();
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		await timeout(0);
 		context.bridge.dispose();
 		context.createBridge();
 		await timeout(0);
-		const commandsAfterReload = context.commands.calls.length;
-		context.requests.fire([tryout.id]);
+		const runsAfterReload = context.tryoutService.runs.length;
+		context.requests.fire([createRequest(tryout.id, '11234567-89ab-4cde-8fab-0123456789ab')]);
 		await timeout(0);
 
-		assert.deepStrictEqual({ commandsAfterReload, commands: context.commands.calls }, {
-			commandsAfterReload: 1,
-			commands: [
-				{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: [tryout.id] },
-				{ id: RUN_ONBOARDING_TRYOUT_COMMAND_ID, args: [tryout.id] },
-			],
+		assert.deepStrictEqual({ runsAfterReload, runs: context.tryoutService.runs.map(run => run.id) }, {
+			runsAfterReload: 1,
+			runs: [tryout.id, tryout.id],
 		});
 	});
 
 	test('does not dispatch a pending initial request after the receiver is disposed', async () => {
 		const restored = new DeferredPromise<void>();
 		const context = createWindow(true, restored.p);
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		context.bridge.dispose();
 		await restored.complete();
 		await timeout(0);
 
-		assert.deepStrictEqual({ commands: context.commands.calls, errors: context.notificationErrors }, { commands: [], errors: [] });
+		assert.deepStrictEqual({
+			runs: context.tryoutService.runs,
+			completions: context.nativeCompletions,
+			errors: context.notificationErrors,
+		}, {
+			runs: [],
+			completions: [{ requestId: createRequest().requestId, result: 'cancelled' }],
+			errors: [],
+		});
 	});
 
 	test('does not consume destination requests in a normal workbench window', async () => {
 		const context = createWindow(false);
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		await timeout(0);
 
-		assert.deepStrictEqual(context.commands.calls, []);
+		assert.deepStrictEqual(context.tryoutService.runs, []);
 	});
 
 	for (const { name, args } of [
-		{ name: 'missing ID', args: [] },
-		{ name: 'empty ID', args: [''] },
-		{ name: 'non-string ID', args: [42] },
+		{ name: 'missing request', args: [] },
+		{ name: 'empty request', args: [{}] },
+		{ name: 'non-object request', args: [42] },
+		{ name: 'invalid request ID', args: [{ requestId: '', tryoutId: tryout.id }] },
 		{ name: 'command object', args: [{ id: tryout.id, command: 'arbitrary.command', arguments: [] }] },
-		{ name: 'command URI', args: ['command:arbitrary.command'] },
-		{ name: 'oversized ID', args: ['a'.repeat(129)] },
-		{ name: 'extra arguments', args: [tryout.id, 'extra'] },
-		{ name: 'unregistered ID', args: ['test.unknownExample'] },
+		{ name: 'extra object keys', args: [{ ...createRequest(), command: 'arbitrary.command' }] },
+		{ name: 'command URI', args: [createRequest('command:arbitrary.command')] },
+		{ name: 'oversized ID', args: [createRequest('a'.repeat(129))] },
+		{ name: 'extra arguments', args: [createRequest(), 'extra'] },
+		{ name: 'unregistered ID', args: [createRequest('test.unknownExample')] },
 	]) {
-		test(`rejects and reports ${name} without dispatching a command`, async () => {
+		test(`rejects and reports ${name} without running a tryout`, async () => {
 			const context = createWindow();
 			context.requests.fire(args);
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				commands: context.commands.calls,
+				runs: context.tryoutService.runs,
 				notifications: context.notificationErrors.length,
 				logs: context.loggedErrors.length,
-			}, { commands: [], notifications: 1, logs: 1 });
+			}, { runs: [], notifications: 1, logs: 1 });
 		});
 	}
 
 	test('rejects an example registered for a different window', async () => {
 		const context = createWindow();
 		context.tryoutService.tryouts.set(tryout.id, { ...tryout, tryout: { ...tryout.tryout, targetWindow: undefined } });
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			commands: context.commands.calls,
+			runs: context.tryoutService.runs,
+			completions: context.nativeCompletions,
 			notifications: context.notificationErrors.length,
 			logs: context.loggedErrors.length,
-		}, { commands: [], notifications: 1, logs: 1 });
+		}, {
+			runs: [],
+			completions: [{ requestId: createRequest().requestId, result: 'rejected' }],
+			notifications: 1,
+			logs: 1,
+		});
 	});
 
 	test('rechecks registration after waiting for restore', async () => {
 		const restored = new DeferredPromise<void>();
 		const context = createWindow(true, restored.p);
-		context.requests.fire([tryout.id]);
+		context.requests.fire([createRequest()]);
 		context.tryoutService.tryouts.delete(tryout.id);
 		await restored.complete();
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			commands: context.commands.calls,
+			runs: context.tryoutService.runs,
+			completions: context.nativeCompletions,
 			notifications: context.notificationErrors.length,
 			logs: context.loggedErrors.length,
-		}, { commands: [], notifications: 1, logs: 1 });
+		}, {
+			runs: [],
+			completions: [{ requestId: createRequest().requestId, result: 'rejected' }],
+			notifications: 1,
+			logs: 1,
+		});
 	});
 
-	test('logs shared-command failures without duplicating its notifications', async () => {
+	test('logs and reports destination run failures', async () => {
 		const context = createWindow();
-		const error = new Error('Shared command failed');
-		context.commands.error = error;
-		context.requests.fire([tryout.id]);
+		const error = new Error('Destination run failed');
+		context.tryoutService.runHandler = async () => { throw error; };
+		context.requests.fire([createRequest()]);
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			errors: context.notificationErrors,
 			logs: context.loggedErrors,
 		}, {
-			errors: [],
-			logs: [['[OnboardingTryout] Native handoff failed', error]],
+			errors: [error.message],
+			logs: [
+				['[OnboardingTryout] Launch failed', error],
+				['[OnboardingTryout] Native handoff failed', error],
+			],
+		});
+	});
+
+	test('the latest request supersedes one waiting for restoration', async () => {
+		const restored = new DeferredPromise<void>();
+		const context = createWindow(true, restored.p);
+		const otherTryout = { ...tryout, id: 'test.otherAgentsExample' };
+		context.tryoutService.tryouts.set(otherTryout.id, otherTryout);
+		const first = createRequest(tryout.id, '01234567-89ab-4cde-8fab-0123456789ab');
+		const second = createRequest(otherTryout.id, '11234567-89ab-4cde-8fab-0123456789ab');
+
+		context.requests.fire([first]);
+		context.requests.fire([second]);
+		await restored.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			runs: context.tryoutService.runs.map(run => run.id),
+			completions: context.nativeCompletions,
+		}, {
+			runs: [otherTryout.id],
+			completions: [
+				{ requestId: first.requestId, result: 'superseded' },
+				{ requestId: second.requestId, result: 'accepted' },
+			],
+		});
+	});
+
+	test('the latest request cancels an active destination run', async () => {
+		const context = createWindow();
+		const otherTryout = { ...tryout, id: 'test.otherAgentsExample' };
+		context.tryoutService.tryouts.set(otherTryout.id, otherTryout);
+		const firstStarted = new DeferredPromise<void>();
+		context.tryoutService.runHandler = async (_id, token) => {
+			if (!firstStarted.isSettled) {
+				firstStarted.complete();
+				const cancelled = new DeferredPromise<void>();
+				store.add(token.onCancellationRequested(() => cancelled.complete()));
+				await cancelled.p;
+				return { kind: 'cancelled' };
+			}
+			return { kind: 'executed' };
+		};
+		const first = createRequest(tryout.id, '01234567-89ab-4cde-8fab-0123456789ab');
+		const second = createRequest(otherTryout.id, '11234567-89ab-4cde-8fab-0123456789ab');
+
+		context.requests.fire([first]);
+		await firstStarted.p;
+		context.requests.fire([second]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			cancelled: context.tryoutService.runs[0].token.isCancellationRequested,
+			runs: context.tryoutService.runs.map(run => run.id),
+			completions: context.nativeCompletions,
+		}, {
+			cancelled: true,
+			runs: [tryout.id, otherTryout.id],
+			completions: [
+				{ requestId: first.requestId, result: 'accepted' },
+				{ requestId: first.requestId, result: 'superseded' },
+				{ requestId: second.requestId, result: 'accepted' },
+			],
+		});
+	});
+
+	test('a source cancellation stops the matching destination run', async () => {
+		const context = createWindow();
+		const started = new DeferredPromise<void>();
+		context.tryoutService.runHandler = async (_id, token) => {
+			started.complete();
+			const cancelled = new DeferredPromise<void>();
+			store.add(token.onCancellationRequested(() => cancelled.complete()));
+			await cancelled.p;
+			return { kind: 'cancelled' };
+		};
+		const active = createRequest();
+
+		context.requests.fire([active]);
+		await started.p;
+		context.cancellations.fire([active.requestId]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			cancelled: context.tryoutService.runs[0].token.isCancellationRequested,
+			completions: context.nativeCompletions,
+		}, {
+			cancelled: true,
+			completions: [{ requestId: active.requestId, result: 'accepted' }],
 		});
 	});
 });

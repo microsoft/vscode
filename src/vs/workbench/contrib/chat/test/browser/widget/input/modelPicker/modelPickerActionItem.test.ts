@@ -53,6 +53,7 @@ suite('ModelPickerActionItem onboarding', () => {
 			action,
 			delegate,
 			{ compact: constObservable(false) },
+			{ id: ChatOnboardingTarget.ModelPicker, scope: () => 'session-1' },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),

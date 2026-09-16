@@ -17,7 +17,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -44,7 +44,12 @@ suite('Onboarding tryout presentations', () => {
 		return store.add(new ContextKeyService(upcastPartial<IConfigurationService>(new TestConfigurationService())));
 	}
 
+	function registerCommand(id: string): void {
+		store.add(CommandsRegistry.registerCommand(id, () => undefined));
+	}
+
 	test('commands preserve exact fixed arguments and do not execute during preparation', async () => {
+		registerCommand('test.command');
 		const executeCommand = sinon.stub().resolves();
 		const presentation = new CommandTryoutPresentation(upcastPartial<ICommandService>({ executeCommand }), createContextKeys());
 		const payload = { commandId: 'test.command', arguments: [{ setting: 'value' }, 'second'] };
@@ -66,6 +71,7 @@ suite('Onboarding tryout presentations', () => {
 		const contextKeys = createContextKeys();
 		const enabled = contextKeys.createKey<boolean>('test.commandEnabled', true);
 		store.add(MenuRegistry.addCommand({ id: 'test.guardedCommand', title: 'Test', precondition: ContextKeyExpr.has('test.commandEnabled') }));
+		registerCommand('test.guardedCommand');
 		const executeCommand = sinon.stub().resolves();
 		const presentation = new CommandTryoutPresentation(upcastPartial<ICommandService>({ executeCommand }), contextKeys);
 		const prepared = await presentation.prepare({ commandId: 'test.guardedCommand' }, createContext());
@@ -79,6 +85,7 @@ suite('Onboarding tryout presentations', () => {
 	});
 
 	test('command failures retain their normal failure result', async () => {
+		registerCommand('test.failure');
 		const executeCommand = sinon.stub().rejects(new Error('command failed'));
 		const presentation = new CommandTryoutPresentation(upcastPartial<ICommandService>({ executeCommand }), createContextKeys());
 		const prepared = await presentation.prepare({ commandId: 'test.failure' }, createContext());
@@ -86,6 +93,52 @@ suite('Onboarding tryout presentations', () => {
 		if (prepared.kind === 'ready') {
 			await assert.rejects(prepared.run(), /command failed/);
 		}
+	});
+
+	test('commands can bind guided steps to a returned target scope', async () => {
+		registerCommand('test.scopedCommand');
+		const executeCommand = sinon.stub().resolves({ targetScope: 'prepared-instance' });
+		const presentation = new CommandTryoutPresentation(upcastPartial<ICommandService>({ executeCommand }), createContextKeys());
+		const prepared = await presentation.prepare({ commandId: 'test.scopedCommand', captureTargetScope: true }, createContext());
+		assert.strictEqual(prepared.kind, 'ready');
+		if (prepared.kind !== 'ready') {
+			return;
+		}
+
+		assert.deepStrictEqual(await prepared.run(), {
+			kind: 'executed',
+			targetScope: 'prepared-instance',
+		});
+	});
+
+	test('scoped commands fail closed when no target scope is returned', async () => {
+		registerCommand('test.missingTarget');
+		const presentation = new CommandTryoutPresentation(
+			upcastPartial<ICommandService>({ executeCommand: sinon.stub().resolves(undefined) }),
+			createContextKeys(),
+		);
+		const prepared = await presentation.prepare({ commandId: 'test.missingTarget', captureTargetScope: true }, createContext());
+		assert.strictEqual(prepared.kind, 'ready');
+		if (prepared.kind !== 'ready') {
+			return;
+		}
+
+		assert.deepStrictEqual(await prepared.run(), {
+			kind: 'unavailable',
+			message: 'The example opened, but its target is no longer available.',
+		});
+	});
+
+	test('unregistered commands are unavailable before dispatch', () => {
+		const presentation = new CommandTryoutPresentation(
+			upcastPartial<ICommandService>({}),
+			createContextKeys(),
+		);
+
+		assert.deepStrictEqual(presentation.getAvailability({ commandId: 'test.notRegistered' }), {
+			kind: 'unavailable',
+			message: 'This command is not available in the current context.',
+		});
 	});
 
 	test('opens the contributed view rather than relying on active UI state', async () => {

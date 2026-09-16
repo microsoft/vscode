@@ -22,6 +22,7 @@ class NativeOnboardingTryoutContribution extends Disposable implements IWorkbenc
 		this._register(instantiationService.createInstance(
 			NativeOnboardingTryoutWindow,
 			Event.fromNodeEventEmitter<readonly unknown[]>(ipcRenderer, 'vscode:runOnboardingTryout', (_: unknown, ...args: unknown[]) => args),
+			Event.fromNodeEventEmitter<readonly unknown[]>(ipcRenderer, 'vscode:cancelOnboardingTryout', (_: unknown, ...args: unknown[]) => args),
 			Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).whenRestored,
 		));
 	}

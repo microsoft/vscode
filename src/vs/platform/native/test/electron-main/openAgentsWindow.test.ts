@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -11,10 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentsWindowOpenSource, INativeWindowConfiguration } from '../../../window/common/window.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { IWindowsMainService, OpenContext } from '../../../windows/electron-main/windows.js';
-import { IOpenAgentsWindowOptions } from '../../common/native.js';
-import { openAgentsWindow } from '../../electron-main/openAgentsWindow.js';
+import { IOnboardingTryoutWindowRequest, IOpenAgentsWindowOptions } from '../../common/native.js';
+import { cancelOnboardingTryout, completeOnboardingTryout, openAgentsWindow } from '../../electron-main/openAgentsWindow.js';
 
 class TestCodeWindow extends mock<ICodeWindow>() {
+	override readonly id = 7;
 	override readonly config = upcastPartial<INativeWindowConfiguration>({ isSessionsWindow: true });
 	override isReady = false;
 	readonly requests: { readonly channel: string; readonly token: CancellationToken; readonly args: readonly unknown[] }[] = [];
@@ -31,6 +33,10 @@ class TestCodeWindow extends mock<ICodeWindow>() {
 
 suite('openAgentsWindow - tryouts', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+	const request: IOnboardingTryoutWindowRequest = {
+		requestId: '01234567-89ab-4cde-8fab-0123456789ab',
+		tryoutId: 'test.agentsExample',
+	};
 
 	function createOpener(windows: ICodeWindow[]) {
 		const calls: Parameters<IWindowsMainService['openAgentsWindow']>[] = [];
@@ -51,18 +57,23 @@ suite('openAgentsWindow - tryouts', () => {
 			const window = new TestCodeWindow();
 			window.isReady = isReady;
 			const { open, calls } = createOpener([window]);
-			await open({ tryoutId: 'test.agentsExample' });
+			const pending = open({ tryoutRequest: request });
+			await timeout(0);
+			completeOnboardingTryout(window.id, request.requestId, 'accepted');
+			const result = await pending;
 
 			assert.deepStrictEqual({
 				calls,
-				requests: window.requests,
+				requests: window.requests.map(({ channel, token, args }) => ({ channel, cancelled: token.isCancellationRequested, args })),
 				focusCount: window.focusCount,
 				configuration: window.config,
+				result,
 			}, {
 				calls: [[{ context: OpenContext.API, contextWindowId: 42, cli: { _: [] } }, undefined, undefined, undefined, undefined]],
-				requests: [{ channel: 'vscode:runOnboardingTryout', token: CancellationToken.None, args: ['test.agentsExample'] }],
+				requests: [{ channel: 'vscode:runOnboardingTryout', cancelled: false, args: [request] }],
 				focusCount: 1,
 				configuration: { isSessionsWindow: true },
+				result: 'accepted',
 			});
 		});
 	}
@@ -73,13 +84,16 @@ suite('openAgentsWindow - tryouts', () => {
 		const folder = URI.file('/workspace');
 		const session = URI.parse('test-session:/session');
 
-		await open({
+		const pending = open({
 			folderUri: folder.toJSON(),
 			sessionResource: session.toJSON(),
 			source: AgentsWindowOpenSource.Link,
 			folderUriIsDefault: true,
-			tryoutId: 'test.agentsExample',
+			tryoutRequest: request,
 		});
+		await timeout(0);
+		completeOnboardingTryout(window.id, request.requestId, 'accepted');
+		await pending;
 
 		assert.deepStrictEqual(calls, [[
 			{ context: OpenContext.API, contextWindowId: 42, cli: { _: [] } },
@@ -101,8 +115,52 @@ suite('openAgentsWindow - tryouts', () => {
 			const windows = Array.from({ length: windowCount }, () => new TestCodeWindow());
 			const { open } = createOpener(windows);
 
-			await assert.rejects(open({ tryoutId: 'test.agentsExample' }), /could not be sent to an Agents window/);
+			await assert.rejects(open({ tryoutRequest: request }), /could not be sent to an Agents window/);
 			assert.deepStrictEqual(windows.flatMap(window => window.requests), []);
 		});
 	}
+
+	test('cancellation while the destination is opening suppresses delivery', async () => {
+		const window = new TestCodeWindow();
+		const windows = new DeferredPromise<ICodeWindow[]>();
+		const service = upcastPartial<IWindowsMainService>({
+			openAgentsWindow: async () => windows.p,
+		});
+		const completion = DeferredPromise.fromPromise(openAgentsWindow(service, { context: OpenContext.API, contextWindowId: 42, cli: { _: [] } }, { tryoutRequest: request }));
+
+		cancelOnboardingTryout(42, request.requestId);
+		await timeout(0);
+		const settledBeforeWindowOpened = completion.isSettled;
+		windows.complete([window]);
+
+		assert.deepStrictEqual({
+			settledBeforeWindowOpened,
+			result: await completion.p,
+			requests: window.requests,
+		}, {
+			settledBeforeWindowOpened: true,
+			result: 'cancelled',
+			requests: [],
+		});
+	});
+
+	test('only the destination window can acknowledge a request', async () => {
+		const window = new TestCodeWindow();
+		const { open } = createOpener([window]);
+		const completion = DeferredPromise.fromPromise(open({ tryoutRequest: request }));
+		await timeout(0);
+
+		completeOnboardingTryout(window.id + 1, request.requestId, 'accepted');
+		await timeout(0);
+		const settledAfterWrongWindow = completion.isSettled;
+		completeOnboardingTryout(window.id, request.requestId, 'accepted');
+
+		assert.deepStrictEqual({
+			settledAfterWrongWindow,
+			result: await completion.p,
+		}, {
+			settledAfterWrongWindow: false,
+			result: 'accepted',
+		});
+	});
 });

@@ -39,7 +39,6 @@ import { problemsConfigurationNodeBase } from '../../../common/configuration.js'
 import { MarkerChatContextContribution } from './markersChatContext.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ProblemsAccessibilityHelp } from './markersAccessibilityHelp.js';
-import './problemsTryout.contribution.js';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
