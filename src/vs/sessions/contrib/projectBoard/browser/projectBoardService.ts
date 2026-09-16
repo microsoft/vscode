@@ -33,7 +33,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { CHAT_CARD_LARGE_CLASS } from '../../../../workbench/contrib/chat/browser/widget/chatCard.js';
-import { formatCopilotCreditsLabel, IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -1171,20 +1171,21 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			credits.className = 'project-board-card-credits';
 			credits.setAttribute('role', 'img');
 			const value = this.creditValues.get(card.id);
+			const formattedAmount = value === undefined ? localize('projectBoard.creditUnavailableCompact', "Unavailable") : (value / 100).toFixed(2);
 			const label = value === undefined
 				? localize('projectBoard.creditsUnavailable', "AI credits: unavailable")
-				: localize('projectBoard.creditsUsed', "AI credits: {0}", formatCopilotCreditsLabel(value));
+				: localize('projectBoard.creditsUsedDollars', "AI credits: ${0} USD", formattedAmount);
 			credits.setAttribute('aria-label', label);
 			const icon = document.createElement('span');
 			icon.className = 'project-board-credit-icon';
 			icon.setAttribute('aria-hidden', 'true');
 			icon.textContent = '$';
 			const amount = document.createElement('span');
-			amount.textContent = value === undefined ? localize('projectBoard.creditUnavailableCompact', "Unavailable") : formatCopilotCreditsLabel(value);
+			amount.textContent = formattedAmount;
 			credits.append(icon, amount);
 			describe(credits);
 			store.add(this.hoverService.setupDelayedHover(credits, {
-				content: localize('projectBoard.creditsHelp', "{0}\n\nReported cumulative usage for this chat, including subagents when reported by its provider. Not a dollar amount, account balance or sum of sibling chats. Unavailable means no credit data is reported or the metadata preview limit was reached.", label),
+				content: localize('projectBoard.creditsHelpDollars', "{0}\n\nReported cumulative usage for this chat, including subagents when reported by its provider, converted to US dollars at 100 AI credits per dollar. Not an account balance or sum of sibling chats. Unavailable means no credit data is reported or the metadata preview limit was reached.", label),
 			}));
 			metrics.appendChild(credits);
 		}
