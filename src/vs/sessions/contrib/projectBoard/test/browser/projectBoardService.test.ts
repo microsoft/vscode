@@ -498,7 +498,25 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(chat.isRead.get(), false);
 	});
 
-	test('auto-include sessions hides unplaced chats and a Sessions list drop explicitly places them', () => {
+	test('PB-22 collapsed tray counts honor auto-include without discarding drafts', () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Unplaced chat')]);
+		h.drafts.set([{ id: 'draft', resource: URI.parse('test-draft:/inclusion'), hasContent: true, submitted: false }], undefined);
+		store.add(h.service.createView(h.container));
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
+		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
+		assert.strictEqual(summary(), '2 sessions');
+		h.service.toggleAutoIncludeSessions();
+		assert.strictEqual(summary(), '0 sessions');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 0);
+		assert.strictEqual(h.drafts.get().length, 1);
+		h.service.toggleAutoIncludeSessions();
+		assert.strictEqual(summary(), '2 sessions');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 2);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!.hidden, true);
+		assert.deepStrictEqual(h.state.deletedDrafts, []);
+	});
+
+	test('auto-include sessions hides unplaced chats and a Sessions list drop reveals and places them in a collapsed cell', () => {
 		const chats = [new TestChat('First chat'), new TestChat('Second chat')];
 		const h = createBoard(mainWindow.document, chats);
 		store.add(h.service.createView(h.container));
@@ -518,6 +536,8 @@ suite('ProjectBoardService', () => {
 		unassigned.dispatchEvent(unassignedDragOver);
 		assert.strictEqual(unassignedDragOver.defaultPrevented, false);
 
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!.click();
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p1"]')!.click();
 		const target = h.container.querySelector<HTMLElement>('[aria-label="General, P1"]')!;
 		const dragOver = new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
 		target.dispatchEvent(dragOver);
@@ -532,6 +552,9 @@ suite('ProjectBoardService', () => {
 			placed: ['First chat', 'Second chat'],
 			unassigned: 0,
 		});
+		assert.strictEqual(h.container.querySelector<HTMLElement>('[aria-label="General, P1"] .project-board-card-list')!.hidden, false);
+		assert.strictEqual(h.container.querySelector('[data-board-control="collapse:row:general"]')!.getAttribute('aria-expanded'), 'true');
+		assert.strictEqual(h.container.querySelector('[data-board-control="collapse:column:p1"]')!.getAttribute('aria-expanded'), 'true');
 	});
 
 	test('PB-18 bottom status bar wraps transparent metrics after the timestamp and retains credit hover', async () => {
@@ -645,7 +668,7 @@ suite('ProjectBoardService', () => {
 		await h.service.open();
 		assert.strictEqual(interval.callCount, 0);
 		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
-		await h.contextMenu.delegate!.getActions()[0].run();
+		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.stateDuration')!.run();
 		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
 		card.focus();
 		const duration = card.querySelector('.project-board-card-duration')!;

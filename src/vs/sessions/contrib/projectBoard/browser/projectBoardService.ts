@@ -1041,7 +1041,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (collapsed) {
 			const summary = document.createElement('span');
 			summary.className = 'project-board-collapsed-summary';
-			summary.textContent = this.sessionCountLabel(totalCount + (placement ? 0 : this.drafts.length + (this.agentsDraft ? 1 : 0)));
+			summary.textContent = this.sessionCountLabel(totalCount + (placement || !autoIncludeSessions ? 0 : this.drafts.length + (this.agentsDraft ? 1 : 0)));
 			group.appendChild(summary);
 		}
 		if (!placement && autoIncludeSessions) {
@@ -1138,7 +1138,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.notificationService.warn(localize('projectBoard.sessionHasNoChats', "This session has no chats that can be added to the board."));
 				return;
 			}
-			this.changeBoard(() => this.boardState.moveCards(cardIds, placement));
+			this.moveCards(cardIds, placement);
 		}));
 
 		return group;
@@ -1730,8 +1730,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {
+		this.moveCards([cardId], placement);
+	}
+
+	private moveCards(cardIds: readonly string[], placement: IProjectBoardPlacement | undefined): void {
 		try {
-			this.boardState.moveCard(cardId, placement);
+			this.boardState.moveCards(cardIds, placement);
 			if (this.expandPlacement(placement)) {
 				this.render();
 			}
