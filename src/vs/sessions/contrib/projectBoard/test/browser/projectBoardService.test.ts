@@ -49,6 +49,7 @@ import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/c
 import { SessionsDataTransfers } from '../../../../browser/dnd.js';
 
 class TestChat extends mock<IChat>() {
+	override readonly capabilities = observableValue('capabilities', { canRename: false, canDelete: true });
 	override readonly title = observableValue('title', this.name);
 	override readonly status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
 	override readonly isRead = observableValue('read', false);
@@ -103,6 +104,8 @@ suite('ProjectBoardService', () => {
 			closedResource: undefined as URI | undefined,
 			deletedSessions: [] as ISession[],
 			deletedDrafts: [] as string[],
+			renameError: undefined as Error | undefined,
+			renamedChats: [] as { session: ISession; resource: URI; title: string }[],
 		};
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
@@ -233,6 +236,16 @@ suite('ProjectBoardService', () => {
 					state.sessions = state.sessions.filter(candidate => candidate !== deleted);
 					sessionsChanged.fire({ added: [], removed: [deleted], changed: [] });
 				}
+				override async renameChat(renamed: ISession, resource: URI, title: string): Promise<void> {
+					if (state.renameError) {
+						throw state.renameError;
+					}
+					const chat = renamed.chats.get().find(chat => chat.resource.toString() === resource.toString());
+					assert.ok(chat instanceof TestChat);
+					state.renamedChats.push({ session: renamed, resource, title });
+					chat.title.set(title, undefined);
+					sessionsChanged.fire({ added: [], removed: [], changed: [renamed] });
+				}
 			}(),
 			instantiationService,
 			new class extends mock<INotificationService>() {
@@ -279,6 +292,28 @@ suite('ProjectBoardService', () => {
 		await service.open();
 		assert.strictEqual(state.openCount, 1);
 		assert.ok(state.focusCount > firstFocusCount);
+	});
+
+	test('PB-21 board notifies content size changes so the host can rescan after +more expands a column', async () => {
+		const chats = Array.from({ length: 5 }, (_, index) => new TestChat(`Card ${index}`));
+		const h = createBoard(mainWindow.document, chats);
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const view = store.add(h.service.createView(container));
+
+		for (const chat of chats) {
+			const card = [...container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+			const transfer = new mainWindow.DataTransfer();
+			card.dispatchEvent(new mainWindow.DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+			container.querySelector('[aria-label="General, P0"]')!.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+		}
+
+		let notified = 0;
+		store.add(view.onDidChangeContentSize(() => notified++));
+		const before = notified;
+		container.querySelector<HTMLElement>('[aria-label="General, P0"] .project-board-more')!.click();
+		assert.ok(notified > before, 'Expanding a column with "+more" must notify the host so its scroll container rescans immediately');
 	});
 
 	test('embedded board leaves header actions to the custom view chrome', () => {
@@ -395,17 +430,13 @@ suite('ProjectBoardService', () => {
 
 		h.service.toggleAutoIncludeSessions();
 		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 0);
-		assert.strictEqual(h.container.querySelector('.project-board-unassigned .project-board-empty')?.textContent, 'Drop a chat here');
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned'), null);
 
 		const dataTransfer = new mainWindow.DataTransfer();
 		dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({
 			sessionId: h.session.sessionId,
 			resource: h.session.resource.toString(),
 		}));
-		const unassigned = h.container.querySelector<HTMLElement>('.project-board-unassigned')!;
-		const unassignedDragOver = new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
-		unassigned.dispatchEvent(unassignedDragOver);
-		assert.strictEqual(unassignedDragOver.defaultPrevented, false);
 
 		const target = h.container.querySelector<HTMLElement>('[aria-label="General, P1"]')!;
 		const dragOver = new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer });
@@ -656,6 +687,112 @@ suite('ProjectBoardService', () => {
 		await h.moveViaPicker('Cancel picker');
 		assert.strictEqual(h.container.querySelector('.project-board-unassigned h4')?.textContent, 'Keyboard movement');
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('card rename updates the visible chat title without renaming its session or sibling', async () => {
+		const chat = new TestChat('Rename me');
+		const sibling = new TestChat('Sibling');
+		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		const h = createBoard(mainWindow.document, [sibling, chat]);
+		h.instantiationService.stub(IQuickInputService, {
+			input: async options => {
+				assert.strictEqual(options?.value, 'Rename me');
+				return '  Renamed via menu  ';
+			},
+		});
+		await h.service.open();
+		const card = Array.from(h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')).find(element => element.dataset.chatResource === chat.resource.toString())!;
+		assert.ok(card.getAttribute('aria-keyshortcuts')?.includes('F2'));
+
+		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+		card.dispatchEvent(event);
+		assert.strictEqual(event.defaultPrevented, true);
+		assert.deepStrictEqual(h.contextMenu.delegate?.getActions().map(action => action.label), ['Rename...']);
+		await h.contextMenu.delegate!.getActions()[0].run();
+		const headings = () => [sibling, chat].map(chat => Array.from(h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')).find(element => element.dataset.chatResource === chat.resource.toString())?.querySelector('h4')?.textContent);
+		assert.deepStrictEqual({
+			renamed: h.state.renamedChats,
+			headings: headings(),
+			sessionTitle: h.session.title.get(),
+			opened: h.opened,
+		}, {
+			renamed: [{ session: h.session, resource: chat.resource, title: 'Renamed via menu' }],
+			headings: ['Sibling', 'Renamed via menu'],
+			sessionTitle: 'Owning session',
+			opened: [],
+		});
+		h.closeBoard();
+		await h.service.open();
+		assert.deepStrictEqual(headings(), ['Sibling', 'Renamed via menu']);
+	});
+
+	test('F2 renames the visible card', async () => {
+		const chat = new TestChat('Renamable');
+		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		h.quickInput.inputValues = ['Renamed with F2'];
+		const renamed = Event.toPromise(h.sessionsChanged.event);
+		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+		const f2Event = new mainWindow.KeyboardEvent('keydown', { keyCode: 113, bubbles: true, cancelable: true });
+		card.dispatchEvent(f2Event);
+		assert.strictEqual(f2Event.defaultPrevented, true);
+		await renamed;
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.strictEqual(h.container.querySelector('[data-chat-resource] h4')?.textContent, 'Renamed with F2');
+	});
+
+	test('card context menu is unavailable when the chat does not support renaming', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('No rename')]);
+		await h.service.open();
+		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+		assert.strictEqual(card.getAttribute('aria-keyshortcuts')?.includes('F2') ?? false, false);
+		const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+		card.dispatchEvent(event);
+		assert.strictEqual(event.defaultPrevented, false);
+		assert.strictEqual(h.contextMenu.delegate, undefined);
+		const f2Event = new mainWindow.KeyboardEvent('keydown', { keyCode: 113, bubbles: true, cancelable: true });
+		card.dispatchEvent(f2Event);
+		assert.strictEqual(f2Event.defaultPrevented, false);
+		assert.deepStrictEqual(h.state.renamedChats, []);
+	});
+
+	test('card rename cancellation, unchanged titles and failures preserve the heading', async () => {
+		const chat = new TestChat('Keep this title');
+		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		const rename = async () => {
+			h.container.querySelector('[data-chat-resource]')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await h.contextMenu.delegate!.getActions()[0].run();
+		};
+		await rename();
+		h.quickInput.inputValues = ['  Keep this title  ', '   ', 'Failed rename'];
+		await rename();
+		await rename();
+		h.state.renameError = new Error('Rename failed');
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		await rename();
+		assert.deepStrictEqual({
+			renamed: h.state.renamedChats,
+			title: h.container.querySelector('[data-chat-resource] h4')?.textContent,
+			errors,
+		}, { renamed: [], title: 'Keep this title', errors: ['The chat could not be renamed.'] });
+	});
+
+	test('card rename availability follows changing chat capabilities', async () => {
+		const chat = new TestChat('Changing capabilities');
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		const canRename = () => h.container.querySelector('[data-chat-resource]')?.getAttribute('aria-keyshortcuts')?.includes('F2') ?? false;
+		const availability = [canRename()];
+		chat.capabilities.set({ canRename: true, canDelete: true }, undefined);
+		availability.push(canRename());
+		chat.capabilities.set({ canRename: false, canDelete: true }, undefined);
+		availability.push(canRename());
+		assert.deepStrictEqual(availability, [false, true, false]);
 	});
 
 	test('PB-03 a destination picker rejects a chat removed while it was open', async () => {

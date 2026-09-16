@@ -25,6 +25,10 @@
 	overflow: visible;
 }
 
+.monaco-workbench :is(.kanban-custom-view, .project-board, .project-board-grid, .project-board-card-group):focus:not(:focus-visible) {
+	outline: none;
+}
+
 .project-board-header h1 {
 	margin: 0;
 	font-size: 22px;
@@ -111,7 +115,7 @@
 	background: var(--vscode-sideBar-background);
 }
 
-.project-board-card-group:focus {
+.project-board-card-group:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
