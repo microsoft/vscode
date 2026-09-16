@@ -43,3 +43,23 @@ removing the optional package.
 For local development, install the package without saving it to the source
 manifest/lockfile, or hot-link a local build. The same startup detection applies.
 Ordinary `npm install`/`npm ci` may remove such an undeclared local installation.
+
+## Validation
+
+Run the detector tests in both Node and the Electron unit runner: Electron loads
+ES modules through an import map, so Node-only validation can miss import errors.
+
+```sh
+npm run test-node -- --run src/vs/platform/product/test/node/editorView.test.ts
+./scripts/test.sh --run src/vs/platform/product/test/node/editorView.test.ts
+npm run monaco-compile-check
+npm run gulp monacodts-check
+npm run gulp editor-distro
+```
+
+Changes to editor options must also preserve the generated Monaco declaration
+surface. The declaration generator processes modules in isolation: explicitly
+type the availability singleton and keep implementation classes `@internal`.
+After intentional API changes, regenerate with `npm run gulp monacodts`.
+The distro build also tree-shakes class members. GPU hit-test implementations
+must explicitly implement `IViewLineHitTestProvider` so its methods are retained.

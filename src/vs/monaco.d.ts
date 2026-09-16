@@ -5277,7 +5277,7 @@ declare namespace monaco.editor {
 
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
-		acceptSuggestionOnEnter: IEditorOption<EditorOption.acceptSuggestionOnEnter, 'on' | 'off' | 'smart'>;
+		acceptSuggestionOnEnter: IEditorOption<EditorOption.acceptSuggestionOnEnter, 'off' | 'on' | 'smart'>;
 		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, any>;
 		accessibilityPageSize: IEditorOption<EditorOption.accessibilityPageSize, number>;
 		allowOverflow: IEditorOption<EditorOption.allowOverflow, boolean>;
@@ -5311,7 +5311,7 @@ declare namespace monaco.editor {
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;
 		cursorBlinking: IEditorOption<EditorOption.cursorBlinking, TextEditorCursorBlinkingStyle>;
-		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, 'on' | 'off' | 'explicit'>;
+		cursorSmoothCaretAnimation: IEditorOption<EditorOption.cursorSmoothCaretAnimation, 'off' | 'on' | 'explicit'>;
 		cursorStyle: IEditorOption<EditorOption.cursorStyle, TextEditorCursorStyle>;
 		overtypeCursorStyle: IEditorOption<EditorOption.overtypeCursorStyle, TextEditorCursorStyle>;
 		cursorSurroundingLines: IEditorOption<EditorOption.cursorSurroundingLines, number>;
@@ -5328,7 +5328,7 @@ declare namespace monaco.editor {
 		editContext: IEditorOption<EditorOption.editContext, boolean>;
 		renderRichScreenReaderContent: IEditorOption<EditorOption.renderRichScreenReaderContent, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
-		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'on' | 'off' | 'editorView'>;
+		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'off' | 'on' | 'editorView'>;
 		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'font' | 'svg'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
@@ -5390,10 +5390,10 @@ declare namespace monaco.editor {
 		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, any>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
-		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;
+		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'off' | 'on' | 'dimmed'>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
 		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;
-		renderValidationDecorations: IEditorOption<EditorOption.renderValidationDecorations, 'on' | 'off' | 'editable'>;
+		renderValidationDecorations: IEditorOption<EditorOption.renderValidationDecorations, 'off' | 'on' | 'editable'>;
 		renderWhitespace: IEditorOption<EditorOption.renderWhitespace, 'all' | 'none' | 'boundary' | 'selection' | 'trailing'>;
 		revealHorizontalRightPadding: IEditorOption<EditorOption.revealHorizontalRightPadding, number>;
 		roundedSelection: IEditorOption<EditorOption.roundedSelection, boolean>;
@@ -5423,7 +5423,7 @@ declare namespace monaco.editor {
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
-		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
+		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'off' | 'on' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		trimWhitespaceOnDelete: IEditorOption<EditorOption.trimWhitespaceOnDelete, boolean>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
@@ -5433,13 +5433,13 @@ declare namespace monaco.editor {
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, string[]>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
-		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, 'off' | 'on' | 'wordWrapColumn' | 'bounded'>;
 		wordWrapIndicator: IEditorOption<EditorOption.wordWrapIndicator, boolean>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
-		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
-		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
+		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'off' | 'on' | 'inherit'>;
+		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'off' | 'on' | 'inherit'>;
 		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
 		effectiveCursorStyle: IEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;

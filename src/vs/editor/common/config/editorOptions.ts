@@ -1214,6 +1214,9 @@ abstract class ComputedEditorOption<K extends EditorOption, V> implements IEdito
 	public abstract compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: V): V;
 }
 
+/**
+ * @internal
+ */
 abstract class SimpleEditorOption<K extends EditorOption, V> implements IEditorOption<K, V> {
 
 	public readonly id: K;
@@ -1403,6 +1406,9 @@ export function stringSet<T extends string>(value: unknown, defaultValue: T, all
 	return value as T;
 }
 
+/**
+ * @internal
+ */
 class EditorStringEnumOption<K extends EditorOption, V extends string> extends SimpleEditorOption<K, V> {
 
 	private readonly _allowedValues: ReadonlyArray<V>;
@@ -6060,7 +6066,7 @@ export const enum EditorOption {
 }
 
 /** @internal */
-export const editorGpuAcceleration = markAsSingleton(new EditorExperimentalGpuAcceleration(product.hasEditorView === true));
+export const editorGpuAcceleration: EditorExperimentalGpuAcceleration = markAsSingleton(new EditorExperimentalGpuAcceleration(product.hasEditorView === true));
 
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(

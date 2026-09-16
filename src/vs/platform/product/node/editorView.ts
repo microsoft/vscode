@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createRequire } from 'node:module';
+import { createRequire } from 'module';
 import { FileAccess, nodeModulesAsarPath, nodeModulesPath } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
 
