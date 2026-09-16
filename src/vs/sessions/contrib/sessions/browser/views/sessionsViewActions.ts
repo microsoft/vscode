@@ -27,7 +27,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSe
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
+import { SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -839,14 +839,6 @@ registerAction2(class PinSessionAction extends Action2 {
 			title: localize2('pinSession', "Pin"),
 			icon: Codicon.pin,
 			menu: [{
-				id: SessionItemToolbarMenuId,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-				),
-			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
@@ -877,14 +869,6 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			title: localize2('unpinSession', "Unpin"),
 			icon: Codicon.pinned,
 			menu: [{
-				id: SessionItemToolbarMenuId,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
-					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-				),
-			}, {
 				id: SessionItemContextMenuId,
 				group: '0_pin',
 				order: 0,
@@ -946,9 +930,9 @@ abstract class BaseArchiveSessionAction extends Action2 {
 			title: action.title,
 			icon: action.icon,
 			menu: [{
-				id: SessionItemToolbarMenuId,
+				id: Menus.SessionItemToolbar,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.AutomationsHistoryItem,
@@ -1000,7 +984,7 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 			title: action.title,
 			icon: action.icon,
 			menu: [{
-				id: SessionItemToolbarMenuId,
+				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),

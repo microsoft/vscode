@@ -87,6 +87,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
 			const nudgeHelp = content.split('\n').find(line => line.includes('suggestion may appear'));
+			const sessionListHelp = content.split('\n').find(line => line.startsWith('For sessions that support multiple chats'));
 
 			assert.deepStrictEqual({
 				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
@@ -95,7 +96,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
 				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
-			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false, onboarding: true });
+				sessionListHelp,
+			}, {
+				controls: true,
+				cleanupSettings: true,
+				escape: true,
+				focus: true,
+				close: false,
+				onboarding: true,
+				sessionListHelp: `For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before ${action}. Open the session's context menu to pin or unpin it.`,
+			});
 		});
 	}
 

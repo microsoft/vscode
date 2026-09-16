@@ -188,20 +188,6 @@
 		}
 	}
 
-	/* Pinned but not hovered/focused: show only the unpin action */
-	.monaco-list-row:not(:hover):not(.focused) .session-item.pinned:not(.archive-onboarding) {
-		.session-title-toolbar {
-			display: block;
-
-			.action-item:not(:last-child) {
-				display: none;
-			}
-		}
-
-		.session-title {
-			margin-right: 8px;
-		}
-	}
 }
 
 /* Session Item */
