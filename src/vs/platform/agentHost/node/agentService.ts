@@ -503,6 +503,14 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providerDiscoveryRegistrations = new Map<AgentProvider, Promise<void>>();
 	private readonly _deferredProviderMigrations = new Set<AgentProvider>();
 	private readonly _readableProviderCatalogs = new Set<AgentProvider>();
+	/**
+	 * In-memory mirror of the durable provisional markers. Listing consults it
+	 * synchronously: the phase ordering there drives provider catalog migration,
+	 * so an extra read would change when migration passes run. An unloaded
+	 * mirror is empty, which surfaces sessions rather than hiding them.
+	 */
+	private readonly _provisionalSessionKeys = new Set<string>();
+	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
 
 	/**
 	 * Backing-session URIs suppressed until `sessions_v2` acknowledges their
@@ -640,6 +648,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
+		void this._whenProvisionalSessionKeysLoaded();
 		this._stateManager = core.stateManager;
 		this._configurationService = core.configurationService;
 		this._recentLocalSessionUpdateSnapshot = this._readRecentLocalSessionUpdates();
@@ -1595,6 +1604,71 @@ export class AgentService extends Disposable implements IAgentService {
 			...sessionMetadata,
 			_meta: withSessionExternal(sessionMetadata._meta, external),
 		};
+	}
+
+	/**
+	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
+	 * once. Started at construction so listing can read the mirror synchronously;
+	 * a read failure leaves the mirror empty, surfacing sessions rather than
+	 * hiding them.
+	 */
+	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
+		return this._provisionalSessionKeysLoaded ??= (async () => {
+			try {
+				for (const session of await this._sessionRegistry.listProvisional()) {
+					this._provisionalSessionKeys.add(session);
+				}
+			} catch (err) {
+				this._logService.warn('[AgentService] Failed to read provisional session markers', err);
+			}
+		})();
+	}
+
+	/** Records a session's provisional state durably and in the mirror listing reads. */
+	private async _setSessionProvisional(session: URI, provisional: boolean): Promise<void> {
+		await this._sessionRegistry.setProvisional(session, provisional);
+		if (provisional) {
+			this._provisionalSessionKeys.add(session.toString());
+		} else {
+			this._provisionalSessionKeys.delete(session.toString());
+		}
+	}
+
+	/**
+	 * Drops sessions that are still marked provisional and whose provider cannot
+	 * describe them: their registration points at a backing that was never
+	 * created, so no later run can resolve them (#321269). Both conditions are
+	 * required — a provisional session the provider vouches for did materialize
+	 * (its marker simply never cleared) and keeps its real content visible.
+	 */
+	private async _withoutUnmaterializedProvisionalSessions(sessions: readonly IAgentSessionMetadata[], registered: readonly IRegisteredSession[]): Promise<readonly IAgentSessionMetadata[]> {
+		if (sessions.length === 0 || this._provisionalSessionKeys.size === 0) {
+			return sessions;
+		}
+		const registeredByKey = new Map(registered.map(entry => [entry.session.toString(), entry]));
+		const unmaterialized = new Set<string>();
+		await Promise.all(sessions.map(async metadata => {
+			const key = metadata.session.toString();
+			const entry = this._provisionalSessionKeys.has(key) ? registeredByKey.get(key) : undefined;
+			if (!entry) {
+				return;
+			}
+			const agent = this._providerService.getProvider(entry.provider);
+			if (!agent) {
+				return;
+			}
+			try {
+				if (!await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
+					unmaterialized.add(key);
+				}
+			} catch (err) {
+				// An erroring provider is not evidence that the backing is missing.
+				this._logService.warn(`[AgentService] listSessions: failed to confirm provisional session ${key}`, err);
+			}
+		}));
+		return unmaterialized.size === 0
+			? sessions
+			: sessions.filter(metadata => !unmaterialized.has(metadata.session.toString()));
 	}
 
 	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession): Promise<ILegacyRegisteredSessionMetadata | undefined> {
@@ -3128,6 +3202,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}, 0);
 		}
 		const result = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
+		// Skipped without awaiting when no session is provisional: the phases above
+		// drive provider catalog migration, so an unconditional await here would
+		// change when those passes run.
+		const materialized = this._provisionalSessionKeys.size === 0
+			? result
+			: await this._withoutUnmaterializedProvisionalSessions(result, registered);
 
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
@@ -3139,7 +3219,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// surfaced here so a fresh `listSessions` call returns the same values
 		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
-		const withStatus = result.map(s => {
+		const withStatus = materialized.map(s => {
 			const liveSummary = this._stateManager.getSessionSummary(s.session.toString());
 			const metadata = liveSummary
 				? this._withLiveSessionMetadata(s, liveSummary, false, !this._stateManager.getSurfacedSessionSummary(s.session.toString()))
@@ -3831,7 +3911,17 @@ export class AgentService extends Disposable implements IAgentService {
 					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
 					`registration for ${session.toString()}`,
 				);
-				if (!isIdleProvisional) {
+				// The provider deferred this session's backing, so nothing exists on
+				// its side until the first send. Record that durably: the in-memory
+				// `isIdleProvisionalSession` guard reports `false` for an untracked
+				// session, so after a crash it stops hiding this registration and the
+				// session surfaces as a row that can never be described (#321269).
+				if (isIdleProvisional) {
+					await this._retryRegistryMutation(
+						() => this._setSessionProvisional(session, true),
+						`provisional marking for ${session.toString()}`,
+					);
+				} else {
 					this._invalidateSessionList();
 				}
 			} catch (err) {
@@ -4860,6 +4950,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// Persist the AH-owned workspace-less marker now that the session has a
 		// real on-disk database (deferred from create for provisional sessions).
 		this._queueCatalogSync(session, this._creationMetadataOverrides(state._meta));
+		// The provider now has a real backing for this session, so it is no longer
+		// provisional. Clearing is retried but still best-effort: a clear that never
+		// lands leaves the marker set, which is why suppression additionally
+		// requires that the provider cannot describe the session — a materialized
+		// session it can describe is never hidden by a stale marker.
+		void this._retryRegistryMutation(
+			() => this._setSessionProvisional(session, false),
+			`provisional clearing for ${sessionKey}`,
+		).catch(err => this._logService.error(err, `[AgentService] Failed to clear the provisional marker for ${sessionKey}`));
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
@@ -5238,6 +5337,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sideEffects.removeSubagentSessions(session.toString());
 			this._stateManager.deleteSession(session.toString());
 			this._externalReconciliationModifiedAt.delete(sessionKey);
+			// The durable marker is dropped with the registration itself; keep the
+			// mirror listing reads in step with it.
+			this._provisionalSessionKeys.delete(sessionKey);
 			if (isEphemeral) {
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.clearTombstone(session),
@@ -6667,6 +6769,14 @@ export class AgentService extends Disposable implements IAgentService {
 			// concluding the session is unknown.
 			const knownToRegistry = sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr);
 			if (!meta) {
+				// A session still marked provisional never materialized, so its
+				// provider never created a backing for it to describe. That absence
+				// is authoritative however the catalog fared: unlike a provider that
+				// is merely unavailable, waiting cannot make this session resolvable.
+				await this._whenProvisionalSessionKeysLoaded();
+				if (this._provisionalSessionKeys.has(sessionStr)) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was never created on the backend: ${sessionStr}`);
+				}
 				// Authoritative absence only when the catalog was readable this run and
 				// the registry has no record of the session; a miss for a known
 				// (registered) session, or while the catalog was unavailable, is

@@ -269,6 +269,21 @@ export class AgentSessionRegistry extends Disposable {
 		await this._database.setSessionAgentMergeEnabled(session.toString(), enabled);
 	}
 
+	/**
+	 * Records whether `session` is registered but not yet materialized. A
+	 * provisional session has no provider-side backing yet, so a crash before
+	 * materialization leaves a registration pointing at a backing that was never
+	 * created; the marker is what lets a later run recognise that (#321269).
+	 */
+	async setProvisional(session: URI, provisional: boolean): Promise<void> {
+		await this._database.setSessionProvisional(session.toString(), provisional);
+	}
+
+	/** Session keys still marked provisional, read in one pass for listing. */
+	async listProvisional(): Promise<ReadonlySet<string>> {
+		return new Set(await this._database.listProvisionalSessions());
+	}
+
 	/** Session URIs the index marks Agent-Merge-enabled, without opening any session database. */
 	async listAgentMergeEnabled(): Promise<readonly URI[]> {
 		const sessions = await this._database.listAgentMergeEnabledSessions();
