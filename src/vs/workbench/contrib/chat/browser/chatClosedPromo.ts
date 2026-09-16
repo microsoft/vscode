@@ -95,10 +95,10 @@ export class ChatClosedPromoContribution extends Disposable implements IWorkbenc
 
 		// Branch as additional closed-Chat treatments are added.
 		if (treatment === ChatClosedPromoNotification.CopilotIconPopup) {
-			if (this.activePromoId !== opportunity.promoId) {
-				this.activePromoId = opportunity.promoId;
-				this.popup.show(opportunity.model);
-			}
+			this.activePromoId = opportunity.promoId;
+			// Always push the current model so title/subtitle/model updates refresh the armed card;
+			// ChatPromoIconPopup no-ops when the rendered payload is unchanged.
+			this.popup.show(opportunity.model);
 			return;
 		}
 
