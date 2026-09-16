@@ -20,6 +20,23 @@ import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessi
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('describes restoring filtered pull requests from another pill context menu', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const pillHelp = provider.provideContent().split('\n').find(line => line.includes('Pull Requests Options'));
+
+		assert.deepStrictEqual({
+			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
+			filterRecovery: pillHelp?.includes('any other pill\'s context menu or the toolbar context menu'),
+		}, { keyboard: true, filterRecovery: true });
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -70,6 +87,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
 			const nudgeHelp = content.split('\n').find(line => line.includes('suggestion may appear'));
+			const sessionListHelp = content.split('\n').find(line => line.startsWith('For sessions that support multiple chats'));
 
 			assert.deepStrictEqual({
 				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
@@ -78,7 +96,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
 				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
-			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false, onboarding: true });
+				sessionListHelp,
+			}, {
+				controls: true,
+				cleanupSettings: true,
+				escape: true,
+				focus: true,
+				close: false,
+				onboarding: true,
+				sessionListHelp: `For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before ${action}. Open the session's context menu to pin or unpin it.`,
+			});
 		});
 	}
 

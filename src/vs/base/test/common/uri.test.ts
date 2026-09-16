@@ -90,6 +90,58 @@ suite('URI', () => {
 		assert.strictEqual(uri2.fragment, uri3.fragment);
 	});
 
+	test('toString, minimal encoding preserves delimiter boundaries and unchanged runs', () => {
+		const suffix = 'segment/'.repeat(32);
+		const cases = [
+			['', ''],
+			['a', 'a'],
+			['plain/path', 'plain/path'],
+			['?', '%3F'],
+			['#', '%23'],
+			['?#', '%3F%23'],
+			['#?', '%23%3F'],
+			['??##', '%3F%3F%23%23'],
+			['?tail', '%3Ftail'],
+			['#tail', '%23tail'],
+			['head?', 'head%3F'],
+			['head#', 'head%23'],
+			['before?between#after', 'before%3Fbetween%23after'],
+			['before#between?after', 'before%23between%3Fafter'],
+			['before??##after', 'before%3F%3F%23%23after'],
+			['%23/%3F?raw#', '%23/%3F%3Fraw%23'],
+			['\u00e9/\ud83d\udc31?\u7d42#', '\u00e9/\ud83d\udc31%3F\u7d42%23'],
+			['\ud800x?\udc00y#\ud800', '\ud800x%3F\udc00y%23\ud800'],
+			[`prefix?${suffix}#tail`, `prefix%3F${suffix}%23tail`],
+		] as const;
+
+		assert.deepStrictEqual(
+			cases.map(([path]) => [path, URI.from({ scheme: 'test', path }).toString(true)]),
+			cases.map(([path, expected]) => [path, `test:${expected}`]),
+		);
+	});
+
+	test('toString, minimal component encoding is independent of normal serialization caching', () => {
+		const components = {
+			scheme: 'foo',
+			authority: 'us?er:pa#ss@EXAMPLE.com:8080',
+			path: '/path#before?after',
+			query: 'query#part?more',
+			fragment: 'fragment?#'
+		};
+		const minimalFirst = URI.from(components);
+		const normalFirst = URI.from(components);
+		const minimal = 'foo://us%3Fer:pa%23ss@example.com:8080/path%23before%3Fafter?query%23part%3Fmore#fragment?#';
+		const normal = 'foo://us%3Fer:pa%23ss@example.com:8080/path%23before%3Fafter?query%23part%3Fmore#fragment%3F%23';
+
+		assert.deepStrictEqual([
+			[minimalFirst.toString(true), minimalFirst.toString(), minimalFirst.toString(true)],
+			[normalFirst.toString(), normalFirst.toString(true), normalFirst.toString()],
+		], [
+			[minimal, normal, minimal],
+			[normal, minimal, normal],
+		]);
+	});
+
 	test('with, identity', () => {
 		const uri = URI.parse('foo:bar/path');
 

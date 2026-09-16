@@ -69,6 +69,35 @@ npm run watch
 
 ## Troubleshooting
 
+### Dev Container sessions over SSH and Tunnels
+
+The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. Remote-container suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.
+
+Each selected Dev Container suite checks Docker in its first setup hook, before starting fixture resources, with a fresh `docker info` probe and a 60-second timeout. The probe runs asynchronously and logs its elapsed time and failure reason. Filtered-out suites do not probe Docker. Missing Docker fails the suite on Linux and for an explicitly requested Tunnel test; optional local runs on other platforms are skipped.
+
+Run the local and SSH Dev Container cases:
+
+```bash
+npm run smoketest -- --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
+```
+
+The Tunnel suite uses a real private, agent-host-only Dev Tunnel. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
+
+```bash
+export VSCODE_SMOKE_TEST_TUNNEL_TOKEN="$(gh auth token)"
+export VSCODE_SMOKE_TEST_TUNNEL_CLI="/path/to/code-tunnel-insiders"
+npm run smoketest -- --tracing -g 'Agents Window \(Tunnel Dev Container AgentHost\)'
+unset VSCODE_SMOKE_TEST_TUNNEL_TOKEN
+```
+
+Do not use the repository-scoped GitHub Actions token as a substitute for a user token. A requested Tunnel test fails on invalid credentials or missing prerequisites rather than silently skipping. The CLI must already have accepted server-license consent, or the operator must explicitly set `VSCODE_SMOKE_TEST_TUNNEL_ACCEPT_SERVER_LICENSE_TERMS=1` to indicate agreement.
+
+Both remote suites drive host connection, remote folder selection, **Use Dev Container**, prompt submission, the rendered response, and reopening the session through the UI. Model requests use the local mock LLM server, not paid models. They also verify that container startup uses the selected SSH/Tunnel connection and that the turn travels over the nested Dev Container transport.
+
+Source runs launch the compiled standalone Agent Host with the checkout's matching Electron runtime. Packaged runs launch the shipped `bootstrap-fork.js` / `agentHostMain` entrypoint with IPC, the build's NLS messages, and authenticated WebSocket configuration; they do not require the development-only standalone entrypoint. Since Code OSS does not configure tunnel authentication scopes, the Tunnel fixture creates a private source-app snapshot with only the required test product metadata; it never changes the checkout's product files. Packaged Tunnel runs require the supplied build's tunnel authentication configuration.
+
+Fixtures isolate their source Agent Host, credentials, endpoint registry, and CLI state, and remove their containers and temporary tunnels during teardown. Failures retain the existing smoke-runner diagnostics and redacted remote-host logs under `.build/logs/smoke-tests-electron/`. Do not run two Electron smoke runners concurrently in the same checkout: the runner shares its top-level output and test-data directories.
+
 ### Error: Could not get a unique tmp filename, max tries reached
 
 On Windows, check for the folder `C:\Users\<username>\AppData\Local\Temp\t`. If this folder exists, the `tmp` module can't run properly, resulting in the error above. In this case, delete the `t` folder.

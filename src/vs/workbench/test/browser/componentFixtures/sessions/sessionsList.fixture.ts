@@ -56,7 +56,7 @@ import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFol
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -175,6 +175,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly capabilities = constObservable({ canRename: true, canDelete: true });
 	}();
 }
 
@@ -219,7 +220,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0 });
+		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0, supportsRename: true });
 	}();
 }
 
@@ -235,6 +236,8 @@ interface IRenderOptions {
 	readonly sessions: readonly ISessionSpec[];
 	readonly groups?: readonly ISessionGroup[];
 	readonly grouping?: SessionsGrouping;
+	readonly compact?: boolean;
+	readonly rename?: 'session' | 'chat';
 	readonly collapsed?: boolean;
 	readonly showUnreadInCollapsedSections?: boolean;
 	readonly reducedMotion?: boolean;
@@ -410,7 +413,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			override createMenu(id: MenuId): IMenu {
 				return {
 					onDidChange: Event.None,
-					getActions: () => id === SessionItemToolbarMenuId ? [['navigation', [archiveAction]]] : [],
+					getActions: () => id === Menus.SessionItemToolbar ? [['navigation', [archiveAction]]] : [],
 					dispose: () => { },
 				};
 			}
@@ -490,10 +493,27 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
+		compact: () => options.compact ?? false,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.rename === 'session') {
+		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
+		if (!titleRow) {
+			throw new Error('Expected a session title row to support inline rename.');
+		}
+		titleRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	} else if (options.rename === 'chat') {
+		const chatTitle = listHost.querySelector<HTMLElement>('.session-chat-title');
+		if (!chatTitle) {
+			throw new Error('Expected a nested chat title to support inline rename.');
+		}
+		chatTitle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	}
+	if (options.rename && !listHost.querySelector('.session-inline-rename-input input')) {
+		throw new Error('Expected the title-area double-click to start inline rename.');
+	}
 	if (options.collapsed) {
 		list.collapseAllSections();
 	}
@@ -615,6 +635,21 @@ const COLLAPSED_CI_FAILURE_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'grouped-failing-ci', title: 'CI failure in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, hasFailingCI: true },
 	{ id: 'workspace-failing-ci', title: 'CI failure in the workspace', workspace: 'vscode-docs', minutesAgo: 60, hasFailingCI: true },
 ];
+const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'terminal-confirmation',
+		title: 'Terminal confirmation UX ideas',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		chats: [{ id: 'peer', title: 'hi' }],
+	},
+	{
+		id: 'folder-worktree',
+		title: 'Folder vs Worktree sessions',
+		workspace: 'vscode',
+		minutesAgo: 8,
+	},
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
@@ -628,6 +663,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
+	}),
+	SessionsList_Compact: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_CompactSessionRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon and row actions, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'session', showFocusedToolbar: true, width: 340 }),
+	}),
+	SessionsList_CompactChatRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The nested chat row is being renamed inline. Its input text and border are vertically centered with the compact chat status icon, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'chat', width: 340 }),
 	}),
 	SessionsList_CollapsedUnreadSections: defineComponentFixture({
 		labels: { kind: 'screenshot' },

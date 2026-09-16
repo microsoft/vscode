@@ -194,6 +194,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override readonly lastFocusedWidget = undefined;
 				override readonly onDidAddWidget = Event.None;
+				override readonly onDidRemoveWidget = Event.None;
 				override readonly onDidBackgroundSession = Event.None;
 				override readonly onDidChangeFocusedWidget = Event.None;
 				override readonly onDidChangeFocusedSession = Event.None;
@@ -442,13 +443,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
 	const fixtureWidget = new class extends mock<IChatWidget>() {
-		override readonly onDidChangeViewModel = new Emitter<never>().event;
+		override readonly onDidChangeViewModel = disposableStore.add(new Emitter<never>()).event;
 		override readonly viewModel = viewModel;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
 		override readonly input = inputPart;
 		override readonly inputPart = inputPart;
+		override focusInput(): void { inputPart.focus(); }
+		override reveal(...args: Parameters<IChatWidget['reveal']>): void { listWidget.reveal(...args); }
 	}();
 	widgetHolder.current = fixtureWidget;
 

@@ -13,6 +13,7 @@ export class CopilotAgentStartupConfig {
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
 		readonly hydraFusion: boolean,
+		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
 		readonly enterpriseHost: string | undefined,
 		readonly systemProxy: boolean,

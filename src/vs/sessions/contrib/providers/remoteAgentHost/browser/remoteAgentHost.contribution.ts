@@ -117,13 +117,15 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
-	readonly authRecovery = new AgentHostAuthenticationRecovery();
+	readonly authRecovery: AgentHostAuthenticationRecovery;
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
 	}
 }
 

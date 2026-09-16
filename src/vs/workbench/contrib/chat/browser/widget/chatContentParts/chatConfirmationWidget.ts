@@ -323,10 +323,17 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private _buttonsDomNode: HTMLElement;
-	private _buttons: { readonly label: string; readonly widget: IButton }[] = [];
+	private _buttons: { readonly data: IChatConfirmationButton<T>; readonly widget: IButton }[] = [];
 
 	setShowButtons(showButton: boolean): void {
 		this.domNode.classList.toggle('hideButtons', !showButton);
+	}
+
+	runPrimaryAction(): void {
+		const primary = this._buttons[0];
+		if (primary?.widget.enabled) {
+			this._onDidClick.fire({ button: primary.data, isTouchClick: false });
+		}
 	}
 
 	private readonly messageElement: HTMLElement;
@@ -466,7 +473,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			}
 
 			this._register(button);
-			this._buttons.push({ label: buttonData.label, widget: button });
+			this._buttons.push({ data: buttonData, widget: button });
 			button.label = buttonData.label;
 			this._register(button.onDidClick(event => this._onDidClick.fire({ button: buttonData, isTouchClick: !!event && event.type === TouchEventType.Tap })));
 			if (buttonData.onDidChangeDisablement) {
@@ -474,7 +481,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			}
 		}
 
-		const buttonToFocus = focusedButton && this._buttons.find(button => button.label === focusedButton.label)?.widget;
+		const buttonToFocus = focusedButton && this._buttons.find(button => button.data.label === focusedButton.data.label)?.widget;
 		if (focusedDropdown && buttonToFocus instanceof ButtonWithDropdown) {
 			buttonToFocus.dropdownButton.focus();
 		} else {
@@ -497,7 +504,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				this._context.codeBlockStartIndex,
 				this.markdownRendererService,
 				undefined,
-				this._context.currentWidth.get(),
+				() => this._context.currentWidth.get(),
 				{
 					allowInlineDiffs: true,
 					horizontalPadding: 6,
