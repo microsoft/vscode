@@ -102,7 +102,7 @@ suite('Sessions list context menus', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -156,9 +156,9 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
-	test('comparison groups and participants hide membership mutation actions', () => {
+	test('comparison groups and participants hide membership mutation actions but allow idle deletion', async () => {
 		const session = createSession('Attempt').session;
-		const { container, contextMenuService } = createList(true, true, SessionsGrouping.Date, [session], true);
+		const { container, contextMenuService, deletedGroupIds } = createList(true, true, SessionsGrouping.Date, [session], true);
 		const sessionRow = container.querySelector<HTMLElement>('.session-item');
 		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
 		assert.ok(sessionRow);
@@ -168,17 +168,34 @@ suite('Sessions list context menus', () => {
 		const sessionActions = snapshotActions(contextMenuService.delegate!.getActions());
 		contextMenuService.delegate!.onHide?.(false);
 		dispatchContextMenu(groupHeader);
-		const groupActions = snapshotActions(contextMenuService.delegate!.getActions());
+		const groupMenuActions = contextMenuService.delegate!.getActions();
+		const groupActions = snapshotActions(groupMenuActions);
+		await groupMenuActions.at(-1)?.run();
 
-		assert.deepStrictEqual({ sessionActions, groupActions }, {
+		assert.deepStrictEqual({ sessionActions, groupActions, deletedGroupIds }, {
 			sessionActions: {
 				ids: ['extension.action'],
 				disposableIds: [],
 			},
 			groupActions: {
-				ids: ['sessions.createGroup'],
+				ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.deleteGroupAction'],
 				disposableIds: [],
 			},
+			deletedGroupIds: [group.id],
+		});
+	});
+
+	test('running comparison groups expose Stop instead of Delete Group', () => {
+		const session = createTestSession('Attempt', { status: SessionStatus.InProgress }).session;
+		const { container, contextMenuService } = createList(true, false, SessionsGrouping.Date, [session], true);
+		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
+		assert.ok(groupHeader);
+
+		dispatchContextMenu(groupHeader);
+
+		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
+			ids: ['sessions.createGroup'],
+			disposableIds: [],
 		});
 	});
 

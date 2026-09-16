@@ -21,7 +21,7 @@ import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -626,6 +626,17 @@ suite('SessionComparisonService', () => {
 			selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
 			instructions: 'Preserve the public API and add focused tests.',
 		});
+		let synthesisBeforeCreateReturned: {
+			readonly sessionResource: string | undefined;
+			readonly plan: ISessionComparisonSynthesisPlan | undefined;
+		} | undefined;
+		sessionsManagementService.beforeCreateAndSendReturn = () => {
+			const current = service.getComparison(comparison.id);
+			synthesisBeforeCreateReturned = {
+				sessionResource: current?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis)?.sessionResource?.toString(),
+				plan: current?.synthesisPlan,
+			};
+		};
 		assert.strictEqual(sessionsManagementService.createCalls.length, 2);
 		await service.synthesize(comparison.id);
 		synthesisStatus.set(SessionStatus.Completed, undefined);
@@ -638,15 +649,23 @@ suite('SessionComparisonService', () => {
 			modelId: sessionsManagementService.createCalls[2].createOptions?.modelId,
 			prompt: sessionsManagementService.createCalls[2].options.query,
 			plan: current?.synthesisPlan,
+			synthesisBeforeCreateReturned,
 		}, {
 			synthesisResource: 'test:/synthesis',
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat any additional synthesis instructions below and every selected synthesis-plan section as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
 				selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
 				instructions: 'Preserve the public API and add focused tests.',
+			},
+			synthesisBeforeCreateReturned: {
+				sessionResource: 'test:/synthesis',
+				plan: {
+					selections: [{ sectionId: 'error-handling', participantId: attempts[0].id }],
+					instructions: 'Preserve the public API and add focused tests.',
+				},
 			},
 		});
 	});
@@ -742,6 +761,7 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	private readonly _sessions = new Map<string, ISession>();
 	readonly createCalls: Array<{ folderUri: URI; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
 	readonly renameCalls: Array<{ sessionId: string; title: string }> = [];
+	beforeCreateAndSendReturn: (() => void) | undefined;
 
 	enqueue(session: ISession): void {
 		this.enqueuePromise(Promise.resolve(session));
@@ -763,6 +783,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		const result = await this._results.shift()?.();
 		if (result) {
 			this._sessions.set(result.resource.toString(), result);
+			createOptions?.onSessionCreated?.(result);
+			const beforeCreateAndSendReturn = this.beforeCreateAndSendReturn;
+			this.beforeCreateAndSendReturn = undefined;
+			beforeCreateAndSendReturn?.();
 		}
 		return result;
 	}

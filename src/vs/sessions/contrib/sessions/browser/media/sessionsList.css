@@ -397,6 +397,10 @@
 			.codicon {
 				font-size: var(--vscode-codiconFontSize-compact);
 			}
+
+			&[hidden] {
+				display: none;
+			}
 		}
 	}
 
@@ -1154,7 +1158,8 @@
 		gap: var(--vscode-spacing-size40);
 	}
 
-	.session-comparison-stop-all.monaco-button {
+	.session-comparison-stop-all.monaco-button,
+	.session-comparison-delete-group.monaco-button {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -1166,6 +1171,10 @@
 
 		.codicon {
 			font-size: var(--vscode-codiconFontSize-compact);
+		}
+
+		&[hidden] {
+			display: none;
 		}
 	}
 }

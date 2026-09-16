@@ -424,7 +424,7 @@ suite('Sessions - Comparison Result', () => {
 			singleDecisionCustomSynthesis: {
 				action: false,
 				panel: false,
-				recommended: false,
+				recommended: true,
 			},
 			layoutNotified: true,
 			panelHiddenBefore: true,

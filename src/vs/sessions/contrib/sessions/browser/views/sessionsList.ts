@@ -702,7 +702,7 @@ class SessionItemActionRunner extends ActionRunner {
 const SESSION_TITLE_SHIMMER_ANIMATION_NAME = 'session-title-shimmer';
 const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set([SESSION_TITLE_SHIMMER_ANIMATION_NAME]);
 const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
-const comparisonStopButtonStyles = {
+const comparisonDestructiveButtonStyles = {
 	...defaultButtonStyles,
 	buttonSecondaryBackground: 'transparent',
 	buttonSecondaryForeground: asCssVariable(errorForeground),
@@ -874,7 +874,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		const comparisonParticipantStop = disposables.add(new Button(comparisonAttemptStatus, {
-			...comparisonStopButtonStyles,
+			...comparisonDestructiveButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
@@ -1742,6 +1742,7 @@ interface ISessionGroupTemplate extends ISessionHeaderTemplate {
 	readonly inputContainer: HTMLElement;
 	readonly chevron: HTMLElement;
 	readonly comparisonStopAll: Button;
+	readonly comparisonDeleteGroup: Button;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 }
@@ -1771,6 +1772,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly sessionGroupsService: ISessionGroupsService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -1787,7 +1789,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const inputContainer = DOM.append(container, $('.session-group-input'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 		const comparisonStopAll = disposables.add(new Button(toolbarContainer, {
-			...comparisonStopButtonStyles,
+			...comparisonDestructiveButtonStyles,
 			secondary: true,
 			supportIcons: true,
 			title: false,
@@ -1805,6 +1807,25 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			disposables.add(DOM.addDisposableListener(comparisonStopAll.element, eventType, event => event.stopPropagation()));
 		}
 		disposables.add(Gesture.ignoreTarget(comparisonStopAll.element));
+		const comparisonDeleteGroup = disposables.add(new Button(toolbarContainer, {
+			...comparisonDestructiveButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: false,
+			ariaLabel: localize('comparisonDeleteGroup', "Delete Group"),
+		}));
+		comparisonDeleteGroup.element.classList.add('session-comparison-delete-group');
+		comparisonDeleteGroup.label = '$(trash)';
+		comparisonDeleteGroup.element.hidden = true;
+		disposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			comparisonDeleteGroup.element,
+			localize('comparisonDeleteGroup', "Delete Group"),
+		));
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(comparisonDeleteGroup.element, eventType, event => event.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(comparisonDeleteGroup.element));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -1812,7 +1833,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, description, inputContainer, toolbarContainer, toolbar, chevron, comparisonStopAll, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, icon, collapsed: observableValue(this, false), label, description, inputContainer, toolbarContainer, toolbar, chevron, comparisonStopAll, comparisonDeleteGroup, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -1824,6 +1845,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		delete template.comparisonStopAll.element.dataset.pending;
 		template.comparisonStopAll.enabled = true;
 		template.comparisonStopAll.element.hidden = true;
+		template.comparisonDeleteGroup.element.hidden = true;
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.group.id, template);
@@ -1845,6 +1867,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				}
 				template.comparisonStopAll.element.hidden = runningSessions.length === 0;
 				template.comparisonStopAll.enabled = runningSessions.length > 0 && template.comparisonStopAll.element.dataset.pending !== 'true';
+				template.comparisonDeleteGroup.element.hidden = runningSessions.length > 0;
 			}));
 			template.elementDisposables.add(template.comparisonStopAll.onDidClick(async () => {
 				const runningSessions = element.sessions.filter(session => isSessionInProgress(session, undefined));
@@ -1866,6 +1889,12 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 					template.comparisonStopAll.enabled = true;
 					onUnexpectedError(failures[0].reason);
 				}
+			}));
+			template.elementDisposables.add(template.comparisonDeleteGroup.onDidClick(() => {
+				if (element.sessions.some(session => isSessionInProgress(session, undefined))) {
+					return;
+				}
+				this.sessionGroupsService.deleteGroup(element.group.id);
 			}));
 		} else {
 			template.description.textContent = '';
@@ -2973,7 +3002,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.tree.toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService, hoverService, this._sessionsManagementService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService, hoverService, this._sessionsManagementService, this._sessionGroupsService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -4460,6 +4489,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	private getDeleteGroupAction(groupItem: ISessionGroupItem): IAction {
+		return toAction({
+			id: 'sessions.deleteGroupAction',
+			label: localize('deleteGroupAction', "Delete Group"),
+			run: () => this._sessionGroupsService.deleteGroup(groupItem.group.id),
+		});
+	}
+
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
 		if (this.options.grouping() === SessionsGrouping.Workspace && !groupItem.isEmpty) {
@@ -4477,12 +4514,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 					label: localize('renameGroupAction', "Rename..."),
 					run: () => this.beginRenameGroup(groupItem.group.id),
 				}),
-				toAction({
-					id: 'sessions.deleteGroupAction',
-					label: localize('deleteGroupAction', "Delete Group"),
-					run: () => this._sessionGroupsService.deleteGroup(groupItem.group.id),
-				}),
+				this.getDeleteGroupAction(groupItem),
 			);
+		} else if (!groupItem.sessions.some(session => isSessionInProgress(session, undefined))) {
+			actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
 		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,

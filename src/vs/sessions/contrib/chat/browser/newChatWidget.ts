@@ -963,7 +963,7 @@ export class NewChatWidget extends Disposable {
 		return this._compareAgentsEnabled.get()
 			&& this._workspacePicker.selectedFolderUri !== undefined
 			&& !!session
-			&& getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, this._workspacePicker.selectedFolderUri) === true
+			&& getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, this._workspacePicker.selectedFolderUri) !== false
 			&& (providerTransitionPending
 				|| (!!provider
 					&& isAgentHostProvider(provider)

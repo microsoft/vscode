@@ -185,7 +185,7 @@ export class SessionComparisonResult extends Disposable {
 			}));
 			synthesize.label = localize('sessionComparisonResult.synthesisStarted', "Synthesis Started");
 			synthesize.enabled = false;
-		} else if (decisionCount !== 1) {
+		} else {
 			const instructions = this.renderSynthesisInstructions(comparison);
 			const customizeInstructions = this.renderStore.add(new Action(
 				'sessionComparison.additionalSynthesisInstructions',

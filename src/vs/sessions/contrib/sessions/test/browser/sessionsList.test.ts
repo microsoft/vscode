@@ -2136,11 +2136,13 @@ suite('Sessions - SessionsList', () => {
 			await Promise.resolve();
 			assert.deepStrictEqual(harness.managementService.cancelled.map(session => session.sessionId), ['attempt-1']);
 
+			stopButtons[0]?.focus();
 			attempt1.status.set(SessionStatus.Completed, undefined);
 			assert.deepStrictEqual({
 				statuses: attempts.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
 				ariaLabels: attempts.map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-label')),
 				stopHidden: stopButtons.map(button => button?.hidden),
+				completedStopDisplay: mainWindow.getComputedStyle(stopButtons[0]!).display,
 			}, {
 				statuses: [undefined, ''],
 				ariaLabels: [
@@ -2148,6 +2150,7 @@ suite('Sessions - SessionsList', () => {
 					'Codex · GPT-5, updated now, State: In Progress',
 				],
 				stopHidden: [true, false],
+				completedStopDisplay: 'none',
 			});
 			attempt2.status.set(SessionStatus.Completed, undefined);
 			assert.deepStrictEqual({
@@ -2169,11 +2172,13 @@ suite('Sessions - SessionsList', () => {
 				hidden: stopAll.hidden,
 				color: stopAll.style.color,
 				computedColor: mainWindow.getComputedStyle(stopAll).color,
+				deleteGroupHidden: container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-delete-group')?.hidden,
 			}, {
 				ariaLabel: 'Stop All',
 				hidden: false,
 				color: 'var(--vscode-errorForeground)',
 				computedColor: 'rgb(255, 0, 0)',
+				deleteGroupHidden: true,
 			});
 
 			stopAll.click();
@@ -2182,16 +2187,26 @@ suite('Sessions - SessionsList', () => {
 			attempt2.status.set(SessionStatus.Completed, undefined);
 			judge.status.set(SessionStatus.Completed, undefined);
 			synthesis.status.set(SessionStatus.Completed, undefined);
+			const deleteGroup = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-delete-group');
 
 			assert.deepStrictEqual({
 				cancelled: harness.managementService.cancelled.map(session => session.sessionId).sort(),
 				stopAllHidden: stopAll.hidden,
+				stopAllDisplay: mainWindow.getComputedStyle(stopAll).display,
 				participantStopsHidden: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => button.hidden),
+				participantStopDisplays: [...container.querySelectorAll<HTMLButtonElement>('.session-comparison-participant-stop')].map(button => mainWindow.getComputedStyle(button).display),
+				deleteGroupHidden: deleteGroup?.hidden,
 			}, {
 				cancelled: ['attempt-2', 'judge', 'synthesis'],
 				stopAllHidden: true,
+				stopAllDisplay: 'none',
 				participantStopsHidden: [true, true, true, true],
+				participantStopDisplays: ['none', 'none', 'none', 'none'],
+				deleteGroupHidden: false,
 			});
+
+			deleteGroup?.click();
+			assert.deepStrictEqual(harness.deletedGroupIds, [group.id]);
 		});
 
 		test('opens from the parent and reserves disclosure for the chevron', () => {
