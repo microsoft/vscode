@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './share.css';
+import './selectionShareChip.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
