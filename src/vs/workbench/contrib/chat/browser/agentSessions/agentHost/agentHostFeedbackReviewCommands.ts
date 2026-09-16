@@ -148,12 +148,14 @@ class AgentHostFeedbackReviewOperations extends Disposable {
 		// Peer-chat fragments resolve to the owning session's shared annotations.
 		const channel = buildAnnotationsUri(resolved.backendSession.toString());
 		const ref = resolved.connection.getSubscription(StateComponents.Annotations, URI.parse(channel), AgentHostFeedbackReviewCommands.ID);
+		const cancellation = new CancellationTokenSource(this._cancellation.token);
 		try {
 			const subscription = ref.object;
 			const value = observableFromEvent(this, Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => subscription.value);
-			const state = await waitForState(value, (state): state is AnnotationsState => !!state && !(state instanceof Error), state => state instanceof Error ? state : undefined, this._cancellation.token);
+			const state = await waitForState(value, (state): state is AnnotationsState => !!state && !(state instanceof Error), state => state instanceof Error ? state : undefined, cancellation.token);
 			return await run(state, resolved.connection, channel);
 		} finally {
+			cancellation.dispose(true);
 			ref.dispose();
 		}
 	}

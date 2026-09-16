@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -48,6 +49,8 @@ suite('ChatAgentFeedbackReviewConfirmation', () => {
 
 	test('a command failure is not presented as no unreviewed comments', async () => {
 		const result = new DeferredPromise<IChatAgentFeedbackReviewComment[]>();
+		const aria = document.createElement('div');
+		setARIAContainer(aria);
 		const part = createPart(result.p);
 		await result.error(new Error('command not found'));
 		await Promise.resolve();
@@ -55,6 +58,7 @@ suite('ChatAgentFeedbackReviewConfirmation', () => {
 			failed: part.domNode.textContent?.includes('Could not load review comments.'),
 			empty: part.domNode.textContent?.includes('No unreviewed comments.'),
 		}, { failed: true, empty: false });
+		assert.strictEqual(aria.querySelector('[role=alert]')?.textContent, 'Could not load review comments. Cancel this request and try again.');
 	});
 
 	test('a successful empty result remains distinguishable from a failure', async () => {
@@ -70,11 +74,14 @@ suite('ChatAgentFeedbackReviewConfirmation', () => {
 
 	test('a late failure does not update a disposed confirmation', async () => {
 		const result = new DeferredPromise<IChatAgentFeedbackReviewComment[]>();
+		const aria = document.createElement('div');
+		setARIAContainer(aria);
 		const part = createPart(result.p);
 		part.dispose();
 		const before = part.domNode.textContent;
 		await result.error(new Error('disconnected'));
 		await Promise.resolve();
 		assert.strictEqual(part.domNode.textContent, before);
+		assert.strictEqual(aria.textContent, '');
 	});
 });

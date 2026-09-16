@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -146,6 +148,34 @@ suite('AgentHostFeedbackReviewCommands', () => {
 		fixture.fail(new Error('remote failed'));
 		await assert.rejects(pending, /remote failed/);
 		assert.strictEqual(fixture.references, 0);
+	});
+
+	test('completed commands release their parent cancellation listeners before contribution disposal', async () => {
+		const fixture = setup({ annotations: [] });
+		await fixture.run(AgentFeedbackReviewCommandId.GetComments);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect the lifetime token without adding a public test-only API.
+		const token = fixture.contribution['_commands'].value!['_cancellation'].token;
+		const subscribe = token.onCancellationRequested;
+		let listeners = 0;
+		const event: typeof subscribe = (listener, thisArgs, disposables) => {
+			const subscription = subscribe(listener, thisArgs, disposables);
+			listeners++;
+			return toDisposable(() => {
+				listeners--;
+				subscription.dispose();
+			});
+		};
+		const replacement = stub(token, 'onCancellationRequested').get(() => event);
+		try {
+			for (let i = 0; i < 3; i++) {
+				await fixture.run(AgentFeedbackReviewCommandId.GetComments);
+			}
+			fixture.fail(new Error('load failed'));
+			await assert.rejects(fixture.run(AgentFeedbackReviewCommandId.GetComments), /load failed/);
+			assert.strictEqual(listeners, 0);
+		} finally {
+			replacement.restore();
+		}
 	});
 
 	test('cancels pending hydration on disposal', async () => {
