@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { shouldDismissNextUserMessageSuggestion } from '../../browser/nextUserMessageSuggestion.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID, shouldDismissNextUserMessageSuggestion } from '../../browser/nextUserMessageSuggestion.js';
 import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt, truncateSuggestionContext } from '../../common/nextUserMessageSuggestion.js';
 
 suite('Sessions - Next User Message Suggestion', () => {
@@ -27,6 +30,26 @@ suite('Sessions - Next User Message Suggestion', () => {
 			shouldDismissNextUserMessageSuggestion('editor.action.inlineSuggest.hide', false),
 			shouldDismissNextUserMessageSuggestion('other.command', true),
 		], [true, false, false]);
+	});
+
+	test('accepts with Right Arrow while Tab keeps its editor behavior', () => {
+		const keybindings = KeybindingsRegistry.getDefaultKeybindings();
+		const accept = keybindings.find(keybinding => keybinding.command === ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID);
+		const tab = keybindings.find(keybinding => keybinding.command === 'tab' && keybinding.when?.serialize().includes('sessionsNextUserMessageSuggestionVisible'));
+		const acceptChord = accept?.keybinding?.chords[0];
+		const tabChord = tab?.keybinding?.chords[0];
+
+		assert.deepStrictEqual({
+			acceptKey: acceptChord instanceof KeyCodeChord ? acceptChord.keyCode : undefined,
+			acceptIsScoped: accept?.when?.serialize().includes('sessionsNextUserMessageSuggestionVisible'),
+			tabKey: tabChord instanceof KeyCodeChord ? tabChord.keyCode : undefined,
+			tabIsScoped: tab?.when?.serialize().includes('sessionsNextUserMessageSuggestionVisible'),
+		}, {
+			acceptKey: KeyCode.RightArrow,
+			acceptIsScoped: true,
+			tabKey: KeyCode.Tab,
+			tabIsScoped: true,
+		});
 	});
 
 	test('builds a prompt from bounded untrusted fields', () => {

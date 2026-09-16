@@ -197,11 +197,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 	}
 
-<<<<<<< HEAD
 	if (combinedModePermissionsPicker) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
-=======
+	}
+
 	if (nextStepSuggestion) {
 		const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
 		disposableStore.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, {
@@ -213,7 +213,6 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			}),
 			disposeInlineCompletions: () => { },
 		}));
->>>>>>> fce5886818b (Add next user message suggestions)
 	}
 
 	container.style.width = `${width}px`;
