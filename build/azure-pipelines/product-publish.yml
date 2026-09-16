@@ -120,7 +120,7 @@ jobs:
           AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
         displayName: Get publish auth tokens
 
-      - pwsh: node build/azure-pipelines/common/publish.ts
+      - pwsh: node build/azure-pipelines/common/publish.ts --process-artifacts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
           PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
@@ -130,6 +130,11 @@ jobs:
           RELEASE_REQUEST_SIGNING_CERT: "$(esrp-sign)"
         displayName: Process artifacts
         retryCountOnTaskFailure: 3
+
+      - pwsh: node build/azure-pipelines/common/publish.ts --validate-producer-stages
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Validate producer stages
 
       - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
         - script: node build/azure-pipelines/common/releaseBuild.ts

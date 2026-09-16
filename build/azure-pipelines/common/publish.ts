@@ -11,6 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
+import { processArtifacts, ProducerStageError, validateProducerStages, type Timeline } from './artifactProcessing.ts';
 import { CosmosClient } from '@azure/cosmos';
 import cp from 'child_process';
 import os from 'os';
@@ -636,15 +637,6 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
-interface Timeline {
-	readonly records: {
-		readonly name: string;
-		readonly type: string;
-		readonly state: string;
-		readonly result: string;
-	}[];
-}
-
 async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
 }
@@ -950,24 +942,16 @@ async function processArtifact(
 	log(`Successfully released lease for: ${friendlyFileName}`);
 }
 
-// It is VERY important that we don't download artifacts too much too fast from AZDO.
-// AZDO throttles us SEVERELY if we do. Not just that, but they also close open
-// sockets, so the whole things turns to a grinding halt. So, downloading and extracting
-// happens serially in the main thread, making the downloads are spaced out
-// properly. For each extracted artifact, we spawn a worker thread to upload it to
-// the CDN and finally update the build in Cosmos DB.
-async function main() {
+async function main(args: string[]) {
 	if (!isMainThread) {
 		const { artifact, artifactFilePath } = workerData;
 		await processArtifact(artifact, artifactFilePath);
 		return;
 	}
 
-	const done = new State();
-	const processing = new Set<string>();
-
-	for (const name of done) {
-		console.log(`\u2705 ${name}`);
+	const [mode] = args;
+	if (args.length > 1 || (mode && mode !== '--process-artifacts' && mode !== '--validate-producer-stages')) {
+		throw new Error('Usage: node publish.ts [--process-artifacts | --validate-producer-stages]');
 	}
 
 	const stages = new Set<string>(['Quality']);
@@ -978,33 +962,25 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
-	let timeline: Timeline;
-	let artifacts: Artifact[];
-	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
-	const operations: { name: string; operation: Promise<void> }[] = [];
+	if (mode === '--validate-producer-stages') {
+		validateProducerStages(await retry(() => getPipelineTimeline()), stages);
+		console.log('All producer stages succeeded.');
+		return;
+	}
 
-	while (true) {
-		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
-		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
-		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
-		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+	const done = new State();
+	for (const name of done) {
+		console.log(`\u2705 ${name}`);
+	}
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
-			break;
-		} else if (stagesInProgress.length > 0) {
-			console.log('Stages in progress:', stagesInProgress.join(', '));
-		} else if (artifactsInProgress.length > 0) {
-			console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
-		} else {
-			console.log(`Waiting for a total of ${artifacts.length}, ${done.size} done, ${processing.size} in progress...`);
-		}
-
-		for (const artifact of artifacts) {
-			if (done.has(artifact.name) || processing.has(artifact.name)) {
-				continue;
-			}
-
-			console.log(`[${artifact.name}] Found new artifact`);
+	const timeline = await processArtifacts<Artifact>({
+		stages,
+		done,
+		getState: async () => {
+			const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+			return { timeline, artifacts };
+		},
+		prepareArtifact: async artifact => {
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
@@ -1019,10 +995,10 @@ async function main() {
 			});
 
 			const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
-			const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
-
-			processing.add(artifact.name);
-			const promise = new Promise<void>((resolve, reject) => {
+			return artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
+		},
+		publishArtifact: (artifact, artifactFilePath) => {
+			return new Promise<void>((resolve, reject) => {
 				const worker = new Worker(import.meta.filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
@@ -1033,67 +1009,30 @@ async function main() {
 					}
 				});
 			});
+		},
+		wait: () => new Promise(resolve => setTimeout(resolve, 10_000)),
+		log: message => console.log(message),
+		logError: (message, error) => console.error(message, error),
+	});
 
-			const operation = promise.then(() => {
-				processing.delete(artifact.name);
-				done.add(artifact.name);
-				console.log(`\u2705 ${artifact.name} `);
-			});
-
-			operations.push({ name: artifact.name, operation });
-			resultPromise = Promise.allSettled(operations.map(o => o.operation));
-		}
-
-		await new Promise(c => setTimeout(c, 10_000));
+	console.log(`Finished processing ${done.size} discovered artifacts.`);
+	if (mode !== '--process-artifacts') {
+		validateProducerStages(timeline, stages);
+		console.log('All producer stages succeeded.');
 	}
-
-	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
-
-	const artifactsInProgress = operations.filter(o => processing.has(o.name));
-
-	if (artifactsInProgress.length > 0) {
-		console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
-	}
-
-	const results = await resultPromise;
-
-	for (let i = 0; i < operations.length; i++) {
-		const result = results[i];
-
-		if (result.status === 'rejected') {
-			console.error(`[${operations[i].name}]`, result.reason);
-		}
-	}
-
-	// Fail the job if any of the artifacts failed to publish
-	if (results.some(r => r.status === 'rejected')) {
-		throw new Error('Some artifacts failed to publish');
-	}
-
-	// Also fail the job if any of the stages did not succeed
-	let shouldFail = false;
-
-	for (const stage of stages) {
-		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
-
-		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
-			shouldFail = true;
-			console.error(`Stage ${stage} did not succeed: ${record.result}`);
-		}
-	}
-
-	if (shouldFail) {
-		throw new Error('Some stages did not succeed');
-	}
-
-	console.log(`All ${done.size} artifacts published!`);
 }
 
 if (import.meta.main) {
-	main().then(() => {
-		process.exit(0);
+	main(process.argv.slice(2)).then(() => {
+		if (!isMainThread) {
+			process.exit(0);
+		}
 	}, err => {
 		console.error(err);
-		process.exit(1);
+		if (isMainThread && err instanceof ProducerStageError) {
+			process.exitCode = 1;
+		} else {
+			process.exit(1);
+		}
 	});
 }
