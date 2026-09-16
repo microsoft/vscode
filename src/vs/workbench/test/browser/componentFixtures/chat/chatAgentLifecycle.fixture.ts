@@ -56,6 +56,7 @@ interface Scenario {
 	readonly openChild?: boolean;
 	readonly narrow?: boolean;
 	readonly confirmations?: boolean;
+	readonly sectionTail?: 'subagents' | 'thinking' | 'tool';
 }
 
 interface Child {
@@ -96,6 +97,9 @@ const scenarios: Record<string, Scenario> = {
 	BackgroundFailureNotification: { phase: 'failed', description: 'A failed background task stops running and its failure notice appears in a new system-initiated turn. The original child pill is retained.' },
 	NestedBackgroundRunning: { phase: 'nested', description: 'A direct child finishes while its nested background worker continues. The containing root card must not be folded into completed steps.' },
 	ParallelBackgroundAgents: { phase: 'parallel', description: 'Two background workers are active with different tasks. A third is queued and does not reserve an earlier empty slot.' },
+	CompletedSectionBeforeSubagents: { phase: 'parallel', sectionTail: 'subagents', description: 'Four subagents remain working after the parent finishes its section. Their pills are the last visible content, so there is no redundant Working shimmer below them.' },
+	CompletedThinkingAfterSubagents: { phase: 'parallel', sectionTail: 'thinking', description: 'The parent finishes a thinking section after four subagent pills. Thinking is no longer active, and the ordinary Working shimmer appears below the intervening content.' },
+	CompletedAgentReadAfterSubagents: { phase: 'parallel', sectionTail: 'tool', description: 'A completed Read agent row displays a canonical agent name (the label is supplied by the agent host, not resolved here). Its tool section finishes, and ordinary Working shimmer remains because the last visible content is not a subagent pill.' },
 	UnknownModel: { phase: 'running', model: 'unknown', description: 'The child is known to be running, but its model is not known yet. Do not invent a model name.' },
 	LateModelDiscovery: { phase: 'running', model: 'late', description: 'The worker starts without model metadata. Show Model publishes its identity while it is still running; the existing pill must update without waiting for completion.' },
 	MatchingParentModel: { phase: 'running', model: 'same', description: 'The child and parent have the same canonical model. The redundant inline model label is hidden.' },
@@ -111,7 +115,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	const { container, disposableStore } = context;
 	const width = scenario.narrow ? 380 : 760;
 	const isFollowUp = scenario.phase === 'followUp' || scenario.phase === 'resumedFollowUp' || scenario.phase === 'notified';
-	const height = scenario.confirmations ? 620 : scenario.latestTurnOnly ? 280 : isFollowUp ? 760 : 500;
+	const height = scenario.sectionTail ? 640 : scenario.confirmations ? 620 : scenario.latestTurnOnly ? 280 : isFollowUp ? 760 : 500;
 	container.style.width = `${width}px`;
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -381,6 +385,9 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 		markdown(current, 'The background review finished. Reviewing the results.');
 	};
 	markdown(root, 'Delegating a read-only fixture review. The main agent can keep working independently.');
+	if (scenario.sectionTail) {
+		publish(root, [{ kind: 'thinking', id: 'parent-delegating', value: 'Delegating the reviews' }]);
+	}
 
 	let first: Child | undefined;
 	if (scenario.phase === 'peerChat' || scenario.phase === 'independentSession') {
@@ -422,7 +429,12 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 			if (scenario.phase === 'parallel') {
 				const second = await launch('history-review', 'Review restored history');
 				start(second);
-				await launch('queued-review', 'Queued accessibility review');
+				if (scenario.sectionTail) {
+					start(await launch('runtime-review', 'Review runtime lifecycle'));
+					start(await launch('accessibility-review', 'Review keyboard accessibility'));
+				} else {
+					await launch('queued-review', 'Queued accessibility review');
+				}
 			}
 			if (scenario.phase === 'nested') {
 				const nested = await launch('nested-review', 'Review nested background work', first.invocation.toolCallId);
@@ -458,6 +470,21 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 				markdown(current, scenario.phase === 'failed' ? 'The delegated review failed. I will inspect the error before retrying.' : 'The delegated review finished. I will inspect its results.');
 			}
 		}
+	}
+
+	if (scenario.sectionTail) {
+		if (scenario.sectionTail === 'thinking') {
+			publish(current, [{ kind: 'thinking', id: 'parent-assessing', value: 'Assessing final output steps' }]);
+		} else if (scenario.sectionTail === 'tool') {
+			const read = new ChatToolInvocation(
+				{ invocationMessage: new MarkdownString('Read agent `catalog-perf`') },
+				{ id: 'read_agent', displayName: 'Read Agent', modelDescription: 'Read agent results', source: ToolDataSource.Internal },
+				'read-catalog-perf', undefined, { agent_id: '37241a58-7d95-4763-a3fb-2494dcfcf540', wait: false },
+			);
+			publish(current, [read]);
+			await read.didExecuteTool(undefined);
+		}
+		publish(current, [{ kind: 'thinking', value: '' }]);
 	}
 
 	const settle = () => timeout(scenario.confirmations ? 100 : 1200);
@@ -651,7 +678,7 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 		revealLatest();
 	}
 	const rootLaunches = root.response?.response.value.filter(part => (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent' && !part.subAgentInvocationId) ?? [];
-	const expectedLaunches = scenario.phase === 'queued' || scenario.phase === 'peerChat' || scenario.phase === 'independentSession' ? 0 : scenario.phase === 'parallel' || scenario.confirmations ? 2 : 1;
+	const expectedLaunches = scenario.sectionTail ? 4 : scenario.phase === 'queued' || scenario.phase === 'peerChat' || scenario.phase === 'independentSession' ? 0 : scenario.phase === 'parallel' || scenario.confirmations ? 2 : 1;
 	if (rootLaunches.length !== expectedLaunches) {
 		throw new Error(`${name}: expected ${expectedLaunches} published child launches, got ${rootLaunches.length}`);
 	}
@@ -692,6 +719,15 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	}
 	if (scenario.confirmations && preview.querySelector('.chat-subagent-pill-widget')) {
 		throw new Error(`${name}: approval scenario must start with the original agent response virtualized away`);
+	}
+	if (scenario.sectionTail) {
+		const shimmer = preview.querySelector('.chat-most-recent-response .shimmer-progress')?.textContent;
+		if (shimmer !== (scenario.sectionTail === 'subagents' ? undefined : 'Working') || preview.querySelector('.chat-thinking-active:not(.chat-subagent-part)')) {
+			throw new Error(`${name}: finished sections must leave Working shimmer only after non-subagent content`);
+		}
+		if (preview.querySelectorAll('.chat-subagent-pill-widget').length !== 4 || [...children.values()].some(child => !child.data.isActive)) {
+			throw new Error(`${name}: all four subagent pills must remain visible and active`);
+		}
 	}
 	if (scenario.openChild && first) {
 		const openPill = pill?.querySelector<HTMLElement>('.chat-subagent-pill-content');

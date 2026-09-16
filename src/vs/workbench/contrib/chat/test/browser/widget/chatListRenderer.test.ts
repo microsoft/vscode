@@ -2039,6 +2039,110 @@ suite('ChatListRenderer', () => {
 		);
 	}
 
+	function installSubagentPillRenderer(instantiationService: ReturnType<typeof workbenchInstantiationService>): void {
+		const openAction = instantiationService.createInstance(MenuItemAction, { id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' }, undefined, undefined, undefined, undefined);
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override getMenuActions(id: MenuId): [string, MenuItemAction[]][] {
+				return id === MenuId.ChatSubagentContent ? [['navigation', [openAction]]] : [];
+			}
+		}());
+		instantiationService.stub(IActionViewItemService, new class extends NullActionViewItemService {
+			override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+				return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
+					? (action, options, instantiationService) => instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, false)
+					: undefined;
+			}
+		}());
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
+	}
+
+	suite('section completion and working progress', () => {
+		for (const tail of ['subagents', 'completedSubagent', 'markdown', 'tool', 'runningTool', 'thinking']) {
+			test(`finishes sections and shows shimmer only after non-subagent content (${tail})`, async () => {
+				const context = createBackgroundSubagentRenderer();
+				installSubagentPillRenderer(context.instantiationService);
+				context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.Collapsed);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'delegating', value: 'Delegating the reviews' });
+				const agents: ChatToolInvocation[] = [];
+				for (let i = 0; i < 4; i++) {
+					const agent = createSubagentTool(`agent-${i}`, {
+						kind: 'subagent', description: `Review ${i}`, hasStarted: true, isActive: true, isChatAvailable: true,
+						chatResource: `ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/agent-${i}`,
+					});
+					context.model.acceptResponseProgress(context.request, agent);
+					await agent.didExecuteTool(undefined);
+					agents.push(agent);
+				}
+				const trailingAgent = agents[3].toolSpecificData;
+				if (tail === 'completedSubagent' && trailingAgent?.kind === 'subagent') {
+					trailingAgent.isActive = false;
+					agents[3].notifyToolSpecificDataChanged();
+				} else if (tail === 'markdown') {
+					context.model.acceptResponseProgress(context.request, { kind: 'markdownContent', content: new MarkdownString('The parent checked the local changes.') });
+				} else if (tail === 'tool' || tail === 'runningTool') {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: 'Read agent `catalog-perf`' },
+						{ id: 'read_agent', displayName: 'Read Agent', modelDescription: 'Read agent results', source: ToolDataSource.Internal },
+						'read-agent', undefined, {},
+					);
+					context.model.acceptResponseProgress(context.request, tool);
+					if (tail === 'tool') {
+						await tool.didExecuteTool(undefined);
+					}
+				} else if (tail === 'thinking') {
+					context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'assessing', value: 'Assessing final output steps' });
+				}
+				context.render();
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', value: '' });
+				context.render();
+
+				assert.deepStrictEqual({
+					shimmer: context.template.value.querySelector('.shimmer-progress')?.textContent,
+					pills: context.template.value.querySelectorAll('.chat-subagent-pill-widget').length,
+					thinkingActive: context.template.renderedParts?.some(part => part instanceof ChatThinkingContentPart && part.getIsActive()),
+					subagentsActive: context.template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).map(part => part.getIsActive()),
+					parentComplete: context.request.response!.isComplete,
+				}, {
+					shimmer: tail === 'subagents' || tail === 'runningTool' ? undefined : 'Working',
+					pills: 4,
+					thinkingActive: false,
+					subagentsActive: tail === 'completedSubagent' ? [true, true, true, false] : [true, true, true, true],
+					parentComplete: false,
+				});
+			});
+		}
+
+		for (const ending of ['answer text', 'section marker']) {
+			test(`collapses an expanded thinking preview the same way when a section ends with ${ending}`, () => {
+				const context = createBackgroundSubagentRenderer();
+				context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
+				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
+				context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				context.model.acceptResponseProgress(context.request, { kind: 'thinking', id: 'assessing', value: 'Assessing final output steps' });
+				context.render();
+				const thinking = context.template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				assert.ok(thinking instanceof ChatThinkingContentPart);
+				thinking.expandContent();
+				const expandedBefore = thinking.expanded.get();
+				context.model.acceptResponseProgress(context.request, ending === 'answer text'
+					? { kind: 'markdownContent', content: new MarkdownString('Answer text ends the section.') }
+					: { kind: 'thinking', value: '' });
+				context.render();
+				const expandedAfter = thinking.expanded.get();
+				const activeAfter = thinking.getIsActive();
+				context.request.response!.complete();
+				context.render();
+
+				assert.deepStrictEqual({ expandedBefore, expandedAfter, activeAfter }, { expandedBefore: true, expandedAfter: false, activeAfter: false });
+			});
+		}
+	});
+
 	suite('model-driven tool confirmations', () => {
 		function createConfirmationRenderer() {
 			const carousels = store.add(new DisposableMap<string, ChatToolConfirmationCarouselPart>());
@@ -2874,20 +2978,7 @@ suite('ChatListRenderer', () => {
 	for (const retainDisclosure of [false, true]) {
 		test(`preserves focused response controls when a background child changes the disclosure boundary (retainDisclosure=${retainDisclosure})`, async () => {
 			const { disposables, instantiationService, model, request, template, render } = createBackgroundSubagentRenderer();
-			const openAction = instantiationService.createInstance(MenuItemAction, { id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, title: 'Open Subagent' }, undefined, undefined, undefined, undefined);
-			instantiationService.stub(IMenuService, new class extends TestMenuService {
-				override getMenuActions(id: MenuId): [string, MenuItemAction[]][] {
-					return id === MenuId.ChatSubagentContent ? [['navigation', [openAction]]] : [];
-				}
-			}());
-			instantiationService.stub(IActionViewItemService, new class extends NullActionViewItemService {
-				override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
-					return menu === MenuId.ChatSubagentContent && commandId === CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID
-						? (action, options, instantiationService) => instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, false)
-						: undefined;
-				}
-			}());
-			instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
+			installSubagentPillRenderer(instantiationService);
 			const data: IChatSubagentToolInvocationData = {
 				kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
 				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',

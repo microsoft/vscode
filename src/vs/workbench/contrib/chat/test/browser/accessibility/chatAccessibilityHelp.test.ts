@@ -23,6 +23,15 @@ suite('Chat Accessibility Help', () => {
 		}, { primaryAction: true, disabled: true, keybinding: true });
 	});
 
+	test('documents finished sections and subagent progress without duplicate shimmer', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			finished: help.includes('Finished thinking and tool-call sections stop showing activity'),
+			subagentTail: help.includes('omitted when subagent pills are the last visible content'),
+			parentTail: help.includes('appears after other content while the response remains in progress'),
+		}, { finished: true, subagentTail: true, parentTail: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

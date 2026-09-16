@@ -1989,15 +1989,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
+		// A trailing empty thinking marker ends the open thinking section, so the section's own
+		// activity indicators no longer stand in for the response-level progress.
+		const sectionFinished = isEmptyThinkingPart(workingParts.at(-1));
+		const hasIncompleteTool = workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part));
+
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-		if (lastThinking && !endsWithCompletedQuestion) {
+		if (lastThinking && !endsWithCompletedQuestion && !sectionFinished) {
 			return undefined;
 		}
 
 		// Never show working when the last part is a tool invocation that is attached to thinking,
 		// or *will be* attached to thinking during the upcoming render pass
-		if (lastPart && (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized')) {
+		if (lastPart && (lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && !sectionFinished) {
 			if (lastPart.isAttachedToThinking) {
 				return undefined;
 			}
@@ -2011,7 +2016,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
 		const hasEditPillMarkdown = workingParts.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
-		if (hasRenderedThinkingPart && hasEditPillMarkdown) {
+		if (hasRenderedThinkingPart && hasEditPillMarkdown && !sectionFinished) {
 			return undefined;
 		}
 
@@ -2020,10 +2025,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			lastPart.kind === 'references' ||
 			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || IChatToolInvocation.isEffectivelyHidden(lastPart))) ||
-			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
-			(lastPart.kind === 'externalEdit' && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
+			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !hasIncompleteTool) ||
+			(lastPart.kind === 'externalEdit' && !hasIncompleteTool) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			endsWithCompletedQuestion ||
+			(sectionFinished && !hasIncompleteTool) ||
 			lastPart.kind === 'mcpServersStarting' ||
 			lastPart.kind === 'mcpAuthenticationRequired' ||
 			lastPart.kind === 'mcpServersStartingSlow' ||
@@ -3771,25 +3777,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
-		if (!lastThinking) {
-			return;
+		if (lastThinking) {
+			this.finalizeThinkingPart(lastThinking, context);
 		}
+	}
+
+	/** Ends a thinking section the same way arriving answer text does. */
+	private finalizeThinkingPart(thinking: ChatThinkingContentPart, context: IChatContentPartRenderContext): void {
 		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
-			lastThinking.collapseContent();
+			thinking.collapseContent();
 		}
-		lastThinking.finalizeTitleIfDefault();
-		lastThinking.resetId();
-		lastThinking.markAsInactive();
+		thinking.finalizeTitleIfDefault();
+		thinking.resetId();
+		thinking.markAsInactive();
 	}
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
-			// if we get an empty thinking part, mark thinking as finished
-			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : content.value === '')) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				lastThinking?.resetId();
-				return this.renderNoContent(other => content.kind === other.kind);
+			if (isEmptyThinkingPart(content)) {
+				for (const part of templateData.renderedParts?.slice(0, context.contentIndex) ?? []) {
+					if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
+						this.finalizeThinkingPart(part, context);
+					}
+				}
+				return this.renderNoContent(other => isEmptyThinkingPart(other));
 			}
 
 			const isResponseElement = isResponseVM(context.element);
@@ -5163,7 +5175,8 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 }
 
 export function endsWithActiveSubagentContent(parts: readonly IChatRendererContent[]): boolean {
-	const lastPart = findLastMeaningfulPart(parts.filter(part => !isNestedSubagentContent(part)));
+	const lastPart = findLastMeaningfulPart(parts.filter(part => !isNestedSubagentContent(part)
+		&& !((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && IChatToolInvocation.isEffectivelyHidden(part))));
 	if (!lastPart || (lastPart.kind !== 'toolInvocation' && lastPart.kind !== 'toolInvocationSerialized')) {
 		return false;
 	}
@@ -5197,9 +5210,16 @@ export function isWaitingForMcpServers(parts: readonly IChatRendererContent[]): 
 	return parts.some(part => part.kind === 'mcpServersStartingSlow' && part.servers.get().length > 0);
 }
 
+function isEmptyThinkingPart(part: IChatRendererContent | undefined): boolean {
+	return part?.kind === 'thinking' && (part.value === '' || (Array.isArray(part.value) && part.value.length === 0));
+}
+
 function findLastMeaningfulPart(parts: readonly IChatRendererContent[]): IChatRendererContent | undefined {
 	for (let i = parts.length - 1; i >= 0; i--) {
 		const part = parts[i];
+		if (isEmptyThinkingPart(part)) {
+			continue;
+		}
 		if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
 			return part;
 		}
