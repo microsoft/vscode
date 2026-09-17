@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../../../platform/agentHost/common/customizationEnablement.js';
-import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, StateComponents, ToolCallContributorKind, type ChatState, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type ResponsePart, type StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { type IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { isAgentHostProvider, type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { type ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -21,7 +23,14 @@ export const enum SessionCustomizationSection {
 	McpServers = 'mcpServers',
 }
 
-export type SessionCustomizationStatus = 'loaded' | 'disabled' | 'loading' | 'degraded' | 'failed';
+export type SessionCustomizationStatus = 'used' | 'loaded' | 'disabled' | 'loading' | 'degraded' | 'failed';
+
+export interface ISessionCustomizationEvidence {
+	readonly chatResource: URI;
+	readonly chatTitle: string;
+	readonly turnId: string;
+	readonly kind: 'agent' | 'skill' | 'mcp';
+}
 
 export interface ISessionCustomizationItem {
 	readonly id: string;
@@ -34,6 +43,7 @@ export interface ISessionCustomizationItem {
 	readonly description: string | undefined;
 	readonly status: SessionCustomizationStatus;
 	readonly detail: string | undefined;
+	readonly evidence: readonly ISessionCustomizationEvidence[];
 }
 
 export interface ISessionCustomizationGroup {
@@ -62,6 +72,9 @@ export class SessionCustomizationsModel extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly providerListener = this._register(new MutableDisposable());
+	private readonly sessionChatsListener = this._register(new MutableDisposable());
+	private readonly chatSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly chatSubscriptionValues = new Map<string, IAgentSubscription<ChatState>>();
 	private session: ISession | undefined;
 	private provider: IAgentHostSessionsProvider | undefined;
 	private _state: ISessionCustomizationsState | undefined;
@@ -83,6 +96,9 @@ export class SessionCustomizationsModel extends Disposable {
 		this.session = session;
 		this.provider = undefined;
 		this.providerListener.clear();
+		this.sessionChatsListener.clear();
+		this.chatSubscriptions.clearAndDisposeAll();
+		this.chatSubscriptionValues.clear();
 
 		if (!session) {
 			this._state = undefined;
@@ -102,8 +118,48 @@ export class SessionCustomizationsModel extends Disposable {
 		}
 
 		this.provider = provider;
-		this.providerListener.value = provider.onDidChangeCustomizations(() => this.refresh());
-		this.refresh();
+		this.providerListener.value = provider.onDidChangeCustomizations(() => {
+			this.refreshChatSubscriptions();
+			this.refresh();
+		});
+		this.sessionChatsListener.value = autorun(reader => {
+			session.chats.read(reader);
+			this.refreshChatSubscriptions();
+			this.refresh();
+		});
+	}
+
+	private refreshChatSubscriptions(): void {
+		const session = this.session;
+		const provider = this.provider;
+		if (!session || !provider) {
+			return;
+		}
+		const source = provider.getCustomizationDiagnosticsSource(session.sessionId);
+		const resources = new Set(source?.chatResources.map(resource => resource.toString()) ?? []);
+		for (const key of this.chatSubscriptions.keys()) {
+			if (!resources.has(key)) {
+				this.chatSubscriptions.deleteAndDispose(key);
+				this.chatSubscriptionValues.delete(key);
+			}
+		}
+		if (!source) {
+			return;
+		}
+		for (const resource of source.chatResources) {
+			const key = resource.toString();
+			if (this.chatSubscriptions.has(key)) {
+				continue;
+			}
+			const store = new DisposableStore();
+			const reference = store.add(source.connection.getSubscription(StateComponents.Chat, resource, 'SessionCustomizationsModel'));
+			store.add(reference.object.onDidChange(() => this.refresh()));
+			if (reference.object.onDidError) {
+				store.add(reference.object.onDidError(() => this.refresh()));
+			}
+			this.chatSubscriptions.set(key, store);
+			this.chatSubscriptionValues.set(key, reference.object);
+		}
 	}
 
 	private refresh(): void {
@@ -115,9 +171,20 @@ export class SessionCustomizationsModel extends Disposable {
 		this._state = {
 			sessionResource: session.resource,
 			supported: true,
-			groups: groupCustomizations(provider.getCustomizations(session.sessionId)),
+			groups: groupCustomizations(provider.getCustomizations(session.sessionId), collectUsage(provider.getCustomizations(session.sessionId), this.getChatStates())),
 		};
 		this._onDidChange.fire();
+	}
+
+	private getChatStates(): readonly ChatState[] {
+		const states: ChatState[] = [];
+		for (const subscription of this.chatSubscriptionValues.values()) {
+			const state = subscription?.value;
+			if (state && !(state instanceof Error)) {
+				states.push(state);
+			}
+		}
+		return states;
 	}
 }
 
@@ -125,22 +192,23 @@ function createEmptyGroups(): ISessionCustomizationGroup[] {
 	return sectionOrder.map(section => ({ section, items: [] }));
 }
 
-function groupCustomizations(customizations: readonly Customization[]): ISessionCustomizationGroup[] {
+function groupCustomizations(customizations: readonly Customization[], usage: ReadonlyMap<string, readonly ISessionCustomizationEvidence[]>): ISessionCustomizationGroup[] {
 	const groups = new Map<SessionCustomizationSection, ISessionCustomizationItem[]>(
 		sectionOrder.map(section => [section, []])
 	);
 	for (const customization of customizations) {
 		if (customization.type === CustomizationType.Plugin) {
-			groups.get(SessionCustomizationSection.Plugins)?.push(toPluginItem(customization));
+			const childEvidence = (customization.children ?? []).flatMap(child => usage.get(child.id) ?? []);
+			groups.get(SessionCustomizationSection.Plugins)?.push(toPluginItem(customization, childEvidence));
 			for (const child of customization.children ?? []) {
-				groups.get(sectionForChild(child))?.push(toChildItem(child, customization));
+				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? []));
 			}
 		} else if (customization.type === CustomizationType.Directory) {
 			for (const child of customization.children ?? []) {
-				groups.get(sectionForChild(child))?.push(toChildItem(child, customization));
+				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? []));
 			}
 		} else {
-			groups.get(SessionCustomizationSection.McpServers)?.push(toMcpServerItem(customization));
+			groups.get(SessionCustomizationSection.McpServers)?.push(toMcpServerItem(customization, usage.get(customization.id) ?? []));
 		}
 	}
 	return sectionOrder.map(section => ({
@@ -149,7 +217,7 @@ function groupCustomizations(customizations: readonly Customization[]): ISession
 	}));
 }
 
-function toPluginItem(plugin: PluginCustomization): ISessionCustomizationItem {
+function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCustomizationEvidence[]): ISessionCustomizationItem {
 	const loadStatus = containerLoadStatus(plugin);
 	return {
 		id: plugin.id,
@@ -160,16 +228,17 @@ function toPluginItem(plugin: PluginCustomization): ISessionCustomizationItem {
 		parentName: undefined,
 		parentUri: undefined,
 		description: plugin.version ? `v${plugin.version}` : undefined,
-		status: isCustomizationEnabled(plugin) ? loadStatus.status : 'disabled',
+		status: isCustomizationEnabled(plugin) ? withUsageStatus(loadStatus.status, evidence) : 'disabled',
 		detail: loadStatus.detail,
+		evidence,
 	};
 }
 
-function toChildItem(child: ChildCustomization, parent: PluginCustomization | DirectoryCustomization): ISessionCustomizationItem {
+function toChildItem(child: ChildCustomization, parent: PluginCustomization | DirectoryCustomization, evidence: readonly ISessionCustomizationEvidence[]): ISessionCustomizationItem {
 	const parentEnabled = parent.type === CustomizationType.Plugin ? isCustomizationEnabled(parent) : parent.enabled;
 	const childEnabled = child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled !== false;
 	const loadStatus = containerLoadStatus(parent);
-	const status = !parentEnabled || !childEnabled ? 'disabled' : loadStatus.status;
+	const status = !parentEnabled || !childEnabled ? 'disabled' : withUsageStatus(loadStatus.status, evidence);
 	const detail = child.type === CustomizationType.McpServer ? mcpServerDetail(child) : loadStatus.detail;
 	return {
 		id: child.id,
@@ -182,10 +251,11 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 		description: readDescription(child),
 		status,
 		detail,
+		evidence,
 	};
 }
 
-function toMcpServerItem(server: McpServerCustomization): ISessionCustomizationItem {
+function toMcpServerItem(server: McpServerCustomization, evidence: readonly ISessionCustomizationEvidence[]): ISessionCustomizationItem {
 	return {
 		id: server.id,
 		section: SessionCustomizationSection.McpServers,
@@ -195,9 +265,14 @@ function toMcpServerItem(server: McpServerCustomization): ISessionCustomizationI
 		parentName: undefined,
 		parentUri: undefined,
 		description: undefined,
-		status: isCustomizationEnabled(server) ? mcpServerStatus(server) : 'disabled',
+		status: isCustomizationEnabled(server) ? withUsageStatus(mcpServerStatus(server), evidence) : 'disabled',
 		detail: mcpServerDetail(server),
+		evidence,
 	};
+}
+
+function withUsageStatus(status: SessionCustomizationStatus, evidence: readonly ISessionCustomizationEvidence[]): SessionCustomizationStatus {
+	return status === 'loaded' && evidence.length > 0 ? 'used' : status;
 }
 
 function sectionForChild(child: ChildCustomization): SessionCustomizationSection {
@@ -264,4 +339,74 @@ function readDescription(customization: ChildCustomization): string | undefined 
 		case CustomizationType.McpServer:
 			return undefined;
 	}
+}
+
+function collectUsage(customizations: readonly Customization[], chatStates: readonly ChatState[]): ReadonlyMap<string, readonly ISessionCustomizationEvidence[]> {
+	const byId = new Map<string, ISessionCustomizationEvidence[]>();
+	const customizationByUri = new Map<string, string>();
+	for (const customization of customizations) {
+		if (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory) {
+			for (const child of customization.children ?? []) {
+				customizationByUri.set(URI.parse(child.uri).toString(), child.id);
+			}
+		} else {
+			customizationByUri.set(URI.parse(customization.uri).toString(), customization.id);
+		}
+	}
+	const addEvidence = (id: string | undefined, evidence: ISessionCustomizationEvidence) => {
+		if (!id) {
+			return;
+		}
+		const current = byId.get(id) ?? [];
+		if (!current.some(candidate => candidate.chatResource.toString() === evidence.chatResource.toString() && candidate.turnId === evidence.turnId && candidate.kind === evidence.kind)) {
+			current.push(evidence);
+			byId.set(id, current);
+		}
+	};
+	for (const chatState of chatStates) {
+		for (const turn of [...chatState.turns, ...(chatState.activeTurn ? [chatState.activeTurn] : [])]) {
+			const baseEvidence = {
+				chatResource: URI.parse(chatState.resource.toString()),
+				chatTitle: chatState.title,
+				turnId: turn.id,
+			};
+			if (turn.message.agent) {
+				addEvidence(customizationByUri.get(URI.parse(turn.message.agent.uri.toString()).toString()), { ...baseEvidence, kind: 'agent' });
+			}
+			for (const part of turn.responseParts) {
+				collectResponsePartUsage(part, customizationByUri, baseEvidence, addEvidence);
+			}
+		}
+	}
+	return byId;
+}
+
+function collectResponsePartUsage(
+	part: ResponsePart,
+	customizationByUri: ReadonlyMap<string, string>,
+	evidence: Omit<ISessionCustomizationEvidence, 'kind'>,
+	addEvidence: (id: string | undefined, evidence: ISessionCustomizationEvidence) => void,
+): void {
+	if (part.kind !== ResponsePartKind.ToolCall) {
+		return;
+	}
+	if (part.toolCall.contributor?.kind === ToolCallContributorKind.MCP) {
+		addEvidence(part.toolCall.contributor.customizationId, { ...evidence, kind: 'mcp' });
+	}
+	if (part.toolCall.toolName !== 'skill') {
+		return;
+	}
+	const skillUri = readSkillUri(part.toolCall.invocationMessage);
+	if (skillUri) {
+		addEvidence(customizationByUri.get(skillUri.toString()), { ...evidence, kind: 'skill' });
+	}
+}
+
+function readSkillUri(message: StringOrMarkdown | undefined): URI | undefined {
+	const value = typeof message === 'string' ? message : message?.markdown;
+	const match = value ? /\]\((?<uri>[^)]+)\)/.exec(value) : undefined;
+	if (!match?.groups?.uri) {
+		return undefined;
+	}
+	return URI.parse(match.groups.uri);
 }

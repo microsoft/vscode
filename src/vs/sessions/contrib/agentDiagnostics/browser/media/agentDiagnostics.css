@@ -260,6 +260,11 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
+.agent-diagnostics-customization-status.used {
+	color: var(--vscode-list-activeSelectionForeground);
+	background: var(--vscode-list-activeSelectionBackground);
+}
+
 .agent-diagnostics-customization-status.disabled,
 .agent-diagnostics-customization-status.loading {
 	color: var(--vscode-descriptionForeground);
@@ -283,7 +288,8 @@
 }
 
 .agent-diagnostics-customization-description,
-.agent-diagnostics-customization-detail {
+.agent-diagnostics-customization-detail,
+.agent-diagnostics-customization-evidence {
 	margin-top: var(--vscode-spacing-size60);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);

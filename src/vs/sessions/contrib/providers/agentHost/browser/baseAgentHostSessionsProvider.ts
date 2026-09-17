@@ -4583,6 +4583,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.customizations ?? [];
 	}
 
+	getCustomizationDiagnosticsSource(sessionId: string): { readonly connection: IAgentConnection; readonly chatResources: readonly URI[] } | undefined {
+		const state = this._lastSessionStates.get(sessionId);
+		const connection = this.connection;
+		if (!state || !connection) {
+			return undefined;
+		}
+		return {
+			connection,
+			chatResources: state.chats.map(chat => URI.parse(chat.resource.toString())),
+		};
+	}
+
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.workingDirectories?.[0];

@@ -294,6 +294,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
+	 * Returns the connection and chat resources used to inspect retained
+	 * customization activity for a session.
+	 */
+	getCustomizationDiagnosticsSource(sessionId: string): { readonly connection: IAgentConnection; readonly chatResources: readonly URI[] } | undefined;
+
+	/**
 	 * Returns the working directory for the session, if provided by the host.
 	 */
 	getWorkingDirectory(sessionId: string): string | undefined;

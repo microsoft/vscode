@@ -168,6 +168,13 @@ export class SessionCustomizationsView extends Disposable {
 			const detail = DOM.append(row, DOM.$('.agent-diagnostics-customization-detail'));
 			detail.textContent = item.detail;
 		}
+		if (item.evidence.length > 0) {
+			const evidence = DOM.append(row, DOM.$('.agent-diagnostics-customization-evidence'));
+			const evidenceDetails = item.evidence.map(entry => `${entry.chatTitle} · ${entry.turnId}`).join(', ');
+			evidence.textContent = item.evidence.length === 1
+				? localize('agentDiagnostics.customizations.evidence.single', "Used in 1 chat turn: {0}", evidenceDetails)
+				: localize('agentDiagnostics.customizations.evidence.multiple', "Used in {0} chat turns: {1}", item.evidence.length, evidenceDetails);
+		}
 		row.setAttribute('aria-label', localize('agentDiagnostics.customizations.itemAriaLabel', "{0}, {1}", item.name, statusLabel(item.status)));
 	}
 }
@@ -191,6 +198,8 @@ function sectionLabel(section: SessionCustomizationSection): string {
 
 function statusLabel(status: SessionCustomizationStatus): string {
 	switch (status) {
+		case 'used':
+			return localize('agentDiagnostics.customizations.status.used', "Used");
 		case 'loaded':
 			return localize('agentDiagnostics.customizations.status.loaded', "Loaded");
 		case 'disabled':
