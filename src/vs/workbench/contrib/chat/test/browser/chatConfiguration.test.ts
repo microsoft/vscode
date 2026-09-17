@@ -35,10 +35,12 @@ suite('Chat configuration', () => {
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
 			tags: persistentProgressSetting.tags,
+			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
 			default: 'off',
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		});
 	});
 
@@ -55,9 +57,9 @@ suite('Chat configuration', () => {
 			settings: ['chat.experimental.persistentProgress'],
 			type: 'string',
 			default: 'off',
-			values: ['off', 'weave', 'orbit', 'accordion', 'dial'],
-			labels: ['Off', 'Weave', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
-			descriptions: 5,
+			values: ['off', 'weave', 'draw', 'orbit', 'accordion', 'dial'],
+			labels: ['Off', 'Weave', 'Draw', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
+			descriptions: 6,
 		});
 	});
 

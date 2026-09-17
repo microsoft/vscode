@@ -26,23 +26,27 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatQuestion, IChatService, IChatSystemNotificationPart } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolResultInputOutputDetails, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsConfirmationService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsConfirmationService.js';
+import { MockLanguageModelToolsService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { MockChatEditingSession } from '../../../../contrib/chat/test/common/mockChatEditingSession.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 import { IDetachedXTermOptions, ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
@@ -53,6 +57,9 @@ import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../
 import type { IChatRequestVariableEntry } from '../../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAutostartResult, IMcpService } from '../../../../contrib/mcp/common/mcpTypes.js';
 
+// Load the bundled xterm module before the fixture's virtual clock starts.
+// eslint-disable-next-line local/code-amd-node-module, local/code-import-patterns
+import { Terminal as RawTerminal } from '@xterm/xterm';
 // eslint-disable-next-line local/code-import-patterns
 import '@xterm/xterm/css/xterm.css';
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -75,12 +82,13 @@ export interface IFixtureMessage {
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
 		| { kind: 'thinking'; text: string; id?: string }
+		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post'; toolSpecificData?: IChatSimpleToolInvocationData; resultDetails?: IToolResultInputOutputDetails }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean }
-		| { kind: 'terminal'; command: string; output?: string }
+		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
@@ -149,8 +157,12 @@ export interface IChatWidgetFixtureOptions {
 	/** Product quality used to select Stable or Insiders product branding. */
 	readonly productQuality?: 'stable' | 'insider';
 	readonly thinkingStyle?: ThinkingDisplayMode;
+	readonly collapseCompletedResponses?: boolean;
+	readonly terminalToolsInThinking?: boolean;
+	readonly simpleTerminalCollapsible?: boolean;
 	readonly thinkingPhrases?: readonly string[];
 	readonly richSubagents?: boolean;
+	readonly editingSession?: IChatEditingSession;
 }
 
 export interface IChatWidgetFixtureHandle {
@@ -186,9 +198,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const widgetHolder: { current: IChatWidget | undefined } = { current: undefined };
 	const hasSubagents = options.messages.some(message => message.assistant?.some(part => part.kind === 'subagent'));
 	const hasTerminalOutput = options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
-	// The explorer bundles xterm; its AMD environment does not load workbench package scripts.
-	// eslint-disable-next-line local/code-amd-node-module
-	const rawTerminal = hasTerminalOutput ? (await import('@xterm/xterm')).Terminal : undefined;
 
 	const fixtureToolData: IToolData = {
 		id: 'fixture.terminalTool',
@@ -214,6 +223,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg);
+			if (options.messages.some(message => message.assistant?.some(part => part.kind === 'tool' && part.approval))) {
+				reg.defineInstance(ILanguageModelToolsService, context.disposableStore.add(new MockLanguageModelToolsService()));
+				reg.defineInstance(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+			}
 			if (hasSubagents) {
 				registerSubagentFixtureServices(reg);
 			}
@@ -238,10 +251,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			});
 			reg.definePartialInstance(ITerminalService, {
 				whenConnected: Promise.resolve(),
-				...(rawTerminal ? {
+				...(hasTerminalOutput ? {
 					createDetachedTerminal: async (options: IDetachedXTermOptions) => {
 						const font = { fontFamily: 'monospace', fontSize: 13, letterSpacing: 0, lineHeight: 1, charWidth: 8, charHeight: 16 };
-						const terminal = createFakeDetachedTerminal(rawTerminal, options, font);
+						const terminal = createFakeDetachedTerminal(RawTerminal, options, font);
 						terminal.raw.options.fontFamily = font.fontFamily;
 						terminal.raw.options.fontSize = font.fontSize;
 						terminal.instance.attachToElement = element => {
@@ -348,6 +361,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	if (options.thinkingStyle !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle);
 	}
+	if (options.collapseCompletedResponses !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, options.collapseCompletedResponses);
+	}
+	if (options.terminalToolsInThinking !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.TerminalToolsInThinking, options.terminalToolsInThinking);
+	}
+	if (options.simpleTerminalCollapsible !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.SimpleTerminalCollapsible, options.simpleTerminalCollapsible);
+	}
 	if (options.thinkingPhrases) {
 		configService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: options.thinkingPhrases });
 	}
@@ -370,12 +392,21 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
 		: undefined;
 	const chatService = instantiationService.get(IChatService) as MockChatService;
+	const editingSession = options.editingSession;
+	if (editingSession) {
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
+			override createEditingSession() { return editingSession; }
+		}());
+	}
 	const model = disposableStore.add(instantiationService.createInstance(
 		ChatModel,
 		undefined,
 		{ initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: sessionResource }
 	));
 	chatService.addSession(model);
+	if (editingSession) {
+		model.startEditingSession();
+	}
 
 	for (const message of options.messages) {
 		const request = model.addRequest(
@@ -415,6 +446,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'thinking') {
 				model.acceptResponseProgress(request, { kind: 'thinking', id: part.id ?? generateUuid(), value: part.text });
+			} else if (part.kind === 'externalEdit') {
+				model.acceptResponseProgress(request, part);
 			} else if (part.kind === 'systemNotification') {
 				model.acceptResponseProgress(request, part.notification);
 			} else if (part.kind === 'tool') {
@@ -422,18 +455,34 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					id: part.toolId,
 					displayName: part.displayName,
 					modelDescription: part.displayName,
-					source: ToolDataSource.Internal,
+					source: part.source ?? ToolDataSource.Internal,
 				};
 				const toolInvocation = part.streaming
 					? ChatToolInvocation.createStreaming({ toolData, toolId: part.toolId, toolCallId: generateUuid(), chatRequestId: request.id })
 					: new ChatToolInvocation({
 						invocationMessage: new MarkdownString(part.invocationMessage),
 						pastTenseMessage: new MarkdownString(part.pastTenseMessage ?? part.invocationMessage),
+						toolSpecificData: part.toolSpecificData,
 					}, toolData, generateUuid(), undefined, {}, {}, request.id);
 				if (part.streaming) {
 					toolInvocation.updateStreamingMessage(new MarkdownString(part.invocationMessage));
 				}
 				model.acceptResponseProgress(request, toolInvocation);
+				if (part.approval) {
+					toolInvocation.requestConfirmation({
+						confirmationMessages: { title: 'Approve tool call?', message: new MarkdownString(part.invocationMessage), confirmResults: part.approval === 'post' },
+					});
+					if (part.approval === 'post') {
+						const state = toolInvocation.state.get();
+						if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+							throw new Error('Post-approval fixture requires a confirmable tool');
+						}
+						state.confirm({ type: ToolConfirmKind.ConfirmationNotNeeded });
+						await toolInvocation.didExecuteTool({ content: [] });
+					}
+				} else if (part.complete) {
+					await toolInvocation.didExecuteTool(part.resultDetails ? { content: [], toolResultDetails: part.resultDetails } : undefined);
+				}
 			} else if (part.kind === 'questionCarousel') {
 				const carousel = new ChatQuestionCarouselData(part.questions, part.allowSkip ?? true, undefined, undefined, undefined, part.message);
 				model.acceptResponseProgress(request, carousel);
@@ -512,6 +561,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 							language: 'pwsh',
 							isPty: part.kind === 'terminal' && part.output ? false : undefined,
 							terminalCommandOutput: part.kind === 'terminal' && part.output ? { text: part.output } : undefined,
+							intention: part.kind === 'terminal' ? part.intention : undefined,
+							terminalCommandState: part.kind === 'terminal' && part.complete ? { exitCode: 0 } : undefined,
 							requestUnsandboxedExecution: confirmation?.requestUnsandboxedExecution,
 							requestUnsandboxedExecutionReason: confirmation?.requestUnsandboxedExecutionReason,
 							confirmation: confirmation?.confirmation,
@@ -523,6 +574,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					{ command: part.command },
 				);
 				model.acceptResponseProgress(request, toolInvocation);
+				if (part.kind === 'terminal' && part.complete) {
+					await toolInvocation.didExecuteTool({ content: [] });
+				}
 			}
 		}
 		if (message.details) {
@@ -1048,35 +1102,51 @@ const PERSISTENT_PROGRESS_MCP_AUTOSTART: IFixtureMessage[] = [{
 }];
 
 interface IPersistentProgressScenarioOptions {
+	readonly activityRowSpacing?: boolean;
+	readonly reasoningProseSpacing?: boolean;
+	readonly width?: number;
 	readonly expectedText?: string;
 	readonly progressAnimation?: ChatProgressAnimation;
+	readonly previousProgressAnimation?: ChatProgressAnimation;
 	readonly productQuality?: 'stable' | 'insider';
 	readonly reducedMotion?: boolean;
 	readonly thinkingStyle?: ThinkingDisplayMode;
-	readonly progressInThinking?: boolean;
+	readonly terminalToolsInThinking?: boolean;
+	readonly simpleTerminalCollapsible?: boolean;
 	readonly expandThinking?: boolean;
 	readonly submitInteraction?: 'question' | 'planReview' | 'elicitation';
 	readonly activityUpdates?: boolean;
 	readonly richSubagents?: boolean;
 	readonly expandTerminal?: boolean;
+	readonly expandToolDetails?: boolean;
+	readonly height?: number;
+	readonly listHeight?: number;
 }
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
-	const { expectedText, progressAnimation = ChatProgressAnimation.Weave, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed, progressInThinking = false } = options;
+	const { expectedText, progressAnimation = ChatProgressAnimation.Weave, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
-		persistentProgress: progressAnimation,
+		persistentProgress: options.previousProgressAnimation ?? progressAnimation,
 		productQuality,
 		thinkingStyle,
+		// Keep layout fixtures expanded; completed-response folding has dedicated fixtures.
+		collapseCompletedResponses: false,
+		terminalToolsInThinking: options.terminalToolsInThinking,
+		simpleTerminalCollapsible: options.simpleTerminalCollapsible,
 		richSubagents: options.richSubagents,
 		agentHostSession: messages.some(message => message.assistant?.some(part => part.kind === 'subagent')),
-		thinkingPhrases: options.activityUpdates ? ['Considering', 'Reviewing', 'Connecting the pieces'] : undefined,
-		height: 560,
-		listHeight: 340,
-		onRendered: options.activityUpdates ? ({ model }) => {
-			if (context.container.classList.contains('disable-animations')) {
+		thinkingPhrases: options.activityUpdates ? ['Considering', 'Reviewing', 'Connecting the pieces'] : progressAnimation === ChatProgressAnimation.Off ? ['Working'] : undefined,
+		width: options.width,
+		height: options.height ?? 560,
+		listHeight: options.listHeight ?? 340,
+		onRendered: rendered => {
+			handle = rendered;
+			if (!options.activityUpdates || context.container.classList.contains('disable-animations')) {
 				return;
 			}
+			const { model } = rendered;
 			const request = model.getRequests().at(-1);
 			if (!request) {
 				throw new Error('Activity sequence requires an active request');
@@ -1097,8 +1167,24 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 				}
 			}, 2400));
 			scheduler.schedule();
-		} : undefined,
+		},
 	});
+	if (options.previousProgressAnimation !== undefined) {
+		if (!handle || !context.container.querySelector('.chat-working-progress')) {
+			throw new Error('The setting transition requires an initially persistent response');
+		}
+		const configuration = handle.instantiationService.get(IConfigurationService);
+		if (!(configuration instanceof TestConfigurationService)) {
+			throw new Error('The setting transition requires TestConfigurationService');
+		}
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, progressAnimation);
+		configuration.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+			change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+			affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+		});
+	}
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 
 	const targetWindow = dom.getWindow(context.container);
@@ -1123,40 +1209,22 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
 	const value = response?.querySelector<HTMLElement>(':scope > .value');
 	const footer = value?.querySelector<HTMLElement>(':scope > .chat-working-progress');
-	if (progressAnimation === ChatProgressAnimation.Off) {
-		if (!response || !value || response.textContent?.includes('Failed to render content')) {
-			throw new Error('Legacy progress scenario failed to render');
-		}
-		if (response.classList.contains('chat-persistent-progress') || response.querySelector('.chat-working-progress, .chat-working-logo')) {
-			throw new Error('Off must not render a persistent progress indicator or logo');
-		}
-		if (options.expandThinking) {
-			const button = response.querySelector<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button');
-			if (!button) {
-				throw new Error('Legacy thinking scenario has no expand button');
-			}
-			button.click();
-		}
-		return;
-	}
-	if (!response || !value || !footer) {
-		throw new Error('Persistent progress indicator was not rendered in the active response');
-	}
-	if (!response.classList.contains('chat-persistent-progress')) {
-		throw new Error('Active response is missing the persistent progress state class');
-	}
-	if (value.lastElementChild !== footer) {
-		throw new Error('Persistent progress indicator is not the final response part');
+	if (!response || !value) {
+		throw new Error('Progress scenario did not render an active response');
 	}
 	if (response.textContent?.includes('Failed to render content')) {
 		throw new Error('A response part failed to render');
 	}
 	if (options.expandTerminal) {
-		const toggle = response.querySelector<HTMLElement>('.chat-terminal-action-bar .action-label');
-		if (!toggle) {
-			throw new Error('Terminal output has no expand action');
+		const expandedOutput = response.querySelector('.chat-terminal-output-container.expanded');
+		if (!expandedOutput || expandedOutput.closest('.chat-terminal-thinking-collapsible.chat-used-context-collapsed')) {
+			const toggle = response.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible.chat-used-context-collapsed > .chat-used-context-label .monaco-button')
+				?? response.querySelector<HTMLElement>('.chat-terminal-action-bar .action-label');
+			if (!toggle) {
+				throw new Error('Terminal output has no expand action');
+			}
+			toggle.click();
 		}
-		toggle.click();
 		const output = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'terminal')?.output;
 		const firstLine = output?.split(/\r?\n/)[0];
 		const renderedOutput = () => response.querySelector('.xterm-rows')?.textContent?.replace(/\u00a0/g, ' ');
@@ -1167,46 +1235,135 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('The terminal output did not render');
 		}
 	}
-	const terminalCommands = messages.flatMap(message => message.assistant ?? []).filter(part => part.kind === 'terminal').map(part => part.command);
-	if (response.querySelectorAll('.chat-terminal-content-part').length !== terminalCommands.length) {
+	const terminalParts = messages.flatMap(message => message.assistant ?? []).filter(part => part.kind === 'terminal');
+	const terminalWidgets = [...response.querySelectorAll('.chat-tool-invocation-part')].filter(part => part.querySelector('.chat-terminal-content-part, .chat-terminal-thinking-collapsible'));
+	if (terminalWidgets.length !== terminalParts.length) {
 		throw new Error('The terminal tool did not use the terminal progress renderer');
 	}
-	const renderedCommands = [...response.querySelectorAll('.chat-terminal-command-block')].map(element => element.textContent?.replace(/\u00a0/g, ' ') ?? '');
-	if (terminalCommands.some(command => !renderedCommands.some(rendered => rendered.includes(command)))) {
+	const renderedCommands = [...response.querySelectorAll('.chat-terminal-command-block, .chat-terminal-thinking-collapsible > .chat-used-context-label code')].map(element => element.textContent?.replace(/\u00a0/g, ' ') ?? '');
+	if (terminalParts.some(part => !renderedCommands.some(rendered => rendered.includes(part.command)
+		|| rendered.length > 3 && rendered.endsWith('...') && part.command.startsWith(rendered.slice(0, -3))))) {
 		throw new Error('The terminal command code block is empty or incomplete');
 	}
 	if (mcpStartup && !response.querySelector('.chat-mcp-servers-interaction')?.textContent?.includes('Starting MCP servers')) {
 		throw new Error('MCP startup did not use the real startup progress renderer');
 	}
 
-	const thinkingOwner = response.querySelector<HTMLElement>('.chat-thinking-progress-owner');
-	if (!!thinkingOwner !== progressInThinking || (targetWindow.getComputedStyle(footer).display === 'none') !== progressInThinking) {
-		throw new Error(`Progress did not move to the expected ${progressInThinking ? 'Thinking row' : 'response footer'}`);
-	}
 	if (options.expandThinking) {
 		const buttons = [...response.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')].filter(button => button.getAttribute('aria-disabled') !== 'true');
-		if (!buttons.length) {
+		if (!buttons.length && !response.querySelector('.chat-thinking-box:not(.chat-used-context-collapsed) > .chat-used-context-label .monaco-button')) {
 			throw new Error('Thinking progress has no expand button');
 		}
 		for (const button of buttons) {
 			button.click();
 		}
 	}
-	const indicator = thinkingOwner ?? footer;
-	const iconSelector = '.codicon-vscode';
-	const iconElement = indicator.querySelector<HTMLElement>(`${thinkingOwner ? ':scope > .chat-used-context-label .monaco-button > ' : ':scope > '}${iconSelector}[aria-hidden="true"]`);
+	if (options.expandToolDetails) {
+		const buttons = response.querySelectorAll<HTMLElement>('.chat-tool-invocation-part > .chat-confirmation-widget-container > .chat-confirmation-widget-collapsible > .chat-confirmation-widget-title');
+		if (!buttons.length) {
+			throw new Error('Tool details have no expand button');
+		}
+		for (const button of buttons) {
+			if (button.ariaExpanded !== 'true') {
+				button.click();
+			}
+		}
+	}
+	if (progressAnimation === ChatProgressAnimation.Off) {
+		if (response.matches('.chat-persistent-progress, .chat-progress-in-thinking')
+			|| response.querySelector('.chat-working-progress, .chat-working-logo, .chat-thinking-progress-owner')) {
+			throw new Error('Off must preserve legacy progress without persistent indicators or suppression');
+		}
+		return;
+	}
+	if (!response.classList.contains('chat-persistent-progress')) {
+		throw new Error('Persistent progress indicator was not rendered in the active response');
+	}
+	const visibleParts = [...value.children].filter(part => part.getBoundingClientRect().height > 0);
+	if (visibleParts.slice(1).some((part, index) => Math.abs(part.getBoundingClientRect().top - visibleParts[index].getBoundingClientRect().bottom - 16) > 0.1)) {
+		throw new Error('Visible response parts must use the shared item gap');
+	}
+	if (response.querySelector('.chat-tool-chain > .chat-used-context-label, .chat-tool-chain.chat-used-context-collapsed, .chat-tool-chain > .monaco-scrollable-element, .chat-tool-chain .chat-persistent-reasoning')) {
+		throw new Error('Tool chains must be expanded, headerless, unbounded, and separate from reasoning');
+	}
+	for (const chain of response.querySelectorAll<HTMLElement>('.chat-tool-chain > .chat-thinking-collapsible')) {
+		const style = targetWindow.getComputedStyle(chain);
+		if (style.maxHeight !== 'none' || style.overflowY !== 'visible') {
+			throw new Error('A tool chain is clipped by an internal scrolling limit');
+		}
+	}
+	for (const tool of response.querySelectorAll('.chat-tool-chain > .chat-thinking-collapsible > .chat-thinking-tool-wrapper')) {
+		const visibleIcons = [...tool.querySelectorAll('.chat-thinking-icon, .chat-tool-call-icon')].filter(icon => icon.getClientRects().length > 0);
+		if (visibleIcons.length !== 1) {
+			throw new Error('A tool-chain row must display exactly one icon');
+		}
+	}
+	for (const tool of value.querySelectorAll(':scope > .chat-tool-invocation-part')) {
+		const icon = tool.querySelector<HTMLElement>(':scope > .chat-tool-call-icon[aria-hidden="true"]');
+		if (!icon || targetWindow.getComputedStyle(icon).display === 'none') {
+			throw new Error('Standalone tools must retain their decorative icons');
+		}
+	}
+	if (messages.at(-1)?.responseComplete === true) {
+		if (footer || response.querySelector('.completed-response-disclosure')) {
+			throw new Error('Completed persistent responses must keep tool chains visible without a working footer');
+		}
+		return;
+	}
+	if (!footer) {
+		throw new Error('Persistent progress footer is missing');
+	}
+	if (value.lastElementChild !== footer) {
+		throw new Error('Persistent progress indicator is not the final response part');
+	}
+	if (targetWindow.getComputedStyle(footer).display === 'none') {
+		throw new Error('The persistent footer must remain visible alongside reasoning');
+	}
+	const iconElement = footer.querySelector<HTMLElement>(':scope > .codicon-vscode[aria-hidden="true"]');
 	const logo = iconElement?.querySelector<HTMLElement>(`.chat-working-logo[data-animation="${progressAnimation}"]`);
-	const expandedThinking = !!thinkingOwner && !thinkingOwner.classList.contains('chat-used-context-collapsed');
-	const textElement = thinkingOwner
-		? thinkingOwner.querySelector<HTMLElement>(expandedThinking ? '.chat-thinking-spinner-item .chat-thinking-spinner-label' : ':scope > .chat-used-context-label .chat-thinking-title-shimmer')
-		: footer.querySelector<HTMLElement>('.rendered-markdown > p');
+	const textElement = footer.querySelector<HTMLElement>('.rendered-markdown > p');
 	if (!iconElement || !logo || !textElement) {
 		throw new Error(`Persistent progress indicator is missing its decorative ${productQuality} VS Code icon`);
 	}
 	if (logo.getClientRects().length === 0 || textElement.getClientRects().length === 0) {
 		throw new Error('The active progress icon or text is hidden');
 	}
-	if (expectedText && !indicator.textContent?.replace(/\u00a0/g, ' ').includes(expectedText)) {
+	const reasoningIcons = response.querySelectorAll<HTMLElement>('.chat-persistent-reasoning > .chat-used-context-label .monaco-button > .codicon-thinking[aria-hidden="true"]');
+	if (reasoningIcons.length !== response.querySelectorAll('.chat-persistent-reasoning').length) {
+		throw new Error('Collapsible reasoning must retain its thinking icon');
+	}
+	const progressIconLeft = logo.getBoundingClientRect().left;
+	for (const icon of [
+		...reasoningIcons,
+		...response.querySelectorAll<HTMLElement>('.chat-tool-chain > .chat-thinking-collapsible > .chat-thinking-tool-wrapper > .chat-thinking-icon'),
+		...value.querySelectorAll<HTMLElement>(':scope > .chat-tool-invocation-part > .chat-tool-call-icon'),
+	]) {
+		if (icon.getClientRects().length && Math.abs(icon.getBoundingClientRect().left - progressIconLeft) > 0.1) {
+			throw new Error('Thinking and tool icons must share the persistent progress icon column');
+		}
+	}
+	if (options.activityRowSpacing) {
+		const labels = [...value.querySelectorAll<HTMLElement>('.chat-tool-chain .progress-container p, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, :scope > .chat-markdown-part > p, .chat-working-progress p')];
+		if (labels.slice(1).some((label, index) => Math.abs(label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom - 16) > 0.1)) {
+			throw new Error('Tools, reasoning, markdown, and working rows must share the same item gap');
+		}
+	}
+	if (options.activityRowSpacing || options.reasoningProseSpacing) {
+		const labels = value.querySelectorAll<HTMLElement>('.chat-tool-chain .progress-container p, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p');
+		const textLeft = value.getBoundingClientRect().left + 24;
+		if ([...labels].some(label => Math.abs(label.getBoundingClientRect().left - textLeft) > 0.1)) {
+			throw new Error('Thinking, tool, and working labels must share the same text gutter');
+		}
+	}
+	if (options.reasoningProseSpacing) {
+		for (const reasoning of value.querySelectorAll<HTMLElement>(':scope > .chat-persistent-reasoning')) {
+			const next = reasoning.nextElementSibling;
+			if (next?.classList.contains('chat-markdown-part') && Math.abs(next.getBoundingClientRect().top - reasoning.getBoundingClientRect().bottom - 16) > 0.1) {
+				throw new Error('Reasoning must use the shared item gap before the following prose');
+			}
+		}
+	}
+	if (expectedText && !footer.textContent?.replace(/\u00a0/g, ' ').includes(expectedText)) {
 		throw new Error(`Persistent progress indicator did not include "${expectedText}"`);
 	}
 	if (expectedText === 'Plan review required' && [...response.querySelectorAll('p')].filter(element => element.textContent?.replace(/\u00a0/g, ' ').trim() === expectedText).length !== 1) {
@@ -1225,16 +1382,19 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (competingSpinners.length) {
 		throw new Error(`Persistent progress has ${competingSpinners.length} competing spinner animations`);
 	}
-	const terminalSpinners = [...response.querySelectorAll('.chat-terminal-content-part .monaco-pixel-spinner')];
-	if (terminalSpinners.length !== terminalCommands.length) {
-		throw new Error('Persistent progress must preserve the terminal activity spinner');
-	}
 	const terminalMotionEnabled = !context.container.classList.contains('disable-animations') && !targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
-	if (terminalSpinners.some(spinner => spinner.getAnimations({ subtree: true }).filter(animation => {
-		const duration = animation.effect?.getComputedTiming().activeDuration;
-		return animation instanceof CSSAnimation && animation.animationName.startsWith('monaco-pixel-spinner-') && typeof duration === 'number' && duration > 0;
-	}).length !== (terminalMotionEnabled ? 6 : 0))) {
-		throw new Error('The terminal activity animation did not retain its original motion behavior');
+	for (const [index, terminal] of terminalParts.entries()) {
+		const spinner = terminalWidgets[index].querySelector('.monaco-pixel-spinner');
+		if (!terminal.complete && !spinner) {
+			throw new Error('Persistent progress must preserve the terminal activity spinner');
+		}
+		const animations = spinner?.getAnimations({ subtree: true }).filter(animation => {
+			const duration = animation.effect?.getComputedTiming().activeDuration;
+			return animation instanceof CSSAnimation && animation.animationName.startsWith('monaco-pixel-spinner-') && typeof duration === 'number' && duration > 0;
+		}).length ?? 0;
+		if (animations !== (terminalMotionEnabled && !terminal.complete ? 6 : 0)) {
+			throw new Error('The terminal activity animation did not retain its original motion behavior');
+		}
 	}
 	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate ? 3 : 0)) {
 		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
@@ -1248,10 +1408,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('Progress text is animated without a visible shimmer gradient');
 		}
 	}
-	if (thinkingOwner && targetWindow.getComputedStyle(iconElement).marginRight !== '6px') {
-		throw new Error('Thinking progress icon is missing its label spacing');
-	}
-	if (!thinkingOwner && response.querySelector('.chat-thinking-spinner-item')) {
+	if (response.querySelector('.chat-thinking-spinner-item')) {
 		throw new Error('Footer progress has a duplicate inner working row');
 	}
 	const expectedSubagents = messages.flatMap(message => message.assistant ?? []).filter(part => part.kind === 'subagent').length;
@@ -1263,24 +1420,24 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	}
 }
 
-function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode): ReturnType<typeof defineThemedFixtureGroup> {
+function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaults: IPersistentProgressScenarioOptions = {}): ReturnType<typeof defineThemedFixtureGroup> {
 	const scenario = (messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}, prependThinking = true) => defineComponentFixture({
 		labels: { kind: 'animated' },
 		render: context => renderPersistentProgressScenario(context, prependThinking ? messages.map(message => ({
 			...message,
 			assistant: [{ kind: 'thinking', text: '**Preparing the next step**\nReviewing the request before continuing.' }, ...message.assistant ?? []],
 		})) : messages, {
+			...defaults,
 			...options,
 			thinkingStyle,
-			progressInThinking: thinkingStyle === ThinkingDisplayMode.Collapsed && !!options.progressInThinking,
 		}),
 	});
 	return defineThemedFixtureGroup({
-		Thinking: scenario(PERSISTENT_PROGRESS_THINKING, { progressInThinking: true }, false),
+		Thinking: scenario(PERSISTENT_PROGRESS_THINKING, {}, false),
 		...(thinkingStyle === ThinkingDisplayMode.Collapsed ? {
-			ThinkingExpanded: scenario(PERSISTENT_PROGRESS_THINKING, { progressInThinking: true, expandThinking: true }, false),
+			ThinkingExpanded: scenario(PERSISTENT_PROGRESS_THINKING, { expandThinking: true }, false),
 		} : {}),
-		ThinkingAndStreamingTool: scenario(PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressInThinking: true }, false),
+		ThinkingAndStreamingTool: scenario(PERSISTENT_PROGRESS_THINKING_AND_TOOL, {}, false),
 		ResponseStreaming: scenario(PERSISTENT_PROGRESS_RESPONSE),
 		AskQuestions: scenario(PERSISTENT_PROGRESS_QUESTION, { expectedText: 'Waiting for your response' }),
 		QuestionAnswered: scenario(PERSISTENT_PROGRESS_QUESTION, { submitInteraction: 'question' }),
@@ -1291,7 +1448,7 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode): Retur
 		ConfirmationAccepted: scenario(PERSISTENT_PROGRESS_CONFIRMATION, { submitInteraction: 'elicitation' }),
 		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
-		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE, { progressInThinking: true }),
+		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
 		ParallelSubagents: scenario(parallelSubagentMessages(), {}, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		ExpandedSubagents: scenario(parallelSubagentMessages(), { richSubagents: false, expandThinking: true }, false),
@@ -1304,19 +1461,373 @@ function defineProgressAnimationScenarios(progressAnimation: ChatProgressAnimati
 	return defineThemedFixtureGroup({
 		ThinkingHeader: defineComponentFixture({
 			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, progressInThinking: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation }),
 		}),
 		ExpandedThinking: defineComponentFixture({
 			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, progressInThinking: true, expandThinking: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, expandThinking: true }),
 		}),
 		ResponseFooter: defineComponentFixture({
 			labels: { kind: 'animated' },
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, thinkingStyle: ThinkingDisplayMode.FixedScrolling }),
 		}),
 		ReducedMotion: defineComponentFixture({
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, progressInThinking: true, reducedMotion: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressAnimation, reducedMotion: true }),
 		}),
+	});
+}
+
+function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weave): ReturnType<typeof defineThemedFixtureGroup> {
+	const tool = (toolId: string, invocationMessage: string, complete = false): NonNullable<IFixtureMessage['assistant']>[number] => ({
+		kind: 'tool', toolId, displayName: toolId, invocationMessage, complete,
+	});
+	const before = [
+		tool('read_file', 'Read `src/progress.ts`', true),
+		tool('search_workspace', 'Found 12 references to working progress', true),
+	];
+	const interwoven: IFixtureMessage[] = [{
+		user: 'Inspect the progress pipeline, reason about the result, and verify the fix',
+		assistant: [
+			...before,
+			{ kind: 'thinking', text: '**Choosing a rendering strategy**\nSeparate reasoning from tool output so the sequence stays readable.\n\n**Preserving the original behavior**\nKeep the old rendering path when the setting is Off.' },
+			tool('read_file', 'Read `src/progress.test.ts`', true),
+			tool('apply_patch', 'Updated the progress regression tests', true),
+			{ kind: 'thinking', text: '**Verifying the changes**\nNow check rendering and keyboard interactions across all scenarios.' },
+			tool('search_workspace', 'Checking the final progress renderers...', false),
+		],
+		responseComplete: false,
+	}];
+	const mcpSource: ToolDataSource = { type: 'mcp', label: 'Documentation', serverLabel: 'Documentation', collectionId: 'documentation', definitionId: 'documentation', instructions: '' };
+	const mixedPrefix: NonNullable<IFixtureMessage['assistant']> = [
+		...before,
+		{ kind: 'thinking', text: '**Choosing a rendering strategy**\nCompare the progress paths before changing the implementation.' },
+		{ kind: 'markdown', text: 'I found two places that render working progress. The change keeps the **original behavior when Off** and uses one persistent indicator when enabled.\n\nBefore I continue, there is one choice to confirm.' },
+	];
+	const scenario = (messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}) => defineComponentFixture({
+		labels: { kind: 'animated' },
+		render: context => renderPersistentProgressScenario(context, messages, { progressAnimation, height: 820, listHeight: 600, ...options }),
+	});
+	const tools = (assistant: NonNullable<IFixtureMessage['assistant']>, responseComplete = false): IFixtureMessage[] => [{ user: 'Review the working progress implementation', assistant, responseComplete }];
+	const sharedItemSpacing = tools([
+		{ kind: 'markdown', text: 'I will check the current progress rendering first.\n\nThen I will compare the remaining tool and reasoning paths.' },
+		tool('search_workspace', 'Search the current working tree for all rendering, progress, thinking, and confirmation code paths.', true),
+		tool('read_file', 'Read the progress renderer and the tests for its expanded tool chains.', true),
+		{ kind: 'thinking', text: '**Checking the remaining paths**\nReview the external documentation before finishing.' },
+		{ kind: 'markdown', text: 'The local results agree. I am checking the reference documentation next.' },
+		{ kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Look up the documented progress lifecycle and confirmation rendering behavior.', source: mcpSource },
+		{ kind: 'markdown', text: 'Verifying that all content uses the same spacing.' },
+	]);
+	const terminalSequence = (complete = true, output?: string) => tools([
+		{ kind: 'thinking', text: '**Checking the local changes**\nVerify the current branch and working tree before continuing.' },
+		{ kind: 'markdown', text: 'Re-checking the local change scope before reviewing the remaining files.' },
+		{ kind: 'terminal', intention: 'Re-verify current local change scope', command: 'echo "=== BRANCH ==="; git --no-pager branch --show-current; git status --short', complete, output },
+		{ kind: 'thinking', text: '**Reviewing the remaining paths**\nCheck the tool and reasoning renderers against the current changes.' },
+		{ kind: 'markdown', text: 'The terminal result is available above. I am checking the remaining rendering paths.' },
+	]);
+	const collapsibleTerminalOptions: IPersistentProgressScenarioOptions = { terminalToolsInThinking: true, simpleTerminalCollapsible: true };
+	const readTerminalDetails = {
+		kind: 'tool', toolId: 'mcp_read_terminal', displayName: 'Read Terminal', invocationMessage: 'Read Terminal', complete: true, source: mcpSource,
+		resultDetails: { input: '{"shellId":"verification"}', output: [{ type: 'embed', value: 'No matching instances were found.', isText: true }] },
+	} satisfies NonNullable<IFixtureMessage['assistant']>[number];
+	const standaloneToolDetails = [
+		{ kind: 'thinking', text: '**Verifying the search**\nCheck the completed terminal command before reporting the result.' },
+		{ kind: 'markdown', text: 'The command has finished. I will read its output before concluding.' },
+		readTerminalDetails,
+		{ kind: 'thinking', text: '**Finalizing the result**\nConfirm the search covered the expected files.' },
+		{ kind: 'markdown', text: 'No matching instances were found in the repository.' },
+	] satisfies NonNullable<IFixtureMessage['assistant']>;
+	return defineThemedFixtureGroup({
+		StandaloneToolDetails: scenario(tools(standaloneToolDetails)),
+		StandaloneToolDetailsExpanded: scenario(tools(standaloneToolDetails), { expandToolDetails: true }),
+		CompletedStandaloneToolDetails: scenario(tools(standaloneToolDetails, true)),
+		StandaloneSimpleToolDetails: scenario(tools([{ ...readTerminalDetails, resultDetails: undefined, toolSpecificData: { kind: 'simpleToolInvocation', input: '{"shellId":"verification"}', output: 'No matching instances were found.' } }])),
+		GroupedToolDetails: scenario(tools([...before, { ...readTerminalDetails, toolId: 'read_terminal', source: ToolDataSource.Internal }])),
+		SharedItemSpacing: scenario(sharedItemSpacing, { activityRowSpacing: true }),
+		SharedItemSpacingNarrow: scenario(sharedItemSpacing, { activityRowSpacing: true, width: 420, height: 1000, listHeight: 780 }),
+		TerminalWithIntention: scenario(terminalSequence(), collapsibleTerminalOptions),
+		TerminalWithIntentionStandalone: scenario(terminalSequence(), { ...collapsibleTerminalOptions, terminalToolsInThinking: false }),
+		TerminalWithIntentionNarrow: scenario(terminalSequence(), { ...collapsibleTerminalOptions, width: 420, height: 1000, listHeight: 780 }),
+		TerminalWithIntentionRunning: scenario(terminalSequence(false), collapsibleTerminalOptions),
+		TerminalWithIntentionOutput: scenario(terminalSequence(true, '=== BRANCH ===\nfeature/progress\n M src/progress.ts'), { ...collapsibleTerminalOptions, expandTerminal: true }),
+		ThinkingAndTerminalChains: scenario(tools([
+			{ kind: 'thinking', text: '**Checking the local changes**\nInspect the working tree before running the checks.\n\n**Comparing the results**\nReview the changed files and verify that the patch is limited to the intended behavior.' },
+			{ kind: 'markdown', text: 'I will check the working tree and review the patch separately.' },
+			tool('read_file', 'Read the progress renderer', true),
+			{ kind: 'terminal', intention: 'Find changed files', command: 'git status --short', complete: true },
+			{ kind: 'terminal', intention: 'Review the current patch', command: 'git --no-pager diff --stat', complete: true },
+		]), { ...collapsibleTerminalOptions, expandThinking: true }),
+		ToolChain: scenario(tools([...before, tool('apply_patch', 'Updating the progress renderer...')])),
+		CompletedToolChain: scenario(tools([...before, tool('apply_patch', 'Updated the progress renderer', true)], true)),
+		LongToolChain: scenario(tools(Array.from({ length: 24 }, (_, index) => tool('read_file', `Read \`src/renderer-${index + 1}.ts\``, index < 23))), { height: 1200, listHeight: 980 }),
+		Thinking: scenario(PERSISTENT_PROGRESS_THINKING),
+		InterwovenThinking: scenario(interwoven, { activityRowSpacing: true }),
+		ExpandedReasoning: scenario(interwoven, { expandThinking: true }),
+		ReasoningThenProse: scenario(tools([
+			{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
+			{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
+			tool('search_workspace', 'Search for `progress|thinking|working`', true),
+			tool('run_in_terminal', 'Search tracked source files', true),
+			{ kind: 'thinking', text: '**Verifying command flags**\nMake sure the flags match the intended search behavior.' },
+			{ kind: 'markdown', text: 'The first scan used the wrong flag. Re-running it with the correct options.' },
+			tool('run_in_terminal', 'Search ignored files and filenames', true),
+			{ kind: 'thinking', text: '**Confirming the remaining files**\nCheck the last paths before reporting the result.' },
+			tool('read_file', 'Read the final search results'),
+		]), { reasoningProseSpacing: true, activityRowSpacing: true }),
+		ReasoningThenProseExpanded: scenario(tools([
+			{ kind: 'thinking', text: '**Checking the search scope**\nConfirm the query and search the current working tree.' },
+			{ kind: 'markdown', text: 'Re-running the search against the current working tree.' },
+			tool('search_workspace', 'Search for `progress|thinking|working`'),
+		]), { expandThinking: true, reasoningProseSpacing: true }),
+		MixedQuestions: scenario(tools([
+			...mixedPrefix,
+			tool('vscode_askQuestions', 'Choose the verification scope'),
+			{ kind: 'questionCarousel', questions: [{ id: 'scope', type: 'singleSelect', title: 'Verification scope', message: 'Which scenarios should I verify first?', options: [{ id: 'focused', label: 'Focused progress scenarios', value: 'focused' }, { id: 'all', label: 'All chat scenarios', value: 'all' }] }] },
+		]), { expectedText: 'Waiting for your response' }),
+		MixedConfirmation: scenario(tools([
+			...mixedPrefix,
+			{ kind: 'elicitation', title: 'Apply the progress changes?', message: 'The update changes the enabled layout and keeps the existing rendering when the setting is Off.' },
+		]), { expectedText: '1 confirmation pending' }),
+		MixedToolApproval: scenario(tools([
+			...mixedPrefix,
+			{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: 'Update the progress renderer and its tests', approval: 'pre' },
+		]), { expectedText: '1 confirmation pending' }),
+		MixedMarkdown: scenario(tools([
+			...before,
+			{ kind: 'markdown', text: '### What I found\n\nThe existing progress is rendered by several content parts:\n\n- Tool calls keep their own details.\n- Reasoning remains independently collapsible.\n- The response owns a single working indicator.' },
+			{ kind: 'thinking', text: '**Checking the implementation**\nVerify that the setting still restores the original rendering.' },
+			tool('read_file', 'Read `src/progress.test.ts`', true),
+			{ kind: 'markdown', text: 'The configuration remains a single opt-in setting:\n\n```json\n{\n  "chat.experimental.persistentProgress": "weave"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
+		])),
+		StreamingToolCall: scenario(PERSISTENT_PROGRESS_STREAMING_TOOL),
+		StandaloneMcpTool: scenario(tools([...before, { kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Looking up the progress API...', source: mcpSource }]), { activityRowSpacing: true }),
+		ToolConfirmation: scenario(tools([...before, { kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: 'Update the working progress implementation', approval: 'pre' }]), { expectedText: '1 confirmation pending' }),
+		PostApproval: scenario(tools([...before, { kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Review the tool results before sharing them', approval: 'post' }]), { expectedText: '1 confirmation pending' }),
+		McpConfirmation: scenario(tools([{ kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Read the external documentation', source: mcpSource, approval: 'pre' }]), { expectedText: '1 confirmation pending' }),
+		TerminalCommand: scenario(PERSISTENT_PROGRESS_TERMINAL_TOOL),
+		TerminalOutput: scenario(PERSISTENT_PROGRESS_TERMINAL_OUTPUT, { expandTerminal: true }),
+		TerminalConfirmation: scenario(PERSISTENT_PROGRESS_TERMINAL_CONFIRMATION, { expectedText: '1 confirmation pending' }),
+		AskQuestions: scenario(PERSISTENT_PROGRESS_QUESTION.map(message => ({
+			...message, assistant: [tool('vscode_askQuestions', 'Choose how to verify the change'), ...message.assistant ?? []],
+		})), { expectedText: 'Waiting for your response' }),
+		QuestionAnswered: scenario(PERSISTENT_PROGRESS_QUESTION, { submitInteraction: 'question' }),
+		Confirmation: scenario(PERSISTENT_PROGRESS_CONFIRMATION, { expectedText: '1 confirmation pending' }),
+		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
+		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
+		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
+		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING),
+		ParallelSubagents: scenario(parallelSubagentMessages()),
+		CompletedSubagentNotices: scenario(parallelSubagentMessages(true)),
+		ReducedMotion: scenario(interwoven, { reducedMotion: true }),
+	});
+}
+
+function defineCompletedProgressScenarios(): ReturnType<typeof defineThemedFixtureGroup> {
+	const edits: IChatExternalEdit[] = [{
+		kind: 'externalEdit', uri: URI.file('/workspace/progress.ts'), editKind: 'edit',
+		diff: { added: 18, removed: 4 }, beforeContentUri: URI.file('/snapshots/before/progress.ts'), afterContentUri: URI.file('/snapshots/after/progress.ts'),
+	}, {
+		kind: 'externalEdit', uri: URI.file('/workspace/progress.test.ts'), editKind: 'edit',
+		diff: { added: 7, removed: 2 }, beforeContentUri: URI.file('/snapshots/before/progress.test.ts'), afterContentUri: URI.file('/snapshots/after/progress.test.ts'),
+	}];
+	const scenario = (options: {
+		progress?: ChatProgressAnimation;
+		collapse?: boolean;
+		state?: 'restored' | 'live' | 'working';
+		expanded?: boolean;
+		expandThinking?: boolean;
+		toggleCollapse?: boolean;
+		edits?: readonly IChatExternalEdit[];
+		markdownEdits?: boolean;
+		width?: number;
+	} = {}) => defineComponentFixture({
+		render: async context => {
+			const { progress = ChatProgressAnimation.Weave, collapse = true, state = 'restored', expanded = false } = options;
+			const editParts = options.edits?.map(edit => options.markdownEdits ? {
+				kind: 'markdown' as const,
+				text: `\`\`\`typescript\n<vscode_codeblock_uri isEdit>${edit.uri.toString()}</vscode_codeblock_uri>\nexport const enabled = true;\n\`\`\`\n\n`,
+			} : edit) ?? [];
+			const editingSession = options.markdownEdits ? new MockChatEditingSession((options.edits ?? []).map(edit => ({
+				originalURI: edit.beforeContentUri ?? edit.uri,
+				modifiedURI: edit.uri,
+				modifiedSnapshotURI: edit.afterContentUri,
+				added: edit.diff?.added ?? 0,
+				removed: edit.diff?.removed ?? 0,
+				identical: false, quitEarly: false, isFinal: true, isBusy: false,
+			}))) : undefined;
+			let handle: IChatWidgetFixtureHandle | undefined;
+			await renderChatWidget(context, {
+				persistentProgress: progress,
+				collapseCompletedResponses: collapse,
+				thinkingStyle: ThinkingDisplayMode.CollapsedPreview,
+				terminalToolsInThinking: true,
+				simpleTerminalCollapsible: true,
+				agentHostSession: true,
+				editingSession,
+				width: options.width,
+				height: 1000,
+				listHeight: 780,
+				messages: [{
+					user: 'Review the progress rendering changes',
+					responseComplete: state === 'restored',
+					assistant: [
+						{ kind: 'thinking', text: '**Checking the implementation**\nReview the tool rendering paths.\n\n**Preserving existing behavior**\nCheck the settings before finishing.' },
+						{ kind: 'terminal', intention: 'Run focused tests', command: 'npm test -- --grep progress', complete: true },
+						...editParts.slice(0, 1),
+						...(!options.markdownEdits || state === 'restored' ? [{ kind: 'markdown' as const, text: 'Let me confirm the remaining paths before finalizing.\n\nI will check the patch and the reference documentation.' }] : []),
+						{ kind: 'terminal', intention: 'Check the patch', command: 'git diff --check', complete: true },
+						...editParts.slice(1),
+						{ kind: 'thinking', text: '**Verifying the result**\nCompare the test results with the documented behavior.' },
+						{
+							kind: 'tool', toolId: 'mcp_read_reference', displayName: 'Read reference', invocationMessage: 'Read the reference documentation', complete: true,
+							source: { type: 'mcp', label: 'Documentation', serverLabel: 'Documentation', collectionId: 'docs', definitionId: 'docs', instructions: '' },
+							resultDetails: { input: '{"topic":"progress"}', output: [{ type: 'embed', value: 'Completed responses keep their final answer visible.', isText: true }] },
+						},
+						{ kind: 'markdown', text: '## Review summary\n\nThe checks passed. Progress stays visible while working, and completed work follows your collapse preference.\n\nThe final answer remains outside the completed-steps disclosure.' },
+					],
+				}],
+				onRendered: rendered => handle = rendered,
+			});
+			if (!handle) {
+				throw new Error('Completed response fixture did not initialize');
+			}
+			const targetWindow = dom.getWindow(context.container);
+			const settle = async () => {
+				await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+				await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+			};
+			await settle();
+			if (state === 'live') {
+				if (context.container.querySelector('.completed-response-disclosure') || !context.container.querySelector('.chat-working-progress')) {
+					throw new Error('Work must remain expanded with persistent progress until completion');
+				}
+				const response = handle.model.getRequests().at(-1)?.response;
+				if (!response) {
+					throw new Error('Live completion requires a response');
+				}
+				response.complete();
+				handle.listWidget.refresh();
+				await settle();
+			}
+			if (options.toggleCollapse !== undefined) {
+				const configuration = handle.instantiationService.get(IConfigurationService);
+				if (!(configuration instanceof TestConfigurationService)) {
+					throw new Error('Changing the collapse preference requires TestConfigurationService');
+				}
+				await configuration.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, options.toggleCollapse);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([ChatConfiguration.CollapseCompletedResponses]),
+					change: { keys: [ChatConfiguration.CollapseCompletedResponses], overrides: [] },
+					affectsConfiguration: section => section === ChatConfiguration.CollapseCompletedResponses,
+				});
+				await settle();
+			}
+			const response = context.container.querySelector<HTMLElement>('.interactive-response');
+			const value = response?.querySelector<HTMLElement>(':scope > .value');
+			if (!response || !value || response.textContent?.includes('Failed to render content')) {
+				throw new Error('Completed response content did not render');
+			}
+			const disclosure = value.querySelector<HTMLDetailsElement>(':scope > .completed-response-disclosure');
+			const shouldCollapse = state !== 'working' && (options.toggleCollapse ?? collapse);
+			if (!!disclosure !== shouldCollapse || disclosure?.open) {
+				throw new Error('Completed response did not respect the collapse preference');
+			}
+			const finalAnswer = [...value.querySelectorAll(':scope > .chat-markdown-part')].find(part => part.textContent?.includes('Review summary'));
+			if (!finalAnswer || !!value.querySelector('.chat-working-progress') !== (state === 'working' && progress !== ChatProgressAnimation.Off)) {
+				throw new Error('The final answer or persistent progress has the wrong visibility');
+			}
+			const added = options.edits?.reduce((sum, edit) => sum + (edit.diff?.added ?? 0), 0) ?? 0;
+			const removed = options.edits?.reduce((sum, edit) => sum + (edit.diff?.removed ?? 0), 0) ?? 0;
+			const editButton = disclosure?.querySelector('.completed-response-summary > .chat-edit-stats');
+			const showEdits = !!disclosure && progress !== ChatProgressAnimation.Off && (added > 0 || removed > 0);
+			if (!!editButton !== showEdits || editButton && (editButton.querySelector('.label-added')?.textContent !== `+${added}` || editButton.querySelector('.label-removed')?.textContent !== `-${removed}`)) {
+				throw new Error('The completed header does not show the expected edit totals');
+			}
+			if (disclosure && expanded) {
+				const summary = disclosure.querySelector<HTMLElement>('summary');
+				if (!summary) {
+					throw new Error('Completed steps have no disclosure control');
+				}
+				summary.click();
+				if (options.expandThinking) {
+					for (const button of disclosure.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
+						button.click();
+					}
+				}
+				await settle();
+				if (progress !== ChatProgressAnimation.Off) {
+					const parts = [...disclosure.children].filter(part => !part.matches('summary') && part.getBoundingClientRect().height > 0);
+					if (parts.slice(1).some((part, index) => Math.abs(part.getBoundingClientRect().top - parts[index].getBoundingClientRect().bottom - 16) > 0.1)) {
+						throw new Error('Expanded completed steps lost the persistent activity spacing');
+					}
+				}
+			}
+			if (progress !== ChatProgressAnimation.Off && (!disclosure || disclosure.open)) {
+				for (const pill of value.querySelectorAll('.chat-tool-chain .chat-codeblock-pill-container')) {
+					const row = pill.closest('.chat-thinking-tool-wrapper');
+					const icon = row?.querySelector(':scope > .chat-thinking-icon');
+					const status = pill.querySelector('.status-indicator-container');
+					if (!row || !icon || !status) {
+						throw new Error('Edit progress is missing its activity row, icon, or status');
+					}
+					const labelBounds = status.getBoundingClientRect();
+					const iconBounds = icon.getBoundingClientRect();
+					if (Math.abs(labelBounds.top - row.getBoundingClientRect().top) > 0.1
+						|| Math.abs(iconBounds.top + iconBounds.height / 2 - labelBounds.top - labelBounds.height / 2) > 0.1) {
+						throw new Error('Edit status text and its chain icon are not aligned');
+					}
+					const markdown = pill.closest('.chat-markdown-part');
+					if (markdown) {
+						const blocks = [...markdown.children];
+						if (blocks.slice(1).some((block, index) => Math.abs(block.getBoundingClientRect().top - blocks[index].getBoundingClientRect().bottom - 16) > 0.1)) {
+							throw new Error('Markdown edit blocks lost the shared activity spacing');
+						}
+					}
+				}
+			}
+		},
+	});
+	return defineThemedFixtureGroup({
+		RestoredCollapsed: scenario(),
+		WithEdits: scenario({ edits }),
+		WithEditsExpanded: scenario({ edits, expanded: true }),
+		WithEditsInProgress: scenario({ edits, state: 'working' }),
+		WithEditsLiveCompletion: scenario({ edits, state: 'live' }),
+		WithEditsNarrow: scenario({ edits, width: 420 }),
+		WithMarkdownEdits: scenario({ edits, markdownEdits: true, expanded: true }),
+		WithMarkdownEditsNarrow: scenario({ edits, markdownEdits: true, expanded: true, width: 420 }),
+		WithMarkdownEditsLiveCompletion: scenario({ edits, markdownEdits: true, state: 'live', expanded: true }),
+		WithMarkdownEditsInProgress: scenario({ edits, markdownEdits: true, state: 'working' }),
+		LegacyWithMarkdownEdits: scenario({ edits, markdownEdits: true, progress: ChatProgressAnimation.Off, expanded: true }),
+		AdditionsOnly: scenario({ edits: [{ ...edits[0], editKind: 'create', diff: { added: 18, removed: 0 }, beforeContentUri: undefined }] }),
+		DeletionsOnly: scenario({ edits: [{ ...edits[0], editKind: 'delete', diff: { added: 0, removed: 4 }, afterContentUri: undefined }] }),
+		ZeroEdits: scenario({ edits: [{ ...edits[0], diff: { added: 0, removed: 0 } }] }),
+		LegacyWithEdits: scenario({ edits, progress: ChatProgressAnimation.Off }),
+		SingleToolChain: defineComponentFixture({
+			render: context => renderChatWidget(context, {
+				persistentProgress: ChatProgressAnimation.Weave,
+				collapseCompletedResponses: true,
+				messages: [{
+					user: 'Review the progress renderers',
+					responseComplete: true,
+					assistant: [
+						...Array.from({ length: 3 }, (_, index) => ({
+							kind: 'tool' as const, toolId: 'read_file', displayName: 'Read file', invocationMessage: `Read progress renderer ${index + 1}`, complete: true,
+						})),
+						{ kind: 'markdown', text: '## Review summary\n\nThe three progress renderers agree.' },
+					],
+				}],
+			}),
+		}),
+		LiveCompletion: scenario({ state: 'live' }),
+		ExpandedSteps: scenario({ expanded: true }),
+		ExpandedReasoning: scenario({ expanded: true, expandThinking: true }),
+		InProgress: scenario({ state: 'working' }),
+		CollapseDisabled: scenario({ collapse: false }),
+		EnabledAfterCompletion: scenario({ collapse: false, toggleCollapse: true }),
+		DisabledAfterCompletion: scenario({ toggleCollapse: false }),
+		LegacyCollapsed: scenario({ progress: ChatProgressAnimation.Off }),
+		LegacyExpanded: scenario({ progress: ChatProgressAnimation.Off, expanded: true }),
 	});
 }
 
@@ -1559,6 +2070,9 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PersistentProgress: defineThemedFixtureGroup({ path: 'persistentProgress/' }, {
+		ToolChains: defineToolChainScenarios(),
+		LegacyComparison: defineToolChainScenarios(ChatProgressAnimation.Off),
+		CompletedResponses: defineCompletedProgressScenarios(),
 		DisabledLegacyWorking: defineComponentFixture({
 			labels: { kind: 'animated' },
 			render: async context => {
@@ -1574,6 +2088,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		AnimationStyles: defineThemedFixtureGroup({
 			Off: defineProgressAnimationScenarios(ChatProgressAnimation.Off),
 			Weave: defineProgressAnimationScenarios(ChatProgressAnimation.Weave),
+			Draw: defineProgressAnimationScenarios(ChatProgressAnimation.Draw),
 			OrbitAndLock: defineProgressAnimationScenarios(ChatProgressAnimation.Orbit),
 			Accordion: defineProgressAnimationScenarios(ChatProgressAnimation.Accordion),
 			DialRotation: defineProgressAnimationScenarios(ChatProgressAnimation.Dial),
@@ -1582,6 +2097,16 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed),
 			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview),
 			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling),
+		}),
+		OffByThinkingStyle: defineThemedFixtureGroup({
+			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed, { progressAnimation: ChatProgressAnimation.Off }),
+			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview, { progressAnimation: ChatProgressAnimation.Off }),
+			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off }),
+		}),
+		OffAfterEnabled: defineThemedFixtureGroup({
+			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Weave }),
+			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Weave }),
+			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Weave }),
 		}),
 		ResponseStreaming: defineComponentFixture({
 			labels: { kind: 'animated' },
@@ -1633,7 +2158,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		}),
 		ThinkingAndStreamingTool: defineComponentFixture({
 			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressInThinking: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL),
 		}),
 		ThinkingAndStreamingToolLegacy: defineComponentFixture({
 			labels: { kind: 'animated' },
@@ -1648,20 +2173,20 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		}),
 		CollapsedThinking: defineComponentFixture({
 			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING, { progressInThinking: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING),
 		}),
 		CollapsedThinkingInsiders: defineComponentFixture({
 			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressInThinking: true, productQuality: 'insider' }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { productQuality: 'insider' }),
 		}),
 		CollapsedThinkingExpanded: defineComponentFixture({
 			labels: { kind: 'animated' },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressInThinking: true, expandThinking: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { expandThinking: true }),
 		}),
 		ActivityUpdates: defineComponentFixture({
 			labels: { kind: 'animated' },
 			virtualTime: { enabled: false },
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING, { progressInThinking: true, activityUpdates: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING, { activityUpdates: true }),
 		}),
 		FixedScrollingThinking: defineComponentFixture({
 			labels: { kind: 'animated' },
@@ -1672,7 +2197,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { thinkingStyle: ThinkingDisplayMode.CollapsedPreview }),
 		}),
 		CollapsedThinkingReducedMotion: defineComponentFixture({
-			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { progressInThinking: true, reducedMotion: true }),
+			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_THINKING_AND_TOOL, { reducedMotion: true }),
 		}),
 		ReducedMotion: defineComponentFixture({
 			render: context => renderPersistentProgressScenario(context, PERSISTENT_PROGRESS_RESPONSE, { reducedMotion: true }),

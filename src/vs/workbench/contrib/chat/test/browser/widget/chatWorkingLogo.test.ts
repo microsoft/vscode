@@ -52,7 +52,7 @@ suite('ChatWorkingLogo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const ribbonStudies: readonly ChatWorkingLogoMotion[] = ['ladder', 'carousel', 'piston', 'bridge', 'fan', 'comb', 'braid', 'sling', 'folio', 'helix'];
 	const alternatives: readonly ChatWorkingLogoMotion[] = ['aperture', 'accordion', 'dial', 'magnet', 'trace', 'pendulum', 'prism', ...ribbonStudies];
-	const motions: readonly ChatWorkingLogoMotion[] = ['fold', 'weave', 'weave-v', 'relay', 'stack', 'orbit', 'shutter', ...alternatives];
+	const motions: readonly ChatWorkingLogoMotion[] = ['fold', 'weave', 'weave-v', 'draw', 'relay', 'stack', 'orbit', 'shutter', ...alternatives];
 
 	function createConfiguration() {
 		const configuration = new TestConfigurationService();
@@ -98,6 +98,7 @@ suite('ChatWorkingLogo', () => {
 			snapshots: [
 				{ animation: 'off', duration: 1200, classApplied: true },
 				{ animation: 'weave', duration: 1200, classApplied: true },
+				{ animation: 'draw', duration: 2400, classApplied: true },
 				{ animation: 'orbit', duration: 3000, classApplied: true },
 				{ animation: 'accordion', duration: 1500, classApplied: true },
 				{ animation: 'dial', duration: 1600, classApplied: true },
@@ -162,7 +163,7 @@ suite('ChatWorkingLogo', () => {
 		});
 	});
 
-	for (const motion of motions) {
+	for (const motion of motions.filter(motion => motion !== 'draw')) {
 		test(`${motion} animates only transforms and opacity on HTML wrappers`, () => {
 			const logo = store.add(new ChatWorkingLogo(motion));
 			mainWindow.document.body.appendChild(logo.domNode);
@@ -184,6 +185,130 @@ suite('ChatWorkingLogo', () => {
 			});
 		});
 	}
+
+	test('draw builds and undraws in the same three-beat order without fading or moving the faces', () => {
+		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		store.add(toDisposable(() => parent.remove()));
+		const samples = [
+			{ time: 0, reveal: [0, 0, 0] },
+			{ time: 160, reveal: [0.5, 0, 0] },
+			{ time: 320, reveal: [1, 0, 0] },
+			{ time: 480, reveal: [1, 0.5, 0] },
+			{ time: 640, reveal: [1, 1, 0] },
+			{ time: 800, reveal: [1, 1, 0.5] },
+			{ time: 960, reveal: [1, 1, 1] },
+			{ time: 1200, reveal: [1, 1, 1] },
+			{ time: 1440, reveal: [1, 1, 1] },
+			{ time: 1600, reveal: [0.5, 1, 1] },
+			{ time: 1760, reveal: [0, 1, 1] },
+			{ time: 1920, reveal: [0, 0.5, 1] },
+			{ time: 2080, reveal: [0, 0, 1] },
+			{ time: 2240, reveal: [0, 0, 0.5] },
+			{ time: 2400, reveal: [0, 0, 0] },
+			{ time: 2560, reveal: [0.5, 0, 0] },
+		];
+		const sizes = [12, 16, 64];
+		const observations = sizes.flatMap(size => {
+			const logo = store.add(new ChatWorkingLogo('draw'));
+			logo.domNode.style.width = logo.domNode.style.height = `${size}px`;
+			parent.appendChild(logo.domNode);
+			const faces = ['descending', 'spine', 'ascending'].map(name => {
+				const face = logo.domNode.querySelector<HTMLElement>(`.chat-working-logo-${name}`);
+				assert.ok(face);
+				return face;
+			});
+			const animations = logo.domNode.getAnimations({ subtree: true });
+			assert.strictEqual(animations.length, 3);
+			for (const animation of animations) {
+				animation.pause();
+			}
+			return samples.map(sample => {
+				for (const animation of animations) {
+					animation.currentTime = sample.time;
+				}
+				const styles = faces.map(face => mainWindow.getComputedStyle(face));
+				const reveal = styles.map(style => {
+					assert.ok(style.clipPath.startsWith('inset('), style.clipPath);
+					const [top, right = top, bottom = top, left = right] = style.clipPath.slice(6, -1).split(/\s+/).map(value => Number.parseFloat(value));
+					return Math.round((1 - Math.max(top + bottom, left + right) / 100) * 1000) / 1000;
+				});
+				return {
+					size, time: sample.time, reveal,
+					opacity: styles.map(style => Math.round(Number(style.opacity) * 1000) / 1000),
+					stationary: styles.every(style => style.transform === 'none'),
+				};
+			});
+		});
+		assert.deepStrictEqual(observations, sizes.flatMap(size => samples.map(sample => ({
+			size, time: sample.time, reveal: sample.reveal, opacity: Array(3).fill(1), stationary: true,
+		}))));
+	});
+
+	test('draw resolves to a full static logo when stopped, reduced, or replaced with Weave', () => {
+		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		store.add(toDisposable(() => parent.remove()));
+		const logo = store.add(new ChatWorkingLogo('draw', 'insider'));
+		parent.appendChild(logo.domNode);
+		const faces = [...logo.domNode.children];
+		const snapshot = () => faces.map(face => {
+			const style = mainWindow.getComputedStyle(face);
+			return { clip: style.clipPath, opacity: style.opacity };
+		});
+		for (const animation of logo.domNode.getAnimations({ subtree: true })) {
+			animation.pause();
+			animation.currentTime = logo.durationMs * 0.3;
+		}
+		logo.setActive(false);
+		const stopped = snapshot();
+		logo.setActive(true);
+		parent.classList.add('monaco-reduce-motion');
+		const reduced = snapshot();
+		const reducedAnimations = logo.domNode.getAnimations({ subtree: true }).length;
+		parent.classList.remove('monaco-reduce-motion');
+		logo.setMotion('weave');
+		const noClipping = snapshot().every(face => face.clip === 'none');
+		const sameFaces = [...logo.domNode.children].every((face, index) => face === faces[index]);
+		logo.dispose();
+		const assembled = Array.from({ length: 3 }, () => ({ clip: 'none', opacity: '1' }));
+		assert.deepStrictEqual({ stopped, reduced, reducedAnimations, noClipping, sameFaces, connected: logo.domNode.isConnected }, {
+			stopped: assembled, reduced: assembled, reducedAnimations: 0, noClipping: true, sameFaces: true, connected: false,
+		});
+	});
+
+	test('draw and erase sweep each ribbon in the same counterclockwise direction', () => {
+		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		store.add(toDisposable(() => parent.remove()));
+		const samples = [
+			{ face: 'descending', time: 160, insets: [0, 50, 0, 0] },
+			{ face: 'spine', time: 480, insets: [50, 0, 0, 0] },
+			{ face: 'ascending', time: 800, insets: [0, 0, 0, 50] },
+			{ face: 'descending', time: 1600, insets: [0, 0, 0, 50] },
+			{ face: 'spine', time: 1920, insets: [0, 0, 50, 0] },
+			{ face: 'ascending', time: 2240, insets: [0, 50, 0, 0] },
+		];
+		const sizes = [12, 16, 64];
+		const observations = sizes.flatMap(size => {
+			const logo = store.add(new ChatWorkingLogo('draw'));
+			logo.domNode.style.width = logo.domNode.style.height = `${size}px`;
+			parent.appendChild(logo.domNode);
+			const animations = logo.domNode.getAnimations({ subtree: true });
+			assert.strictEqual(animations.length, 3);
+			for (const animation of animations) {
+				animation.pause();
+			}
+			return samples.map(sample => {
+				for (const animation of animations) {
+					animation.currentTime = sample.time;
+				}
+				const face = logo.domNode.querySelector(`.chat-working-logo-${sample.face}`);
+				assert.ok(face);
+				const clip = mainWindow.getComputedStyle(face).clipPath;
+				const [top, right = top, bottom = top, left = right] = clip.slice(6, -1).split(/\s+/).map(value => Math.round(Number.parseFloat(value)));
+				return { size, face: sample.face, time: sample.time, insets: [top, right, bottom, left] };
+			});
+		});
+		assert.deepStrictEqual(observations, sizes.flatMap(size => samples.map(sample => ({ size, ...sample }))));
+	});
 
 	const testWithMotion = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? test.skip : test;
 	testWithMotion('ten additional ribbon studies give all three pieces distinct moving paths', () => {
@@ -471,7 +596,7 @@ suite('ChatWorkingLogo', () => {
 		});
 		assert.deepStrictEqual(faces.map(face => {
 			const style = mainWindow.getComputedStyle(face);
-			return { transform: style.transform, opacity: style.opacity, animation: style.animationName };
-		}), faces.map(() => ({ transform: 'none', opacity: '1', animation: 'none' })));
+			return { transform: style.transform, opacity: style.opacity, animation: style.animationName, clip: style.clipPath };
+		}), faces.map(() => ({ transform: 'none', opacity: '1', animation: 'none', clip: 'none' })));
 	});
 });

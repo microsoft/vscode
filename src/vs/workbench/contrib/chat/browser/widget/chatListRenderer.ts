@@ -43,7 +43,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -73,7 +72,7 @@ import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
-import { getChatWorkingProgressIcon, getCompactCodicon } from '../chatIcons.js';
+import { getCompactCodicon } from '../chatIcons.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
 import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../chatEditing/chatEditingActions.js';
@@ -115,6 +114,7 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatSystemNotificationContentPart } from './chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart, getEffectiveThinkingDisplayMode } from './chatContentParts/chatThinkingContentPart.js';
+import { aggregateChatEditDiffs, ChatEditStatsButton } from './chatContentParts/chatEditStatsButton.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
@@ -162,7 +162,6 @@ export interface IChatListItemTemplate {
 	 */
 	renderedPartsMounted?: boolean;
 	renderedContent?: ReadonlyArray<IChatRendererContent>;
-	thinkingProgressOwner?: ChatThinkingContentPart;
 	completedResponseDisclosure?: HTMLDetailsElement;
 	completedResponseCollapseStartIndex?: number;
 	completedResponseCollapseEndIndex?: number;
@@ -387,7 +386,14 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 		if (dom.isHTMLElement(node) && (node.hidden || node.style.display === 'none')) {
 			continue;
 		}
-		visibleItemCount++;
+		if (dom.isHTMLElement(node) && node.classList.contains('chat-tool-chain')) {
+			const content = Array.from(node.children).find(child => child.classList.contains('chat-thinking-collapsible'));
+			if (content) {
+				visibleItemCount += getVisibleCompletedResponseItemCount(Array.from(content.children));
+			}
+		} else {
+			visibleItemCount++;
+		}
 	}
 	return visibleItemCount;
 }
@@ -784,7 +790,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -1332,8 +1337,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
-			templateData.thinkingProgressOwner = undefined;
-			templateData.rowContainer.classList.remove('chat-progress-in-thinking');
 			templateData.renderedContent = undefined;
 			dom.clearNode(templateData.value);
 		} else if (isPendingDividerVM(templateData.currentElement)) {
@@ -1507,7 +1510,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('chat-system-notification-response', rendersInlineSystemNotificationTiming);
-		const persistentProgressEnabled = isResponseVM(element) && !element.isComplete && this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
+		const persistentProgressEnabled = isResponseVM(element) && this.isPersistentProgressEnabled();
 		const progressMessageAtBottomOfResponse = this.shouldRenderProgressAtBottomOfResponse();
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse);
@@ -1693,29 +1696,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.updateStickyScrollSourceRange(element, templateData);
 			}
 		}
-		this.updateWorkingProgressOwner(templateData);
 		updateResponseDetails();
 		templateData.renderedPartsMounted = true;
-	}
-
-	private updateWorkingProgressOwner(templateData: IChatListItemTemplate): void {
-		const element = templateData.currentElement;
-		const useThinkingProgress = isResponseVM(element)
-			&& !element.isComplete && !element.isCanceled
-			&& this.rendererOptions.renderStyle !== 'minimal'
-			&& this.isPersistentProgressEnabled()
-			&& getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, this.rendererOptions.readOnly) === ThinkingDisplayMode.Collapsed;
-		const workingProgress = this.getWorkingProgressContentPart(templateData);
-		const thinking = useThinkingProgress ? this.getLastThinkingPart(templateData.renderedParts) : undefined;
-		const lastContentPart = templateData.renderedParts?.findLast(part =>
-			part !== workingProgress && part?.domNode?.parentElement === templateData.value);
-		const owner = thinking?.hasActiveProgress && lastContentPart === thinking ? thinking : undefined;
-		if (templateData.thinkingProgressOwner !== owner) {
-			templateData.thinkingProgressOwner?.setWorkingProgressIcon(undefined);
-			templateData.thinkingProgressOwner = owner;
-		}
-		owner?.setWorkingProgressIcon(getChatWorkingProgressIcon(this.productService.quality), workingProgress?.workingLabel);
-		templateData.rowContainer.classList.toggle('chat-progress-in-thinking', !!owner);
 	}
 
 	private renderPendingDivider(element: IChatPendingDividerViewModel, templateData: IChatListItemTemplate): void {
@@ -1777,12 +1759,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private isPersistentProgressEnabled(): boolean {
-		return getConfiguredProgressAnimation(this.configService, this.logService) !== ChatProgressAnimation.Off;
+		return this.rendererOptions.renderStyle !== 'minimal'
+			&& getConfiguredProgressAnimation(this.configService, this.logService) !== ChatProgressAnimation.Off;
 	}
 
 	private shouldRenderProgressAtBottomOfResponse(): boolean {
-		return this.rendererOptions.renderStyle !== 'minimal'
-			&& (this.isPersistentProgressEnabled() || !!checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse));
+		return this.isPersistentProgressEnabled() || !!checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
+	}
+
+	private getCollapsedToolsMode(): CollapsedToolsDisplayMode {
+		return this.isPersistentProgressEnabled() ? CollapsedToolsDisplayMode.Always : this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 	}
 
 	private renderConfirmationAction(element: IChatRequestViewModel, templateData: IChatListItemTemplate) {
@@ -1884,12 +1870,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
-		if (this.rendererOptions.renderStyle === 'minimal' || element.isComplete || element.isCanceled) {
+		if (this.rendererOptions.renderStyle === 'minimal' || element.isComplete) {
 			return undefined;
 		}
 
 		if (this.isPersistentProgressEnabled()) {
-			return this.getPersistentWorkingProgress(element, partsToRender);
+			return element.isCanceled ? undefined : this.getPersistentWorkingProgress(element, partsToRender);
 		}
 
 		if (element.agentOrSlashCommandDetected || !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
@@ -2093,15 +2079,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private doUpdateWorkingProgressForPendingConfirmations(templateData: IChatListItemTemplate): void {
 		const element = templateData.currentElement;
-		if (!isResponseVM(element) || element.isComplete || element.isCanceled) {
+		if (!isResponseVM(element)) {
 			return;
 		}
 
 		const workingProgressPart = this.getWorkingProgressContentPart(templateData);
 		if (this.isPersistentProgressEnabled()) {
+			if (element.isComplete || element.isCanceled) {
+				return;
+			}
 			const progress = this.getPersistentWorkingProgress(element, annotateSpecialMarkdownContent(element.response.value));
 			workingProgressPart?.updateWorkingContent(progress.content, progress.isActive);
-			this.updateWorkingProgressOwner(templateData);
 			this.fireItemHeightChange(templateData);
 			return;
 		}
@@ -2917,13 +2905,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& contentForThisTurn.slice(contentIndex + 1).some(part => part.kind === 'working')
 				? alreadyRenderedPart : undefined;
 			if (alreadyRenderedPart) {
-				if (!rebuildThinkingGroup && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
+				if (!rebuildThinkingGroup && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart && !alreadyRenderedPart.isToolChain) {
 					if (!Array.isArray(partToRender.value)) {
 						alreadyRenderedPart.updateThinking(partToRender);
 					}
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
-				} else if (!rebuildThinkingGroup && (!this.isPersistentProgressEnabled() || partToRender.kind !== 'working') && alreadyRenderedPart instanceof ChatThinkingContentPart && this.shouldPinPart(partToRender, element)) {
+				} else if (!rebuildThinkingGroup && alreadyRenderedPart instanceof ChatThinkingContentPart
+					&& (!this.isPersistentProgressEnabled() || (partToRender.kind !== 'working' && alreadyRenderedPart.isToolChain === (partToRender.kind !== 'thinking')))
+					&& this.shouldPinPart(partToRender, element)) {
 					// keep existing thinking part if we are pinning it (combining tool calls into it)
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
@@ -3104,7 +3094,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const animateCollapse = templateData.wasResponseComplete === false && element.isComplete;
-		this.updateWorkingProgressOwner(templateData);
 		this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 		templateData.wasResponseComplete = element.isComplete;
 	}
@@ -3224,6 +3213,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
+
+		if (templateData.renderedPersistentProgress) {
+			const diffButton = templateData.completedResponseDisclosureDisposables.add(new MutableDisposable<ChatEditStatsButton>());
+			const thinkingParts = templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex)
+				.filter(part => part instanceof ChatThinkingContentPart) ?? [];
+			templateData.completedResponseDisclosureDisposables.add(autorun(reader => {
+				const diff = aggregateChatEditDiffs(thinkingParts.map(part => part.diffData.read(reader)));
+				const hasChanges = (diff.added > 0 || diff.removed > 0) && diff.resources.length > 0;
+				summary.classList.toggle('chat-completed-response-with-edits', hasChanges);
+				if (hasChanges) {
+					if (!diffButton.value) {
+						diffButton.value = this.instantiationService.createInstance(ChatEditStatsButton, summary, localize('chat.completedResponse.changes.title', "Response File Changes"), 'chat-edit-stats');
+						summary.appendChild(chevron);
+					}
+					diffButton.value.setDiff(diff);
+					summary.setAttribute('aria-label', localize('chat.completedResponse.withEdits', "{0}, {1} lines added, {2} lines deleted", disclosureLabel, diff.added, diff.removed));
+				} else {
+					const restoreFocus = diffButton.value?.element.contains(dom.getActiveElement());
+					diffButton.clear();
+					button.appendChild(chevron);
+					summary.removeAttribute('aria-label');
+					if (restoreFocus) {
+						summary.focus({ preventScroll: true });
+					}
+				}
+			}));
+		}
 
 		const keepOpenForFocus = !!focusedContent && nodesToCollapse.some(node => node.contains(focusedContent));
 		const shouldAnimateInitialCollapse = animateCollapse
@@ -3469,7 +3485,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	// todo @justschen initially split up each of the checks to easily see what should be pinned/not pinned, we can probably consolidate this down by a lot once we're more confident in the logic.
 	private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsMode();
 
 		// thinking and working content are always pinned (they are the thinking container itself)
 		if (part.kind === 'thinking' || part.kind === 'working') {
@@ -3582,7 +3598,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
 		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
-		if (lastThinking?.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items')) {
+		if (lastThinking && (this.isPersistentProgressEnabled() ? !lastThinking.isToolChain : lastThinking.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items'))) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 			return { part: undefined, separatedFromReasoning: true };
 		}
@@ -3604,8 +3620,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Look at all parts after the current content index
 		for (let i = context.contentIndex + 1; i < context.content.length; i++) {
 			const nextPart = context.content[i];
-			if (nextPart.kind === 'working') {
+			if (context.suppressProgressShimmer && nextPart.kind === 'working') {
 				continue;
+			}
+			if (context.suppressProgressShimmer && nextPart.kind !== 'undoStop'
+				&& (context.content[context.contentIndex]?.kind === 'thinking') !== (nextPart.kind === 'thinking')) {
+				return true;
 			}
 			// If there's any part that would NOT be pinned to the thinking part,
 			// then this thinking part is already complete
@@ -3827,7 +3847,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!lastThinking) {
 			return;
 		}
-		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
+		const style = context.suppressProgressShimmer ? ThinkingDisplayMode.CollapsedPreview : getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
 			lastThinking.collapseContent();
 		}
@@ -4136,7 +4156,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& other.toolCallId === toolInvocation.toolCallId);
 		}
 
-		if (this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools') === CollapsedToolsDisplayMode.Off) {
+		if (this.getCollapsedToolsMode() === CollapsedToolsDisplayMode.Off) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 
@@ -4167,7 +4187,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 
 		// handling for when we want to put tool invocations inside a thinking part
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsMode();
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 			const { part: lastThinking, separatedFromReasoning } = this.getLastThinkingPartForGroupedItem(context, templateData);
 
@@ -4876,7 +4896,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Pin the pill into the surrounding thinking part so diff stats bubble
 		// up into the thinking title. The list renderer pinning logic above
 		// already routes externalEdit kinds through this path.
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsMode();
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(content, context.element)) {
 			// Stable id per part so the thinking part can dedup if it sees us twice.
 			const partId = `externalEdit-${content.uri.toString()}-${content.undoStopId ?? ''}`;
@@ -4982,7 +5002,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 		}
 
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		const collapsedToolsMode = this.getCollapsedToolsMode();
 		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 
 			// append to thinking part when the codeblock is complete
@@ -5063,9 +5083,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// (i.e., there are subsequent parts that won't be pinned to this thinking part)
 		const element = isResponseVM(context.element) ? context.element : undefined;
 		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
+		const toolChain = !!context.suppressProgressShimmer && context.content[context.contentIndex]?.kind !== 'thinking';
+		const thinkingContext = toolChain ? { ...context, isToolChain: true } : context;
 		const renderedPrefix = templateData.renderedParts?.slice(0, context.contentIndex);
 		const lastThinkingPart = this.getLastThinkingPart(renderedPrefix);
-		if (lastThinkingPart?.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly), 'items', 'reasoning')) {
+		if (lastThinkingPart && (context.suppressProgressShimmer ? lastThinkingPart.isToolChain !== toolChain
+			: lastThinkingPart.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly), 'items', 'reasoning'))) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 
@@ -5084,7 +5107,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						lastThinkingPart.setupThinkingContainer({ ...content, value: item });
 					} else {
 						const itemContent = { ...content, value: item };
-						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, streamingCompleted);
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, thinkingContext, this.chatContentMarkdownRenderer, streamingCompleted);
 						lastPart = itemPart;
 					}
 				}
@@ -5097,7 +5120,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastActiveThinking.setupThinkingContainer(content);
 				return lastActiveThinking;
 			} else {
-				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, streamingCompleted);
+				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, thinkingContext, this.chatContentMarkdownRenderer, streamingCompleted);
 				return part;
 			}
 

@@ -241,6 +241,7 @@ export enum ThinkingDisplayMode {
 export enum ChatProgressAnimation {
 	Off = 'off',
 	Weave = 'weave',
+	Draw = 'draw',
 	Orbit = 'orbit',
 	Accordion = 'accordion',
 	Dial = 'dial',

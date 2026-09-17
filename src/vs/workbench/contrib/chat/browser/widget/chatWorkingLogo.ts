@@ -13,7 +13,7 @@ import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIco
 import './media/chatWorkingLogo.css';
 
 export type ChatWorkingLogoMotion =
-	| 'fold' | 'weave' | 'weave-v' | 'relay' | 'stack' | 'orbit' | 'shutter'
+	| 'fold' | 'weave' | 'weave-v' | 'draw' | 'relay' | 'stack' | 'orbit' | 'shutter'
 	| 'aperture' | 'accordion' | 'dial' | 'magnet' | 'trace' | 'pendulum' | 'prism'
 	| 'ladder' | 'carousel' | 'piston' | 'bridge' | 'fan' | 'comb' | 'braid' | 'sling' | 'folio' | 'helix';
 
@@ -21,6 +21,7 @@ const durations: Record<ChatWorkingLogoMotion, number> = {
 	fold: 2800,
 	weave: 1200,
 	'weave-v': 1200,
+	draw: 2400,
 	relay: 3000,
 	stack: 3200,
 	orbit: 3000,
@@ -133,6 +134,7 @@ export function getConfiguredProgressAnimation(configurationService: IConfigurat
 			return ChatProgressAnimation.Off;
 		case ChatProgressAnimation.Off:
 		case ChatProgressAnimation.Weave:
+		case ChatProgressAnimation.Draw:
 		case ChatProgressAnimation.Orbit:
 		case ChatProgressAnimation.Accordion:
 		case ChatProgressAnimation.Dial:

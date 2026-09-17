@@ -116,6 +116,34 @@
 	35%, 57.5% { transform: translate(-16%, -8%) scaleX(0.5); opacity: 0.75; }
 }
 
+.chat-working-logo-draw.chat-working-logo-active {
+	> .chat-working-logo-face {
+		animation-timing-function: linear;
+		will-change: clip-path;
+	}
+	> .chat-working-logo-descending { animation-name: chat-logo-draw-descending; }
+	> .chat-working-logo-spine { animation-name: chat-logo-draw-spine; }
+	> .chat-working-logo-ascending { animation-name: chat-logo-draw-ascending; }
+}
+
+@keyframes chat-logo-draw-descending {
+	0% { clip-path: inset(0 100% 0 0); }
+	13.333333%, 60% { clip-path: inset(0); }
+	73.333333%, 100% { clip-path: inset(0 0 0 100%); }
+}
+
+@keyframes chat-logo-draw-spine {
+	0%, 13.333333% { clip-path: inset(100% 0 0 0); }
+	26.666667%, 73.333333% { clip-path: inset(0); }
+	86.666667%, 100% { clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes chat-logo-draw-ascending {
+	0%, 26.666667% { clip-path: inset(0 0 0 100%); }
+	40%, 86.666667% { clip-path: inset(0); }
+	100% { clip-path: inset(0 100% 0 0); }
+}
+
 .chat-working-logo-relay.chat-working-logo-active {
 	> .chat-working-logo-ascending { animation-name: chat-logo-relay-ascending; }
 	> .chat-working-logo-descending { animation-name: chat-logo-relay-descending; }
@@ -598,6 +626,7 @@
 .monaco-reduce-motion .chat-working-logo.chat-working-logo-active > .chat-working-logo-face {
 	animation: none;
 	transform: none;
+	clip-path: none;
 	opacity: 1;
 	will-change: auto;
 }
@@ -606,6 +635,7 @@
 	.chat-working-logo.chat-working-logo-active:not(.monaco-enable-motion *) > .chat-working-logo-face {
 		animation: none;
 		transform: none;
+		clip-path: none;
 		opacity: 1;
 		will-change: auto;
 	}

@@ -39,6 +39,13 @@ const studies: readonly IMotionStudy[] = [
 		note: 'The same 1-2-3, hold, and shared reset as Weave. Only the diagonal poses change.',
 	},
 	{
+		motion: 'draw',
+		name: 'Draw',
+		character: 'Constructive',
+		description: 'Draw the right-slanting ribbon, climb the right edge, then draw the left-slanting ribbon.',
+		note: 'Three 320ms beats build the mark. Hold for 480ms, then erase 1-2-3 in the same counterclockwise direction. No fade or backward retraction.',
+	},
+	{
 		motion: 'relay',
 		name: 'Relay',
 		character: 'Subtle',
@@ -187,7 +194,7 @@ const studies: readonly IMotionStudy[] = [
 	},
 ];
 
-type MotionCollection = 'all' | 'favorites' | 'explorations' | 'ribbons' | 'assembly' | 'orbital' | 'folding' | 'weave';
+type MotionCollection = 'all' | 'favorites' | 'explorations' | 'ribbons' | 'assembly' | 'orbital' | 'folding' | 'weave' | 'draw';
 
 const collections: Record<MotionCollection, { title: string; description: string; motions?: readonly ChatWorkingLogoMotion[] }> = {
 	all: {
@@ -198,6 +205,11 @@ const collections: Record<MotionCollection, { title: string; description: string
 		title: 'Weave, with a V.',
 		description: 'Original Weave on the left, V variant on the right. The timing and spine movement are identical; the two diagonals meet below instead of crossing.',
 		motions: ['weave', 'weave-v'],
+	},
+	draw: {
+		title: 'Move the mark, or build it.',
+		description: 'Weave stays unchanged on the left. Draw and erase both travel counterclockwise: right slant, right edge, left slant. Compare the 12px working row as well as the enlarged mark.',
+		motions: ['weave', 'draw'],
 	},
 	favorites: {
 		title: 'Moving spine. Clean joins.',
@@ -266,7 +278,7 @@ function renderStudy(context: ComponentFixtureContext, study: IMotionStudy, pare
 		dom.append(row, dom.$('span.chat-logo-motion-size', undefined, sample.label));
 	}
 	dom.append(card, dom.$('p.chat-logo-motion-note', undefined, study.note));
-	dom.append(card, dom.$('span.chat-logo-motion-cycle', undefined, `${hero.durationMs / 1000}s loop / transform + opacity`));
+	dom.append(card, dom.$('span.chat-logo-motion-cycle', undefined, `${hero.durationMs / 1000}s loop / ${study.motion === 'draw' ? '1-2-3 draw and undraw' : 'transform + opacity'}`));
 }
 
 function renderGallery(context: ComponentFixtureContext, options: { reducedMotion?: boolean; collection?: MotionCollection } = {}): void {
@@ -308,6 +320,9 @@ function renderPerformanceProbe(context: ComponentFixtureContext, motion: ChatWo
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/logoMotion/' }, {
+	DrawComparison: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderGallery(context, { collection: 'draw' }) }),
+	DrawComparisonReducedMotion: defineComponentFixture({ render: context => renderGallery(context, { collection: 'draw', reducedMotion: true }) }),
+	Draw: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderSingleStudy(context, 'draw') }),
 	WeaveComparison: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderGallery(context, { collection: 'weave' }) }),
 	WeaveComparisonReducedMotion: defineComponentFixture({ render: context => renderGallery(context, { collection: 'weave', reducedMotion: true }) }),
 	ThreePieceStudies: defineThemedFixtureGroup({
@@ -351,6 +366,7 @@ export default defineThemedFixtureGroup({ path: 'chat/logoMotion/' }, {
 		Idle: defineComponentFixture({ render: context => renderPerformanceProbe(context, 'relay', false) }),
 		Fold: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, 'fold') }),
 		Weave: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, 'weave') }),
+		Draw: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, 'draw') }),
 		WeaveV: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, 'weave-v') }),
 		Relay: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, 'relay') }),
 		Stack: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderPerformanceProbe(context, 'stack') }),

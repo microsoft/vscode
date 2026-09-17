@@ -3457,7 +3457,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	/* Ordinary shimmer rows use the text as their progress affordance. */
-	&.shimmer-progress:not(.chat-working-progress) > .codicon {
+	&.shimmer-progress:where(:not(.chat-working-progress)) > .codicon {
 		display: none;
 	}
 
@@ -3479,8 +3479,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-item-container .progress-container > .chat-working-progress-icon-stable,
-.chat-thinking-progress-owner > .chat-used-context-label .monaco-button > .codicon-vscode {
+.interactive-item-container .progress-container > .chat-working-progress-icon-stable {
 	color: var(--vscode-chat-workingProgressStableIconForeground);
 	-webkit-text-fill-color: var(--vscode-chat-workingProgressStableIconForeground);
 }
@@ -3490,8 +3489,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	-webkit-text-fill-color: var(--vscode-chat-workingProgressInsidersIconForeground);
 }
 
-.interactive-item-container .progress-container.chat-working-progress > .chat-progress-icon::before,
-.chat-thinking-progress-owner > .chat-used-context-label .monaco-button > .codicon-vscode::before {
+.interactive-item-container .progress-container.chat-working-progress > .chat-progress-icon::before {
 	display: none;
 }
 
@@ -3500,14 +3498,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	flex-shrink: 0;
 	min-height: 1lh;
-}
-
-.interactive-session .chat-thinking-progress-owner > .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error-compact):not(.codicon-warning-compact) {
-	display: inline-flex;
-}
-
-.interactive-item-container.chat-progress-in-thinking .progress-container.chat-working-progress {
-	display: none;
 }
 
 /* Reduced motion: render the shimmer text as static, solid progress text. */

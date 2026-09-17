@@ -413,7 +413,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 
 	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive): void {
 		const resolvedContent = content ?? new MarkdownString().appendText(pickWorkingLabel(this.contextElement, this.workingConfigurationService));
-		if (content?.value === this.explicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === this.isActive) {
+		if (this.workingLogo && content?.value === this.explicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === this.isActive) {
 			return;
 		}
 		this.explicitContent = content;
