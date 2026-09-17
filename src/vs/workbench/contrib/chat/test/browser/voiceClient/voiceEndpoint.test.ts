@@ -105,6 +105,24 @@ suite('Voice endpoint', () => {
 		});
 	});
 
+	test('uses a configured GPT Live backend override when opted in', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentsVoiceSettingId.GptLiveEnabled]: true,
+			[AgentsVoiceSettingId.GptLiveBackendUrl]: 'wss://voice-live.contoso.test/realtime/voice?deployment=gpt-live',
+			[AgentsVoiceSettingId.GptLiveApiKey]: 'gpt-live-key',
+		});
+
+		assert.deepStrictEqual({
+			voice: getVoiceWebSocketUrl(configurationService, productService),
+			transcription: getTranscriptionWebSocketUrl(configurationService, productService),
+			token: getVoiceBackendAuthToken(configurationService, 'github-token', 'wss://voice-live.contoso.test/realtime/voice?deployment=gpt-live'),
+		}, {
+			voice: 'wss://voice-live.contoso.test/realtime/voice?deployment=gpt-live',
+			transcription: 'wss://voice-live.contoso.test/realtime/transcription?deployment=gpt-live',
+			token: 'gpt-live-key',
+		});
+	});
+
 	test('uses the GPT Live key for websocket auth when opted in', () => {
 		const configurationService = new TestConfigurationService({
 			[AgentsVoiceSettingId.GptLiveEnabled]: true,

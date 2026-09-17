@@ -684,6 +684,14 @@ configurationRegistry.registerConfiguration({
 			ignoreSync: true,
 			included: false,
 		},
+		[AgentsVoiceSettingId.GptLiveBackendUrl]: {
+			type: 'string',
+			description: nls.localize('agents.voice.gptLive.backendUrl', "GPT Live voice backend WebSocket URL used when `agents.voice.gptLive.enabled` is enabled. Leave empty to use the default GPT Live backend."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
+			included: false,
+		},
 		'agents.voice.speakResponses': {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.speakResponses', "When enabled, the assistant reads responses aloud. When disabled, responses are not spoken; enable `#agents.voice.showTranscript#` to read them as a text transcript instead."),

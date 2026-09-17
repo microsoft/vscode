@@ -10,7 +10,6 @@ import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js
 const VOICE_PATH = '/realtime/voice';
 const TRANSCRIPTION_PATH = '/realtime/transcription';
 const GPT_LIVE_VOICE_WS_URL = 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice';
-const GPT_LIVE_HOST = 'gpt-live-caas.mai.microsoft.com';
 
 function isGptLiveEnabled(configurationService: IConfigurationService | undefined): boolean {
 	return configurationService?.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
@@ -26,7 +25,12 @@ function getGptLiveApiKey(configurationService: IConfigurationService | undefine
 }
 
 function getHostedVoiceWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
-	return isGptLiveEnabled(configurationService) ? GPT_LIVE_VOICE_WS_URL : productService.voiceWsUrl || '';
+	if (isGptLiveEnabled(configurationService)) {
+		const configured = configurationService.getValue<string>(AgentsVoiceSettingId.GptLiveBackendUrl);
+		const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
+		return configuredUrl || GPT_LIVE_VOICE_WS_URL;
+	}
+	return productService.voiceWsUrl || '';
 }
 
 export function getVoiceWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
@@ -65,22 +69,19 @@ export function addWebSocketAuthToken(url: string, token: string): string {
 }
 
 export function getVoiceBackendAuthToken(configurationService: IConfigurationService | undefined, fallbackToken: string | undefined, endpointUrl?: string): string | undefined {
-	if (!isGptLiveEnabled(configurationService) || !isGptLiveEndpoint(endpointUrl)) {
+	if (!isGptLiveEnabled(configurationService) || !shouldUseGptLiveCredential(configurationService, endpointUrl)) {
 		return fallbackToken;
 	}
 	return getGptLiveApiKey(configurationService);
 }
 
-function isGptLiveEndpoint(endpointUrl: string | undefined): boolean {
+function shouldUseGptLiveCredential(configurationService: IConfigurationService, endpointUrl: string | undefined): boolean {
 	if (!endpointUrl) {
 		return false;
 	}
-	try {
-		const url = new URL(endpointUrl);
-		return url.hostname === GPT_LIVE_HOST;
-	} catch {
-		return false;
-	}
+	const configuredVoiceOverride = configurationService.getValue<string>('agents.voice.backendUrl');
+	const configuredVoiceOverrideUrl = typeof configuredVoiceOverride === 'string' ? configuredVoiceOverride.trim() : '';
+	return configuredVoiceOverrideUrl.length === 0;
 }
 
 function isLoopbackWebSocketUrl(value: string): boolean {
