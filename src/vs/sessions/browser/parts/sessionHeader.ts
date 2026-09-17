@@ -14,7 +14,7 @@ import { autorun, IReader } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { getChatCapabilities, getUntitledSessionTitle, IChat } from '../../services/sessions/common/session.js';
+import { getChatCapabilities, getUntitledSessionTitle, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -299,7 +299,10 @@ export class SessionHeader extends Disposable {
 	 * The title is editable when the active chat supports renaming.
 	 */
 	private _isTitleEditable(reader?: IReader): boolean {
-		return !!this._session && !!this._activeChat && getChatCapabilities(this._activeChat, this._session, reader).canRename;
+		return !!this._session
+			&& !!this._activeChat
+			&& this._activeChat.status.read(reader) !== SessionStatus.Untitled
+			&& getChatCapabilities(this._activeChat, this._session, reader).canRename;
 	}
 
 	/**

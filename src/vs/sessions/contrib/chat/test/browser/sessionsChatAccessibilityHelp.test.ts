@@ -70,10 +70,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
-	for (const { configuredValue, expected } of [
-		{ configuredValue: undefined, expected: 'open a chat as a tab' },
-		{ configuredValue: SessionsChatTabsMode.Multiple, expected: 'open a chat as a tab' },
-		{ configuredValue: SessionsChatTabsMode.Single, expected: 'show a chat as the session view' },
+	for (const { configuredValue, expectedConversation, expectedListAction } of [
+		{ configuredValue: undefined, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'without a tab row', expectedListAction: 'show a chat as the session view' },
 	]) {
 		test(`describes sessions list chat presentation when the setting is ${configuredValue ?? 'default'}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -84,9 +84,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
-			const sessionListHelp = provider.provideContent().split('\n').find(line => line.startsWith('Sessions with multiple user-facing chats'));
+			const content = provider.provideContent().split('\n');
 
-			assert.ok(sessionListHelp?.includes(expected));
+			assert.deepStrictEqual({
+				conversationDescription: content.some(line => line.includes(expectedConversation)),
+				sessionListAction: content.some(line => line.includes(expectedListAction)),
+			}, {
+				conversationDescription: true,
+				sessionListAction: true,
+			});
 		});
 	}
 
