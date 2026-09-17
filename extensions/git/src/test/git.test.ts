@@ -717,4 +717,72 @@ suite('git', () => {
 			);
 		});
 	});
+
+	suite('Diff original resource fallback (ref=~)', () => {
+		async function simulateReadFileWithTildeRef(
+			indexBuffer: () => Promise<Uint8Array | null>,
+			headBuffer: () => Promise<Uint8Array | null>
+		): Promise<Uint8Array> {
+			try {
+				const result = await indexBuffer();
+				if (result !== null) {
+					return result;
+				}
+				throw new Error();
+			} catch {
+				try {
+					const result = await headBuffer();
+					if (result !== null) {
+						return result;
+					}
+					throw new Error();
+				} catch {
+					return new Uint8Array(0);
+				}
+			}
+		}
+
+		test('returns index content when file is staged', async () => {
+			const indexContent = new TextEncoder().encode('staged content');
+			const result = await simulateReadFileWithTildeRef(
+				async () => indexContent,
+				async () => null
+			);
+			assert.deepStrictEqual(result, indexContent);
+		});
+
+		test('returns HEAD content when file is unstaged but exists in HEAD', async () => {
+			const headContent = new TextEncoder().encode('committed content');
+			const result = await simulateReadFileWithTildeRef(
+				async () => null,
+				async () => headContent
+			);
+			assert.deepStrictEqual(result, headContent);
+		});
+
+		test('returns empty content for new file after unstage (not in index, not in HEAD)', async () => {
+			const result = await simulateReadFileWithTildeRef(
+				async () => null,
+				async () => null
+			);
+			assert.deepStrictEqual(result, new Uint8Array(0));
+		});
+
+		test('handles index error and falls back to HEAD', async () => {
+			const headContent = new TextEncoder().encode('head content');
+			const result = await simulateReadFileWithTildeRef(
+				async () => { throw new Error('git show : failed'); },
+				async () => headContent
+			);
+			assert.deepStrictEqual(result, headContent);
+		});
+
+		test('handles both index and HEAD errors and returns empty', async () => {
+			const result = await simulateReadFileWithTildeRef(
+				async () => { throw new Error('git show : failed'); },
+				async () => { throw new Error('git show HEAD: failed'); }
+			);
+			assert.deepStrictEqual(result, new Uint8Array(0));
+		});
+	});
 });
