@@ -1004,11 +1004,12 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 	const invoked = child.type === CustomizationType.Hook
 		? lifecycle.some(entry => entry.kind !== 'loaded')
 		: child.type === CustomizationType.Skill && evidence.some(entry => !!entry.debugEventId);
+	const runtimeStatus = child.type === CustomizationType.McpServer ? mcpServerStatus(child) : loadStatus.status;
 	const status = !parentEnabled || !childEnabled
 		? 'disabled'
 		: invoked
 			? 'invoked'
-			: withUsageStatus(loadStatus.status, evidence);
+			: withUsageStatus(runtimeStatus, evidence);
 	const detail = child.type === CustomizationType.McpServer ? mcpServerDetail(child) : loadStatus.detail;
 	return {
 		id: child.id,
