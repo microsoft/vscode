@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 
-export class ExtHostSpeech implements ExtHostSpeechShape {
+export class ExtHostSpeech extends Disposable implements ExtHostSpeechShape {
 
 	private static ID_POOL = 1;
 
@@ -19,9 +20,13 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 	private readonly sessions = new Map<number, CancellationTokenSource>();
 	private readonly synthesizers = new Map<number, vscode.TextToSpeechSession>();
 
+	private readonly _onDidChangeVoiceChatInProgress = this._register(new Emitter<boolean>());
+	readonly onDidChangeVoiceChatInProgress = this._onDidChangeVoiceChatInProgress.event;
+
 	constructor(
 		mainContext: IMainContext
 	) {
+		super();
 		this.proxy = mainContext.getProxy(MainContext.MainThreadSpeech);
 	}
 
@@ -138,5 +143,9 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			this.proxy.$unregisterProvider(handle);
 			this.providers.delete(handle);
 		});
+	}
+
+	$onDidChangeVoiceChatInProgress(inProgress: boolean): void {
+		this._onDidChangeVoiceChatInProgress.fire(inProgress);
 	}
 }
