@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IFileService, FileOperation, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopy } from './workingCopy.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -416,6 +417,10 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		try {
 			for (const { file: { source, target }, overwrite } of operations) {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				// if source and target are not equal, handle dirty working copies
 				// depending on the operation:
 				// - move: revert both source and target (if any)
@@ -429,7 +434,22 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				if (move) {
 					stats.push(await this.fileService.move(source, target, overwrite));
 				} else {
-					stats.push(await this.fileService.copy(source, target, overwrite));
+					try {
+						stats.push(await this.fileService.copy(source, target, overwrite, undefined, token));
+					} catch (error) {
+
+						// Best effort cleanup of a partially copied
+						// target when the copy was cancelled
+						if (isCancellationError(error)) {
+							try {
+								await this.fileService.del(target, { recursive: true });
+							} catch (error) {
+								// ignore
+							}
+						}
+
+						throw error;
+					}
 				}
 			}
 		} catch (error) {

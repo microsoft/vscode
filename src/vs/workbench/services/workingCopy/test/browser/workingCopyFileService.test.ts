@@ -10,11 +10,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { FileOperation } from '../../../../../platform/files/common/files.js';
-import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { FileOperation, IFileCopyProgressCallback, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { TestFileService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { ICopyOperation } from '../../common/workingCopyFileService.js';
+import { ICopyOperation, WorkingCopyFileService } from '../../common/workingCopyFileService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
@@ -139,6 +140,70 @@ suite('WorkingCopyFileService', () => {
 		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false, true);
 	});
 
+	class CopyCancellationTestFileService extends TestFileService {
+
+		readonly deleted: URI[] = [];
+		copyToken: CancellationToken | undefined = undefined;
+
+		override async copy(_source: URI, _target: URI, _overwrite?: boolean, _progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<IFileStatWithMetadata> {
+			this.copyToken = token;
+
+			throw new CancellationError();
+		}
+
+		override async del(resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> {
+			this.deleted.push(resource);
+		}
+	}
+
+	test('copy - cancellation is forwarded to the file service and cleans up the target', async function () {
+		const fileService = new CopyCancellationTestFileService();
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const source = toResource.call(this, '/path/file.txt');
+		const target = toResource.call(this, '/path/file_target.txt');
+
+		const cts = new CancellationTokenSource();
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy([{ file: { source, target } }], cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.strictEqual(fileService.copyToken, cts.token);
+		assert.deepStrictEqual(fileService.deleted, [target]);
+
+		cts.dispose();
+	});
+
+	test('copy - cancelled token prevents the copy from starting', async function () {
+		const fileService = new CopyCancellationTestFileService();
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const cts = new CancellationTokenSource();
+		cts.cancel();
+
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy([{ file: { source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') } }], cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.strictEqual(fileService.copyToken, undefined);
+
+		cts.dispose();
+	});
+
 	test('getDirty', async function () {
 		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
@@ -259,19 +324,19 @@ suite('WorkingCopyFileService', () => {
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
-		// Move
+		// Move (a cancelled token also aborts the operation)
 		cts = new CancellationTokenSource();
 		promise = accessor.workingCopyFileService.move([{ file: { source: resource, target: resource } }], cts.token);
 		cts.cancel();
-		await promise;
+		await assert.rejects(promise, error => isCancellationError(error as Error));
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
-		// Copy
+		// Copy (a cancelled token also aborts the operation)
 		cts = new CancellationTokenSource();
 		promise = accessor.workingCopyFileService.copy([{ file: { source: resource, target: resource } }], cts.token);
 		cts.cancel();
-		await promise;
+		await assert.rejects(promise, error => isCancellationError(error as Error));
 		assert.strictEqual(canceled, true);
 		canceled = false;
 
