@@ -50,15 +50,19 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}
 
 		const all = await Promise.all([
-			this.getQueryRemoteSources(octokit, query),
 			this.getUserRemoteSources(octokit, query),
+			this.getQueryRemoteSources(octokit, query),
 		]);
 
 		const map = new Map<string, RemoteSource>();
 
 		for (const group of all) {
 			for (const remoteSource of group) {
-				map.set(remoteSource.name, remoteSource);
+				//Preserve the first occurance so user/org repositories
+				// take precedence over matching public search results.
+				if (!map.has(remoteSource.name)) {
+					map.set(remoteSource.name, remoteSource);
+				}
 			}
 		}
 
@@ -66,14 +70,24 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 	}
 
 	private async getUserRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
-		if (!query) {
-			const user = await octokit.users.getAuthenticated({});
-			const username = user.data.login;
-			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
+		const normalizedQuery = query?.trim().toLowerCase();
+
+		if (!normalizedQuery) {
+			const res = await octokit.repos.listForAuthenticatedUser({ sort: 'updated', per_page: 100 });
+			this.userReposCache = res.data.map(asRemoteSource);
+			return this.userReposCache;
+		}
+
+		if (this.userReposCache.length === 0) {
+			const res = await octokit.repos.listForAuthenticatedUser({ sort: 'updated', per_page: 100 });
 			this.userReposCache = res.data.map(asRemoteSource);
 		}
 
-		return this.userReposCache;
+		return this.userReposCache.filter(repo =>
+			repo.name
+				.toLowerCase()
+				.includes(normalizedQuery)
+		);
 	}
 
 	private async getQueryRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
