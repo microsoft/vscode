@@ -21,6 +21,7 @@ import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../work
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
+import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -299,6 +300,26 @@ suite('Sessions - ChatCompositeBar', () => {
 					hasCompactClass: true,
 				},
 			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('uses symmetric horizontal padding for chat tab labels', () => {
+		const { container, tabs } = createHarness(disposables);
+		container.classList.add('modern-ui-tabs');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size80', '8px');
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			assert.deepStrictEqual(tabs.map(tab => {
+				const tabStyle = mainWindow.getComputedStyle(tab);
+				return { paddingLeft: tabStyle.paddingLeft, paddingRight: tabStyle.paddingRight };
+			}), [
+				{ paddingLeft: '8px', paddingRight: '8px' },
+				{ paddingLeft: '8px', paddingRight: '8px' },
+			]);
 		} finally {
 			container.remove();
 		}

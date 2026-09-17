@@ -280,6 +280,11 @@
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
+	/* Chat tabs never show a file icon, so match the symmetric padding the shared
+		tab styles give icon-less editor tabs via the shared left-padding hook. The
+		shared base padding is larger on the right, which shifted the label
+		off-center (#336471). */
+	--modern-ui-tab-padding-left: var(--vscode-spacing-size80);
 }
 
 /* Keep keyboard focus on the rounded fill; high-contrast styling is provided by the shared tab styles. */
