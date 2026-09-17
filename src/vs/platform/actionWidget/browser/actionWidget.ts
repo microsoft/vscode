@@ -221,6 +221,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		if (headerContainer) {
 			renderDisposables.add(dom.addDisposableGenericMouseDownListener(headerContainer, e => e.preventDefault()));
 		}
+		let suppressBlurHideUntil = 0;
+		renderDisposables.add(dom.addDisposableGenericMouseDownListener(widget, () => {
+			suppressBlurHideUntil = Date.now() + 250;
+		}));
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -255,14 +259,20 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const pendingBlurHide = renderDisposables.add(new MutableDisposable<IDisposable>());
 		renderDisposables.add(focusTracker.onDidFocus(() => pendingBlurHide.clear()));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			pendingBlurHide.value = disposableTimeout(() => {
+			const runBlurHide = () => {
+				const remainingSuppression = suppressBlurHideUntil - Date.now();
+				if (remainingSuppression > 0) {
+					pendingBlurHide.value = disposableTimeout(runBlurHide, remainingSuppression);
+					return;
+				}
 				// Don't hide if focus moved to a hover or submenu that belongs to this action widget
 				const activeElement = dom.getActiveElement();
 				if (activeElement && (element.contains(activeElement) || activeElement.closest('.action-widget-hover') || activeElement.closest('.action-list-submenu-panel'))) {
 					return;
 				}
 				this.hide(true);
-			}, 75);
+			};
+			pendingBlurHide.value = disposableTimeout(runBlurHide, 75);
 		}));
 
 		return renderDisposables;

@@ -459,11 +459,13 @@ suite('NewChatWidget', () => {
 				id: LOCAL_AGENT_HOST_PROVIDER_ID,
 				label: 'Local Agent Host',
 				icon: Codicon.vm,
+				supportsQuickChats: true,
 			}),
 			upcastPartial<ISessionsProvider>({
 				id: 'agenthost-remote-test',
 				label: 'Test Remote',
 				icon: Codicon.remote,
+				supportsQuickChats: true,
 			}),
 		];
 		const option = getNoWorkspaceOption.call({
@@ -499,6 +501,7 @@ suite('NewChatWidget', () => {
 			id: 'agenthost-remote-test',
 			label: 'Test Remote',
 			icon: Codicon.remote,
+			supportsQuickChats: true,
 		});
 		const option = getNoWorkspaceOption.call({
 			_useConsolidatedRemoteWorkspaces: constObservable(true),
@@ -517,6 +520,36 @@ suite('NewChatWidget', () => {
 			hasSubmenu: false,
 			selections: isWeb ? [] : [{ providerId: 'agenthost-remote-test' }],
 		});
+	});
+
+	test('includes remote quick chat hosts even when availability is still resolving', async () => {
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				icon: Codicon.vm,
+				supportsQuickChats: true,
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				icon: Codicon.remote,
+				supportsQuickChats: true,
+			}),
+		];
+		const option = getNoWorkspaceOption.call({
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: {
+				isQuickChatTargetAvailable: options => options?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID,
+			},
+			selectNoWorkspace: () => { },
+		});
+		await option?.submenuActions?.[1].run();
+
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['Local', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {

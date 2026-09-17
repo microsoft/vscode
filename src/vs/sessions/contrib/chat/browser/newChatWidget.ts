@@ -849,14 +849,18 @@ export class NewChatWidget extends Disposable {
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
 		const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.get();
 		if (isWeb
-			|| !this._useConsolidatedRemoteWorkspaces.get()
-			|| (!isWorkspacePickerQuickChat && !this.sessionsManagementService.isQuickChatTargetAvailable())) {
+			|| !this._useConsolidatedRemoteWorkspaces.get()) {
 			return undefined;
 		}
 		const providers = this.sessionsProvidersService.getProviders()
 			.filter(provider => isAgentHostProvider(provider)
 				&& !provider.hostGroup
-				&& this.sessionsManagementService.isQuickChatTargetAvailable({ providerId: provider.id }));
+				&& provider.supportsQuickChats);
+		if (!isWorkspacePickerQuickChat
+			&& !this.sessionsManagementService.isQuickChatTargetAvailable()
+			&& providers.length === 0) {
+			return undefined;
+		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {

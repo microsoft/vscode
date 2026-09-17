@@ -275,4 +275,48 @@ suite('ActionWidgetService', () => {
 		});
 		service.hide();
 	});
+
+	test('keeps submenu open while remove action completes asynchronously', async () => {
+		const { service } = setup();
+		let hides = 0;
+		const keep = toAction({ id: 'keep', label: 'Keep', run: () => { } });
+		const makeParent = (children: readonly IAction[]): IActionListItem<{ id: string }> => ({
+			kind: ActionListItemKind.Action,
+			label: 'Remote',
+			item: { id: 'remote' },
+			submenuActions: [...children],
+		});
+		const removable = Object.assign(toAction({ id: 'remove', label: 'Remove Me', run: () => { } }), {
+			onRemove: async () => {
+				await timeout(200);
+				service.updateItems([makeParent([keep])], undefined, { preserveHover: true });
+			},
+		});
+		service.show('remote', false, [makeParent([removable, keep])], {
+			onSelect: () => { },
+			onHide: () => { hides++; },
+		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
+			showFilter: true,
+		});
+
+		const widget = document.querySelector<HTMLElement>('.action-widget .actionList');
+		assert.ok(widget);
+		widget.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = document.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label');
+		assert.ok(removeButton);
+		removeButton.click();
+		await timeout(120);
+
+		assert.deepStrictEqual({
+			visible: service.isVisible,
+			hides,
+		}, {
+			visible: true,
+			hides: 0,
+		});
+		await timeout(120);
+		service.hide();
+	});
 });
