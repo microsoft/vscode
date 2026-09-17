@@ -13,6 +13,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEdit
 import { ChatModel, ISerializableChatModelInputState, ISerializedChatDataReference } from './chatModel.js';
 
 export interface IStartSessionProps {
+	readonly isNewSession?: boolean;
 	readonly initialData?: ISerializedChatDataReference;
 	readonly location: ChatAgentLocation;
 	readonly sessionResource: URI;

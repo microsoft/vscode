@@ -20,6 +20,8 @@ import { languageModelSourcePresentationRegistry } from '../../../common/languag
 
 class MockLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
+	onDidInvalidateNewSessionDefault = Event.None;
+	async refreshNewSessionDefault(): Promise<undefined> { return undefined; }
 
 	private vendors: IUserFriendlyLanguageModel[] = [];
 	private models = new Map<string, ILanguageModelChatMetadata>();

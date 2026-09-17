@@ -590,6 +590,7 @@ export class ChatService extends Disposable implements IChatService {
 		const sessionResource = LocalChatSessionUri.forSession(generateUuid());
 		return this._sessionModels.acquireOrCreate({
 			initialData: undefined,
+			isNewSession: true,
 			location,
 			sessionResource,
 			canUseTools: options?.canUseTools ?? true,
@@ -600,7 +601,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private _startSession(props: IStartSessionProps): ChatModel {
 		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason } = props;
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason });
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, sessionTypeSelectionReason, isNewSession: props.isNewSession });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}

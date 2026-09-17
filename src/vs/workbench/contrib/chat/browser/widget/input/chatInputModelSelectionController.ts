@@ -20,7 +20,7 @@
  */
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier, ILanguageModelNewSessionDefault } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
 import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
 import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
@@ -35,6 +35,10 @@ export interface IChatInputModelSelectionRuntime {
 	readonly getAllModels: () => ILanguageModelChatMetadataAndIdentifier[];
 	readonly getConfiguredModelValue: () => string | undefined;
 	readonly isEmpty: () => boolean;
+	readonly isNewSession?: () => boolean;
+	readonly getNewSessionDefault?: () => ILanguageModelNewSessionDefault | undefined;
+	readonly hasExplicitDefaultConfiguration?: () => boolean;
+	readonly reportNewSessionDefault?: (decision: ILanguageModelNewSessionDefault, outcome: 'applied' | 'control' | 'configuration' | 'selection') => void;
 
 	// -- which of them this surface can use
 	/** Whether this surface can run the model at all. Asked, so surfaces are not second-guessed. */
@@ -100,6 +104,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * one. Callers use this to avoid acting on a selection that is about to change.
 	 */
 	isAwaitingRememberedModel(): boolean {
+		if (this._selectionReason === ModelSelectionReason.NewSessionDefault) {
+			return false;
+		}
 		const modelId = this._intendedModel?.modelId;
 		return !!modelId && !this._pool().some(model => model.identifier === modelId);
 	}
@@ -184,6 +191,10 @@ export class ChatInputModelSelectionController extends Disposable {
 			// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
 			// the model it was started with.
 			const configuredModel = this._runtime.isEmpty() ? resolveConfiguredModel(configuredModelValue, models) : undefined;
+			const newSessionDefault = !configuredModel && this._newSessionDefaultToSeed();
+			if (newSessionDefault) {
+				return { kind: 'apply', model: newSessionDefault, reason: ModelSelectionReason.NewSessionDefault };
+			}
 			const resolution = resolveModelIdentifier(models, rememberedModelId, false);
 			return resolveInitialModelSelection({
 				configuredModel,
@@ -274,8 +285,9 @@ export class ChatInputModelSelectionController extends Disposable {
 	applyConfiguredDefault(): boolean {
 		const configuredModel = this.configuredDefaultToSeed();
 		if (!configuredModel) {
-			return false;
+			return this.applyNewSessionDefault();
 		}
+		this._reportNewSessionDefault(false);
 		if (configuredModel.identifier === this._currentModel.get()?.identifier) {
 			if (this._selectionReason !== ModelSelectionReason.ConfiguredDefault) {
 				this._selectionReason = ModelSelectionReason.ConfiguredDefault;
@@ -286,6 +298,55 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._applyModel(configuredModel, ModelSelectionReason.ConfiguredDefault);
 		this.ensureCurrentModelSupported();
 		return true;
+	}
+
+	applyNewSessionDefault(): boolean {
+		const model = this._newSessionDefaultToSeed();
+		this._reportNewSessionDefault(!!model);
+		if (model) {
+			if (model.identifier !== this._currentModel.get()?.identifier) {
+				this._applyModel(model, ModelSelectionReason.NewSessionDefault);
+			} else {
+				this._selectionReason = ModelSelectionReason.NewSessionDefault;
+			}
+			return true;
+		}
+		if (this._selectionReason === ModelSelectionReason.NewSessionDefault && this._runtime.isEmpty()) {
+			const models = this._pool();
+			const remembered = this._intendedModel;
+			const rememberedModel = models.find(model => model.identifier === remembered?.modelId);
+			const fallback = rememberedModel ?? this._defaultModel(models);
+			if (fallback) {
+				this._applyModel(fallback, rememberedModel ? remembered?.reason : ModelSelectionReason.FirstAvailable);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _reportNewSessionDefault(applied: boolean): void {
+		const decision = this._runtime.getNewSessionDefault?.();
+		if (decision && this._runtime.isNewSession?.() && this._runtime.isEmpty()
+			&& this._pool().some(candidate => candidate.metadata.vendor === COPILOT_VENDOR_ID && candidate.metadata.id === 'auto')) {
+			const outcome = applied ? 'applied'
+				: decision.variant === 'control' ? 'control'
+					: this._runtime.hasExplicitDefaultConfiguration?.() || this._runtime.getConfiguredModelValue() !== undefined ? 'configuration'
+						: 'selection';
+			this._runtime.reportNewSessionDefault?.(decision, outcome);
+		}
+	}
+
+	private _newSessionDefaultToSeed(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		if (!this._runtime.isNewSession?.() || !this._runtime.isEmpty()
+			|| this._runtime.hasExplicitDefaultConfiguration?.()
+			|| this._runtime.getConfiguredModelValue() !== undefined
+			|| isInConversationModelChoice(this._selectionReason)
+			|| isInConversationModelChoice(this._intendedModel?.reason)
+			|| this._pendingProgrammaticSelection
+			|| this._runtime.getNewSessionDefault?.()?.variant !== 'treatment') {
+			return undefined;
+		}
+		return this._pool().find(model => model.metadata.vendor === COPILOT_VENDOR_ID && model.metadata.id === 'auto');
 	}
 
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
@@ -332,7 +393,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!remembered || this._currentModel.get()?.identifier === remembered.modelId) {
 			return false;
 		}
-		if (this._selectionReason === ModelSelectionReason.ConfiguredDefault && !isInConversationModelChoice(remembered.reason)) {
+		if ((this._selectionReason === ModelSelectionReason.ConfiguredDefault || this._selectionReason === ModelSelectionReason.NewSessionDefault) && !isInConversationModelChoice(remembered.reason)) {
 			return false;
 		}
 		// Pool membership is the validity test: the pool is already filtered by session and mode,
@@ -514,6 +575,11 @@ export class ChatInputModelSelectionController extends Disposable {
 		restoredAs: RestoredModelReason,
 		keepsAwaitedModel = false,
 	): void {
+		if (this._selectionReason === ModelSelectionReason.NewSessionDefault
+			&& restoredAs === ModelSelectionReason.SessionRestore
+			&& model.identifier === this._currentModel.get()?.identifier) {
+			return;
+		}
 		this._clearPendingProgrammaticSelection();
 		this._selectionReason = restoredAs;
 		if (!keepsAwaitedModel) {

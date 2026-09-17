@@ -2133,6 +2133,7 @@ export class IntendedModelSlot implements IIntendedModelHolder {
 }
 
 export interface IInputModel extends IIntendedModelHolder {
+	readonly isNewSession?: boolean;
 	/** Observable for current input state (undefined for new/uninitialized chats) */
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
@@ -2440,9 +2441,15 @@ class InputModel implements IInputModel {
 	 */
 	private _intendedModel: IIntendedModelSelection | undefined;
 
-	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService, private readonly sessionId: string) {
+	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService, private readonly sessionId: string, private _isNewSession = false) {
 		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
+	}
+
+	get isNewSession(): boolean { return this._isNewSession; }
+
+	markSessionStarted(): void {
+		this._isNewSession = false;
 	}
 
 	get intendedModel(): IIntendedModelSelection | undefined {
@@ -2792,7 +2799,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isNewSession?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -2833,7 +2840,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		// Initialize input model from serialized data (undefined for new chats)
 		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
-		this.inputModel = new InputModel(serializedInputState && reviveSerializableInputState(serializedInputState), this.logService, this._sessionId);
+		this.inputModel = new InputModel(serializedInputState && reviveSerializableInputState(serializedInputState), this.logService, this._sessionId, initialModelProps.isNewSession === true && !dataRef);
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -3200,6 +3207,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		requestSource?: ChatRequestSource,
 		modelConfiguration?: IStringDictionary<unknown>,
 	): ChatRequestModel {
+		this.inputModel.markSessionStarted();
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const requestTimestamp = timestamp === undefined

@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelNewSessionDefault, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -41,6 +41,40 @@ suite('LanguageModels', function () {
 
 	const store = new DisposableStore();
 	const activationEvents = new Set<string>();
+
+	test('new session defaults are fresh and revoked with their provider account', async () => {
+		const invalidation = store.add(new Emitter<void>());
+		const received = new DeferredPromise<void>();
+		const pending = new DeferredPromise<ILanguageModelNewSessionDefault | undefined>();
+		let refreshes = 0;
+		languageModels.deltaLanguageModelChatProviderDescriptors([{ vendor: 'copilot', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+		const provider = store.add(languageModels.registerLanguageModelProvider('copilot', {
+			onDidChange: Event.None,
+			onDidInvalidateNewSessionDefault: invalidation.event,
+			provideLanguageModelChatInfo: async () => [],
+			refreshNewSessionDefault: async () => {
+				refreshes++;
+				await received.complete();
+				return pending.p;
+			},
+			sendChatRequest: async () => { throw new Error('not used'); },
+			provideTokenCount: async () => 0,
+		}));
+		const first = languageModels.refreshNewSessionDefault('copilot');
+		await received.p;
+		invalidation.fire();
+		await pending.complete({ variant: 'treatment', assignmentContext: 'fixture-auto-default:treatment' });
+		const stale = await first;
+		const fresh = await languageModels.refreshNewSessionDefault('copilot');
+		provider.dispose();
+		const removed = await languageModels.refreshNewSessionDefault('copilot');
+		assert.deepStrictEqual({ stale, fresh, removed, refreshes }, {
+			stale: undefined,
+			fresh: { variant: 'treatment', assignmentContext: 'fixture-auto-default:treatment' },
+			removed: undefined,
+			refreshes: 2,
+		});
+	});
 
 	function createLanguageModelsService(storageService: IStorageService): LanguageModelsService {
 		return new LanguageModelsService(

@@ -475,8 +475,15 @@ export async function getTextResponseFromStream(response: ILanguageModelChatResp
 	}
 }
 
+export interface ILanguageModelNewSessionDefault {
+	readonly variant: 'control' | 'treatment';
+	readonly assignmentContext: string;
+}
+
 export interface ILanguageModelChatProvider {
 	readonly onDidChange: Event<void>;
+	readonly onDidInvalidateNewSessionDefault?: Event<void>;
+	refreshNewSessionDefault?(): Promise<ILanguageModelNewSessionDefault | undefined>;
 	provideLanguageModelChatInfo(options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -589,6 +596,8 @@ export interface ILanguageModelsService {
 	selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable;
+	readonly onDidInvalidateNewSessionDefault: Event<string>;
+	refreshNewSessionDefault(vendor: string): Promise<ILanguageModelNewSessionDefault | undefined>;
 
 	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void;
 
@@ -1004,6 +1013,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _store = new DisposableStore();
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
+	private readonly _newSessionDefaultEpochs = new Map<string, object>();
+	private readonly _onDidInvalidateNewSessionDefault = this._store.add(new Emitter<string>());
+	readonly onDidInvalidateNewSessionDefault = this._onDidInvalidateNewSessionDefault.event;
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
 
 	/** Vendors for which a deprecation notice has already been shown this session. */
@@ -1419,6 +1431,21 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
+	async refreshNewSessionDefault(vendor: string): Promise<ILanguageModelNewSessionDefault | undefined> {
+		if (vendor !== COPILOT_VENDOR_ID) {
+			return undefined;
+		}
+		try {
+			await this.selectLanguageModels({ vendor });
+			const epoch = this._newSessionDefaultEpochs.get(vendor);
+			const decision = await this._providers.get(vendor)?.refreshNewSessionDefault?.();
+			return epoch === this._newSessionDefaultEpochs.get(vendor) ? decision : undefined;
+		} catch (error) {
+			this._logService.warn('[LM] Failed to refresh new session default', error);
+			return undefined;
+		}
+	}
+
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
 		this._logService.trace('[LM] registering language model provider', vendor, provider);
 
@@ -1430,6 +1457,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		this._providers.set(vendor, provider);
+		this._newSessionDefaultEpochs.set(vendor, {});
+		const invalidateDefault = () => {
+			this._newSessionDefaultEpochs.set(vendor, {});
+			this._onDidInvalidateNewSessionDefault.fire(vendor);
+		};
+		const policyChangeListener = provider.onDidInvalidateNewSessionDefault?.(invalidateDefault);
 
 		const modelChangeListener = provider.onDidChange(() => {
 			this._resolveAllLanguageModels(vendor, true);
@@ -1437,10 +1470,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		return toDisposable(() => {
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
+			this._newSessionDefaultEpochs.delete(vendor);
+			this._onDidInvalidateNewSessionDefault.fire(vendor);
 			this._clearModelCache(vendor);
 			this._modelsGroups.delete(vendor);
 			this._providers.delete(vendor);
 			modelChangeListener.dispose();
+			policyChangeListener?.dispose();
 		});
 	}
 

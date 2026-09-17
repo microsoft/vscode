@@ -18,7 +18,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
+import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions, ILanguageModelNewSessionDefault } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -151,6 +151,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._languageModelProviders.set(vendor, { extension: extension, provider });
 		this._proxy.$registerLanguageModelProvider(vendor);
 
+		const policyChangeListener = provider.onDidInvalidateNewSessionDefault?.(() => {
+			if (vendor === COPILOT_VENDOR_ID && isProposedApiEnabled(extension, 'chatProvider')) {
+				this._proxy.$invalidateNewSessionDefault(vendor);
+			}
+		});
 		let providerChangeEventDisposable: IDisposable | undefined;
 		if (provider.onDidChangeLanguageModelChatInformation) {
 			providerChangeEventDisposable = provider.onDidChangeLanguageModelChatInformation(() => {
@@ -166,8 +171,25 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				}
 			});
 			providerChangeEventDisposable?.dispose();
+			policyChangeListener?.dispose();
 			this._proxy.$unregisterProvider(vendor);
 		});
+	}
+
+	async $refreshNewSessionDefault(vendor: string): Promise<ILanguageModelNewSessionDefault | undefined> {
+		const data = this._languageModelProviders.get(vendor);
+		if (data && vendor === COPILOT_VENDOR_ID && isProposedApiEnabled(data.extension, 'chatProvider')) {
+			const decision = await data.provider.provideNewSessionDefault?.(CancellationToken.None);
+			if (decision && typeof decision.useAuto === 'boolean' && typeof decision.assignmentContext === 'string'
+				&& decision.assignmentContext.length > 0 && decision.assignmentContext.length <= 8192
+				&& !/[\x00-\x1F\x7F]/.test(decision.assignmentContext)) {
+				return { variant: decision.useAuto ? 'treatment' : 'control', assignmentContext: decision.assignmentContext };
+			}
+			if (decision) {
+				this._logService.warn('[LM] Invalid new session default');
+			}
+		}
+		return undefined;
 	}
 
 	private toModelIdentifier(vendor: string, group: string | undefined, modelId: string): string {
