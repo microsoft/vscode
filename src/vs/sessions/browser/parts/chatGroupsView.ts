@@ -12,6 +12,8 @@ import { autorun, derived, IObservable, IReader, ISettableObservable, ITransacti
 import { URI } from '../../../base/common/uri.js';
 import { Direction, ISerializedGrid, IViewDeserializer, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
@@ -23,6 +25,7 @@ import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } f
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -91,6 +94,7 @@ export class ChatGroupsView extends Themable {
 	private _sessionActive = true;
 	private _sessionVisible = true;
 	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
+	readonly showChatAsSessionView: IObservable<boolean>;
 
 	/** While restoring a persisted layout: routes (late-loading) chats back to their saved groups. */
 	private _restoreAssignment: Map<string, number> | undefined;
@@ -108,8 +112,11 @@ export class ChatGroupsView extends Themable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(themeService);
+		const chatTabsMode = observableConfigValue(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, configurationService);
+		this.showChatAsSessionView = derived(reader => chatTabsMode.read(reader) === SessionsChatTabsMode.Single);
 	}
 
 	setSingleGroupTabsReplaceHeader(enabled: boolean): void {
@@ -271,7 +278,7 @@ export class ChatGroupsView extends Themable {
 		});
 
 		const tabsVisible = derived(reader => {
-			if (!session.isCreated.read(reader)) {
+			if (!session.isCreated.read(reader) || this.showChatAsSessionView.read(reader)) {
 				return false;
 			}
 			// With more than one group the tab strip is always shown so each group

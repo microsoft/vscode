@@ -8,7 +8,7 @@ import { EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -41,8 +41,16 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 
 	const mainChat = new class extends mock<IChat>() {
-		override readonly title: IObservable<string> = constObservable('Main Chat');
+		override readonly resource = URI.parse('test-chat://main');
+		override readonly title = observableValue(this, 'Main Chat');
+		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canDelete: false });
 	}();
+	const secondChat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse('test-chat://second');
+		override readonly title = observableValue(this, 'Second Chat');
+		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canDelete: true });
+	}();
+	const activeChat = observableValue<IChat>('activeChat', mainChat);
 	const session = new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'session';
 		override readonly resource = URI.parse('test-session://session');
@@ -54,12 +62,12 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly sticky: IObservable<boolean> = constObservable(false);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly activeChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly chats: IObservable<readonly IChat[]> = constObservable([mainChat]);
-		override readonly openChats: IObservable<readonly IChat[]> = constObservable([mainChat]);
+		override readonly activeChat: IObservable<IChat> = activeChat;
+		override readonly chats: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
+		override readonly openChats: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat]);
-		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(false);
+		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
+		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable(capabilities);
 	}();
 
@@ -68,7 +76,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, header, session };
+	return { store, header, session, activeChat, mainChat, secondChat };
 }
 
 suite('Sessions - SessionHeader', () => {
@@ -119,6 +127,26 @@ suite('Sessions - SessionHeader', () => {
 			hiddenDisplay: 'none',
 			restoredDisplay: '',
 			hasMetadataRow: false,
+		});
+	});
+
+	test('shows the title of the active chat', () => {
+		const { header, activeChat, secondChat } = createHarness(disposables);
+		const title = () => header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent;
+
+		const mainTitle = title();
+		activeChat.set(secondChat, undefined);
+		const secondTitle = title();
+		secondChat.title.set('Renamed Second Chat', undefined);
+
+		assert.deepStrictEqual({
+			mainTitle,
+			secondTitle,
+			updatedSecondTitle: title(),
+		}, {
+			mainTitle: 'Main Chat',
+			secondTitle: 'Second Chat',
+			updatedSecondTitle: 'Renamed Second Chat',
 		});
 	});
 
