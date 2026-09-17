@@ -29,44 +29,48 @@ suite('Manifest Cache File Name', () => {
 		assert.deepStrictEqual([
 			getManifestCacheFileName(ExtensionType.System, undefined),
 			getManifestCacheFileName(ExtensionType.System, 'en'),
+			getManifestCacheFileName(ExtensionType.System, 'zh-cn'),
 			getManifestCacheFileName(ExtensionType.User, undefined),
 			getManifestCacheFileName(ExtensionType.User, 'en'),
 		], [
 			'extensions.builtin.cache',
-			'extensions.builtin.en-094b0fe0e302.cache',
+			'extensions.builtin.en.cache',
+			'extensions.builtin.zh-cn.cache',
 			'extensions.user.cache',
-			'extensions.user.en-094b0fe0e302.cache',
+			'extensions.user.en.cache',
 		]);
 	});
 
-	test('name is safe to use as a file name', () => {
+	test('a language is matched independently of its casing', () => {
 		assert.deepStrictEqual([
-			getManifestCacheFileName(ExtensionType.System, '../evil'),
-			getManifestCacheFileName(ExtensionType.System, 'a/b\\c'),
-		].map(name => /^[a-z0-9.-]+$/.test(name)), [true, true]);
+			getManifestCacheFileName(ExtensionType.System, 'zh-CN'),
+			getManifestCacheFileName(ExtensionType.System, 'ZH-CN'),
+		], [
+			'extensions.builtin.zh-cn.cache',
+			'extensions.builtin.zh-cn.cache',
+		]);
 	});
 
-	test('name stays within a path component length limit for any language', () => {
-		const names = ['en', 'x'.repeat(1000), '/'.repeat(1000)].map(language => getManifestCacheFileName(ExtensionType.System, language));
-
-		assert.deepStrictEqual(names.map(name => name.length <= 255), [true, true, true]);
-	});
-
-	test('languages that only differ in case or separators get their own file', () => {
-		const names = ['zh-cn', 'zh-CN', 'zh_CN', 'ZH-CN'].map(language => getManifestCacheFileName(ExtensionType.System, language));
-
-		assert.deepStrictEqual(new Set(names.map(name => name.toLowerCase())).size, names.length, `expected distinct names, got ${names.join(', ')}`);
-	});
-
-	test('languages that sanitize to the same readable part get their own file', () => {
-		// These collide both in the readable part and under a 32 bit hash
-		const names = ['!@', '"!'].map(language => getManifestCacheFileName(ExtensionType.System, language));
-
-		assert.deepStrictEqual(new Set(names.map(name => name.toLowerCase())).size, names.length, `expected distinct names, got ${names.join(', ')}`);
+	test('a language that is not a well formed locale is not put in the name', () => {
+		assert.deepStrictEqual([
+			'../evil',
+			'a/b\\c',
+			'zh_CN',
+			'x'.repeat(1000),
+			'',
+			'-en',
+		].map(language => getManifestCacheFileName(ExtensionType.System, language)), [
+			'extensions.builtin.cache',
+			'extensions.builtin.cache',
+			'extensions.builtin.cache',
+			'extensions.builtin.cache',
+			'extensions.builtin.cache',
+			'extensions.builtin.cache',
+		]);
 	});
 
 	test('generated names are recognized, and only for their own extension type', () => {
-		const names = [undefined, 'en', 'zh-CN'].map(language => getManifestCacheFileName(ExtensionType.System, language));
+		const names = [undefined, 'en', 'zh-cn'].map(language => getManifestCacheFileName(ExtensionType.System, language));
 
 		assert.deepStrictEqual([
 			names.every(name => isManifestCacheFileName(name, ExtensionType.System, false)),
@@ -75,7 +79,7 @@ suite('Manifest Cache File Name', () => {
 	});
 
 	test('a differently cased name is only recognized when path casing is ignored', () => {
-		const name = 'Extensions.User.EN-094B0FE0E302.Cache';
+		const name = 'Extensions.User.EN.Cache';
 
 		assert.deepStrictEqual([
 			isManifestCacheFileName(name, ExtensionType.User, true),
@@ -87,8 +91,8 @@ suite('Manifest Cache File Name', () => {
 		assert.deepStrictEqual([
 			'extensions.json',
 			'extensions.builtin.cache',
-			'extensions.user.en-094b0fe0e302.cache.bak',
-			'my.extensions.user.en-094b0fe0e302.cache',
+			'extensions.user.en.cache.bak',
+			'my.extensions.user.en.cache',
 		].map(name => isManifestCacheFileName(name, ExtensionType.User, false)), [false, false, false, false]);
 	});
 

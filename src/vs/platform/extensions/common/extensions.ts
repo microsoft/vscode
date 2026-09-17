@@ -5,7 +5,6 @@
 
 import Severity from '../../../base/common/severity.js';
 import * as strings from '../../../base/common/strings.js';
-import { StringSHA1 } from '../../../base/common/hash.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILocalizedString } from '../../action/common/action.js';
 import { ExtensionKind } from '../../environment/common/environment.js';
@@ -17,12 +16,11 @@ const BUILTIN_MANIFEST_CACHE_FILE_PREFIX = 'extensions.builtin';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 /**
- * How much of the language is kept in readable form. Only there to make a cache file
- * recognisable by eye - the digest is what identifies it - so it is bounded to keep the
- * name well within the length a path component may have.
+ * A language as `platform.language` provides it: a lower case locale such as `de` or `zh-cn`.
+ * Scan languages also reach a remote server over a channel, so a value that is not one of these
+ * is not trusted to be safe or short enough to put in a file name.
  */
-const MAX_READABLE_LANGUAGE_LENGTH = 16;
-const LANGUAGE_DIGEST_LENGTH = 12;
+const SCAN_LANGUAGE_PATTERN = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 
 function getManifestCacheFilePrefix(type: ExtensionType): string {
 	return type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
@@ -31,20 +29,17 @@ function getManifestCacheFilePrefix(type: ExtensionType): string {
 /**
  * Returns the name of the manifest cache file for the given extension type and scan language.
  * Scan results are localized, so each language needs its own file or scans that use different
- * languages overwrite each other's entry and neither ever gets a cache hit. The name must
- * therefore identify the language as precisely as `ExtensionScannerInput` compares it.
+ * languages overwrite each other's entry and neither ever gets a cache hit. A language that is
+ * not well formed shares the unsuffixed file, which only ever costs a cache miss because
+ * `ExtensionScannerInput` re-checks the language of an entry before it is used.
  */
 export function getManifestCacheFileName(type: ExtensionType, language: string | undefined): string {
 	const prefix = getManifestCacheFilePrefix(type);
-	if (!language) {
+	const normalized = language?.toLowerCase();
+	if (!normalized || !SCAN_LANGUAGE_PATTERN.test(normalized)) {
 		return `${prefix}.cache`;
 	}
-	// The readable part is lossy and bounded, and file names can be compared case insensitively,
-	// so the language is identified by a digest of its exact value
-	const readable = language.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, MAX_READABLE_LANGUAGE_LENGTH);
-	const digest = new StringSHA1();
-	digest.update(language);
-	return `${prefix}.${readable}-${digest.digest().substring(0, LANGUAGE_DIGEST_LENGTH)}.cache`;
+	return `${prefix}.${normalized}.cache`;
 }
 
 /**
