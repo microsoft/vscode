@@ -196,6 +196,24 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.agent-diagnostics-overview-troubleshoot {
+	grid-column: 1 / -1;
+	justify-self: start;
+}
+
+.agent-diagnostics-troubleshoot-button.monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.agent-diagnostics-troubleshoot-button.monaco-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
 .agent-diagnostics-turns {
 	display: flex;
 	flex-direction: column;
@@ -324,9 +342,16 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
+.agent-diagnostics-trace-header {
+	display: flex;
+	align-items: center;
+	background: var(--vscode-editorWidget-background);
+}
+
 .agent-diagnostics-trace-button.monaco-button {
+	flex: 1;
 	justify-content: flex-start;
-	width: 100%;
+	min-width: 0;
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	color: var(--vscode-foreground);
 	background: var(--vscode-editorWidget-background);
@@ -370,6 +395,12 @@
 	flex-direction: column;
 	align-items: flex-start;
 	width: 100%;
+}
+
+.agent-diagnostics-message-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
 }
 
 .agent-diagnostics-message-pill.monaco-button {
@@ -474,7 +505,7 @@
 
 .agent-diagnostics-span {
 	display: grid;
-	grid-template-columns: minmax(200px, 1fr) minmax(160px, 2fr);
+	grid-template-columns: minmax(200px, 1fr) minmax(160px, 2fr) auto;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }

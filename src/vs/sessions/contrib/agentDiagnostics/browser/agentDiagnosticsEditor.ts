@@ -8,6 +8,8 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { timeout } from '../../../../base/common/async.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,6 +19,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -27,14 +30,16 @@ import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMess
 import { ChatDebugSessionView, ChatDebugSessionViews } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugSessionViews.js';
 import { IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
 import { SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
-import { SessionInsightsView } from './sessionInsightsView.js';
+import { ISessionDiagnosticsTroubleshootRequest, SessionInsightsView } from './sessionInsightsView.js';
 import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
 
 export const AgentDiagnosticsFocusedContext = new RawContextKey<boolean>('agentDiagnosticsFocused', false, localize('agentDiagnosticsFocused', "Whether the Agents Diagnostics editor is focused"));
@@ -64,6 +69,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private currentChatResource: URI | undefined;
 	private diagnosticsModel: SessionDiagnosticsModel | undefined;
 	private sessionInsightsView: SessionInsightsView | undefined;
+	private troubleshootSessionId: string | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -77,10 +83,13 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
@@ -119,6 +128,11 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		insightsPanel.emptyState.remove();
 		this.diagnosticsModel = this._register(this.instantiationService.createInstance(SessionDiagnosticsModel));
 		this.sessionInsightsView = this._register(new SessionInsightsView(insightsPanel.panel, this.diagnosticsModel));
+		this._register(this.sessionInsightsView.onDidRequestTroubleshoot(request => {
+			void this.openTroubleshootChat(request).catch(error => {
+				this.notificationService.error(localize('agentDiagnostics.troubleshootError', "Failed to open Troubleshoot chat: {0}", toErrorMessage(error)));
+			});
+		}));
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -321,6 +335,36 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		});
 		lines.push(localize('agentDiagnostics.combinedActivity', "Session activity: {0} records; unmatched OpenTelemetry traces: {1}; unmatched Agent Debug events: {2}.", state.sessionActivity.length, state.unmatchedTraces.length, state.unmatchedDebugEvents.length));
 		return lines.join('\n\n');
+	}
+
+	private async openTroubleshootChat(request: ISessionDiagnosticsTroubleshootRequest): Promise<void> {
+		let session = this.troubleshootSessionId
+			? this.sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === this.troubleshootSessionId)
+			: undefined;
+		const isNewChat = !session;
+		if (!session) {
+			session = this.sessionsService.openQuickChat({ toSide: true });
+			if (!session) {
+				this.notificationService.error(localize('agentDiagnostics.troubleshootUnavailable', "No workspace-less chat provider is available."));
+				return;
+			}
+			this.troubleshootSessionId = session.sessionId;
+			await timeout(0);
+		}
+
+		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
+		if (!sessionView) {
+			this.notificationService.error(localize('agentDiagnostics.troubleshootViewUnavailable', "The Troubleshoot chat could not be opened."));
+			return;
+		}
+		sessionView.attachTextContext(request.label, request.content, request.id);
+		if (this.languageModelToolsService.getToolSet('agentDiagnostics')) {
+			sessionView.attachToolSet('agentDiagnostics');
+		}
+		if (isNewChat) {
+			sessionView.prefillInput(request.query);
+		}
+		this.sessionsPartService.focusSession(session);
 	}
 
 	private updateDebugView(): void {

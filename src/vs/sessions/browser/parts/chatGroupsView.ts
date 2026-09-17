@@ -842,6 +842,14 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.attach(uris);
 	}
 
+	attachTextContext(name: string, content: string, id: string): void {
+		this._activeGroup?.view.attachTextContext(name, content, id);
+	}
+
+	attachToolSet(toolSetId: string): void {
+		this._activeGroup?.view.attachToolSet(toolSetId);
+	}
+
 	focus(): void {
 		this._activeGroup?.view.focus();
 	}

@@ -14,6 +14,7 @@ import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -30,7 +31,8 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, toPasteVariableEntry, toToolSetVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -154,6 +156,18 @@ export class NewChatView extends AbstractChatView {
 		this._widget.attach(uris);
 	}
 
+	override attachTextContext(name: string, content: string, id: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.attachTextContext(name, content, id);
+		}
+	}
+
+	override attachToolSet(toolSetId: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.attachToolSet(toolSetId);
+		}
+	}
+
 	override setVisible(visible: boolean): void {
 		this._isVisibleObs.set(visible, undefined);
 		if (this._widget instanceof NewChatWidget) {
@@ -241,6 +255,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -753,6 +768,17 @@ export class ChatView extends AbstractChatView {
 	override attach(uris: URI[]): void {
 		for (const uri of uris) {
 			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
+		}
+	}
+
+	override attachTextContext(name: string, content: string, id: string): void {
+		this._widget.attachmentModel.addContext(toPasteVariableEntry(name, content, { id, icon: Codicon.pulse, language: 'json' }));
+	}
+
+	override attachToolSet(toolSetId: string): void {
+		const toolSet = this.languageModelToolsService.getToolSet(toolSetId);
+		if (toolSet) {
+			this._widget.attachmentModel.addContext(toToolSetVariableEntry(toolSet));
 		}
 	}
 

@@ -378,6 +378,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._currentView.value?.attach(uris);
 	}
 
+	attachTextContext(name: string, content: string, id: string): void {
+		this._currentView.value?.attachTextContext(name, content, id);
+	}
+
+	attachToolSet(toolSetId: string): void {
+		this._currentView.value?.attachToolSet(toolSetId);
+	}
+
 	layout(width: number, height: number, top: number, left: number): void {
 		size(this.element, width, height);
 		this._lastLayout = { width, height, top, left };

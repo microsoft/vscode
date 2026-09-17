@@ -7,6 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -21,6 +22,7 @@ import { ISessionDiagnosticsTurn, SessionDiagnosticsModel } from './sessionDiagn
 interface ITraceNode {
 	readonly element: HTMLElement;
 	readonly button: Button;
+	readonly troubleshootButton: Button;
 	readonly detail: HTMLElement;
 	readonly store: DisposableStore;
 	readonly detailStore: DisposableStore;
@@ -32,12 +34,23 @@ interface ITurnNode {
 	readonly header: Button;
 	readonly body: HTMLElement;
 	readonly model: HTMLElement;
+	readonly renderStore: DisposableStore;
 	readonly traces: HTMLElement;
 	readonly debugEvents: HTMLElement;
 	readonly traceNodes: Map<string, ITraceNode>;
 }
 
+export interface ISessionDiagnosticsTroubleshootRequest {
+	readonly id: string;
+	readonly label: string;
+	readonly query: string;
+	readonly content: string;
+}
+
 export class SessionInsightsView extends Disposable {
+
+	private readonly _onDidRequestTroubleshoot = this._register(new Emitter<ISessionDiagnosticsTroubleshootRequest>());
+	readonly onDidRequestTroubleshoot = this._onDidRequestTroubleshoot.event;
 
 	readonly element: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
@@ -49,6 +62,7 @@ export class SessionInsightsView extends Disposable {
 	private readonly expandedSpanIds = new Set<string>();
 	private readonly expandedMessageIds = new Set<string>();
 	private readonly expandedTurnBySession = new Map<string, string | null>();
+	private readonly overviewDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
@@ -122,10 +136,15 @@ export class SessionInsightsView extends Disposable {
 	}
 
 	private renderOverview(turns: number, tokens: number, duration: number): void {
+		this.overviewDisposables.clear();
 		DOM.clearNode(this.overview);
 		this.renderStat(this.overview, localize('agentDiagnostics.overview.turns', "Turns"), String(turns));
 		this.renderStat(this.overview, localize('agentDiagnostics.overview.tokens', "Tokens"), tokens.toLocaleString());
 		this.renderStat(this.overview, localize('agentDiagnostics.overview.duration', "Duration"), formatDuration(duration));
+		const button = this.overviewDisposables.add(new Button(this.overview, { ...defaultButtonStyles, secondary: true }));
+		button.element.classList.add('agent-diagnostics-troubleshoot-button', 'agent-diagnostics-overview-troubleshoot');
+		button.label = localize('agentDiagnostics.troubleshootSession', "Troubleshoot Session");
+		this.overviewDisposables.add(button.onDidClick(() => this.requestSessionTroubleshoot()));
 	}
 
 	private renderStat(parent: HTMLElement, label: string, value: string): void {
@@ -170,6 +189,7 @@ export class SessionInsightsView extends Disposable {
 		store.add(header.onDidClick(() => this.toggleTurn(id)));
 		const body = DOM.append(element, DOM.$('.agent-diagnostics-turn-body'));
 		const model = DOM.append(body, DOM.$('.agent-diagnostics-model-context'));
+		const renderStore = store.add(new DisposableStore());
 		const otelSection = DOM.append(body, DOM.$('.agent-diagnostics-data-section.agent-diagnostics-otel-section'));
 		const otelHeading = DOM.append(otelSection, DOM.$('h3.agent-diagnostics-section-heading'));
 		otelHeading.textContent = localize('agentDiagnostics.openTelemetry', "OpenTelemetry");
@@ -178,7 +198,7 @@ export class SessionInsightsView extends Disposable {
 		const debugHeading = DOM.append(debugSection, DOM.$('h3.agent-diagnostics-section-heading'));
 		debugHeading.textContent = localize('agentDiagnostics.agentDebug', "Agent Debug");
 		const debugEvents = DOM.append(debugSection, DOM.$('.agent-diagnostics-turn-debug-events'));
-		return { element, store, header, body, model, traces, debugEvents, traceNodes: new Map() };
+		return { element, store, header, body, model, renderStore, traces, debugEvents, traceNodes: new Map() };
 	}
 
 	private updateTurnNode(node: ITurnNode, turn: ISessionDiagnosticsTurn, index: number): void {
@@ -193,6 +213,7 @@ export class SessionInsightsView extends Disposable {
 			return;
 		}
 
+		node.renderStore.clear();
 		DOM.clearNode(node.model);
 		if (turn.resolvedModel) {
 			const model = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
@@ -206,6 +227,10 @@ export class SessionInsightsView extends Disposable {
 			const context = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
 			context.textContent = localize('agentDiagnostics.context', "Context: {0}", formatContext(turn.context));
 		}
+		const troubleshoot = node.renderStore.add(new Button(node.model, { ...defaultButtonStyles, secondary: true }));
+		troubleshoot.element.classList.add('agent-diagnostics-troubleshoot-button');
+		troubleshoot.label = localize('agentDiagnostics.troubleshootTurn', "Troubleshoot Turn");
+		node.renderStore.add(troubleshoot.onDidClick(() => this.requestTurnTroubleshoot(turn)));
 		node.model.toggleAttribute('hidden', node.model.childElementCount === 0);
 
 		this.renderTraceNodes(node, turn);
@@ -280,12 +305,17 @@ export class SessionInsightsView extends Disposable {
 		const store = new DisposableStore();
 		const element = DOM.$('.agent-diagnostics-trace');
 		element.dataset.traceId = traceId;
-		const button = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const header = DOM.append(element, DOM.$('.agent-diagnostics-trace-header'));
+		const button = store.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		button.element.classList.add('agent-diagnostics-trace-button');
+		const troubleshootButton = store.add(new Button(header, { ...defaultButtonStyles, secondary: true }));
+		troubleshootButton.element.classList.add('agent-diagnostics-troubleshoot-button');
+		troubleshootButton.label = localize('agentDiagnostics.troubleshootTrace', "Troubleshoot");
 		const detail = DOM.append(element, DOM.$('.agent-diagnostics-trace-detail'));
 		const detailStore = store.add(new DisposableStore());
 		store.add(button.onDidClick(() => this.model.toggleTraceExpanded(traceId)));
-		return { element, button, detail, store, detailStore };
+		store.add(troubleshootButton.onDidClick(() => this.requestTraceTroubleshoot(traceId)));
+		return { element, button, troubleshootButton, detail, store, detailStore };
 	}
 
 	private updateTraceNode(node: ITraceNode, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace): void {
@@ -338,7 +368,8 @@ export class SessionInsightsView extends Disposable {
 
 	private renderConversationMessage(traceNode: ITraceNode, parent: HTMLElement, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace, message: IOTelDiagnosticsMessage): void {
 		const row = DOM.append(parent, DOM.$('.agent-diagnostics-message'));
-		const button = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
+		const header = DOM.append(row, DOM.$('.agent-diagnostics-message-header'));
+		const button = traceNode.detailStore.add(new Button(header, { ...defaultButtonStyles, secondary: true }));
 		button.element.classList.add('agent-diagnostics-message-pill');
 		const expanded = this.expandedMessageIds.has(message.id);
 		const roleLabel = message.toolName
@@ -355,6 +386,12 @@ export class SessionInsightsView extends Disposable {
 			this.updateTraceNode(traceNode, turn, trace);
 			this.scrollable.scanDomNode();
 		}));
+		if (message.role === 'tool' && message.toolName) {
+			const troubleshoot = traceNode.detailStore.add(new Button(header, { ...defaultButtonStyles, secondary: true }));
+			troubleshoot.element.classList.add('agent-diagnostics-troubleshoot-button');
+			troubleshoot.label = localize('agentDiagnostics.troubleshootTool', "Troubleshoot");
+			traceNode.detailStore.add(troubleshoot.onDidClick(() => this.requestToolTroubleshoot(turn, trace, message)));
+		}
 		if (expanded) {
 			if (message.role === 'tool' && message.toolName) {
 				this.renderToolMessageContent(row, message);
@@ -418,12 +455,17 @@ export class SessionInsightsView extends Disposable {
 		const traceDuration = Math.max(1, trace.duration);
 		bar.style.left = `${Math.max(0, (span.startTime - trace.startTime) / traceDuration * 100)}%`;
 		bar.style.width = `${Math.max(1, span.duration / traceDuration * 100)}%`;
+		const troubleshoot = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
+		troubleshoot.element.classList.add('agent-diagnostics-troubleshoot-button');
+		troubleshoot.label = localize('agentDiagnostics.troubleshootSpan', "Troubleshoot");
+		traceNode.detailStore.add(troubleshoot.onDidClick(() => this.requestSpanTroubleshoot(trace, span)));
 		traceNode.detailStore.add(button.onDidClick(() => {
 			if (this.expandedSpanIds.has(span.spanId)) {
 				this.expandedSpanIds.delete(span.spanId);
 			} else {
 				this.expandedSpanIds.add(span.spanId);
 			}
+
 			const state = this.model.state;
 			const turn = state?.turns.find(candidate => candidate.otelTraces.some(candidateTrace => candidateTrace.traceId === trace.traceId));
 			if (turn) {
@@ -444,6 +486,91 @@ export class SessionInsightsView extends Disposable {
 				attributes: span.attributes,
 			}, undefined, 2);
 		}
+	}
+
+	private requestSessionTroubleshoot(): void {
+		const state = this.model.state;
+		if (!state) {
+			return;
+		}
+		this._onDidRequestTroubleshoot.fire({
+			id: `session:${state.sessionResource.toString()}`,
+			label: localize('agentDiagnostics.context.session', "Session Diagnostics"),
+			query: localize('agentDiagnostics.query.session', "Troubleshoot the attached agent session. Explain what it was asked to do, what happened, any failures or bottlenecks, and the best next diagnostic step."),
+			content: JSON.stringify({
+				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
+				summary: state.summary,
+				turns: state.turns.map(turn => ({
+					id: turn.id,
+					prompt: turn.prompt,
+					model: turn.resolvedModel,
+					thinkingLevel: turn.thinkingLevel,
+					context: turn.context,
+					traceIds: turn.otelTraces.map(trace => trace.traceId),
+					debugEventIds: turn.debugEvents.map(event => event.id).filter(id => !!id),
+				})),
+			}, undefined, 2),
+		});
+	}
+
+	private requestTurnTroubleshoot(turn: ISessionDiagnosticsTurn): void {
+		const state = this.model.state;
+		if (!state) {
+			return;
+		}
+		this._onDidRequestTroubleshoot.fire({
+			id: `turn:${state.chatResource.toString()}:${turn.id}`,
+			label: localize('agentDiagnostics.context.turn', "Turn Diagnostics"),
+			query: localize('agentDiagnostics.query.turn', "Troubleshoot the attached agent turn. Correlate its OpenTelemetry traces and Agent Debug events, identify any failure or slowdown, and recommend the next step."),
+			content: JSON.stringify({
+				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
+				chatUri: state.chatResource.toString(),
+				turn: {
+					id: turn.id,
+					prompt: turn.prompt,
+					model: turn.resolvedModel,
+					thinkingLevel: turn.thinkingLevel,
+					context: turn.context,
+					traceIds: turn.otelTraces.map(trace => trace.traceId),
+					debugEventIds: turn.debugEvents.map(event => event.id).filter(id => !!id),
+				},
+			}, undefined, 2),
+		});
+	}
+
+	private requestTraceTroubleshoot(traceId: string): void {
+		const details = this.model.getTraceDetails(traceId);
+		if (!details) {
+			return;
+		}
+		this._onDidRequestTroubleshoot.fire({
+			id: `trace:${traceId}`,
+			label: localize('agentDiagnostics.context.trace', "Trace Diagnostics"),
+			query: localize('agentDiagnostics.query.trace', "Troubleshoot the attached trace. Explain its critical path, failures, bottlenecks, and suspicious spans."),
+			content: JSON.stringify(details, undefined, 2),
+		});
+	}
+
+	private requestSpanTroubleshoot(trace: IOTelDiagnosticsTrace, span: IOTelDiagnosticsSpan): void {
+		this._onDidRequestTroubleshoot.fire({
+			id: `span:${trace.traceId}:${span.spanId}`,
+			label: localize('agentDiagnostics.context.span', "Span Diagnostics"),
+			query: localize('agentDiagnostics.query.span', "Troubleshoot the attached span in its trace context. Explain what it did, whether it failed or was slow, and what to inspect next."),
+			content: JSON.stringify({ trace, span }, undefined, 2),
+		});
+	}
+
+	private requestToolTroubleshoot(turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace, message: IOTelDiagnosticsMessage): void {
+		this._onDidRequestTroubleshoot.fire({
+			id: `tool:${message.toolCallId ?? message.id}`,
+			label: localize('agentDiagnostics.context.tool', "Tool Call Diagnostics"),
+			query: localize('agentDiagnostics.query.tool', "Troubleshoot the attached tool call. Analyze its input, output, status, duration, and surrounding trace context."),
+			content: JSON.stringify({
+				turnId: turn.id,
+				traceId: trace.traceId,
+				tool: message,
+			}, undefined, 2),
+		});
 	}
 
 	private renderActivity(activity: readonly { readonly id: string; readonly timestamp: number; readonly name: string; readonly body: string | undefined; readonly severity: 'info' | 'error' }[]): void {

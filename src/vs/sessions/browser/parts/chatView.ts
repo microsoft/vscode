@@ -139,6 +139,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	attachTextContext(_name: string, _content: string, _id: string): void {
+		// no-op by default
+	}
+
+	attachToolSet(_toolSetId: string): void {
+		// no-op by default
+	}
+
 	/**
 	 * Notifies the view whether it is the currently active session in the
 	 * sessions grid. Subclasses may use this to adjust their visual styling

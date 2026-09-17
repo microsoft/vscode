@@ -36,7 +36,8 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, toToolSetVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
@@ -133,6 +134,7 @@ export class NewChatWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -1187,6 +1189,17 @@ export class NewChatWidget extends Disposable {
 
 	attach(uris: URI[]): void {
 		this._newChatInput.attach(uris);
+	}
+
+	attachTextContext(name: string, content: string, id: string): void {
+		this._newChatInput.attachTextContext(name, content, Codicon.pulse, id);
+	}
+
+	attachToolSet(toolSetId: string): void {
+		const toolSet = this.languageModelToolsService.getToolSet(toolSetId);
+		if (toolSet) {
+			this._newChatInput.addAttachments(toToolSetVariableEntry(toolSet));
+		}
 	}
 
 	private _canApplyWorkspaceDefault(): boolean {

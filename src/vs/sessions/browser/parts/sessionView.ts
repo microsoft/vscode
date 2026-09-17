@@ -336,6 +336,16 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.attach(uris) : this._groupsView.attach(uris);
 	}
 
+	attachTextContext(name: string, content: string, id: string): void {
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.attachTextContext(name, content, id) : this._groupsView.attachTextContext(name, content, id);
+	}
+
+	attachToolSet(toolSetId: string): void {
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.attachToolSet(toolSetId) : this._groupsView.attachToolSet(toolSetId);
+	}
+
 	/**
 	 * Updates the view's maximized context key so toolbars hosted within can react.
 	 * Called by the owning {@link SessionsPart} when the grid's maximized view changes.
