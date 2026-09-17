@@ -16,9 +16,27 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('describes restoring filtered pull requests from another pill context menu', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const pillHelp = provider.provideContent().split('\n').find(line => line.includes('Pull Requests Options'));
+
+		assert.deepStrictEqual({
+			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
+			filterRecovery: pillHelp?.includes('any other pill\'s context menu or the toolbar context menu'),
+		}, { keyboard: true, filterRecovery: true });
+	});
 
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -52,6 +70,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
+	for (const { configuredValue, expectedConversation, expectedListAction } of [
+		{ configuredValue: undefined, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'without a tab row', expectedListAction: 'show a chat as the session view' },
+	]) {
+		test(`describes sessions list chat presentation when the setting is ${configuredValue ?? 'default'}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService(configuredValue === undefined ? undefined : { [SESSIONS_CHAT_TABS_SETTING]: configuredValue });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+			const content = provider.provideContent().split('\n');
+
+			assert.deepStrictEqual({
+				conversationDescription: content.some(line => line.includes(expectedConversation)),
+				sessionListAction: content.some(line => line.includes(expectedListAction)),
+			}, {
+				conversationDescription: true,
+				sessionListAction: true,
+			});
+		});
+	}
+
 	for (const { wording, action, dismiss } of [
 		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion' },
 		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion' },
@@ -70,6 +114,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
 			const nudgeHelp = content.split('\n').find(line => line.includes('suggestion may appear'));
+			const sessionListHelp = content.split('\n').find(line => line.startsWith('For sessions that support multiple chats'));
 
 			assert.deepStrictEqual({
 				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
@@ -78,7 +123,33 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
 				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
-			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false, onboarding: true });
+				sessionListHelp,
+			}, {
+				controls: true,
+				cleanupSettings: true,
+				escape: true,
+				focus: true,
+				close: false,
+				onboarding: true,
+				sessionListHelp: `For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before ${action}. Open the session's context menu to pin or unpin it.`,
+			});
 		});
 	}
+
+	test('describes the Codicon background Celebrate button', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const backgroundHelp = provider.provideContent().split('\n').find(line => line.includes('Set Background'));
+
+		assert.deepStrictEqual({
+			activation: backgroundHelp?.includes('press Tab to find it, then press Enter or Space to activate it'),
+			nextButton: backgroundHelp?.includes('Each activation selects another random icon as the next Celebrate button.'),
+		}, { activation: true, nextButton: true });
+	});
 });

@@ -837,6 +837,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				const value = item.item;
 				return {
 					...item,
+					filterItems: undefined,
 					item: value ? toAction({
 						id: `agentHostPermissions.${value.value}`,
 						label: value.label,

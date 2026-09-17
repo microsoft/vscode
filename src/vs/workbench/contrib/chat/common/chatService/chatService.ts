@@ -1928,6 +1928,8 @@ export interface IRemotePendingRequest {
 	/** The raw message text. */
 	readonly message: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 }
 

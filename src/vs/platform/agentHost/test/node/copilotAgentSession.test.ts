@@ -35,6 +35,8 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { toSessionEvents } from './copilotTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -817,6 +819,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatChannelUri?: URI;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
+	subagentTaskCompletionDelay?: number;
 	/** Whether the launch plan represents an ephemeral session. */
 	isEphemeral?: boolean;
 	/** Whether the owning chat surface is scoped to editing a single file. */
@@ -914,6 +917,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			model,
 		};
 	let launchedRuntime: ICopilotSessionRuntime | undefined;
+	const logService = options?.logService ?? new NullLogService();
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
 			options?.beforeLaunch?.();
@@ -921,12 +925,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, logService);
 		}
 	};
 
 	const services = new ServiceCollection();
-	services.set(ILogService, options?.logService ?? new NullLogService());
+	services.set(ILogService, logService);
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
@@ -1127,6 +1131,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
 		},
 	));
 
@@ -1738,9 +1743,22 @@ suite('CopilotAgentSession', () => {
 	});
 
 	suite('CopilotSessionWrapper', () => {
+		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, logService));
+		}
+
+		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {
+			const prefix = '[Copilot:test-session-1] SDK session ';
+			return entries
+				.filter(entry => entry.message.startsWith(prefix))
+				.map(entry => entry.message.slice(prefix.length)
+					.replace(/instanceId=[\da-f-]+, /, '')
+					.replace(/, lifetimeMs=\d+$/, ''));
+		}
+
 		test('fires unhandled events when no wrapped listener is registered', () => {
 			const mockSession = new MockCopilotSession();
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const wrapper = createWrapper(mockSession);
 			const events: string[] = [];
 			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
 
@@ -1751,7 +1769,7 @@ suite('CopilotAgentSession', () => {
 
 		test('tracks wrapped listener registrations dynamically', () => {
 			const mockSession = new MockCopilotSession();
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const wrapper = createWrapper(mockSession);
 			const events: string[] = [];
 			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
 			const handledListener = wrapper.onSessionCompactionStart(() => { });
@@ -1765,7 +1783,7 @@ suite('CopilotAgentSession', () => {
 
 		test('validates model.call_finished events from the raw SDK event stream', () => {
 			const mockSession = new MockCopilotSession();
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const wrapper = createWrapper(mockSession);
 			const events: unknown[] = [];
 			disposables.add(wrapper.onModelCallFinished(event => events.push(event)));
 
@@ -1813,7 +1831,8 @@ suite('CopilotAgentSession', () => {
 			const disconnectGate = new DeferredPromise<void>();
 			const mockSession = new MockCopilotSession();
 			mockSession.disconnectGate = disconnectGate.p;
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const logService = new CapturingLogService();
+			const wrapper = createWrapper(mockSession, logService);
 
 			const disconnect = wrapper.disconnect();
 			const pendingState = wrapper.lifecycleState;
@@ -1823,16 +1842,24 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				pendingState,
 				completedState: wrapper.lifecycleState,
+				logs: lifecycleMessages(logService.infos),
 			}, {
 				pendingState: 'disconnecting',
 				completedState: 'disconnected',
+				logs: [
+					'attached: disconnectRpc=notStarted, shutdownReceived=false, disposed=false',
+					'disconnect RPC started: disconnectRpc=pending, shutdownReceived=false, disposed=false',
+					'disconnect RPC completed: disconnectRpc=completed, shutdownReceived=false, disposed=false',
+					'disconnect wait completed: disconnectRpc=completed, shutdownReceived=false, disposed=false',
+				],
 			});
 		});
 
 		test('returns to active and permits retry after disconnect rejects', async () => {
 			const mockSession = new MockCopilotSession();
 			mockSession.disconnectError = new Error('disconnect failed');
-			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const logService = new CapturingLogService();
+			const wrapper = createWrapper(mockSession, logService);
 
 			await assert.rejects(wrapper.disconnect(), /disconnect failed/);
 			const rejectedState = wrapper.lifecycleState;
@@ -1843,11 +1870,90 @@ suite('CopilotAgentSession', () => {
 				rejectedState,
 				completedState: wrapper.lifecycleState,
 				disconnectCalls: mockSession.disconnectCalls,
+				failures: lifecycleMessages(logService.warnings),
 			}, {
 				rejectedState: 'active',
 				completedState: 'disconnected',
 				disconnectCalls: 2,
+				failures: ['disconnect RPC failed: disconnectRpc=failed, shutdownReceived=false, disposed=false'],
 			});
+		});
+
+		for (const outcome of ['completed', 'failed'] as const) {
+			test(`logs early shutdown and a late disconnect RPC ${outcome} after disposal`, async () => {
+				const disconnectGate = new DeferredPromise<void>();
+				const rpcSettled = new DeferredPromise<void>();
+				const logService = new class extends CapturingLogService {
+					override info(message: string, ...args: unknown[]): void {
+						super.info(message, ...args);
+						if (message.includes('SDK session disconnect RPC completed:')) {
+							void rpcSettled.complete();
+						}
+					}
+					override warn(message: string, ...args: unknown[]): void {
+						super.warn(message, ...args);
+						if (message.includes('SDK session disconnect RPC failed:')) {
+							void rpcSettled.complete();
+						}
+					}
+				}();
+				const mockSession = new MockCopilotSession();
+				mockSession.disconnectGate = disconnectGate.p;
+				mockSession.disconnectError = outcome === 'failed' ? new Error('late disconnect failure') : undefined;
+				const wrapper = createWrapper(mockSession, logService);
+
+				const firstDisconnect = wrapper.disconnect();
+				const secondDisconnect = wrapper.disconnect();
+				try {
+					mockSession.fire('session.shutdown', {
+						shutdownType: 'routine',
+						sessionStartTime: 0,
+						totalApiDurationMs: 0,
+						modelMetrics: {},
+						codeChanges: { filesModified: [], linesAdded: 0, linesRemoved: 0 },
+					});
+					await Promise.all([firstDisconnect, secondDisconnect]);
+					wrapper.dispose();
+				} finally {
+					void disconnectGate.complete();
+				}
+				await rpcSettled.p;
+
+				assert.deepStrictEqual({
+					disconnectCalls: mockSession.disconnectCalls,
+					infos: lifecycleMessages(logService.infos),
+					warnings: lifecycleMessages(logService.warnings),
+					errors: logService.warnings.map(entry => entry.args),
+					instanceCount: new Set([...logService.infos, ...logService.warnings].map(entry => entry.message.match(/instanceId=(?<id>[\da-f-]{36})/)?.groups?.id)).size,
+				}, {
+					disconnectCalls: 1,
+					infos: [
+						'attached: disconnectRpc=notStarted, shutdownReceived=false, disposed=false',
+						'disconnect RPC started: disconnectRpc=pending, shutdownReceived=false, disposed=false',
+						'shutdown received (routine): disconnectRpc=pending, shutdownReceived=true, disposed=false',
+						'disconnect wait completed: disconnectRpc=pending, shutdownReceived=true, disposed=false',
+						'disconnect wait completed: disconnectRpc=pending, shutdownReceived=true, disposed=false',
+						'disconnect skipped after shutdown: disconnectRpc=pending, shutdownReceived=true, disposed=true',
+						...(outcome === 'completed' ? ['disconnect RPC completed: disconnectRpc=completed, shutdownReceived=true, disposed=true'] : []),
+					],
+					warnings: outcome === 'failed' ? ['disconnect RPC failed: disconnectRpc=failed, shutdownReceived=true, disposed=true'] : [],
+					errors: outcome === 'failed' ? [[mockSession.disconnectError]] : [],
+					instanceCount: 1,
+				});
+			});
+		}
+
+		test('distinguishes wrappers of the same SDK session in lifecycle logs', () => {
+			const logService = new CapturingLogService();
+			createWrapper(new MockCopilotSession(), logService);
+			createWrapper(new MockCopilotSession(), logService);
+			const instanceIds = logService.infos.map(entry => entry.message.match(/instanceId=(?<id>[\da-f-]{36})/)?.groups?.id);
+
+			assert.deepStrictEqual({
+				count: instanceIds.length,
+				distinctCount: new Set(instanceIds).size,
+				missingId: instanceIds.includes(undefined),
+			}, { count: 2, distinctCount: 2, missingId: false });
 		});
 	});
 
@@ -2091,12 +2197,16 @@ suite('CopilotAgentSession', () => {
 	});
 
 	test('describes an interrupted restored request without exposing Agent Host terminology', async () => {
-		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
-		mockSession.messages = [
-			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'message-1', content: 'Keep working' } },
-			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
-			{ type: 'assistant.message', data: { messageId: 'message-2', content: 'Partial response' } },
-		] as SessionEvent[];
+		const { session } = await createAgentSession(disposables, {
+			resume: true,
+			configureMockSession: mock => {
+				mock.messages = [
+					{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'message-1', content: 'Keep working' } },
+					{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
+					{ type: 'assistant.message', data: { messageId: 'message-2', content: 'Partial response' } },
+				] as SessionEvent[];
+			},
+		});
 
 		const turn = (await session.getMessages())[0];
 
@@ -2108,6 +2218,20 @@ suite('CopilotAgentSession', () => {
 			},
 			resumable: true,
 		});
+	});
+
+	test('shares the resume warm-up reconstruction with the first history read', async () => {
+		let getEventsCalls = 0;
+		const { session } = await createAgentSession(disposables, {
+			resume: true,
+			configureMockSession: mock => {
+				mock.getEvents = async () => { getEventsCalls++; return mock.messages; };
+			},
+		});
+		await session.getMessages();
+		await session.getSubagentMessages('tc-x');
+
+		assert.strictEqual(getEventsCalls, 1);
 	});
 
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
@@ -4154,6 +4278,248 @@ suite('CopilotAgentSession', () => {
 			{ kind: ActionType.ChatUsage, model: 'gpt-5.5', parentToolCallId: 'tc-subagent' },
 		]);
 	});
+
+	test('waits for subagent events to settle before completing an inactive task', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 50 });
+		session.resetTurnState('turn-parent');
+		const startedAt = new Date(0).toISOString();
+
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Explore tests',
+			status: 'idle', agentType: 'explore', prompt: 'Initial request', startedAt,
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(25);
+		mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 1, outputTokens: 1 }, { agentId: 'agent-1' });
+		await timeout(35);
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+
+		await timeout(25);
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(60);
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-subagent']);
+	});
+
+	test('keeps running subagents active between SDK model rounds', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'PR timings', agentDescription: 'Review PR timings',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Review PR timings',
+			status: 'running', agentType: 'research', prompt: 'Review PR timings', startedAt: new Date(0).toISOString(),
+		}];
+
+		mockSession.fire('assistant.turn_start', { turnId: 'child-round-1' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.turn_end', { turnId: 'child-round-1' }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.turn_start', { turnId: 'child-round-2' }, { agentId: 'agent-1' });
+		await timeout(50);
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed'), []);
+	});
+
+	test('rechecks an inactive subagent before the completion timer closes its turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'PR timings', agentDescription: 'Review PR timings',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Review PR timings',
+			status: 'idle', agentType: 'research', prompt: 'Review PR timings', startedAt: new Date(0).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.backgroundTasks = mockSession.backgroundTasks.map(task => ({ ...task, status: 'running' }));
+		await timeout(50);
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+	});
+
+	test('ignores stale inactive task snapshots after a subagent starts its next model round', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'PR timings', agentDescription: 'Review PR timings',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Review PR timings',
+			status: 'idle', agentType: 'research', prompt: 'Review PR timings', startedAt: new Date(0).toISOString(),
+		}];
+		const snapshotGate = new DeferredPromise<void>();
+		mockSession.backgroundTaskListGates.push(snapshotGate.p);
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.fire('assistant.turn_start', { turnId: 'child-next-round' }, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = mockSession.backgroundTasks.map(task => ({ ...task, status: 'running' }));
+		await snapshotGate.complete();
+		await timeout(50);
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+	});
+
+	test('settles an inactive sibling while another subagent starts its next round', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		for (const agentId of ['finished', 'running']) {
+			mockSession.fire('subagent.started', {
+				toolCallId: `tc-${agentId}`, agentName: 'research', agentDisplayName: agentId, agentDescription: 'Research',
+			}, { agentId });
+			mockSession.backgroundTasks.push({
+				type: 'agent', id: agentId, toolCallId: `tc-${agentId}`, description: 'Research',
+				status: 'idle', agentType: 'research', prompt: 'Research', startedAt: new Date(0).toISOString(),
+			});
+		}
+		const snapshotGate = new DeferredPromise<void>();
+		mockSession.backgroundTaskListGates.push(snapshotGate.p);
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.fire('assistant.turn_start', { turnId: 'next-round' }, { agentId: 'running' });
+		mockSession.backgroundTasks[1].status = 'running';
+		await snapshotGate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-finished']);
+	});
+
+	test('completes an idle subagent even when its confirmation is superseded or fails', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'PR timings', agentDescription: 'Review PR timings',
+		}, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Review PR timings',
+			status: 'idle', agentType: 'research', prompt: 'Review PR timings', startedAt: new Date(0).toISOString(),
+		}];
+		const firstLookGate = new DeferredPromise<void>();
+		const staleGate = new DeferredPromise<void>();
+		mockSession.backgroundTaskListGates.push(firstLookGate.p, staleGate.p);
+		mockSession.fire('session.background_tasks_changed', {});
+		while (mockSession.backgroundTaskListCalls < 1) {
+			await timeout(0);
+		}
+		const afterFirstLook = signals.filter(signal => signal.kind === 'subagent_completed').length;
+		// The confirming read fails, then a superseded read is answered only after a newer refresh was requested.
+		mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
+		await firstLookGate.complete();
+		while (mockSession.backgroundTaskListCalls < 3) {
+			await timeout(0);
+		}
+		const afterFailedConfirmation = signals.filter(signal => signal.kind === 'subagent_completed').length;
+		mockSession.fire('session.background_tasks_changed', {});
+		await staleGate.complete();
+		await waitForSignal(signal => signal.kind === 'subagent_completed');
+
+		assert.deepStrictEqual({
+			afterFirstLook,
+			afterFailedConfirmation,
+			completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+		}, { afterFirstLook: 0, afterFailedConfirmation: 0, completed: ['tc-subagent'] });
+	});
+
+	for (const phase of ['commentary', 'final_answer']) {
+		test(`marks only an empty final answer as a section boundary without claiming the markdown scope (${phase})`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-agent', agentName: 'research', agentDisplayName: 'catalog-perf', agentDescription: 'Research',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'reasoning-1', deltaContent: 'Assessing' });
+			mockSession.fire('assistant.message', { messageId: 'empty-message', content: '', phase });
+			mockSession.fire('assistant.message_delta', { messageId: 'later-message', deltaContent: 'Later text' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'reasoning-2', deltaContent: 'Later reasoning' });
+
+			interface IObservedPart { kind: ResponsePartKind | ActionType; content: string | undefined; boundary?: boolean }
+			const parts = getActions(signals).flatMap<IObservedPart>(action => {
+				if (action.type === ActionType.ChatResponsePart) {
+					const part = action.part;
+					if (part.kind === ResponsePartKind.SystemNotification) {
+						return [{ kind: part.kind, boundary: readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.ResponseRoundEnded, content: typeof part.content === 'string' ? part.content : part.content.markdown }];
+					}
+					return [{ kind: part.kind, content: part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning ? part.content : undefined }];
+				}
+				return action.type === ActionType.ChatDelta || action.type === ActionType.ChatReasoning ? [{ kind: action.type, content: action.content }] : [];
+			});
+
+			assert.deepStrictEqual({
+				parts,
+				parentCompleted: getActions(signals).some(action => action.type === ActionType.ChatTurnComplete),
+				childCompleted: signals.some(signal => signal.kind === 'subagent_completed'),
+			}, {
+				parts: phase === 'final_answer'
+					? [
+						{ kind: ResponsePartKind.Reasoning, content: 'Assessing' },
+						{ kind: ResponsePartKind.SystemNotification, boundary: true, content: '' },
+						{ kind: ResponsePartKind.Markdown, content: 'Later text' },
+						{ kind: ResponsePartKind.Reasoning, content: 'Later reasoning' },
+					]
+					: [
+						{ kind: ResponsePartKind.Reasoning, content: 'Assessing' },
+						{ kind: ResponsePartKind.Markdown, content: 'Later text' },
+						{ kind: ActionType.ChatReasoning, content: 'Later reasoning' },
+					],
+				parentCompleted: false,
+				childCompleted: false,
+			});
+		});
+	}
+
+	test('does not treat an empty intermediate message chunk as a section boundary', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+		mockSession.fire('assistant.message', {
+			messageId: 'final', apiCallId: 'call-final', phase: 'final_answer', content: '', chunkCount: 2, chunkIndex: 0,
+		});
+		mockSession.fire('assistant.message', {
+			messageId: 'final', apiCallId: 'call-final', phase: 'final_answer', content: 'The final answer.', chunkCount: 2, chunkIndex: 1,
+		});
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart
+			? [action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind] : []), ['The final answer.']);
+	});
+
+	for (const restored of [false, true]) {
+		test(`uses the canonical agent name for live reads (${restored ? 'identity restored on resume' : 'live identity'})`, async () => {
+			const agentId = '37241a58-7d95-4763-a3fb-2494dcfcf540';
+			const identity = {
+				toolCallId: 'tc-task', agentName: 'research', agentDisplayName: 'catalog-perf', agentDescription: 'Profile the catalog',
+			};
+			// Resume seeds names from the persisted log itself; no history read by the client is required.
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: restored,
+				configureMockSession: restored ? mock => { mock.messages = toSessionEvents([{ type: 'subagent.started', agentId, data: identity }]); } : undefined,
+			});
+			if (restored) {
+				await timeout(0);
+			} else {
+				mockSession.fire('subagent.started', identity, { agentId });
+			}
+			session.resetTurnState('turn-parent');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+			const parameters = { agent_id: agentId, wait: false };
+			mockSession.fire('tool.execution_start', { toolCallId: 'read', toolName: 'read_agent', arguments: parameters });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'read', success: true, result: { content: 'The review is done.' } });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				messages: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'read'
+					? [action.invocationMessage]
+					: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'read'
+						? [action.result.pastTenseMessage] : []),
+				parameters,
+			}, {
+				messages: [{ markdown: 'Read agent `catalog-perf`' }, { markdown: 'Read agent `catalog-perf`' }],
+				parameters: { agent_id: agentId, wait: false },
+			});
+		});
+	}
 
 	test('forwards only known subagent task model sources on the started signal', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -9191,6 +9557,32 @@ Use the attached image as context.
 						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
 					],
 				);
+			});
+
+			test('a replacement turn completes without waiting for an aborted turn edit', async () => {
+				const { session, mockSession, signals, writes } = await startEdits();
+				mockSession.fire('session.idle', {});
+				await session.abort();
+				mockSession.fire('session.idle', { aborted: true });
+				session.resetTurnState('replacement');
+				mockSession.fire('user.message', { content: 'Replacement prompt' });
+				mockSession.fire('session.idle', {});
+				await timeout(0);
+				const beforeOldEditSettles = {
+					activeTurn: session.currentTurnId,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				};
+				await writes[0].release.complete();
+				await timeout(0);
+				assert.deepStrictEqual({
+					beforeOldEditSettles,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+					completedTools: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+				}, {
+					beforeOldEditSettles: { activeTurn: undefined, completedTurns: ['replacement'] },
+					completedTurns: ['replacement'],
+					completedTools: [],
+				});
 			});
 
 			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {

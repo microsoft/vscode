@@ -325,6 +325,8 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessi
 }
 
 interface IStartServerRequestOptions {
+	readonly modelId?: string;
+	readonly modelConfiguration?: IChatSessionServerRequest['modelConfiguration'];
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: IChatSessionServerRequest['requestSource'];
 	readonly systemInitiatedLabel?: string;
@@ -834,6 +836,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			id: turnId,
 			prompt,
 			variableData,
+			...(options?.modelId ? { modelId: options.modelId, modelConfiguration: options.modelConfiguration } : {}),
 			isSystemInitiated: options?.isSystemInitiated,
 			requestSource: options?.requestSource,
 			systemInitiatedLabel: options?.systemInitiatedLabel,
@@ -1561,6 +1564,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								prompt: sessionState.activeTurn.message.text,
 								participant: this._config.agentId,
 								modelId: lookup.toLanguageModelId(sessionState.activeTurn.message.model?.id ?? activeRawModelId),
+								...(sessionState.activeTurn.message.model?.config ? { modelConfiguration: sessionState.activeTurn.message.model.config } : {}),
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
 								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
 								...(isMessageHiddenFromTranscript(sessionState.activeTurn.message) ? { isHidden: true } : {}),
@@ -2116,7 +2120,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const variables = p.request.variableData?.variables ?? [];
 			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
-			const snapshot: IPendingSnapshot = { id: p.request.id, message: userOriginMessage(p.request.message.text, attachments, p.sendOptions.metadata) };
+			const model = this._createModelSelection(p.sendOptions.userSelectedModelId, p.sendOptions.userSelectedModelConfiguration);
+			const snapshot: IPendingSnapshot = {
+				id: p.request.id,
+				message: {
+					...userOriginMessage(p.request.message.text, attachments, p.sendOptions.metadata),
+					...(model ? { model } : {}),
+				},
+			};
 			if (p.kind === ChatRequestQueueKind.Steering) {
 				currentSteering = snapshot;
 			} else {
@@ -2206,6 +2217,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			kind,
 			message: pending.message.text,
 			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
+			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
+			modelConfiguration: pending.message.model?.config,
 		});
 
 		const remote: IRemotePendingRequest[] = [];
@@ -2464,6 +2477,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				activeTurn.message.text,
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
+					modelId: this._toLanguageModelId(sessionResource, activeTurn.message.model?.id),
+					modelConfiguration: activeTurn.message.model?.config,
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
 					requestSource: messageToRequestSource(activeTurn.message),
 					systemInitiatedLabel: readMessageSystemInitiatedLabel(activeTurn.message),

@@ -14,6 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -25,6 +26,7 @@ import { workbenchInstantiationService } from '../../../workbench/test/browser/w
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionFocusedChatIsRenameTargetContext } from '../../common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -227,6 +229,7 @@ interface IChatGroupsHarness {
 	readonly sessionsService: TestSessionsService;
 	readonly sessionsProvidersService: TestSessionsProvidersService;
 	readonly chatViewFactory: TestChatViewFactory;
+	readonly configurationService: TestConfigurationService;
 	readonly view: ChatGroupsView;
 }
 
@@ -235,7 +238,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
-	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService())));
+	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
+	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -253,7 +258,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, view };
+	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, view };
 }
 
 function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
@@ -318,6 +323,67 @@ suite('Sessions - ChatGroupsView', () => {
 			focusedKind: 'chat',
 			activeTab: child.resource.toString(),
 			tabs: [main.resource.toString(), child.resource.toString()],
+		});
+	});
+
+	test('updates chat tab presentation from configuration without changing visible tabs', async () => {
+		const { view, configurationService } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		session.activeChat.set(child, undefined);
+		view.setSession(session, options);
+
+		const tabBar = view.element.querySelector<HTMLElement>('.chat-composite-bar')!;
+		const initialTabs = session.visibleChatTabs.get();
+		const getState = () => ({
+			tabBarDisplay: tabBar.style.display,
+			activeTab: view.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
+			renderedKind: view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
+			visibleTabs: session.visibleChatTabs.get().map(chat => chat.resource.toString()),
+			visibleTabsIdentityPreserved: session.visibleChatTabs.get() === initialTabs,
+		});
+		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+		};
+
+		const tabPresentation = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Single);
+		const sessionViewPresentation = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+
+		assert.deepStrictEqual({
+			tabPresentation,
+			sessionViewPresentation,
+			restoredTabPresentation: getState(),
+		}, {
+			tabPresentation: {
+				tabBarDisplay: '',
+				activeTab: child.resource.toString(),
+				renderedKind: 'chat',
+				visibleTabs: [main.resource.toString(), child.resource.toString()],
+				visibleTabsIdentityPreserved: true,
+			},
+			sessionViewPresentation: {
+				tabBarDisplay: 'none',
+				activeTab: child.resource.toString(),
+				renderedKind: 'chat',
+				visibleTabs: [main.resource.toString(), child.resource.toString()],
+				visibleTabsIdentityPreserved: true,
+			},
+			restoredTabPresentation: {
+				tabBarDisplay: '',
+				activeTab: child.resource.toString(),
+				renderedKind: 'chat',
+				visibleTabs: [main.resource.toString(), child.resource.toString()],
+				visibleTabsIdentityPreserved: true,
+			},
 		});
 	});
 
