@@ -13,6 +13,9 @@ enum OpenMarkdownLinks {
 	currentGroup = 'currentGroup',
 }
 
+/**
+ * Resolves Markdown links relative to a source resource and opens the resulting typed target.
+ */
 export class MdLinkOpener {
 
 	readonly #client: Pick<MdLanguageClient, 'resolveLinkTarget'>;
@@ -23,6 +26,10 @@ export class MdLinkOpener {
 		this.#client = client;
 	}
 
+	/**
+	 * Resolves a link without opening it, returning `undefined` when no target exists.
+	 * Absolute non-file URIs bypass the Markdown language service.
+	 */
 	public async resolveDocumentLink(linkText: string, fromResource: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget | undefined> {
 		const absoluteUri = getAbsoluteUri(linkText);
 		if (absoluteUri && absoluteUri.scheme !== 'file') {
@@ -31,11 +38,18 @@ export class MdLinkOpener {
 		return this.#client.resolveLinkTarget(linkText, fromResource);
 	}
 
+	/**
+	 * Resolves and opens a Markdown link, doing nothing when it cannot be resolved.
+	 */
 	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
 		const resolved = await this.resolveDocumentLink(linkText, fromResource);
 		await this.openResolvedDocumentLink(linkText, fromResource, resolved, viewColumn);
 	}
 
+	/**
+	 * Opens an already resolved target without repeating link resolution.
+	 * The original link text supplies a location fragment when a file target has no explicit position.
+	 */
 	public async openResolvedDocumentLink(
 		linkText: string,
 		fromResource: vscode.Uri,
@@ -90,6 +104,10 @@ export class MdLinkOpener {
 	}
 }
 
+/**
+ * Converts a language-server position or range to a VS Code range.
+ * Returns `undefined` for absent targets or positions with invalid coordinates.
+ */
 export function getRangeFromPositionOrRange(positionOrRange: lsp.Position | lsp.Range | undefined): vscode.Range | undefined {
 	if (!positionOrRange) {
 		return undefined;
@@ -121,6 +139,9 @@ async function openExternal(uri: vscode.Uri): Promise<void> {
 	}
 }
 
+/**
+ * Parses URI-like absolute links while leaving Windows drive paths unresolved.
+ */
 export function getAbsoluteUri(linkText: string): vscode.Uri | undefined {
 	return !/^[a-z]:[\\/]/i.test(linkText) && /^[a-z][a-z0-9+.-]*:/i.test(linkText)
 		? vscode.Uri.parse(linkText, true)
