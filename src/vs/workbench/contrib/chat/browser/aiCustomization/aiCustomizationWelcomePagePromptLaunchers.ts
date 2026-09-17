@@ -20,6 +20,8 @@ import type { IAICustomizationWelcomePageImplementation, ICustomizationMigration
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AICustomizationOverviewSearch } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -41,14 +43,17 @@ interface IStandaloneCustomizationDescription {
 export class PromptLaunchersAICustomizationWelcomePage extends Disposable implements IAICustomizationWelcomePageImplementation {
 
 	private readonly cardDisposables = this._register(new DisposableStore());
+	private readonly overviewSearch: AICustomizationOverviewSearch | undefined;
 
 	readonly container: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
 	private cardsContainer: HTMLElement | undefined;
+	private exploreCardsContainer: HTMLElement | undefined;
 	private firstCard: HTMLElement | undefined;
 	private heading: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
 	private visibleSectionIds = new Set<AICustomizationManagementSection>();
+	private searchActive = false;
 
 	private sentLabel: HTMLElement | undefined;
 	private submitBtn: HTMLElement | undefined;
@@ -127,6 +132,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
 		private harnessLabel: string,
+		instantiationService?: IInstantiationService,
 	) {
 		super();
 
@@ -230,6 +236,24 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			updateSubmitState();
 		}
 
+		if (instantiationService && callbacks.searchCustomizations && callbacks.openSearchResult) {
+			this.overviewSearch = this._register(instantiationService.createInstance(
+				AICustomizationOverviewSearch,
+				welcomeInner,
+				{
+					search: (query, token) => callbacks.searchCustomizations!(query, token),
+					open: item => callbacks.openSearchResult!(item),
+					setActive: active => {
+						this.searchActive = active;
+						if (this.exploreCardsContainer) {
+							this.exploreCardsContainer.style.display = active ? 'none' : '';
+						}
+						this.scrollable.scanDomNode();
+					},
+				},
+			));
+		}
+
 		this.cardsContainer = DOM.append(welcomeInner, $('.welcome-prompts-cards'));
 	}
 
@@ -248,6 +272,15 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 	reset(): void {
 		this._clearSentState();
+		void this.overviewSearch?.setQuery('');
+	}
+
+	async setSearchQuery(query: string): Promise<void> {
+		await this.overviewSearch?.setQuery(query);
+	}
+
+	refreshSearch(): void {
+		this.overviewSearch?.refresh();
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -269,11 +302,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			this.renderCustomizationMigrationCard(migrationGrid, this.migrationCategories);
 		}
 
-		const exploreGrid = this.renderOverviewSection(
-			localize('overviewExploreCustomizations', "Explore Customizations"),
-			localize('overviewExploreCustomizationsDescription', "Manage what the active agent knows and can do."),
-			'welcome-prompts-explore-section',
-		);
+		this.exploreCardsContainer = DOM.append(this.cardsContainer, $('.welcome-prompts-overview-section.welcome-prompts-explore-section'));
+		this.exploreCardsContainer.style.display = this.searchActive ? 'none' : '';
+		const exploreGrid = DOM.append(this.exploreCardsContainer, $('.welcome-prompts-overview-grid'));
 		for (const section of this.workspaceService.managementSections) {
 			const category = this.categoryDescriptions.find(candidate => candidate.id === section);
 			if (!category || !visibleSectionIds.has(category.id)) {
@@ -412,6 +443,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			this.inputElement.focus();
 			return;
 		}
-		this.firstCard?.focus();
+		if (this.overviewSearch) {
+			this.overviewSearch.focus();
+		} else {
+			this.firstCard?.focus();
+		}
 	}
 }

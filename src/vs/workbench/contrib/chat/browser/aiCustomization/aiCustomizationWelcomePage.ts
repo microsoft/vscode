@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -11,6 +12,8 @@ import { CustomizationMigrationCategoryId } from './customizationMigrationCatego
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { IAICustomizationOverviewSearchItem, IAICustomizationOverviewSearchResult } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -39,6 +42,8 @@ export interface IWelcomePageCallbacks {
 	 * reusing the active one.
 	 */
 	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
+	searchCustomizations?(query: string, token: CancellationToken): Promise<IAICustomizationOverviewSearchResult>;
+	openSearchResult?(item: IAICustomizationOverviewSearchItem): void;
 }
 
 export interface IAICustomizationWelcomePageImplementation extends IDisposable {
@@ -46,9 +51,11 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
 	setHarnessLabel(label: string): void;
 	setMigrationCategories(categories: readonly ICustomizationMigrationCategorySummary[]): void;
+	refreshSearch(): void;
 	focus(): void;
 	/** Called when the welcome page becomes visible after navigation — clears any transient state. */
 	reset?(): void;
+	setSearchQuery?(query: string): Promise<void>;
 }
 
 /**
@@ -68,13 +75,14 @@ export class AICustomizationWelcomePage extends Disposable {
 		workspaceService: IAICustomizationWorkspaceService,
 		hoverService: IHoverService,
 		harnessLabel: string,
+		instantiationService?: IInstantiationService,
 	) {
 		super();
 
 		this.container = DOM.append(parent, $('.welcome-page-host'));
 		this.container.style.height = '100%';
 		this.container.style.overflow = 'hidden';
-		this.implementation = this._register(new PromptLaunchersAICustomizationWelcomePage(this.container, welcomePageFeatures, callbacks, commandService, workspaceService, hoverService, harnessLabel));
+		this.implementation = this._register(new PromptLaunchersAICustomizationWelcomePage(this.container, welcomePageFeatures, callbacks, commandService, workspaceService, hoverService, harnessLabel, instantiationService));
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -89,11 +97,19 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.implementation.setMigrationCategories(categories);
 	}
 
+	refreshSearch(): void {
+		this.implementation.refreshSearch();
+	}
+
 	focus(): void {
 		this.implementation.focus();
 	}
 
 	reset(): void {
 		this.implementation.reset?.();
+	}
+
+	async setSearchQuery(query: string): Promise<void> {
+		await this.implementation.setSearchQuery?.(query);
 	}
 }

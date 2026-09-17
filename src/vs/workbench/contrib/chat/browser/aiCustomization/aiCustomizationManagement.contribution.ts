@@ -64,6 +64,8 @@ import {
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMigrationAccessibility.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AICustomizationAccessibilityHelp } from './aiCustomizationAccessibility.js';
 
 //#region Telemetry
 
@@ -118,6 +120,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AICustomizationManagementEditorInputSerializer
 );
+
+AccessibleViewRegistry.register(new AICustomizationAccessibilityHelp());
 
 //#endregion
 

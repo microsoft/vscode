@@ -76,7 +76,8 @@ export const enum AccessibilityVerbositySettingId {
 	Automations = 'accessibility.verbosity.automations',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
-	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
+	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
+	AICustomizations = 'accessibility.verbosity.aiCustomizations'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -248,6 +249,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
 			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.AICustomizations]: {
+			description: localize('verbosity.aiCustomizations', 'Provide information about how to search and navigate the Agent Customizations editor.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {

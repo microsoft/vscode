@@ -47,7 +47,7 @@ import { basename, dirname, getComparisonKey, isEqual } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
-import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
+import { AICustomizationListWidget, formatDisplayName } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
@@ -122,6 +122,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
+import type { IAICustomizationOverviewSearchItem, IAICustomizationOverviewSearchResult, IAICustomizationOverviewSourceItem } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 const homepageMigrationCategories = [
@@ -967,6 +968,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 			this._previousActiveHarnessId = activeId;
+			this.welcomePage?.refreshSearch();
 		}));
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
@@ -1111,14 +1113,90 @@ export class AICustomizationManagementEditor extends EditorPane {
 						onUnexpectedError(err);
 					}
 				},
+				searchCustomizations: (query, token) => this.getOverviewSearchItems(query, token),
+				openSearchResult: item => this.openOverviewSearchResult(item),
 			},
 			this.commandService,
 			this.workspaceService,
 			this.hoverService,
 			this.getActiveHarnessLabel(),
+			this.instantiationService,
 		));
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 		this.welcomePage.setMigrationCategories(this.getMigrationCategorySummaries());
+	}
+
+	private async getOverviewSearchItems(query: string, token: CancellationToken): Promise<IAICustomizationOverviewSearchResult> {
+		const visibleSections = new Set(this.sections.map(section => section.id));
+		const promptSections = ITEMS_MODEL_SECTIONS.filter(section => visibleSections.has(section));
+		await Promise.all(promptSections.map(section => this.itemsModel.whenSectionLoaded(section)));
+		if (token.isCancellationRequested) {
+			return { items: [] };
+		}
+
+		const items: IAICustomizationOverviewSearchItem[] = [];
+		const warnings: string[] = [];
+		for (const section of promptSections) {
+			const sourceItems = this.itemsModel.getItems(section).get().map(item => ({
+				id: item.id,
+				name: item.displayName ?? formatDisplayName(item.name),
+				description: item.description,
+				state: item.disabled ? 'available' as const : 'inUse' as const,
+				keywords: [item.filename, item.badge ?? ''],
+				open: async () => {
+					await this.listWidget.setSection(section);
+					await this.revealCustomizationByUri(item.uri);
+				},
+			}));
+			this.appendOverviewSearchItems(items, section, sourceItems);
+		}
+
+		const [mcpResult, pluginResult] = await Promise.all([
+			visibleSections.has(AICustomizationManagementSection.McpServers) && this.mcpListWidget
+				? this.mcpListWidget.getOverviewSearchItems(query, token)
+				: undefined,
+			visibleSections.has(AICustomizationManagementSection.Plugins) && this.pluginListWidget
+				? this.pluginListWidget.getOverviewSearchItems(query, token)
+				: undefined,
+		]);
+		if (mcpResult) {
+			const result = mcpResult;
+			this.appendOverviewSearchItems(items, AICustomizationManagementSection.McpServers, result.items);
+			if (result.warning) {
+				warnings.push(result.warning);
+			}
+		}
+		if (pluginResult) {
+			const result = pluginResult;
+			this.appendOverviewSearchItems(items, AICustomizationManagementSection.Plugins, result.items);
+			if (result.warning) {
+				warnings.push(result.warning);
+			}
+		}
+		if (visibleSections.has(AICustomizationManagementSection.Tools) && this.toolsListWidget) {
+			this.appendOverviewSearchItems(items, AICustomizationManagementSection.Tools, this.toolsListWidget.getOverviewSearchItems(query));
+		}
+		return { items, warning: warnings.join(' ') || undefined };
+	}
+
+	private appendOverviewSearchItems(target: IAICustomizationOverviewSearchItem[], sectionId: AICustomizationManagementSection, sourceItems: readonly IAICustomizationOverviewSourceItem[]): void {
+		const section = this.sections.find(candidate => candidate.id === sectionId);
+		if (!section) {
+			return;
+		}
+		for (const item of sourceItems) {
+			target.push({
+				...item,
+				section: sectionId,
+				sectionLabel: section.label,
+				sectionIcon: section.icon,
+			});
+		}
+	}
+
+	private openOverviewSearchResult(item: IAICustomizationOverviewSearchItem): void {
+		this.selectSection(item.section);
+		void item.open?.();
 	}
 
 	private createBackArrowButton(
@@ -1269,7 +1347,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.promptsService.onDidChangeInstructions,
 			this.promptsService.onDidChangeAgentInstructions,
 		)(() => this.refreshCustomizationMigrationInfoFromPromptChange()));
-		this.editorDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.refreshCustomizationMigrationInfoFromMcpChange()));
+		this.editorDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
+			this.refreshCustomizationMigrationInfoFromMcpChange();
+			this.welcomePage?.refreshSearch();
+		}));
 		this.editorDisposables.add(Event.any(this.mcpWorkbenchService.onChange, this.mcpWorkbenchService.onReset)(() => this.refreshCustomizationMigrationInfoFromMcpChange()));
 		this.editorDisposables.add(autorun(reader => {
 			for (const server of this.mcpService.servers.read(reader)) {
@@ -1402,16 +1483,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.isPromptsSection(this.selectedSection)) {
 				this.updateSectionCount(this.selectedSection, count);
 			}
+			this.welcomePage?.refreshSearch();
 		}));
 		if (this.mcpListWidget) {
 			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
+				this.welcomePage?.refreshSearch();
 			}));
 			this.mcpListWidget.fireItemCount();
 		}
 		if (this.pluginListWidget) {
 			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
+				this.welcomePage?.refreshSearch();
 			}));
 			this.pluginListWidget.fireItemCount();
 		}
@@ -1424,6 +1508,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.toolsListWidget) {
 			this.editorDisposables.add(this.toolsListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.Tools, count);
+				this.welcomePage?.refreshSearch();
 			}));
 			this.toolsListWidget.fireItemCount();
 		}
@@ -1434,6 +1519,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const observable = this.itemsModel.getCount(section);
 			this.editorDisposables.add(autorun(reader => {
 				this.updateSectionCount(section, observable.read(reader));
+				this.itemsModel.getItems(section).read(reader);
+				this.welcomePage?.refreshSearch();
 			}));
 		}
 
@@ -3609,6 +3696,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	public refreshList(): void {
 		this.listWidget.refresh();
+	}
+
+	public async setOverviewSearchQuery(query: string): Promise<void> {
+		this.showWelcomePage();
+		await this.welcomePage?.setSearchQuery(query);
 	}
 
 	/**

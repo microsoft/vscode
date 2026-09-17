@@ -21,7 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
@@ -50,6 +50,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import type { IAICustomizationOverviewSourceItem, IAICustomizationOverviewSourceSearchResult } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -2251,6 +2252,123 @@ export class PluginListWidget extends Disposable {
 	 */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	async getOverviewSearchItems(query: string, token: CancellationToken): Promise<IAICustomizationOverviewSourceSearchResult> {
+		const normalizedQuery = query.toLowerCase().trim();
+		const installedItems = this.agentPluginService.plugins.get()
+			.map(plugin => installedPluginToItem(plugin, this.labelService))
+			.filter(item => item.name.toLowerCase().includes(normalizedQuery) || item.description.toLowerCase().includes(normalizedQuery));
+		const installedNames = new Set(installedItems.map(item => item.name.toLowerCase()));
+		const remoteItems = (await this.getRemotePluginItems(normalizedQuery)).filter(item =>
+			item.groupKey !== 'remote-client' &&
+			(!item.name || !installedNames.has(item.name.toLowerCase()))
+		);
+
+		const items: IAICustomizationOverviewSourceItem[] = [
+			...installedItems.map(item => ({
+				id: `installed:${item.plugin.uri.toString()}`,
+				name: formatDisplayName(item.name),
+				description: item.description,
+				state: isContributionEnabled(item.plugin.enablement.get()) ? 'inUse' as const : 'available' as const,
+				open: () => this._onDidSelectPlugin.fire(item),
+				action: isPluginPolicyBlocked(item.plugin) ? undefined : {
+					label: isContributionEnabled(item.plugin.enablement.get()) ? localize('disablePluginOverviewAction', "Disable") : localize('enablePluginOverviewAction', "Enable"),
+					ariaLabel: isContributionEnabled(item.plugin.enablement.get()) ? localize('disablePluginOverviewActionAria', "Disable {0}", item.name) : localize('enablePluginOverviewActionAria', "Enable {0}", item.name),
+					run: () => this.agentPluginService.enablementModel.setEnabled(item.plugin.uri.toString(), getToggledPluginEnablementState(item.plugin.enablement.get())),
+				},
+			})),
+			...remoteItems.map(item => ({
+				id: `remote:${item.itemKey ?? item.uri.toString()}`,
+				name: formatDisplayName(item.name),
+				description: item.description,
+				state: item.enabled === false ? 'available' as const : 'inUse' as const,
+				open: () => this.revealRemotePlugin(item),
+			})),
+		];
+
+		if (!this.isBrowseMarketplaceAvailable() || token.isCancellationRequested) {
+			return { items };
+		}
+
+		try {
+			const marketplacePlugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
+			if (token.isCancellationRequested) {
+				return { items: [] };
+			}
+			const installedUris = new Set(this.agentPluginService.plugins.get().map(plugin => plugin.uri.toString()));
+			for (const marketplacePlugin of marketplacePlugins) {
+				if (!marketplacePlugin.name.toLowerCase().includes(normalizedQuery)
+					&& !marketplacePlugin.description.toLowerCase().includes(normalizedQuery)
+					&& !marketplacePlugin.marketplace.toLowerCase().includes(normalizedQuery)) {
+					continue;
+				}
+				const item = marketplacePluginToItem(marketplacePlugin);
+				if (installedUris.has(this.pluginInstallService.getPluginInstallUri(marketplacePlugin).toString())) {
+					continue;
+				}
+				items.push({
+					id: `marketplace:${item.marketplace}:${item.name}`,
+					name: formatDisplayName(item.name),
+					description: item.description,
+					state: 'available',
+					keywords: [item.marketplace],
+					open: () => this._onDidSelectPlugin.fire(item),
+					action: {
+						label: localize('installPluginOverviewAction', "Install"),
+						ariaLabel: localize('installPluginOverviewActionAria', "Install {0}", item.name),
+						run: async () => {
+							try {
+								await this.pluginInstallService.installPlugin({
+									name: item.name,
+									description: item.description,
+									version: item.version ?? '',
+									sourceDescriptor: item.sourceDescriptor,
+									source: item.source,
+									marketplace: item.marketplace,
+									marketplaceReference: item.marketplaceReference,
+									marketplaceType: item.marketplaceType,
+									readmeUri: item.readmeUri,
+								});
+								await this.refresh();
+							} catch (error) {
+								this.notificationService.error(localize('pluginInstallFailed', "Unable to install plugin: {0}", getErrorMessage(error)));
+							}
+						},
+					},
+				});
+			}
+			return { items };
+		} catch {
+			if (token.isCancellationRequested) {
+				return { items: [] };
+			}
+			return {
+				items,
+				warning: localize('pluginOverviewSearchMarketplaceUnavailable', "Plugin marketplace results are unavailable."),
+			};
+		}
+	}
+
+	private async revealRemotePlugin(item: ICustomizationItem): Promise<void> {
+		if (this.browseMode) {
+			this.exitBrowseMode();
+		}
+		this.searchInput.value = '';
+		this.searchQuery = '';
+		await this.filterPlugins();
+		const itemKey = item.itemKey ?? `remote-${item.groupKey ?? 'default'}-${item.uri.toString()}`;
+		for (const section of this.sectionLists) {
+			const index = section.entries.findIndex(entry => entry.type === 'remote-item'
+				&& (entry.item.itemKey ?? `remote-${entry.item.groupKey ?? 'default'}-${entry.item.uri.toString()}`) === itemKey);
+			if (index !== -1) {
+				section.list.setFocus([index]);
+				section.list.setSelection([index]);
+				section.list.reveal(index);
+				section.list.domFocus();
+				return;
+			}
+		}
 	}
 
 	private toggleGroup(entry: IPluginGroupHeaderEntry): void {

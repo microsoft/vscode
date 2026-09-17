@@ -735,6 +735,7 @@ interface IRenderEditorOptions {
 	readonly emptyWorkspaceSection?: boolean;
 	readonly emptyUserSection?: boolean;
 	readonly emptyToolExtensions?: boolean;
+	readonly overviewSearchQuery?: string;
 	readonly scrollToBottom?: boolean;
 	readonly width?: number;
 	readonly height?: number;
@@ -1256,6 +1257,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.blur();
 			await new Promise(resolve => setTimeout(resolve, 300));
 		}
+	}
+
+	if (options.overviewSearchQuery) {
+		await editor.setOverviewSearchQuery(options.overviewSearchQuery);
+	}
+
+	if (options.scrollToBottom) {
+		editor.revealLastItem();
 	}
 
 	if (options.migrationCategory) {
@@ -1976,6 +1985,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, width: 550, height: 500 }),
+	}),
+
+	OverviewSearch: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, overviewSearchQuery: 'search' }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,

@@ -33,7 +33,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { ConfigureModelAccessAction, DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction, getContextMenuActions, RestartServerAction, ShowSamplingRequestsAction, ShowServerOutputAction, StartServerAction, StopServerAction } from '../../../../contrib/mcp/browser/mcpServerActions.js';
@@ -63,6 +63,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import type { IAICustomizationOverviewSourceItem, IAICustomizationOverviewSourceSearchResult } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -2552,6 +2553,107 @@ export class McpListWidget extends Disposable {
 		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
+	async getOverviewSearchItems(query: string, token: CancellationToken): Promise<IAICustomizationOverviewSourceSearchResult> {
+		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
+		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
+		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
+		const items: IAICustomizationOverviewSourceItem[] = [];
+		const normalizedQuery = query.toLowerCase().trim();
+		const appendInstalledEntry = (id: string, entry: IMcpInstalledEntry, description?: string) => {
+			const name = getMcpEntryLabel(entry);
+			if (!name.toLowerCase().includes(normalizedQuery) && !description?.toLowerCase().includes(normalizedQuery)) {
+				return;
+			}
+			const enabled = this.isInstalledEntryEnabled(entry);
+			const blockedByPlugin = getMcpDisabledReason(entry)?.source === 'plugin';
+			items.push({
+				id,
+				name: formatDisplayName(name),
+				description,
+				state: enabled ? 'inUse' : 'available',
+				open: () => this._onDidSelectServer.fire(createInstalledMcpServerDetailInput(entry)),
+				action: blockedByPlugin ? undefined : {
+					label: enabled ? localize('disableMcpOverviewAction', "Disable") : localize('enableMcpOverviewAction', "Enable"),
+					ariaLabel: enabled ? localize('disableMcpOverviewActionAria', "Disable {0}", name) : localize('enableMcpOverviewActionAria', "Enable {0}", name),
+					run: () => this.setInstalledEntryEnabled(entry, !enabled),
+				},
+			});
+		};
+
+		for (const server of this.mcpWorkbenchService.local) {
+			const activeSessionServer = activeSessionMatcher.take(getWorkbenchServerMatchKeys(server));
+			const localServer = localServerMatcher.find(getWorkbenchServerMatchKeys(server));
+			appendInstalledEntry(`workbench:${server.id}`, { type: 'server-item', server, activeSessionServer, localServer }, server.description);
+		}
+
+		const localIds = new Set(this.mcpWorkbenchService.local.map(server => server.id));
+		const hiddenCollectionIds = this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds;
+		for (const server of this.mcpService.servers.get()) {
+			if (localIds.has(server.definition.id) || !isMcpServerCollectionVisible(server.collection.id, hiddenCollectionIds)) {
+				continue;
+			}
+			const activeSessionServer = activeSessionMatcher.take(getRuntimeServerMatchKeys(server));
+			const entry = createBuiltinEntry(server, activeSessionServer);
+			appendInstalledEntry(`runtime:${server.collection.id}:${server.definition.id}`, entry, entry.description);
+		}
+
+		for (const entry of createBuiltinActiveSessionMcpEntries(activeSessionMatcher.unmatched(normalizedQuery))) {
+			appendInstalledEntry(`session:${entry.server.id}`, entry);
+		}
+
+		if (!this.mcpAccessEnabled || token.isCancellationRequested) {
+			return { items };
+		}
+
+		try {
+			const pager = await this.mcpWorkbenchService.queryGallery({ text: normalizedQuery }, token);
+			if (token.isCancellationRequested) {
+				return { items: [] };
+			}
+			const installedKeys = new Set<string>();
+			for (const server of this.mcpWorkbenchService.local) {
+				for (const key of getWorkbenchServerMatchKeys(server)) {
+					installedKeys.add(key.toLowerCase());
+				}
+			}
+			for (const server of pager.firstPage.items) {
+				if (server.installState !== McpServerInstallState.Uninstalled
+					|| getWorkbenchServerMatchKeys(server).some(key => installedKeys.has(key.toLowerCase()))) {
+					continue;
+				}
+				items.push({
+					id: `marketplace:${server.id}`,
+					name: formatDisplayName(server.label),
+					description: server.description,
+					state: 'available',
+					keywords: server.publisherDisplayName ? [server.publisherDisplayName] : undefined,
+					open: () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)),
+					action: {
+						label: localize('installMcpOverviewAction', "Install"),
+						ariaLabel: localize('installMcpOverviewActionAria', "Install {0}", server.label),
+						run: async () => {
+							try {
+								await this.mcpWorkbenchService.install(server);
+								status(localize('mcpServerInstalledStatus', "{0} installed.", server.label));
+								await this.refresh();
+							} catch (error) {
+								this.notificationService.error(localize('mcpInstallFailed', "Unable to install MCP server: {0}", getErrorMessage(error)));
+							}
+						},
+					},
+				});
+			}
+			return { items };
+		} catch {
+			if (token.isCancellationRequested) {
+				return { items: [] };
+			}
+			return {
+				items,
+				warning: localize('mcpOverviewSearchMarketplaceUnavailable', "MCP marketplace results are unavailable."),
+			};
+		}
+	}
 	isInBrowseMode(): boolean {
 		return false;
 	}

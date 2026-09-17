@@ -55,6 +55,7 @@ export const enum AccessibleViewProviderId {
 	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
 	ChatPetAchievements = 'chatPetAchievements',
+	AICustomizations = 'aiCustomizations',
 }
 
 export const enum AccessibleViewType {
