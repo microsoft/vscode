@@ -52,6 +52,10 @@ Before waiting on any `IN_PROGRESS` check, inspect its check-run output and clas
 HEAD=$(gh pr view --json headRefOid --jq .headRefOid)
 gh api --paginate "repos/microsoft/vscode/commits/$HEAD/check-runs?per_page=100" \
   --jq '.check_runs[] | select(.status != "completed") | {name, status, details_url, title: .output.title, summary: .output.summary}'
+
+# Legacy commit statuses (e.g. Azure Pipelines) are a separate API and are not included above
+gh api --paginate "repos/microsoft/vscode/commits/$HEAD/status?per_page=100" \
+  --jq '.statuses[] | select(.state == "pending") | {context, state, target_url, description}'
 ```
 
 - **Workflow/job check**: its details URL points to an Actions run or job. It may be useful to wait briefly if its result is needed for the task.
@@ -267,7 +271,8 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
 | Find PR for branch | `gh pr view --json number,url` |
 | List all checks | `gh pr checks --json name,state,bucket` |
 | List failed checks only | `gh pr checks --json name,state,link,bucket --jq '.[] \| select(.bucket == "fail")'` |
-| Inspect pending check details | `gh api "repos/microsoft/vscode/commits/$HEAD/check-runs"` |
+| Inspect pending check details | `gh api --paginate "repos/microsoft/vscode/commits/$(gh pr view --json headRefOid --jq .headRefOid)/check-runs?per_page=100"` |
+| Inspect pending legacy statuses | `gh api --paginate "repos/microsoft/vscode/commits/$(gh pr view --json headRefOid --jq .headRefOid)/status?per_page=100"` |
 | Watch active CI for one bounded interval | `gh pr checks --watch --fail-fast` (hard timeout: 1 minute) |
 | Failed jobs in a run | `gh run view <RUN_ID> --json jobs --jq '.jobs[] \| select(.conclusion == "failure") \| {name, id: .databaseId}'` |
 | View failed step logs | `gh run view <RUN_ID> --job <JOB_ID> --log-failed` (requires full run to complete) |
