@@ -792,7 +792,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			});
 		});
 
-		for (const transport of [TransportType.SSE, TransportType.STREAMABLE_HTTP]) {
+		for (const transport of [TransportType.SSE, TransportType.STREAMABLE_HTTP] as const) {
 			test(`${transport} remote server with fixed and interactive URL variables`, () => {
 				const manifest: IGalleryMcpServerConfiguration = {
 					remotes: [{
