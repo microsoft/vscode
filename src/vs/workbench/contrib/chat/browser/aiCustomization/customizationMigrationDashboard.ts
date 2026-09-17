@@ -33,7 +33,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly description: string;
 	readonly count: number;
 	readonly countLabel: string;
-	readonly attentionRequired?: boolean;
+	readonly highRisk?: boolean;
 }
 
 export interface ICustomizationMigrationDashboardScope {
@@ -221,7 +221,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			destinations.element.setAttribute('aria-haspopup', 'listbox');
 		}
 
-		const categories = scope.categories.filter(category => category.count > 0).slice().sort((a, b) => Number(!!b.attentionRequired) - Number(!!a.attentionRequired));
+		const categories = scope.categories.filter(category => category.count > 0).slice().sort((a, b) => Number(!!b.highRisk) - Number(!!a.highRisk));
 		if (!scope.skipped && categories.length) {
 			const categoryList = DOM.append(item, $('.migration-categories'));
 			for (const category of categories) {
@@ -230,9 +230,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 				const categoryHeading = DOM.append(content, $('.migration-category-heading'));
 				DOM.append(categoryHeading, $('h4', {}, category.label));
 				DOM.append(categoryHeading, $('span.migration-count', {}, category.countLabel));
-				if (category.attentionRequired) {
-					const attention = DOM.append(categoryHeading, $('span.migration-attention', {}, localize('reviewRecommended', "Review recommended")));
-					this.hover(attention, localize('reviewRecommendedDescription', "Review this migration before continuing. Conversion can remove prompt-only metadata and change how prompts are invoked."));
+				if (category.highRisk) {
+					const risk = DOM.append(categoryHeading, $('span.migration-risk', {}, localize('highRisk', "High risk")));
+					this.hover(risk, localize('highRiskDescription', "Conversion can remove prompt-only metadata and change how prompts are invoked."));
 				}
 				DOM.append(content, $('p.migration-category-description', {}, category.description));
 				this.button(row, `review:${scope.storage}:${category.id}`, localize('review', "Review"),

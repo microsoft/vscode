@@ -2380,7 +2380,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				scope.label,
 				scope.skipped ? localize('migrationAccessibleSkipped', "Skipped") : scope.count === 0 ? localize('migrationAccessibleComplete', "No remaining migrations.") : '',
 				...(scope.skipped ? [] : scope.categories.map(category => localize('migrationAccessibleCategory', "{0}: {1}. {2}{3}",
-					category.label, category.countLabel, category.attentionRequired ? localize('migrationAccessibleReviewRecommended', "Review recommended. ") : '', category.description))),
+					category.label, category.countLabel, category.highRisk ? localize('migrationAccessibleHighRisk', "High risk. ") : '', category.description))),
 			].filter(Boolean).join('\n')),
 			...overview.activity.map(entry => [
 				localize('migrationAccessibleActivity', "Migration activity: {0}, {1}", entry.categoryLabel, entry.scopeLabel),
@@ -2425,7 +2425,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					label: localize('migrationChecklistPrompts', "Prompts to skills"),
 					description: localize('migrationChecklistPromptsDescription', "Convert reusable prompt files into skills so agents can discover and run them as supported customizations."),
 					countLabel: count === 1 ? localize('migrationChecklistOnePrompt', "1 prompt") : localize('migrationChecklistPromptsCount', "{0} prompts", count),
-					attentionRequired: true,
+					highRisk: true,
 				};
 			case CustomizationMigrationCategoryId.McpServers:
 				return {

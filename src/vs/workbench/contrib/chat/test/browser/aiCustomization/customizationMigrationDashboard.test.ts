@@ -52,7 +52,7 @@ suite('CustomizationMigrationDashboard', () => {
 					storage: PromptsStorage.user, label: 'Your profile', count: 5, skipped: false, hasConfigurableDestinations: true,
 					categories: [
 						{ id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move personal customizations.', count: 3, countLabel: '2 agents · 1 instruction' },
-						{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills.', count: 2, countLabel: '2 prompts', attentionRequired: true },
+						{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills.', count: 2, countLabel: '2 prompts', highRisk: true },
 					],
 				},
 				{
@@ -67,7 +67,7 @@ suite('CustomizationMigrationDashboard', () => {
 		};
 	}
 
-	test('orders categories needing attention first and sends scoped review and destination callbacks', () => {
+	test('orders high-risk categories first and sends scoped review and destination callbacks', () => {
 		const actions: string[] = [];
 		const { parent, dashboard } = createDashboard({
 			configureLocations: storage => actions.push(`destinations:${storage}`),
@@ -85,7 +85,7 @@ suite('CustomizationMigrationDashboard', () => {
 			title: parent.querySelector('h1')?.textContent,
 			categories: [...parent.querySelectorAll('h4')].map(element => element.textContent),
 			counts: [...parent.querySelectorAll('.migration-count')].map(element => element.textContent),
-			attention: parent.querySelector('.migration-attention')?.textContent,
+			highRisk: parent.querySelector('.migration-risk')?.textContent,
 			progress: parent.querySelector('.migration-checklist-progress')?.textContent,
 			workspaceDescription: parent.querySelector('[data-storage="local"] .migration-scope-description')?.textContent,
 			workspaceDestinationButton: parent.querySelector('[aria-label="Change destinations for vscode"]') !== null,
@@ -96,7 +96,7 @@ suite('CustomizationMigrationDashboard', () => {
 			title: 'Migrations',
 			categories: ['Prompts to skills', 'User Data', 'MCP Servers'],
 			counts: ['2 prompts', '2 agents · 1 instruction', '1 server'],
-			attention: 'Review recommended',
+			highRisk: 'High risk',
 			progress: '0 of 2 complete',
 			workspaceDescription: 'Workspace customizations. Skip this workspace if you do not own it.',
 			initialFocus: 'Review Prompts to skills from Your profile',
