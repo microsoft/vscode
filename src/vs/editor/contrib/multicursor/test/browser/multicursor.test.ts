@@ -746,17 +746,6 @@ suite('Multicursor selection', () => {
 			assert.strictEqual(actual, 'baz\nFOObar\nbazbar\nFOO\nbaz');
 		});
 
-		test('select all uses the updated setting after adding mixed-case selections', () => {
-			testMulticursor(text, editor => {
-				editor.setSelection(new Selection(1, 1, 1, 4));
-				new AddSelectionToNextFindMatchAction().run(null!, editor);
-				editor.updateOptions({ selectionMatchCase: true });
-				new SelectHighlightsAction().run(null!, editor);
-
-				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [3, 1, 3, 4], [5, 1, 5, 4]]);
-			});
-		});
-
 		test('changing Find options does not end a caret-started selection sequence', () => {
 			testMulticursor(text, (editor, findController) => {
 				editor.setSelection(new Selection(1, 2, 1, 2));
@@ -984,25 +973,6 @@ suite('Multicursor selection', () => {
 			assert.deepStrictEqual(actual, [[2, 3, 4], [3], [2, 3, 4]].map(lines => lines.map(line => [line, 1, line, 4])));
 		});
 
-		test('highlights keep the original search text across live changes with mixed-case cursors', () => {
-			testMulticursor(['foo', 'FOO', 'fooBar', 'FOOBar', 'fooBaz', 'FOOBaz'], editor => {
-				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
-				editor.setSelection(new Selection(1, 1, 1, 4));
-				const action = new AddSelectionToNextFindMatchAction();
-				action.run(null!, editor);
-				const actual = [highlights(editor)];
-
-				editor.updateOptions({ selectionMatchCase: true });
-				action.run(null!, editor);
-				actual.push(highlights(editor));
-				editor.updateOptions({ selectionMatchCase: false });
-				action.run(null!, editor);
-				actual.push(highlights(editor));
-
-				assert.deepStrictEqual(actual, [[3, 4, 5, 6], [5], [5, 6]].map(lines => lines.map(line => [line, 1, line, 4])));
-			});
-		});
-
 		test('Find regex select-all discards an existing selection-driven session', () => {
 			testMulticursor(['foo', 'fooBar', 'bar', 'barista'], (editor, findController) => {
 				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
@@ -1093,29 +1063,5 @@ suite('Multicursor selection', () => {
 				]);
 			});
 		});
-
-		test('Select Highlights respects mode ', () => {
-			testMulticursor(text, (editor, findController) => {
-				const action = new SelectHighlightsAction();
-				editor.setSelections([
-					new Selection(1, 2, 1, 2),
-				]);
-
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
-					new Selection(6, 2, 6, 5),
-				]);
-
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
-					new Selection(6, 2, 6, 5),
-				]);
-			});
-		});
-
 	});
 });

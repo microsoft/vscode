@@ -486,7 +486,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 
 	private _beginSessionIfNeeded(findController: CommonFindController): void {
 		// Focusing editor again must restore selection rules: case-sensitive "bar" should skip "BAR", even if Find would match it.
-		const drivenByFind = !isFindWidgetSearch(this._editor, findController);
+		const drivenByFind = isFindWidgetSearch(this._editor, findController);
 		if (this._session?.drivenByFind !== drivenByFind) {
 			this._endSession();
 		}
