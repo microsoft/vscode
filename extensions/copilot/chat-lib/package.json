@@ -20,7 +20,7 @@
 		"@vscode/l10n": "^0.0.18",
 		"@vscode/prompt-tsx": "^0.4.0-alpha.8",
 		"@vscode/tree-sitter-wasm": "0.0.5-php.2",
-		"applicationinsights": "^2.9.7",
+		"applicationinsights": "^3.15.1",
 		"jsonc-parser": "^3.3.1",
 		"monaco-editor": "0.44.0",
 		"openai": "^6.7.0",
