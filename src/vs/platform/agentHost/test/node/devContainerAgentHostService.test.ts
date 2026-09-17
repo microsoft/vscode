@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
@@ -23,7 +24,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -695,6 +696,16 @@ suite('Dev Container Agent Host Main Service', () => {
 			getDevContainerExecArgs('/workspace', 'relay command'),
 			['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '/bin/sh', '-c', 'relay command'],
 		);
+	});
+
+	test('rejects when the relay process exits before the WebSocket opens', async () => {
+		const webSocket = new NodeEventEmitter();
+		const child = new NodeEventEmitter();
+		const connecting = waitForDevContainerRelayConnection(webSocket, child, CancellationToken.None);
+
+		child.emit('close', 1, null);
+
+		await assert.rejects(connecting, /Dev Container relay process exited before connecting \(exit code 1\)/);
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

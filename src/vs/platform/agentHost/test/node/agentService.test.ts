@@ -13919,17 +13919,16 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 			};
-			getStateManager(localService).announceSurfacedSession(summary);
-			getStateManager(localService).prepareSessionSummariesForListing([summary]);
+			const stateManager = getStateManager(localService);
+			stateManager.announceSurfacedSession(summary);
+			stateManager.prepareSessionSummariesForListing([summary]);
+			const evicted = Event.toPromise(Event.filter(stateManager.onDidRemoveSession, resource => resource === sessionStr), disposables);
 
 			// Both are queued while the session is still un-restored; the first restores it.
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'test-client', 1, AgentHostClientType.EditorWindow);
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
-			for (let i = 0; i < 20; i++) {
-				await timeout(0);
-			}
+			await evicted;
 
-			const stateManager = getStateManager(localService);
 			assert.deepStrictEqual({
 				resident: !!stateManager.getSessionState(sessionStr),
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
