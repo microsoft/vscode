@@ -166,6 +166,9 @@ class PersistedMenuHideState implements IDisposable {
 type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 class MenuInfoSnapshot {
+
+	private static readonly _contextKeysCache = new WeakMap<ContextKeyExpression, readonly string[]>();
+
 	protected _menuGroups: MenuItemGroup[] = [];
 	private _allMenuIds: Set<MenuId> = new Set();
 	private _structureContextKeys: Set<string> = new Set();
@@ -222,7 +225,7 @@ class MenuInfoSnapshot {
 		this._allMenuIds.add(this._id);
 	}
 
-	protected _sort(menuItems: (IMenuItem | ISubmenuItem)[]) {
+	protected _sort(menuItems: readonly (IMenuItem | ISubmenuItem)[]): readonly (IMenuItem | ISubmenuItem)[] {
 		// no sorting needed in snapshot
 		return menuItems;
 	}
@@ -252,16 +255,34 @@ class MenuInfoSnapshot {
 	}
 
 	private static _fillInKbExprKeys(exp: ContextKeyExpression | undefined, set: Set<string>): void {
-		if (exp) {
-			for (const key of exp.keys()) {
-				set.add(key);
-			}
+		if (!exp) {
+			return;
+		}
+
+		const keys = MenuInfoSnapshot._getKeys(exp);
+		const len = keys.length;
+		for (let i = 0; i < len; i++) {
+			set.add(keys[i]);
 		}
 	}
 
+	private static _getKeys(exp: ContextKeyExpression): readonly string[] {
+		const cached = MenuInfoSnapshot._contextKeysCache.get(exp);
+
+		if (cached) {
+			return cached;
+		}
+
+		const keys = [...exp.keys()];
+		MenuInfoSnapshot._contextKeysCache.set(exp, keys);
+
+		return keys;
+	}
 }
 
 class MenuInfo extends MenuInfoSnapshot {
+
+	private static readonly _sortedMenuItems = new WeakMap<readonly (IMenuItem | ISubmenuItem)[], readonly (IMenuItem | ISubmenuItem)[]>();
 
 	constructor(
 		_id: MenuId,
@@ -272,7 +293,6 @@ class MenuInfo extends MenuInfoSnapshot {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super(_id, _collectContextKeysForSubmenus);
-		this.refresh();
 	}
 
 	createActionGroups(options: IMenuActionOptions | undefined): [string, Array<MenuItemAction | SubmenuItemAction>][] {
@@ -311,8 +331,18 @@ class MenuInfo extends MenuInfoSnapshot {
 		return result;
 	}
 
-	protected override _sort(menuItems: (IMenuItem | ISubmenuItem)[]): (IMenuItem | ISubmenuItem)[] {
-		return menuItems.sort(MenuInfo._compareMenuItems);
+	protected override _sort(menuItems: readonly (IMenuItem | ISubmenuItem)[]): readonly (IMenuItem | ISubmenuItem)[] {
+		const cached = MenuInfo._sortedMenuItems.get(menuItems);
+
+		if (cached) {
+			return cached;
+		}
+
+		const sorted = Object.freeze([...menuItems].sort(MenuInfo._compareMenuItems));
+
+		MenuInfo._sortedMenuItems.set(menuItems, sorted);
+
+		return sorted;
 	}
 
 	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
