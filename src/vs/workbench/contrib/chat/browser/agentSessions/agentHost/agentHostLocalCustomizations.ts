@@ -197,7 +197,7 @@ export async function resolveLocalCustomAgents(
  */
 export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
 	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories);
-	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
+	return resolved.flatMap(({ server, definition, source, delivery, projectedConfiguration }) => {
 		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
 			return [];
 		}
@@ -205,6 +205,7 @@ export async function collectNonPluginMcpServers(mcpService: IMcpService, config
 			name: server.definition.label,
 			configuration: projectedConfiguration,
 			...(definition.defaultCwd && { defaultCwd: definition.defaultCwd }),
+			...(source.definitionLocation?.uri || source.collectionUri ? { sourceUri: source.definitionLocation?.uri ?? source.collectionUri } : {}),
 			enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 				kind: CustomizationEnablementKind.Global,
 				enabled: mcpService.enablementModel.readProfileEnabled(server.definition.id),

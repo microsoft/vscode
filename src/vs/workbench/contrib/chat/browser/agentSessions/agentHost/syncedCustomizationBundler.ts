@@ -161,6 +161,7 @@ export interface ISyncableMcpServer {
 	readonly configuration: IMcpServerConfiguration;
 	readonly defaultCwd?: URI;
 	readonly enablement: readonly CustomizationEnablement[];
+	readonly sourceUri?: URI;
 }
 
 interface IBundleResult {
@@ -198,6 +199,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	private _isDisposed = false;
 	/** Maps a synced (destination) URI string back to its original source location. Rebuilt on every {@link bundle}. */
 	private _originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
+	private _mcpOriginByName = new Map<string, URI>();
 
 	constructor(
 		authority: string,
@@ -310,6 +312,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		let mcpContent: string | undefined;
 		let mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined;
 		const childEnablement: Record<string, CustomizationEnablement[]> = {};
+		const mcpOriginByName = new Map<string, URI>();
 		if (mcpServers.length > 0) {
 			const servers: Record<string, IMcpServerConfiguration> = {};
 			const defaultCwds: Record<string, URI | null> = {};
@@ -319,6 +322,9 @@ export class SyncedCustomizationBundler extends Disposable {
 				servers[server.name] = server.configuration;
 				defaultCwds[server.name] = server.defaultCwd ?? null;
 				childEnablement[server.name] = server.enablement.slice();
+				if (server.sourceUri) {
+					mcpOriginByName.set(server.name, server.sourceUri);
+				}
 			}
 			mcpDefaultCwds = defaultCwds;
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
@@ -344,7 +350,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._throwIfDisposed();
 
 		if (nonce === this._lastNonce && this._lastRef) {
-			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
+			return this._reuseLastBundle(this._lastRef, originByDest, mcpOriginByName, childEnablement, mcpServers.length > 0);
 		}
 
 		this._lastNonce = undefined;
@@ -379,6 +385,7 @@ export class SyncedCustomizationBundler extends Disposable {
 
 		this._throwIfDisposed();
 		this._originByDest = originByDest;
+		this._mcpOriginByName = mcpOriginByName;
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
@@ -401,8 +408,9 @@ export class SyncedCustomizationBundler extends Disposable {
 		return result;
 	}
 
-	private _reuseLastBundle(lastRef: IBundleResult, originByDest: ResourceMap<ISyncedCustomizationOrigin>, childEnablement: Record<string, CustomizationEnablement[]>, hasMcpServers: boolean): IBundleResult {
+	private _reuseLastBundle(lastRef: IBundleResult, originByDest: ResourceMap<ISyncedCustomizationOrigin>, mcpOriginByName: Map<string, URI>, childEnablement: Record<string, CustomizationEnablement[]>, hasMcpServers: boolean): IBundleResult {
 		this._originByDest = originByDest;
+		this._mcpOriginByName = mcpOriginByName;
 		if (hasMcpServers && !equals(childEnablement, lastRef.ref.childEnablement)) {
 			this._lastRef = {
 				ref: {
@@ -434,6 +442,10 @@ export class SyncedCustomizationBundler extends Disposable {
 	 */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
 		return this._originByDest.get(syncedUri);
+	}
+
+	getMcpOrigin(pluginUri: string | undefined, serverName: string): URI | undefined {
+		return !pluginUri || this._lastRef?.ref.uri === pluginUri ? this._mcpOriginByName.get(serverName) : undefined;
 	}
 
 	override dispose(): void {

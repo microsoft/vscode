@@ -71,6 +71,8 @@ export interface IAgentHostActiveClientService {
 	getSyncProvider(sessionType: string): ICustomizationSyncProvider;
 	/** Recovers provenance for a synced URI produced by any scope. */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
+	/** Recovers the original definition file for an MCP server flattened into a synced plugin. */
+	getMcpOrigin(pluginUri: string, serverName: string): URI | undefined;
 	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 }
@@ -223,6 +225,10 @@ class AgentCustomizationScope extends Disposable {
 		return this._bundler.getOrigin(syncedUri);
 	}
 
+	getMcpOrigin(pluginUri: string | undefined, serverName: string): URI | undefined {
+		return this._bundler.getMcpOrigin(pluginUri, serverName);
+	}
+
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
 		return this._bundler.isBundledMcpServer(pluginUri, serverName);
 	}
@@ -353,6 +359,24 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			}
 		}
 		return undefined;
+	}
+
+	getMcpOrigin(pluginUri: string, serverName: string): URI | undefined {
+		let fallback: URI | undefined;
+		for (const scope of this._scopes.values()) {
+			const origin = scope.getMcpOrigin(pluginUri, serverName);
+			if (origin) {
+				return origin;
+			}
+			const candidate = scope.getMcpOrigin(undefined, serverName);
+			if (candidate) {
+				if (fallback && fallback.toString() !== candidate.toString()) {
+					return undefined;
+				}
+				fallback = candidate;
+			}
+		}
+		return fallback;
 	}
 
 	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean {

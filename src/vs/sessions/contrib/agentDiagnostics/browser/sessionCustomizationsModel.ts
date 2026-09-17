@@ -6,7 +6,7 @@
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUri, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
@@ -18,6 +18,7 @@ import { type IAgentSubscription } from '../../../../platform/agentHost/common/s
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { type IOTelDiagnosticsMcpLifecycleEvent, type IOTelDiagnosticsSpan, IOTelDiagnosticsService, OTEL_SKILL_NAME_ATTRIBUTE, parseOTelMcpLifecycleEvent } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { ChatDebugHookResult, type IChatDebugEvent, type IChatDebugEventHookContent, IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
+import { IAgentHostActiveClientService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { isAgentHostProvider, type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { type ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -197,6 +198,7 @@ export class SessionCustomizationsModel extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@ILogService private readonly logService: ILogService,
 		@IOTelDiagnosticsService private readonly otelDiagnosticsService: IOTelDiagnosticsService,
+		@IAgentHostActiveClientService private readonly activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 		this._register(this.chatDebugService.onDidAddEvent(event => {
@@ -520,6 +522,7 @@ export class SessionCustomizationsModel extends Disposable {
 		this.captureCurrentLifecycle(session.sessionId, customizations);
 		const lifecycle = this.lifecycleBySession.get(session.sessionId) ?? new Map();
 		const hookLifecycle = this.hookLifecycleBySession.get(session.sessionId) ?? [];
+		const originalSourceUris = this.resolveOriginalSourceUris(customizations);
 		this._state = {
 			sessionResource: session.resource,
 			supported: true,
@@ -528,10 +531,47 @@ export class SessionCustomizationsModel extends Disposable {
 				usage,
 				lifecycle,
 				hookLifecycle,
-				summarizeLatestTurnHooks(this.chatDebugService.getEvents(this.focusedChatResource), hookLifecycle)
+				summarizeLatestTurnHooks(this.chatDebugService.getEvents(this.focusedChatResource), hookLifecycle),
+				originalSourceUris
 			),
 		};
 		this._onDidChange.fire();
+	}
+
+	private resolveOriginalSourceUris(customizations: readonly Customization[]): ReadonlyMap<string, string> {
+		const result = new Map<string, string>();
+		for (const customization of customizations) {
+			if (customization.type !== CustomizationType.Plugin) {
+				continue;
+			}
+			const pluginUri = URI.parse(customization.uri);
+			if (pluginUri.scheme === Schemas.file) {
+				continue;
+			}
+			const materializedRootValue = pluginOpenUri(customization);
+			const materializedRoot = materializedRootValue ? URI.parse(materializedRootValue) : undefined;
+			for (const child of customization.children ?? []) {
+				const childUri = URI.parse(child.uri);
+				const origin = child.type === CustomizationType.McpServer
+					? this.activeClientService.getMcpOrigin(customization.uri, child.name)
+					: this.activeClientService.getOrigin(childUri)?.uri ?? this.resolveMaterializedOrigin(pluginUri, materializedRoot, childUri);
+				if (origin) {
+					result.set(child.id, origin.toString());
+				}
+			}
+		}
+		return result;
+	}
+
+	private resolveMaterializedOrigin(pluginUri: URI, materializedRoot: URI | undefined, childUri: URI): URI | undefined {
+		if (!materializedRoot) {
+			return undefined;
+		}
+		const relativePath = extUri.relativePath(materializedRoot, childUri);
+		if (relativePath === undefined) {
+			return undefined;
+		}
+		return this.activeClientService.getOrigin(joinPath(pluginUri, relativePath))?.uri;
 	}
 
 	private getChatStates(): readonly ChatState[] {
@@ -925,6 +965,7 @@ function groupCustomizations(
 	lifecycle: ReadonlyMap<string, readonly ISessionCustomizationLifecycleEntry[]>,
 	hookLifecycle: readonly ISessionCustomizationLifecycleEntry[],
 	hookSummary: ISessionHookInvocationSummary,
+	originalSourceUris: ReadonlyMap<string, string>,
 ): ISessionCustomizationGroup[] {
 	const groups = new Map<SessionCustomizationSection, ISessionCustomizationItem[]>(
 		sectionOrder.map(section => [section, []])
@@ -941,12 +982,12 @@ function groupCustomizations(
 			groups.get(SessionCustomizationSection.Plugins)?.push(toPluginItem(customization, childEvidence, lifecycle.get(customization.id) ?? []));
 			for (const child of customization.children ?? []) {
 				const childLifecycle = lifecycleForChild(child, lifecycle.get(child.id) ?? [], hookLifecycle, hookCount);
-				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? [], childLifecycle));
+				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? [], childLifecycle, originalSourceUris.get(child.id)));
 			}
 		} else if (customization.type === CustomizationType.Directory) {
 			for (const child of customization.children ?? []) {
 				const childLifecycle = lifecycleForChild(child, lifecycle.get(child.id) ?? [], hookLifecycle, hookCount);
-				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? [], childLifecycle));
+				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? [], childLifecycle, originalSourceUris.get(child.id)));
 			}
 		} else {
 			groups.get(SessionCustomizationSection.McpServers)?.push(toMcpServerItem(customization, usage.get(customization.id) ?? [], lifecycle.get(customization.id) ?? []));
@@ -997,7 +1038,7 @@ function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCu
 	};
 }
 
-function toChildItem(child: ChildCustomization, parent: PluginCustomization | DirectoryCustomization, evidence: readonly ISessionCustomizationEvidence[], lifecycle: readonly ISessionCustomizationLifecycleEntry[]): ISessionCustomizationItem {
+function toChildItem(child: ChildCustomization, parent: PluginCustomization | DirectoryCustomization, evidence: readonly ISessionCustomizationEvidence[], lifecycle: readonly ISessionCustomizationLifecycleEntry[], originalSourceUri: string | undefined): ISessionCustomizationItem {
 	const parentEnabled = parent.type === CustomizationType.Plugin ? isCustomizationEnabled(parent) : parent.enabled;
 	const childEnabled = child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled !== false;
 	const loadStatus = containerLoadStatus(parent);
@@ -1016,8 +1057,8 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 		section: sectionForChild(child),
 		type: child.type,
 		name: child.name,
-		uri: child.uri,
-		openUri: child.uri,
+		uri: originalSourceUri ?? child.uri,
+		openUri: originalSourceUri ?? child.uri,
 		parentName: parent.name,
 		parentUri: parent.uri,
 		description: readDescription(child),
