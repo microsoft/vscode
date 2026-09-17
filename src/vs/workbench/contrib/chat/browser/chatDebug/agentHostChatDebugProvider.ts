@@ -1241,6 +1241,7 @@ export function convertAgentHostEventsToDebugEvents(
 			}
 			case 'skill.invoked': {
 				const name = asString(record.data.name) ?? 'skill';
+				const path = asString(record.data.path);
 				const trigger = asString(record.data.trigger);
 				const source = asString(record.data.pluginName) ?? asString(record.data.source);
 				const content = asString(record.data.content);
@@ -1248,7 +1249,8 @@ export function convertAgentHostEventsToDebugEvents(
 					kind: 'generic', id: record.id, sessionResource, created, parentEventId: turnParent,
 					name: localize('agentHost.debug.skillInvoked', "Skill Invoked: {0}", name),
 					details: [trigger, source].filter(Boolean).join(' \u00b7 ') || undefined,
-					level: ChatDebugLogLevel.Info, category: 'customization',
+					level: ChatDebugLogLevel.Info, category: 'skill',
+					customization: { type: 'skill', name, uri: path ? URI.file(path) : undefined },
 				});
 				if (content) {
 					resolved.set(record.id, { kind: 'text', value: truncate(content, MAX_DETAIL_PAYLOAD) ?? content });

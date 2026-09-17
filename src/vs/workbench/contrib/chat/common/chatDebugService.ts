@@ -82,6 +82,11 @@ export interface IChatDebugGenericEvent extends IChatDebugEventCommon {
 	readonly details?: string;
 	readonly level: ChatDebugLogLevel;
 	readonly category?: string;
+	readonly customization?: {
+		readonly type: 'skill';
+		readonly name: string;
+		readonly uri: URI | undefined;
+	};
 }
 
 /**

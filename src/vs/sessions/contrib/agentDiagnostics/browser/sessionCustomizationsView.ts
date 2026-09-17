@@ -91,7 +91,9 @@ export class SessionCustomizationsView extends Disposable {
 					lines.push(localize('agentDiagnostics.customizations.accessibleLifecycle', "{0}: {1}", new Date(lifecycle.timestamp).toLocaleTimeString(), lifecycleLabel(lifecycle)));
 				}
 				for (const evidence of item.evidence) {
-					lines.push(localize('agentDiagnostics.customizations.accessibleEvidence', "{0}: {1}, turn {2}", evidenceLabel(evidence.kind), evidence.chatTitle, evidence.turnId));
+					lines.push(evidence.turnId
+						? localize('agentDiagnostics.customizations.accessibleEvidence', "{0}: {1}, turn {2}", evidenceLabel(evidence.kind), evidence.chatTitle, evidence.turnId)
+						: localize('agentDiagnostics.customizations.accessibleEvidenceWithoutTurn', "{0}: {1}", evidenceLabel(evidence.kind), evidence.chatTitle));
 				}
 			}
 			for (const lifecycle of group.lifecycle) {
@@ -271,7 +273,21 @@ export class SessionCustomizationsView extends Disposable {
 			for (const entry of item.evidence) {
 				const evidence = DOM.append(evidenceList, DOM.$('.agent-diagnostics-customization-evidence'));
 				evidence.setAttribute('role', 'listitem');
-				evidence.textContent = localize('agentDiagnostics.customizations.evidence', "{0} in {1}, turn {2}", evidenceLabel(entry.kind), entry.chatTitle, entry.turnId);
+				const evidenceLabelElement = DOM.append(evidence, DOM.$('.agent-diagnostics-customization-evidence-label'));
+				evidenceLabelElement.textContent = entry.turnId
+					? localize('agentDiagnostics.customizations.evidence', "{0} in {1}, turn {2}", evidenceLabel(entry.kind), entry.chatTitle, entry.turnId)
+					: localize('agentDiagnostics.customizations.evidenceWithoutTurn', "{0} in {1}", evidenceLabel(entry.kind), entry.chatTitle);
+				if (entry.debugEventId) {
+					this.renderInvocationNavigation(evidence, {
+						chatResource: entry.chatResource,
+						debugEventId: entry.debugEventId,
+						parentDebugEventId: entry.parentDebugEventId,
+						timestamp: entry.timestamp ?? 0,
+						hookType: undefined,
+						traceId: entry.traceId,
+						spanId: entry.spanId,
+					}, entry.traceId ? 'trace' : 'turn');
+				}
 			}
 		}
 		row.setAttribute('aria-label', localize('agentDiagnostics.customizations.itemAriaLabel', "{0}, {1}", item.name, statusLabel(item.status)));
@@ -427,40 +443,16 @@ export class SessionCustomizationsView extends Disposable {
 			const chatResource = entry.chatResource;
 			const debugEventId = entry.debugEventId;
 			if (chatResource && (debugEventId || entry.traceId)) {
-				const navigation = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-navigation'));
 				const traceId = entry.traceId;
-				if (traceId || debugEventId) {
-					const showInsights = this.renderDisposables.add(new Button(navigation, { ...defaultButtonStyles, secondary: true }));
-					showInsights.element.classList.add('agent-diagnostics-customization-lifecycle-navigation-button');
-					showInsights.label = traceId
-						? localize('agentDiagnostics.customizations.showTrace', "Show Trace")
-						: localize('agentDiagnostics.customizations.showTurn', "Show Turn");
-					this.renderDisposables.add(showInsights.onDidClick(() => this._onDidNavigateInvocation.fire({
-						target: 'sessionInsights',
-						chatResource,
-						debugEventId,
-						parentDebugEventId: entry.parentDebugEventId,
-						timestamp: entry.timestamp,
-						hookType: entry.title,
-						traceId,
-						spanId: entry.spanId,
-					})));
-				}
-				if (debugEventId) {
-					const showDebugLog = this.renderDisposables.add(new Button(navigation, { ...defaultButtonStyles, secondary: true }));
-					showDebugLog.element.classList.add('agent-diagnostics-customization-lifecycle-navigation-button');
-					showDebugLog.label = localize('agentDiagnostics.customizations.showDebugLog', "Show Debug Log");
-					this.renderDisposables.add(showDebugLog.onDidClick(() => this._onDidNavigateInvocation.fire({
-						target: 'agentDebug',
-						chatResource,
-						debugEventId,
-						parentDebugEventId: entry.parentDebugEventId,
-						timestamp: entry.timestamp,
-						hookType: entry.title,
-						traceId,
-						spanId: entry.spanId,
-					})));
-				}
+				this.renderInvocationNavigation(row, {
+					chatResource,
+					debugEventId,
+					parentDebugEventId: entry.parentDebugEventId,
+					timestamp: entry.timestamp,
+					hookType: entry.title,
+					traceId,
+					spanId: entry.spanId,
+				}, traceId ? 'trace' : 'turn');
 			}
 			const hasDetails = entry.duration !== undefined
 				|| entry.exitCode !== undefined
@@ -519,6 +511,32 @@ export class SessionCustomizationsView extends Disposable {
 			this.renderLifecyclePayload(row, localize('agentDiagnostics.customizations.hookInput', "Input"), entry.input);
 			this.renderLifecyclePayload(row, localize('agentDiagnostics.customizations.hookOutput', "Output"), entry.output);
 			row.setAttribute('aria-label', lifecycleLabel(entry));
+		}
+	}
+
+	private renderInvocationNavigation(
+		parent: HTMLElement,
+		request: Omit<ISessionCustomizationInvocationNavigation, 'target'>,
+		insightsTarget: 'trace' | 'turn',
+	): void {
+		const navigation = DOM.append(parent, DOM.$('.agent-diagnostics-customization-lifecycle-navigation'));
+		const showInsights = this.renderDisposables.add(new Button(navigation, { ...defaultButtonStyles, secondary: true }));
+		showInsights.element.classList.add('agent-diagnostics-customization-lifecycle-navigation-button');
+		showInsights.label = insightsTarget === 'trace'
+			? localize('agentDiagnostics.customizations.showTrace', "Show Trace")
+			: localize('agentDiagnostics.customizations.showTurn', "Show Turn");
+		this.renderDisposables.add(showInsights.onDidClick(() => this._onDidNavigateInvocation.fire({
+			target: 'sessionInsights',
+			...request,
+		})));
+		if (request.debugEventId) {
+			const showDebugLog = this.renderDisposables.add(new Button(navigation, { ...defaultButtonStyles, secondary: true }));
+			showDebugLog.element.classList.add('agent-diagnostics-customization-lifecycle-navigation-button');
+			showDebugLog.label = localize('agentDiagnostics.customizations.showDebugLog', "Show Debug Log");
+			this.renderDisposables.add(showDebugLog.onDidClick(() => this._onDidNavigateInvocation.fire({
+				target: 'agentDebug',
+				...request,
+			})));
 		}
 	}
 

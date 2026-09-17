@@ -13,10 +13,10 @@ import { type IAgentConnection } from '../../../../platform/agentHost/common/age
 import { isCustomizationEnabled } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { McpServerStatus, type McpServerState } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { CustomizationLoadStatus, CustomizationType, DEFAULT_CHAT_ID, getSessionChatResource, ResponsePartKind, StateComponents, ToolCallContributorKind, type ChatState, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type ResponsePart, type SessionState, type StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, DEFAULT_CHAT_ID, getSessionChatResource, ResponsePartKind, StateComponents, ToolCallContributorKind, type ChatState, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type ResponsePart, type SessionState, type SkillCustomization, type StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { type IOTelDiagnosticsMcpLifecycleEvent, IOTelDiagnosticsService, parseOTelMcpLifecycleEvent } from '../../../../platform/otel/common/otelDiagnosticsService.js';
+import { type IOTelDiagnosticsMcpLifecycleEvent, type IOTelDiagnosticsSpan, IOTelDiagnosticsService, OTEL_SKILL_NAME_ATTRIBUTE, parseOTelMcpLifecycleEvent } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { ChatDebugHookResult, type IChatDebugEvent, type IChatDebugEventHookContent, IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 import { isAgentHostProvider, type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { type ISession } from '../../../services/sessions/common/session.js';
@@ -38,6 +38,11 @@ export interface ISessionCustomizationEvidence {
 	readonly chatTitle: string;
 	readonly turnId: string;
 	readonly kind: 'agent' | 'skill' | 'mcp';
+	readonly debugEventId?: string;
+	readonly parentDebugEventId?: string;
+	readonly timestamp?: number;
+	readonly traceId?: string;
+	readonly spanId?: string;
 }
 
 export type SessionCustomizationLifecycleKind =
@@ -216,6 +221,7 @@ export class SessionCustomizationsModel extends Disposable {
 			this.updateSessionSubscription();
 			this.updateFocusedChatSubscription();
 			this.captureExistingHookEvents();
+			this.hookDebugRefreshScheduler.schedule();
 			this.mcpLifecycleRefreshScheduler.schedule();
 		} else {
 			this.hookDebugRefreshScheduler.cancel();
@@ -258,6 +264,7 @@ export class SessionCustomizationsModel extends Disposable {
 			if (this.active) {
 				this.updateSessionSubscription();
 				this.updateFocusedChatSubscription();
+				this.hookDebugRefreshScheduler.schedule();
 				this.mcpLifecycleRefreshScheduler.schedule();
 			}
 			this.scheduleRefresh();
@@ -357,9 +364,92 @@ export class SessionCustomizationsModel extends Disposable {
 		if (!this.active || !focusedChatResource) {
 			return;
 		}
-		void this.chatDebugService.invokeProviders(focusedChatResource).catch(error => {
-			this.logService.error('[SessionCustomizationsModel] Failed to refresh hook debug events', error);
-		});
+		void this.chatDebugService.invokeProviders(focusedChatResource)
+			.then(() => this.refreshSkillInvocationEvidence())
+			.catch(error => {
+				this.logService.error('[SessionCustomizationsModel] Failed to refresh customization debug events', error);
+			});
+	}
+
+	private async refreshSkillInvocationEvidence(): Promise<void> {
+		const session = this.session;
+		const focusedChatResource = this.focusedChatResource;
+		if (!this.active || !session || !focusedChatResource) {
+			return;
+		}
+		const events = this.chatDebugService.getEvents(focusedChatResource).filter(event =>
+			event.kind === 'generic'
+			&& event.category === 'skill'
+			&& event.customization?.type === 'skill'
+			&& !!event.id
+		);
+		if (events.length === 0) {
+			return;
+		}
+		const traces = await this.otelDiagnosticsService.getSessionTraces(focusedChatResource.with({ fragment: '' }).toString());
+		const traceDetails = await Promise.all(traces.map(trace => this.otelDiagnosticsService.getTraceDetails(trace.traceId)));
+		const allSpans = traceDetails.flatMap(details => details?.spans ?? []);
+		const skillSpans = allSpans
+			.filter(span => span.operationName === 'execute_tool' && !!span.attributes[OTEL_SKILL_NAME_ATTRIBUTE]);
+		if (!this.active || this.session?.sessionId !== session.sessionId || !isEqual(this.focusedChatResource, focusedChatResource)) {
+			return;
+		}
+		const sessionState = this.sessionSubscriptionValue?.value;
+		const customizations = sessionState && !(sessionState instanceof Error)
+			? sessionState.customizations ?? []
+			: this.provider?.getCustomizations(session.sessionId) ?? [];
+		const skills = collectSkills(customizations);
+		const skillsByUri = new Map(skills.map(skill => [URI.parse(skill.uri).toString(), skill]));
+		const skillsByName = new Map(skills.map(skill => [skill.name, skill]));
+		let changed = false;
+		for (const event of events) {
+			if (event.kind !== 'generic' || !event.id || !event.customization) {
+				continue;
+			}
+			const skill = event.customization.uri
+				? skillsByUri.get(event.customization.uri.toString()) ?? skillsByName.get(event.customization.name)
+				: skillsByName.get(event.customization.name);
+			if (!skill) {
+				continue;
+			}
+			const span = closestSkillSpan(skillSpans, event.customization.name, event.created.getTime());
+			const chatTitle = session.chats.get().find(chat => isEqual(chat.resource, focusedChatResource))?.title.get() ?? session.title.get();
+			changed = this.recordSkillInvocationEvidence(session.sessionId, skill.id, {
+				chatResource: focusedChatResource,
+				chatTitle,
+				turnId: span ? findSpanTurnId(span, allSpans) ?? '' : '',
+				kind: 'skill',
+				debugEventId: event.id,
+				parentDebugEventId: event.parentEventId,
+				timestamp: event.created.getTime(),
+				traceId: span?.traceId,
+				spanId: span?.spanId,
+			}) || changed;
+		}
+		if (changed) {
+			this.scheduleRefresh();
+		}
+	}
+
+	private recordSkillInvocationEvidence(sessionId: string, customizationId: string, evidence: ISessionCustomizationEvidence): boolean {
+		const usage = this.usageBySession.get(sessionId) ?? new Map<string, ISessionCustomizationEvidence[]>();
+		const entries = usage.get(customizationId) ?? [];
+		const existingIndex = entries.findIndex(candidate =>
+			candidate.chatResource.toString() === evidence.chatResource.toString()
+			&& candidate.turnId === evidence.turnId
+			&& candidate.kind === evidence.kind
+		);
+		if (existingIndex >= 0) {
+			if (entries[existingIndex].debugEventId === evidence.debugEventId) {
+				return false;
+			}
+			entries[existingIndex] = evidence;
+		} else {
+			entries.push(evidence);
+		}
+		usage.set(customizationId, entries);
+		this.usageBySession.set(sessionId, usage);
+		return true;
 	}
 
 	private refreshMcpLifecycleEvents(): void {
@@ -626,6 +716,47 @@ function collectMcpServers(customizations: readonly Customization[]): McpServerC
 	return result;
 }
 
+function collectSkills(customizations: readonly Customization[]): SkillCustomization[] {
+	const result: SkillCustomization[] = [];
+	for (const customization of customizations) {
+		if (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory) {
+			result.push(...(customization.children ?? []).filter(child => child.type === CustomizationType.Skill));
+		}
+	}
+	return result;
+}
+
+function closestSkillSpan(spans: readonly IOTelDiagnosticsSpan[], skillName: string, timestamp: number): IOTelDiagnosticsSpan | undefined {
+	return spans
+		.filter(span => span.attributes[OTEL_SKILL_NAME_ATTRIBUTE] === skillName)
+		.sort((a, b) => distanceFromSpan(timestamp, a) - distanceFromSpan(timestamp, b))[0];
+}
+
+function findSpanTurnId(span: IOTelDiagnosticsSpan, spans: readonly IOTelDiagnosticsSpan[]): string | undefined {
+	const spansById = new Map(spans.map(candidate => [candidate.spanId, candidate]));
+	const seen = new Set<string>();
+	let current: IOTelDiagnosticsSpan | undefined = span;
+	while (current && !seen.has(current.spanId)) {
+		seen.add(current.spanId);
+		const turnId = current.attributes['github.copilot.turn_id'];
+		if (turnId) {
+			return turnId;
+		}
+		current = current.parentSpanId ? spansById.get(current.parentSpanId) : undefined;
+	}
+	return undefined;
+}
+
+function distanceFromSpan(timestamp: number, span: IOTelDiagnosticsSpan): number {
+	if (timestamp < span.startTime) {
+		return span.startTime - timestamp;
+	}
+	if (timestamp > span.endTime) {
+		return timestamp - span.endTime;
+	}
+	return 0;
+}
+
 function mcpLifecycleKindFromOTel(state: string): SessionCustomizationLifecycleKind | undefined {
 	switch (state) {
 		case 'discovered':
@@ -870,7 +1001,9 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 	const parentEnabled = parent.type === CustomizationType.Plugin ? isCustomizationEnabled(parent) : parent.enabled;
 	const childEnabled = child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled !== false;
 	const loadStatus = containerLoadStatus(parent);
-	const invoked = child.type === CustomizationType.Hook && lifecycle.some(entry => entry.kind !== 'loaded');
+	const invoked = child.type === CustomizationType.Hook
+		? lifecycle.some(entry => entry.kind !== 'loaded')
+		: child.type === CustomizationType.Skill && evidence.some(entry => !!entry.debugEventId);
 	const status = !parentEnabled || !childEnabled
 		? 'disabled'
 		: invoked

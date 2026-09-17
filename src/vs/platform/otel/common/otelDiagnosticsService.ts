@@ -97,6 +97,7 @@ export interface IOTelDiagnosticsLog {
 }
 
 export const OTEL_MCP_SERVER_LIFECYCLE_EVENT_NAME = 'github.copilot.mcp.server.lifecycle';
+export const OTEL_SKILL_NAME_ATTRIBUTE = 'github.copilot.tool.parameters.skill_name';
 
 export interface IOTelDiagnosticsMcpLifecycleEvent {
 	readonly id: string;
