@@ -22,9 +22,10 @@ import { TitleService } from '../../../browser/parts/titlebarPart.js';
 export class ProjectBoardWindow extends Disposable {
 
 	readonly content: HTMLElement;
+	private titlebar: ReturnType<TitleService['createAuxiliaryWindowTitlebarPart']> | undefined;
 
 	constructor(
-		auxiliaryWindow: IAuxiliaryWindow,
+		private readonly auxiliaryWindow: IAuxiliaryWindow,
 		title: string,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -52,6 +53,7 @@ export class ProjectBoardWindow extends Disposable {
 				[IContextKeyService, scopedContextKeyService]
 			)));
 			const part = this._register(titleService.createAuxiliaryWindowTitlebarPart(auxiliaryWindow.container, title, scopedInstantiationService));
+			this.titlebar = part;
 			titlebar = part;
 			this._register(toDisposable(() => part.container.remove()));
 
@@ -81,5 +83,10 @@ export class ProjectBoardWindow extends Disposable {
 			this.content.style.height = `${Math.max(0, dimension.height - titlebarHeight)}px`;
 		}));
 		auxiliaryWindow.layout();
+	}
+
+	setTitle(title: string): void {
+		this.titlebar?.setAuxiliaryWindowTitle(title);
+		this.auxiliaryWindow.window.document.title = title;
 	}
 }

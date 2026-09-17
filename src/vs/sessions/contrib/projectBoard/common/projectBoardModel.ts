@@ -241,5 +241,9 @@ export class ProjectBoardModel {
 }
 
 export function getProjectBoardCardId(session: ISession, chat: IChat): string {
-	return `${session.providerId}\0${session.resource.toString()}\0${chat.resource.toString()}`;
+	return `${getProjectBoardSessionKey(session)}\0${chat.resource.toString()}`;
+}
+
+export function getProjectBoardSessionKey(session: Pick<ISession, 'providerId' | 'resource'>): string {
+	return `${session.providerId}\0${session.resource.toString()}`;
 }

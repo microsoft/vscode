@@ -17,21 +17,22 @@ The board organizes and visualizes work. It does not schedule agents, create wor
 - **Session:** Existing VS Code container for one or more chats, workspace, provider and shared context.
 - **Chat:** Individual conversation within a session.
 - **Card:** Live projection of one visible chat, identified by provider, session resource and chat resource.
+- **Board:** Named, profile-local organization of the shared conversation catalogue, identified by an immutable board ID.
 - **Cell:** Intersection of a user-defined area row and priority column.
-- **Unassigned:** Automatic tray for eligible chats without a placement.
+- **Unassigned:** Per-board tray for eligible chats without a placement on that board.
 - **Recency:** Timestamp of the most recent submitted user prompt, not agent activity or last visit.
 - **Visited:** Existing provider-owned read state, never a separate board-owned flag.
 
-Moving a card changes only its placement. Chats sharing a session still share that session's workspace and context; different cells do not provide worktree isolation.
+Moving a card changes only its placement on the current board. The same conversation can appear on multiple boards; its transcript, status, read state, credits and approvals remain shared. Chats sharing a session still share that session's workspace and context; different cells or boards do not provide worktree isolation.
 
 ## Product contract
 
 ### Windows and navigation
 
-- `Agents: Open Agents Hub` opens a separate auxiliary window. Repeating the command focuses the existing board for the canonical Agents profile.
-- The Sessions sidebar's Agents Hub entry embeds the same board inside the Agents window, using the custom view's styled scrolling and accessibility support. Both presentations share profile configuration; they are not separate named boards. Their view lifetimes, accessibility content and focus return must remain independent when both are open.
-- Under custom-titlebar configuration, the board reuses the Sessions auxiliary titlebar and its standard native window controls, with a fixed Agents Hub title and no session command center. Reserve the chrome height outside the board's scroll viewport and keep title/control routing scoped to that auxiliary window.
-- Agents Hub is the user-facing feature name. Existing `projectBoard`/`kanban` command IDs, custom-view IDs, storage keys and source paths remain stable for compatibility.
+- The Sessions sidebar's expandable Agents Hub section contains one item per board and New Board. Selecting a board opens it in the embedded Hub without changing any standalone board window.
+- `Agents: Open Agents Hub` opens the selected board in a separate auxiliary window. There is at most one standalone window per board; different boards can remain open simultaneously. Reopening a board focuses its existing window.
+- Under custom-titlebar configuration, each board reuses the Sessions auxiliary titlebar and native controls, titled `Agents Hub — <board name>` without a session command center. Renaming updates the matching window, not the Agents owner.
+- Existing command and custom-view IDs remain stable. The v2 collection uses a new storage key and retains legacy data for recovery.
 - Invoking the command from an ordinary Editor hands off to that Agents window, rather than creating a separate board for the Editor's profile.
 - Double-click, Enter or Space opens the exact chat in a compact standalone chat editor. Reopening the same chat reuses its window; different chats get independent windows.
 - Embedded Agents Hub's Board Settings includes **Open Chat in Side Panel**, off by default and persisted with the profile's board configuration. When enabled, double-click, Enter or Space on a chat card opens the exact conversation in the secondary sidebar beside Agents Hub without changing the main Agents selection. Closing the side-panel chat returns focus to its card; leaving Agents Hub restores the previous side-panel composition. Turning the preference off closes the side-panel chat and restores standalone opening for subsequent activations. The separate Agents Hub window and session drafts retain their standalone behavior.
@@ -39,17 +40,25 @@ Moving a card changes only its placement. Chats sharing a session still share th
 - Visible and native window titles follow the chat's current title, including publication, rename and restoration.
 - Interaction-mode and permission pickers appear once and apply to that editor's chat.
 - Escape uses the normal editor-close lifecycle. Popups, find and editor selections dismiss first. Closing preserves unsent input, published conversations and running work.
-- When the board remains open, closing a standalone chat returns focus to its card. Closing a chat never reopens a closed board.
+- Closing a standalone chat returns to the originating board and view, even if the embedded Hub switched boards in the meantime. It never recreates a closed/deleted board.
 - Closing the board releases its subscriptions, not the agents or already-open chat windows.
+
+### Board management
+
+- Create, rename and delete boards by stable ID. New boards begin with all existing and future eligible conversations, General/P0-P3 axes, and Auto-include Sessions enabled.
+- Each board owns its axes, placements, display mode/fields and chat-opening preference. Auto-include Sessions can be disabled independently for a curated board.
+- Deleting a board requires confirmation and removes only its organization. It closes that board's window and selects another board in the embedded Hub when needed; deleting the last board shows New Board rather than silently recreating data.
+- Switching embedded boards retains their local folding, scrolling and pending answer inputs. Inactive views stop discovering/loading new previews; shared bounded preview leases preserve pending interactions without multiplying transcript references per board.
+- Async pickers and management actions retain their originating board ID; deleted IDs are rejected rather than redirected to another board.
 
 ### Layout and placement
 
 - Start with one General row, P0/P1/P2/P3 columns and an Unassigned tray.
 - Support adding, renaming, reordering and deleting both axes. Persist stable IDs rather than labels.
 - Keep at least one row and column; require nonempty labels.
-- A chat has one placement or is Unassigned. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
+- A chat has one placement or is Unassigned within each board independently. Drag/drop and Ctrl/Cmd+Shift+M provide movement; the latter opens a searchable destination picker.
 - Auto-include Sessions defaults on. Turning it off hides unplaced chats and drafts without deleting them; collapsed Unassigned counts exclude those entries. Dragging a session from the Sessions list into a cell explicitly places its visible chats, even with auto-inclusion off, and expands a collapsed destination.
-- Hover/focus reveals the card Delete action where supported. Deletion requires confirmation and deletes the backing session (including its chats), not merely its board placement. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
+- Hover/focus reveals the card Delete action where supported. Deletion explicitly warns that it deletes the backing session (including its chats) across every board, then removes its placements everywhere after successful deletion. Draft deletion closes its editor through the normal close lifecycle before discarding the owned draft; canceling either confirmation preserves it.
 - Card context menus do not enumerate every destination. Axis-edit menus remain.
 - Where the chat supports renaming, F2 or the card's Rename context-menu action changes that chat's title, not its owning session or sibling chats. Canceling leaves the title unchanged.
 - Deleting an occupied axis requires confirmation and returns affected placements to Unassigned, including archived placements. Cancellation changes nothing.
@@ -136,7 +145,7 @@ Moving a card changes only its placement. Chats sharing a session still share th
 
 ### Storage and errors
 
-- Persist only the configuration version, ordered axis IDs/labels, placements and display preferences in profile-local storage. Existing configurations without display preferences keep both metrics off.
+- Persist the versioned board collection, stable board IDs/names/order, embedded selection, and each board's axes, placements and preferences in profile-local storage. Migrate the legacy single-board configuration intact into Default and retain the old payload for recovery; older display preferences keep their existing defaults.
 - Do not persist transcript copies, runtime status, credentials or artifact caches as board configuration.
 - Keep placement information when a provider disappears. Definitively unavailable placed chats have an explicit Remove Placement action.
 - Corrupt saved state locks mutation until an explicit confirmed reset; do not silently replace it with defaults.
@@ -147,10 +156,12 @@ Moving a card changes only its placement. Chats sharing a session still share th
 Use VS Code core DOM, CSS, observables and services; do not introduce a webview, separate backend or generic workflow framework.
 
 - [Board model](../src/vs/sessions/contrib/projectBoard/common/projectBoardModel.ts): identity, placement projection, filtering, recency and visible-card calculations.
-- [Board state](../src/vs/sessions/contrib/projectBoard/browser/projectBoardState.ts): validated profile storage and axis/placement mutations.
+- [Board catalogue](../src/vs/sessions/contrib/projectBoard/browser/projectBoardCatalog.ts): versioned collection, legacy migration and board management.
+- [Board state](../src/vs/sessions/contrib/projectBoard/browser/projectBoardState.ts): board-scoped axis/placement and preference mutations.
 - [Board view/service](../src/vs/sessions/contrib/projectBoard/browser/projectBoardService.ts): auxiliary board lifecycle, rendering, scrolling, focus, keyboard and drag/drop.
 - [Navigation and drafts](../src/vs/sessions/contrib/projectBoard/browser/projectBoardNavigation.ts): exact-chat windows, creation, model references, publication and safe cleanup.
 - [Metadata](../src/vs/sessions/contrib/projectBoard/browser/projectBoardMetadata.ts) and [questions](../src/vs/sessions/contrib/projectBoard/browser/projectBoardQuestions.ts): bounded projections of existing chat data and shared question widgets.
+- [Preview pool](../src/vs/sessions/contrib/projectBoard/browser/projectBoardPreviewPool.ts): shared, ref-counted metadata/question helpers and per-process budgets across board views.
 - [Contribution](../src/vs/sessions/contrib/projectBoard/browser/projectBoard.contribution.ts): command/keybinding registration.
 - [Session management contract](../src/vs/sessions/services/sessions/common/sessionsManagement.ts): authoritative discovery and draft lifecycle.
 - [Provisional-session service](../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.ts): backend-generation ownership; publication protects conversations from provisional cleanup.
@@ -159,7 +170,7 @@ Use VS Code core DOM, CSS, observables and services; do not introduce a webview,
 
 ## Capability boundaries
 
-- One canonical Agents profile-local board; no cross-device synchronization or multiple named boards.
+- Multiple named boards in one canonical Agents profile; no cross-device synchronization, team sharing or execution isolation.
 - At most sixteen displayed chat models are retained for prompt metadata. Already-loaded hidden chats can supply timestamp-only updates; cold hidden histories remain unknown until expanded.
 - At most eight Needs Input cards load question previews concurrently. Additional cards direct users to their chat.
 - Missing prompt text/time is explicit. An empty stored request is informational (`No prompt text`), not an agent failure.
@@ -195,6 +206,7 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 - **PB-20:** Shared Keep Going and tool approval controls, exact request/option IDs and approval scope, stale/duplicate protection, retryable failures, retained control identity, and no cross-window focus or accidental read marking.
 - **PB-21:** Themed auxiliary titlebar, fixed independent title, normal window controls, content sizing on resize/fullscreen, singleton behavior and disposal without orphaned chrome.
 - **PB-22:** Independent row/column/tray collapse, compact layout, live summary counts, accessible disclosure state, hidden-card navigation exclusion, drop/reveal behavior, view-local reset and preservation of pending input.
+- **PB-23:** Legacy-to-Default migration with untouched recovery data; named-board CRUD and empty-Hub recovery; independent placements, settings and native windows; explicit-ID sidebar/command routing; originating-board focus; pending answers across switching; globally bounded preview leases; deleting boards preserves agents while deleting sessions clears all board placements.
 
 ### Resilience before optional P2
 

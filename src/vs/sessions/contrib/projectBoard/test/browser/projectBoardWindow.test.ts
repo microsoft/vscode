@@ -104,6 +104,18 @@ suite('ProjectBoardWindow', () => {
 			remainingChildren: 0,
 			registeredParts: 1,
 		});
+
+		test('renaming a board updates its window title without changing the Agents owner', () => {
+			const { auxiliaryWindow, container, instantiationService } = createWindow();
+			const ownerTitle = mainWindow.document.title;
+			const host = store.add(instantiationService.createInstance(ProjectBoardWindow, auxiliaryWindow, 'Agents Hub — Default'));
+			host.setTitle('Agents Hub — Release');
+			assert.strictEqual(auxiliaryWindow.window.document.title, 'Agents Hub — Release');
+			if (isNative) {
+				assert.strictEqual(container.querySelector('.session-editor-title')?.textContent, 'Agents Hub — Release');
+			}
+			assert.strictEqual(mainWindow.document.title, ownerTitle);
+		});
 	});
 
 	test('native titlebar configuration retains the full board content area', async () => {

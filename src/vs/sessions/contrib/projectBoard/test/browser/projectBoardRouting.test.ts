@@ -28,9 +28,10 @@ import { KanbanCustomView, KanbanCustomViewContribution } from '../../browser/ka
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_CUSTOM_VIEW_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_CUSTOM_VIEW_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../../common/projectBoard.js';
 import { Menus } from '../../../../browser/menus.js';
 import { KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext } from '../../../../common/contextkeys.js';
+import { IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
 import '../../browser/projectBoard.contribution.js';
 
 suite('Project Board Agents routing', () => {
@@ -127,8 +128,12 @@ suite('Project Board Agents routing', () => {
 		store.add(instantiationService.createInstance(KanbanCustomViewContribution));
 		instantiationService.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({}));
 		instantiationService.stub(IContextKeyService, upcastPartial<IContextKeyService>({}));
+		instantiationService.stub(IProjectBoardCatalogService, upcastPartial<IProjectBoardCatalogService>({
+			boards: constObservable([{ id: 'default', name: 'Default', configuration: { version: 1, rows: [{ id: 'general', label: 'General' }], columns: [{ id: 'p0', label: 'P0' }], placements: [], autoIncludeSessions: true } }]),
+			selectedBoardId: constObservable('default'),
+		}));
 		const view = store.add(instantiationService.createInstance(KanbanCustomView));
-		assert.strictEqual(view.title.get(), 'Agents Hub');
+		assert.strictEqual(view.title.get(), 'Agents Hub — Default');
 		assert.strictEqual(KANBAN_CUSTOM_VIEW_ID, 'sessions.customView.kanban');
 
 		assert.deepStrictEqual({
@@ -183,6 +188,9 @@ suite('Project Board Agents routing', () => {
 				order: 5,
 			},
 			settingActions: [
+				KANBAN_RENAME_BOARD_COMMAND_ID,
+				KANBAN_DELETE_BOARD_COMMAND_ID,
+				KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID,
 				'projectBoard.settings.openChatInSidePanel',
 				'projectBoard.settings.autoIncludeSessions',
 				'projectBoard.settings.sessionList',
@@ -192,6 +200,21 @@ suite('Project Board Agents routing', () => {
 				'projectBoard.settings.modelDetails',
 				'projectBoard.settings.permissionDetails',
 			],
+		});
+
+		test('board management commands forward an explicit board ID instead of the selected board', async () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const calls: unknown[][] = [];
+			instantiation.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({
+				createBoard: async () => { calls.push(['create']); },
+				renameBoard: async id => { calls.push(['rename', id]); },
+				deleteBoard: async id => { calls.push(['delete', id]); },
+				open: async id => { calls.push(['open', id]); },
+			}));
+			for (const id of [KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID]) {
+				await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, 'target-board'));
+			}
+			assert.deepStrictEqual(calls, [['create'], ['rename', 'target-board'], ['delete', 'target-board'], ['open', 'target-board']]);
 		});
 	});
 
