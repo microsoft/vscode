@@ -123,11 +123,15 @@ if ($LASTEXITCODE -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }
 Invoke-Wsl @"
-service docker start
+start-stop-daemon --start --background --make-pidfile --pidfile /run/vscode-smoke-docker.pid --startas /bin/sh -- -c 'exec /usr/bin/dockerd > /var/log/docker.log 2>&1'
 for attempt in `$(seq 1 60); do
 	if docker info > /dev/null 2>&1; then break; fi
 	sleep 1
 done
+if ! docker info; then
+	cat /var/log/docker.log
+	exit 1
+fi
 test "`$(docker info --format '{{.OSType}}')" = linux
 docker pull mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 mkdir -p /tmp/vscode-smoke-bind-check
