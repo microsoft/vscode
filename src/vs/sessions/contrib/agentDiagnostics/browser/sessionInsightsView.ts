@@ -10,6 +10,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -21,6 +22,7 @@ import { IOTelDiagnosticsMessage, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } 
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getEventCreatedText, getEventDetailsText, getEventNameText } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEventList.js';
 import { IChatDebugEvent } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
+import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionDiagnosticsTurn, SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
 
 interface ITraceNode {
@@ -74,6 +76,7 @@ export class SessionInsightsView extends Disposable {
 		parent: HTMLElement,
 		private readonly model: SessionDiagnosticsModel,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		const scrollContent = DOM.$('.agent-diagnostics-insights-scroll');
@@ -569,14 +572,25 @@ export class SessionInsightsView extends Disposable {
 		if (!state) {
 			return;
 		}
+		const agentHostLog = joinPath(this.environmentService.logsHome, 'agenthost.log');
 		this._onDidRequestTroubleshoot.fire({
 			id: `session:${state.sessionResource.toString()}`,
 			label: localize('agentDiagnostics.context.session', "Session Diagnostics"),
-			query: localize('agentDiagnostics.query.session', "Troubleshoot the attached agent session. Explain what it was asked to do, what happened, any failures or bottlenecks, and the best next diagnostic step."),
+			query: localize('agentDiagnostics.query.session', "Troubleshoot the attached agent session. Explain what it was asked to do, what happened, any failures or bottlenecks, and the best next diagnostic step. Use the attached Agent Host log location and search terms when structured diagnostics are insufficient."),
 			sessionResource: state.sessionResource,
 			sourceChatResource: state.chatResource,
 			content: JSON.stringify({
 				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
+				agentHostLog: {
+					path: agentHostLog.fsPath,
+					uri: agentHostLog.toString(),
+					scope: 'Application-wide Agent Host process log; use the search terms to isolate this session.',
+					searchTerms: [
+						state.sessionResource.toString(),
+						state.chatResource.toString(),
+						...(state.summary?.conversationId ? [state.summary.conversationId] : []),
+					],
+				},
 				summary: state.summary,
 				turns: state.turns.map(turn => ({
 					id: turn.id,
