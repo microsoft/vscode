@@ -214,10 +214,6 @@ export class NewChatInSessionWidget extends Disposable {
 		this._newChatInput.focus();
 	}
 
-	get submitButtonElement(): HTMLElement | undefined {
-		return this._newChatInput.submitButtonElement;
-	}
-
 	attach(uris: URI[]): void {
 		this._newChatInput.attach(uris);
 	}

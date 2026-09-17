@@ -132,7 +132,11 @@ export class SessionsPart extends Part {
 		ActiveSessionsContext.bindTo(contextKeyService);
 		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
-		this._register(sessionsManagementService.onDidSendRequest(event => this.showSubmitConfetti(event.session.sessionId, event.isNewSession)));
+		this._register(sessionsManagementService.onDidSendRequest(event => {
+			if (!event.isNewChat) {
+				this.showSubmitConfetti(event.session.sessionId);
+			}
+		}));
 	}
 
 	override create(parent: HTMLElement): void {
@@ -191,13 +195,12 @@ export class SessionsPart extends Part {
 		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
-	private showSubmitConfetti(sessionId: string, isNewSession: boolean): void {
+	private showSubmitConfetti(sessionId: string): void {
 		if (!this.configurationService.getValue<boolean>(SESSIONS_SUBMIT_CHAT_REQUEST_CONFETTI_SETTING) || this.accessibilityService.isMotionReduced()) {
 			return;
 		}
 
-		const slot = this._slots.find(slot => slot.boundSessionId === sessionId)
-			?? (isNewSession ? this._slots.find(slot => slot.boundSessionId === undefined) : undefined);
+		const slot = this._slots.find(slot => slot.boundSessionId === sessionId);
 		const submitButton = slot?.view.submitButtonElement;
 		if (submitButton) {
 			triggerConfettiAnimation(submitButton, { bounce: false });

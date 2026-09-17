@@ -1185,10 +1185,6 @@ export class NewChatWidget extends Disposable {
 		return this._newChatInput.submit();
 	}
 
-	get submitButtonElement(): HTMLElement | undefined {
-		return this._newChatInput.submitButtonElement;
-	}
-
 	attach(uris: URI[]): void {
 		this._newChatInput.attach(uris);
 	}

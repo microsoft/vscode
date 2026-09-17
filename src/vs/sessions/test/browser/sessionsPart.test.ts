@@ -71,7 +71,7 @@ suite('Sessions - Sessions Part', () => {
 
 	const createSlot = Reflect.get(SessionsPart.prototype, '_createSlot') as (this: ISessionsPartTestHarness) => ITestGridSlot;
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
-	const showSubmitConfetti = Reflect.get(SessionsPart.prototype, 'showSubmitConfetti') as (this: ISubmitConfettiTestHarness, sessionId: string, isNewSession: boolean) => void;
+	const showSubmitConfetti = Reflect.get(SessionsPart.prototype, 'showSubmitConfetti') as (this: ISubmitConfettiTestHarness, sessionId: string) => void;
 
 	function assertActivation(eventFactory: () => Event): void {
 		const minimizedView = new TestSessionView();
@@ -212,12 +212,12 @@ suite('Sessions - Sessions Part', () => {
 			},
 		};
 
-		showSubmitConfetti.call(host, 'session', false);
+		showSubmitConfetti.call(host, 'session');
 		enabled = true;
 		reducedMotion = true;
-		showSubmitConfetti.call(host, 'session', false);
+		showSubmitConfetti.call(host, 'session');
 		reducedMotion = false;
-		showSubmitConfetti.call(host, 'session', false);
+		showSubmitConfetti.call(host, 'session');
 
 		const overlays = Array.from(document.querySelectorAll<HTMLElement>('.animation-overlay')).slice(overlaysBefore);
 		assert.deepStrictEqual({

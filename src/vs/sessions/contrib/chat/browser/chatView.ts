@@ -150,10 +150,6 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget ? this._widget.submitInput() : Promise.resolve(false);
 	}
 
-	override get submitButtonElement(): HTMLElement | undefined {
-		return this._widget.submitButtonElement;
-	}
-
 	override attach(uris: URI[]): void {
 		this._widget.attach(uris);
 	}
