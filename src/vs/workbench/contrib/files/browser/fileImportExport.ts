@@ -30,7 +30,8 @@ import { listenStream } from '../../../../base/common/stream.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { canceled } from '../../../../base/common/errors.js';
+import { canceled, isCancellationError } from '../../../../base/common/errors.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -702,7 +703,6 @@ export class FileDownload {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ILogService private readonly logService: ILogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -718,7 +718,7 @@ export class FileDownload {
 			{
 				location: ProgressLocation.Window,
 				delay: 800,
-				cancellable: isWeb,
+				cancellable: true,
 				title: localize('downloadingFiles', "Downloading")
 			},
 			async progress => this.doDownload(source, progress, cts),
@@ -921,15 +921,86 @@ export class FileDownload {
 			// Remember as last used download folder
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-			// Perform download
-			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
-				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
-				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),
-				progressLocation: ProgressLocation.Window
-			});
+			// Resolve the number of files and the total number of bytes to
+			// download upfront to be able to report accurate overall progress
+			const { filesTotal, totalBytes, fileSizes } = await this.resolveDownloadSize(explorerItem.resource, cts.token);
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Perform download, reporting progress as bytes are being copied.
+			// The file service reports the total number of bytes copied per
+			// file, so we keep track of the last reported value per file to
+			// compute the delta.
+			const reporter = new TransferProgressReporter(filesTotal, totalBytes, downloadProgressMessages, progress);
+			const lastBytesCopied = new ResourceMap<number>();
+			try {
+				await this.fileService.copy(explorerItem.resource, destination, true, ({ resource, bytesCopied }) => {
+					let last = lastBytesCopied.get(resource);
+					if (last === undefined) {
+						reporter.startFile();
+						last = 0;
+					}
+					lastBytesCopied.set(resource, bytesCopied);
+
+					reporter.report(basename(resource), fileSizes.get(resource) ?? 0, bytesCopied, bytesCopied - last);
+				}, cts.token);
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					throw error;
+				}
+
+				// Best effort cleanup of partially downloaded
+				// files and folders when the user canceled
+				try {
+					await this.fileService.del(destination, { recursive: true });
+				} catch (error) {
+					this.logService.warn(error);
+				}
+			} finally {
+				reporter.flush();
+				reporter.dispose();
+			}
 		} else {
 			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 		}
+	}
+
+	private async resolveDownloadSize(resource: URI, token: CancellationToken): Promise<{ filesTotal: number; totalBytes: number; fileSizes: ResourceMap<number> }> {
+		const fileSizes = new ResourceMap<number>();
+
+		let filesTotal = 0;
+		let totalBytes = 0;
+
+		const addFile = (resource: URI, size: number): void => {
+			fileSizes.set(resource, size);
+			filesTotal++;
+			totalBytes += size;
+		};
+
+		const resolveFolder = async (stat: IFileStatWithMetadata): Promise<void> => {
+			if (token.isCancellationRequested || !stat.children) {
+				return;
+			}
+
+			await Promises.settled(stat.children.map(async child => {
+				if (child.isDirectory) {
+					await resolveFolder(await this.fileService.resolve(child.resource, { resolveMetadata: true }));
+				} else {
+					addFile(child.resource, child.size);
+				}
+			}));
+		};
+
+		const stat = await this.fileService.resolve(resource, { resolveMetadata: true });
+		if (stat.isDirectory) {
+			await resolveFolder(stat);
+		} else {
+			addFile(stat.resource, stat.size);
+		}
+
+		return { filesTotal, totalBytes, fileSizes };
 	}
 }
 
