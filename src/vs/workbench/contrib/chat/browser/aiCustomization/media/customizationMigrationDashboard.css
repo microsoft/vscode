@@ -154,7 +154,7 @@
 }
 
 .customization-migration-dashboard .migration-count,
-.customization-migration-dashboard .migration-risk,
+.customization-migration-dashboard .migration-attention,
 .customization-migration-dashboard .migration-operation {
 	border-radius: var(--vscode-cornerRadius-circle);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
@@ -169,9 +169,9 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.customization-migration-dashboard .migration-risk {
-	background: var(--vscode-inputValidation-errorBackground);
-	color: var(--vscode-errorForeground);
+.customization-migration-dashboard .migration-attention {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent);
+	color: var(--vscode-editorWarning-foreground);
 }
 
 .customization-migration-dashboard .monaco-button {

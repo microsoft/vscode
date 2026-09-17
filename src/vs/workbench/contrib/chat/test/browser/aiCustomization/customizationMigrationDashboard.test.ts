@@ -52,7 +52,7 @@ suite('CustomizationMigrationDashboard', () => {
 					storage: PromptsStorage.user, label: 'Your profile', count: 5, skipped: false, hasConfigurableDestinations: true,
 					categories: [
 						{ id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move personal customizations.', count: 3, countLabel: '2 agents · 1 instruction' },
-						{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills.', count: 2, countLabel: '2 prompts', highRisk: true },
+						{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills.', count: 2, countLabel: '2 prompts', attentionRequired: true },
 					],
 				},
 				{
@@ -67,13 +67,15 @@ suite('CustomizationMigrationDashboard', () => {
 		};
 	}
 
-	test('orders high-risk categories first and sends scoped review and destination callbacks', () => {
+	test('orders categories needing attention first and sends scoped review and destination callbacks', () => {
 		const actions: string[] = [];
 		const { parent, dashboard } = createDashboard({
 			configureLocations: storage => actions.push(`destinations:${storage}`),
 			reviewCategory: (id, storage) => actions.push(`review:${id}:${storage}`),
 		});
 		dashboard.showOverview(overview());
+		dashboard.focus();
+		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		button(parent, 'Review Prompts to skills from Your profile').click();
 		button(parent, 'Review User Data from Your profile').click();
 		button(parent, 'Review MCP Servers from vscode').click();
@@ -83,19 +85,21 @@ suite('CustomizationMigrationDashboard', () => {
 			title: parent.querySelector('h1')?.textContent,
 			categories: [...parent.querySelectorAll('h4')].map(element => element.textContent),
 			counts: [...parent.querySelectorAll('.migration-count')].map(element => element.textContent),
-			highRisk: parent.querySelector('.migration-risk')?.textContent,
+			attention: parent.querySelector('.migration-attention')?.textContent,
 			progress: parent.querySelector('.migration-checklist-progress')?.textContent,
 			workspaceDescription: parent.querySelector('[data-storage="local"] .migration-scope-description')?.textContent,
 			workspaceDestinationButton: parent.querySelector('[aria-label="Change destinations for vscode"]') !== null,
+			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
 		}, {
 			title: 'Migrations',
 			categories: ['Prompts to skills', 'User Data', 'MCP Servers'],
 			counts: ['2 prompts', '2 agents · 1 instruction', '1 server'],
-			highRisk: 'High risk',
+			attention: 'Review recommended',
 			progress: '0 of 2 complete',
 			workspaceDescription: 'Workspace customizations. Skip this workspace if you do not own it.',
+			initialFocus: 'Review Prompts to skills from Your profile',
 			focus: 'Change destinations for Your profile',
 			workspaceDestinationButton: false,
 			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'destinations:user'],
@@ -154,7 +158,7 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: parent.querySelector('.migration-empty')?.textContent,
 			buttons: parent.querySelectorAll('[role="button"]').length,
 			focus: document.activeElement?.tagName,
-		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'H1' });
+		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'H2' });
 	});
 
 	test('View Changes expands newest activity and dismissals restore meaningful focus', () => {
@@ -230,6 +234,6 @@ suite('CustomizationMigrationDashboard', () => {
 			retries,
 			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
 			focus: document.activeElement?.textContent,
-		}, { retries: 1, busy: 'false', focus: 'Migrations unavailable' });
+		}, { retries: 1, busy: 'false', focus: 'Retry' });
 	});
 });
