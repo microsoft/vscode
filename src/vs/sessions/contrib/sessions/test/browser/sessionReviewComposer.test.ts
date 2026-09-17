@@ -6,13 +6,14 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, IDimension } from '../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,10 +23,12 @@ import { IChatRequestVariableEntry, toFileVariableEntry } from '../../../../../w
 import { ISessionInputDraft, ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionReviewSelection, ISessionReviewService } from '../../../../services/sessions/browser/sessionReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionReviewState, SessionReviewSection } from '../../../../services/sessions/common/sessionReview.js';
 import { NewChatInputWidget } from '../../../chat/browser/newChatInput.js';
+import { IDashboardWorkService } from '../../../intent/common/dashboardWork.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionReviewComposer } from '../../browser/sessionReviewComposer.js';
 
@@ -40,8 +43,8 @@ suite('SessionReviewComposer', () => {
 		const container = document.body.appendChild($('div'));
 		store.add(toDisposable(() => container.remove()));
 		const original = makeSession(URI.parse('test:/session'));
-		const main = { ...original.mainChat.get(), title: observableValue('title', 'Main chat') };
-		const peer = { ...main, resource: URI.parse('test:/peer'), title: observableValue('title', 'Peer chat') };
+		const main = { ...original.mainChat.get(), title: observableValue('title', 'Main chat'), status: observableValue('status', SessionStatus.Completed) };
+		const peer = { ...main, resource: URI.parse('test:/peer'), title: observableValue('title', 'Peer chat'), status: observableValue('status', SessionStatus.Completed) };
 		const activeChat = observableValue<IChat>('activeChat', main);
 		const session = { ...original, mainChat: constObservable(main), activeChat, chats: constObservable([main, peer]) };
 		const review = observableValue<ISessionReviewState | undefined>('review', { sessionResource: session.resource, section: SessionReviewSection.Conversation });
@@ -56,6 +59,8 @@ suite('SessionReviewComposer', () => {
 			return draft;
 		};
 		const replies: { chat: IChat; query: string; attachments: readonly IChatRequestVariableEntry[] }[] = [];
+		const stopped: IChat[] = [];
+		let responseActions: readonly IAction[] = [];
 		let renders = 0;
 		let disposals = 0;
 		let inputElement: HTMLTextAreaElement | undefined;
@@ -64,12 +69,16 @@ suite('SessionReviewComposer', () => {
 		instantiation.stub(ISessionReviewService, {
 			selection,
 			send: async (_session, chat, query, attachments) => { replies.push({ chat, query, attachments }); return true; },
+			stop: async (_session, chat) => { stopped.push(chat); },
 		});
+		instantiation.stub(IDashboardWorkService, { executions: constObservable([]) });
+		instantiation.stub(ISessionsManagementService, { onDidChangeSessions: Event.None });
 		instantiation.stub(ISessionInputDraftService, { getDraft, setDraft: (resource, value) => getDraft(resource).set(value, undefined) });
 		instantiation.stub(ISessionChangesStatsCache, { get: () => undefined });
 		instantiation.stub(IHoverService, { setupDelayedHover: () => Disposable.None });
 		instantiation.stub(INotificationService, { error: error => { throw error; } });
 		instantiation.stubInstance(MenuWorkbenchToolBar, { dispose: () => { } });
+		instantiation.stubInstance(WorkbenchToolBar, { setActions: actions => { responseActions = actions; }, dispose: () => { } });
 		instantiation.stubInstance(NewChatInputWidget, {
 			render: parent => {
 				renders++;
@@ -86,7 +95,7 @@ suite('SessionReviewComposer', () => {
 			assert.ok(call);
 			return call.args[1] as ConstructorParameters<typeof NewChatInputWidget>[0];
 		};
-		return { container, composer, layout, activeChat, main, peer, review, selection, replies, inputOptions, getDraft, counts: () => ({ renders, disposals }) };
+		return { container, composer, layout, activeChat, main, peer, review, selection, replies, stopped, inputOptions, getDraft, responseActions: () => responseActions, counts: () => ({ renders, disposals }) };
 	}
 
 	test('keeps one embedded input and its draft when resizing or inspecting another result', () => {
@@ -108,6 +117,23 @@ suite('SessionReviewComposer', () => {
 			sameInput: true, counts: { renders: 1, disposals: 0 }, layoutMode: 'embedded', target: 'Reply to Main chat',
 			draft: { inputText: 'Keep this draft', attachments: [attachment] }, inputCount: 1,
 		});
+	});
+
+	test('Stop Response is an accessible codicon for a running or waiting selected chat', async () => {
+		const h = setup();
+		const actions = h.responseActions();
+		const stopContainer = h.container.querySelector<HTMLElement>('.session-review-response-actions')!;
+		const idleHidden = stopContainer.hidden;
+		h.main.status.set(SessionStatus.InProgress, undefined);
+		const runningHidden = stopContainer.hidden;
+		h.peer.status.set(SessionStatus.NeedsInput, undefined);
+		h.activeChat.set(h.peer, undefined);
+		const waitingHidden = stopContainer.hidden;
+		await actions[0].run();
+		assert.deepStrictEqual({
+			idleHidden, runningHidden, waitingHidden, label: actions[0].label, icon: actions[0].class,
+			stopped: h.stopped, canReply: h.inputOptions().canSendRequest?.get(),
+		}, { idleHidden: true, runningHidden: false, waitingHidden: false, label: 'Stop Response', icon: 'codicon codicon-debug-stop', stopped: [h.peer], canReply: false });
 	});
 
 	test('uses separate chat drafts and restores the original text and references on return', () => {

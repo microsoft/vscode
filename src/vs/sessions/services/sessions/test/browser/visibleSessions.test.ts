@@ -90,7 +90,8 @@ suite('VisibleSessions', () => {
 		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
 		const isExternal = observableValue('isExternal', true);
 		const remoteConnectionStatus = constObservable<SessionRemoteConnectionStatus>({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
-		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal, remoteConnectionStatus };
+		const workspaceSetup = constObservable(undefined);
+		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal, remoteConnectionStatus, workspaceSetup };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -105,6 +106,8 @@ suite('VisibleSessions', () => {
 			resourceOverrideExternal: resourceOverride.isExternal === isExternal,
 			visibleRemoteConnectionStatus: visible?.remoteConnectionStatus === remoteConnectionStatus,
 			resourceOverrideRemoteConnectionStatus: resourceOverride.remoteConnectionStatus === remoteConnectionStatus,
+			visibleWorkspaceSetup: visible?.workspaceSetup === workspaceSetup,
+			resourceOverrideWorkspaceSetup: resourceOverride.workspaceSetup === workspaceSetup,
 		}, {
 			visible: true,
 			resourceOverride: true,
@@ -114,6 +117,8 @@ suite('VisibleSessions', () => {
 			resourceOverrideExternal: true,
 			visibleRemoteConnectionStatus: true,
 			resourceOverrideRemoteConnectionStatus: true,
+			visibleWorkspaceSetup: true,
+			resourceOverrideWorkspaceSetup: true,
 		});
 	});
 
@@ -988,6 +993,7 @@ suite('VisibleSession - property forwarding', () => {
 		const session: ISession = {
 			...stubSession('S'),
 			artifacts: constObservable([]),
+			workspaceSetup: constObservable(undefined),
 		};
 		const visible = disposables.add(new VisibleSession(session, stubChat));
 

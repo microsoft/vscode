@@ -5,7 +5,7 @@
 
 import { equals } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -28,6 +28,10 @@ export interface ISessionInputDraftService {
 	readonly _serviceBrand: undefined;
 	/** Reading a draft never acquires or loads a chat model. */
 	getDraft(chatResource: URI): IObservable<ISessionInputDraft>;
+	/** Observe an explicitly saved draft without creating one or loading a model. */
+	getDraftIfPresent(chatResource: URI): IObservable<ISessionInputDraft | undefined>;
+	/** Makes a mounted standalone composer's input available for explicit draft adoption. */
+	registerDraftProvider(chatResource: URI, read: () => ISessionInputDraft): IDisposable;
 	setDraft(chatResource: URI, draft: ISessionInputDraft): void;
 	addAttachments(chatResource: URI, attachments: readonly IChatRequestVariableEntry[]): void;
 	rebindDraft(previousChatResource: URI, chatResource: URI): void;
@@ -38,6 +42,7 @@ export const ISessionInputDraftService = createDecorator<ISessionInputDraftServi
 interface IDraftEntry {
 	readonly state: ISettableObservable<ISessionInputDraft>;
 	pendingModelUpdate: boolean;
+	hasValue: boolean;
 }
 
 interface IStoredDraft {
@@ -60,7 +65,9 @@ export class SessionInputDraftService extends Disposable implements ISessionInpu
 	private static readonly STORAGE_KEY = 'sessions.inputDrafts';
 	private readonly _drafts: ResourceMap<IDraftEntry>;
 	private readonly _bindings: ResourceMap<IObservable<ISessionInputDraft>>;
+	private readonly _presentBindings: ResourceMap<IObservable<ISessionInputDraft | undefined>>;
 	private readonly _redirects: ResourceMap<URI>;
+	private readonly _draftProviders: ResourceMap<Set<() => ISessionInputDraft>>;
 	private readonly _bindingsChanged = observableSignal(this);
 	private readonly _modelListeners = this._register(new DisposableMap<string, DisposableStore>());
 
@@ -73,7 +80,9 @@ export class SessionInputDraftService extends Disposable implements ISessionInpu
 		super();
 		this._drafts = new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 		this._bindings = new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+		this._presentBindings = new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 		this._redirects = new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+		this._draftProviders = new ResourceMap(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 		this._load();
 		this._register(this.chatService.onDidCreateModel(model => this._trackModel(model)));
 		this._register(this.storageService.onWillSaveState(() => this._save()));
@@ -85,6 +94,11 @@ export class SessionInputDraftService extends Disposable implements ISessionInpu
 		if (model) {
 			this._trackModel(model);
 		}
+		const entry = this._entry(resource);
+		const provider = [...this._draftProviders.get(resource) ?? []].at(-1);
+		if (!entry.hasValue && provider) {
+			this._update(entry, provider());
+		}
 		let binding = this._bindings.get(chatResource);
 		if (!binding) {
 			binding = derived(this, reader => {
@@ -92,6 +106,34 @@ export class SessionInputDraftService extends Disposable implements ISessionInpu
 				return this._entry(this._resolveResource(chatResource)).state.read(reader);
 			});
 			this._bindings.set(chatResource, binding);
+		}
+		return binding;
+	}
+
+	registerDraftProvider(chatResource: URI, read: () => ISessionInputDraft): IDisposable {
+		let providers = this._draftProviders.get(chatResource);
+		if (!providers) {
+			providers = new Set();
+			this._draftProviders.set(chatResource, providers);
+		}
+		providers.add(read);
+		return toDisposable(() => {
+			providers.delete(read);
+			if (!providers.size) {
+				this._draftProviders.delete(chatResource);
+			}
+		});
+	}
+
+	getDraftIfPresent(chatResource: URI): IObservable<ISessionInputDraft | undefined> {
+		let binding = this._presentBindings.get(chatResource);
+		if (!binding) {
+			binding = derived(this, reader => {
+				this._bindingsChanged.read(reader);
+				const entry = this._drafts.get(this._resolveResource(chatResource));
+				return entry?.hasValue ? entry.state.read(reader) : undefined;
+			});
+			this._presentBindings.set(chatResource, binding);
 		}
 		return binding;
 	}
@@ -160,7 +202,7 @@ export class SessionInputDraftService extends Disposable implements ISessionInpu
 	private _entry(resource: URI): IDraftEntry {
 		let entry = this._drafts.get(resource);
 		if (!entry) {
-			entry = { state: observableValue<ISessionInputDraft>(this, { inputText: '', attachments: [] }), pendingModelUpdate: false };
+			entry = { state: observableValue<ISessionInputDraft>(this, { inputText: '', attachments: [] }), pendingModelUpdate: false, hasValue: false };
 			this._drafts.set(resource, entry);
 		}
 		return entry;
@@ -168,9 +210,15 @@ export class SessionInputDraftService extends Disposable implements ISessionInpu
 
 	private _update(entry: IDraftEntry, draft: ISessionInputDraft): void {
 		const current = entry.state.get();
-		if (current.inputText !== draft.inputText || !equals(current.attachments, draft.attachments)) {
-			entry.state.set({ inputText: draft.inputText, attachments: [...draft.attachments] }, undefined);
-		}
+		transaction(tx => {
+			if (current.inputText !== draft.inputText || !equals(current.attachments, draft.attachments)) {
+				entry.state.set({ inputText: draft.inputText, attachments: [...draft.attachments] }, tx);
+			}
+			if (!entry.hasValue) {
+				entry.hasValue = true;
+				this._bindingsChanged.trigger(tx);
+			}
+		});
 	}
 
 	private _trackModel(model: IChatModel): void {

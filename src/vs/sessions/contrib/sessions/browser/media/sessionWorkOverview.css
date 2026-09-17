@@ -23,8 +23,23 @@
 }
 
 .session-work-search .monaco-inputbox { width: 100%; }
+.session-work-controls-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	flex: 0 0 auto;
+}
 .session-work-age-filter { min-width: 0; max-width: 100%; }
 .session-work-controls .monaco-select-box { max-width: 100%; }
+.session-work-intake-container { min-width: 0; }
+.session-work-intake-container > .session-work-started-receipt {
+	width: auto;
+	max-width: 100%;
+	margin-bottom: var(--vscode-spacing-size120);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
 
 .session-work-section { min-width: 0; margin-bottom: var(--vscode-spacing-size160); }
 .session-work-section-header {

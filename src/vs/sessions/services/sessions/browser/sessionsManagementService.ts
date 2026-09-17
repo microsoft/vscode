@@ -85,6 +85,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
+	private readonly _sessionDrafts = new ResourceMap<ISession>();
 	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; count: number }>();
 
 	/**
@@ -273,7 +274,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSession(resource: URI): ISession | undefined {
-		const unlistedSession = this._unlistedNewSessions.get(resource);
+		const unlistedSession = this._sessionDrafts.get(resource) ?? this._unlistedNewSessions.get(resource);
 		if (unlistedSession) {
 			return unlistedSession;
 		}
@@ -283,7 +284,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getMergedSessions()) {
+		for (const session of [...this._sessionDrafts.values(), ...this._getMergedSessions()]) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };
@@ -595,6 +596,49 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return session;
 	}
 
+	createSessionDraft(folder: URI | undefined, options?: ICreateNewSessionOptions): ISession {
+		const { provider, sessionTypeId } = folder ? this._resolveProviderForNewSession(folder, options) : this._resolveProviderForQuickChat(options);
+		const session = folder
+			? provider.createNewSession(folder, sessionTypeId, this._providerCreateSessionOptions(provider, options))
+			: provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, options));
+		this._sessionDrafts.set(session.resource, session);
+		return session;
+	}
+
+	async sendSessionDraft(session: ISession, options: ISendRequestOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+		if (this._sessionDrafts.get(session.resource) !== session) {
+			throw new Error('This draft is no longer owned by the calling surface');
+		}
+		const provider = this._getProvider(session);
+		if (!provider) { throw new Error(`Sessions provider '${session.providerId}' not found`); }
+		const workspace = session.workspace.get();
+		if (workspace?.requiresWorkspaceTrust) {
+			for (const folder of workspace.folders) {
+				if (!(await this.workspaceTrustManagementService.getUriTrustInfo(folder.workingDirectory)).trusted) { throw new WorkspaceNotTrustedError(); }
+			}
+		}
+		const inFlight = this.trackInFlightNewSessionRequest(session);
+		try {
+			const prepared = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query);
+			if (prepared.session !== session) {
+				this._sessionDrafts.delete(session.resource);
+				this._sessionDrafts.set(prepared.session.resource, prepared.session);
+				this._handleDidReplaceSession(session, prepared.session);
+			}
+			const committed = await this._sendNewChatRequestInBackground(prepared.provider, prepared.session, { ...options, preservePendingDraft: true }, token);
+			this._sessionDrafts.delete(prepared.session.resource);
+			return committed;
+		} finally {
+			inFlight.dispose();
+		}
+	}
+
+	discardSessionDraft(session: ISession): void {
+		if (this._sessionDrafts.get(session.resource) !== session) { return; }
+		this._sessionDrafts.delete(session.resource);
+		this._getProvider(session)?.deleteNewSession(session.sessionId);
+	}
+
 	createAutomationQuickChat(options?: ICreateNewSessionOptions): ISession {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 		const previousAutomationSession = this._automationSession.get();
@@ -767,7 +811,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// consumed when `onDidSendRequest` fires below. The view service
 			// observes the will/did send pair to keep the newest chat active in
 			// the visible slot while the send materialises.
-			this._onWillSendRequest.fire(session);
+			if (!options.preservePendingDraft) { this._onWillSendRequest.fire(session); }
 
 			// Ask the provider to create the new chat, then send the request.
 			const chat = await provider.createNewChat(session.sessionId, options.query);
@@ -1050,6 +1094,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	override dispose(): void {
 		this._disposeCts.cancel();
+		for (const session of [...this._sessionDrafts.values()]) { this.discardSessionDraft(session); }
 		super.dispose();
 	}
 
@@ -1087,7 +1132,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		// Notify listeners (e.g., telemetry) that a send is starting so they can
 		// prewarm caches whose result is consumed when `onDidSendRequest` fires.
-		this._onWillSendRequest.fire(session);
+		if (!options.preservePendingDraft) { this._onWillSendRequest.fire(session); }
 		const chatPromise = provider.createNewChat(session.sessionId, options.query);
 		const chat = token === CancellationToken.None ? await chatPromise : await raceCancellationError(chatPromise, token);
 
@@ -1123,7 +1168,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
 		// Sending into an existing session abandons any in-progress new session,
 		// so dispose it to release its eager backend session.
-		this.discardNewSession();
+		if (!options.preservePendingDraft) { this.discardNewSession(); }
 
 		const provider = this._getProvider(session);
 		if (!provider) {
@@ -1144,7 +1189,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// can use this to prewarm caches whose result is consumed when
 		// `onDidSendRequest` fires below. The view service observes the will/did
 		// send pair to keep the sent chat active in the visible slot.
-		this._onWillSendRequest.fire(session);
+		if (!options.preservePendingDraft) { this._onWillSendRequest.fire(session); }
 
 		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();
@@ -1191,8 +1236,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 	}
 
-	async cancelCurrentRequest(session: ISession): Promise<void> {
-		const resource = session.mainChat.get().resource;
+	async cancelCurrentRequest(session: ISession, chat: IChat = session.mainChat.get()): Promise<void> {
+		const resource = chat.resource;
+		if (!this.uriIdentityService.extUri.isEqual(session.mainChat.get().resource, resource) && !session.chats.get().some(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, resource))) {
+			throw new Error(localize('sessions.cancelCurrentRequest.chatChanged', "This chat no longer belongs to the selected session."));
+		}
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
 		if (!modelRef) {

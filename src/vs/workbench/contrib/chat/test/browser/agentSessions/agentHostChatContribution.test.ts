@@ -1028,6 +1028,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		getSyncProvider: () => syncProvider,
 		getOrigin: () => undefined,
 		acquireScope,
+		registerSessionTools: () => ({ dispose() { } }),
 		acquireMcpServerSupportScope: () => undefined,
 		areScopeRootsEqual: (first, second) => JSON.stringify(first) === JSON.stringify(second),
 		isBundledMcpServer: () => false,

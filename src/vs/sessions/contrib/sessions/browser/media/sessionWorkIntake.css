@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-work-intake {
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 100%;
+	padding: var(--vscode-spacing-size120);
+	margin-bottom: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+}
+
+.session-work-intake-header,
+.session-work-intake-actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.session-work-intake-header { margin-bottom: var(--vscode-spacing-size80); }
+.session-work-intake-title {
+	flex: 1;
+	min-width: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-work-intake .monaco-button {
+	width: auto;
+	max-width: 100%;
+}
+
+.session-work-intake-error {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+	margin-bottom: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-work-intake-error { color: var(--vscode-errorForeground); }
+.session-work-intake-composer { min-width: 0; }
+.session-work-intake[hidden],
+.session-work-intake [hidden] { display: none; }

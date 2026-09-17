@@ -23,6 +23,7 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import { withAgentWorkspaceConversionCapability } from '../common/meta/agentWorkspaceConversionMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -443,7 +444,7 @@ export class AgentSideEffects extends Disposable {
 				})),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
-				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
+				capabilities: withAgentWorkspaceConversionCapability(d.capabilities, a.agentHostCapabilities.workspaceConversion),
 			};
 		});
 		if (equals(this._lastAgentInfos, infos)) {

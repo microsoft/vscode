@@ -8,10 +8,10 @@ import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignal, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -61,7 +61,9 @@ export interface IAgentCustomizationScope extends IDisposable {
 export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
 	/** Acquires (or shares) the refcounted customization scope for `sessionType` + `roots`. Never fails. */
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope;
+	acquireScope(sessionType: string, roots: readonly URI[], sessionResource?: URI): IAgentCustomizationScope;
+	/** Adds client tools only to one session's claim, without changing its shared customization bundle. */
+	registerSessionTools(sessionResource: URI, tools: readonly ToolDefinition[]): IDisposable;
 	/**
 	 * Acquires a shared MCP support scope for a Copilot CLI harness; `undefined` roots mean unknown applicability while an empty array means no workspace.
 	 * Returns `undefined` for harnesses whose MCP delivery is not assessed by the client.
@@ -276,6 +278,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
 	private readonly _syncProviders = new Map<string, AgentCustomizationSyncProvider>();
 	private _isDisposed = false;
+	private readonly _sessionTools = new ResourceMap<readonly ToolDefinition[]>();
+	private readonly _sessionToolsChanged = observableSignal(this);
 
 	constructor(
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
@@ -291,7 +295,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		this._semanticSearchEnabled = observableConfigValue(CopilotSemanticSearchEnabledSettingId, false, configurationService);
 	}
 
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
+	acquireScope(sessionType: string, roots: readonly URI[], sessionResource?: URI): IAgentCustomizationScope {
 		const normalizedRoots = normalizeRoots(roots, this._uriIdentityService.extUri);
 		const scopeKey = getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
 		const serviceScopeKey = getServiceScopeKey(sessionType, scopeKey);
@@ -312,7 +316,39 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			scope = createdScope;
 			this._scopes.set(serviceScopeKey, scope);
 		}
-		return scope.acquire();
+		const acquired = scope.acquire();
+		if (!sessionResource) {
+			return acquired;
+		}
+		const tools = derived(this, reader => {
+			this._sessionToolsChanged.read(reader);
+			const base = acquired.tools.read(reader);
+			const additional = this._sessionTools.get(sessionResource);
+			return additional?.length ? [...base, ...additional.filter(tool => !base.some(existing => existing.name === tool.name))] : base;
+		});
+		return {
+			...acquired,
+			tools,
+			activeClient: clientId => {
+				const base = acquired.activeClient(clientId);
+				return derived(this, reader => ({ ...base.read(reader), tools: [...tools.read(reader)] }));
+			},
+		};
+	}
+
+	registerSessionTools(sessionResource: URI, tools: readonly ToolDefinition[]): IDisposable {
+		if (this._sessionTools.has(sessionResource)) {
+			throw new Error('Client tools already registered for this session');
+		}
+		if (new Set(tools.map(tool => tool.name)).size !== tools.length) {
+			throw new Error('Duplicate session client tool names');
+		}
+		this._sessionTools.set(sessionResource, [...tools]);
+		this._sessionToolsChanged.trigger(undefined);
+		return toDisposable(() => {
+			this._sessionTools.delete(sessionResource);
+			this._sessionToolsChanged.trigger(undefined);
+		});
 	}
 
 	acquireMcpServerSupportScope(sessionType: string, roots: readonly URI[] | undefined): IAgentHostMcpServerSupportScope | undefined {
@@ -414,6 +450,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			return;
 		}
 		this._isDisposed = true;
+		this._sessionTools.clear();
 		const scopes = [...this._scopes.values()];
 		this._scopes.clear();
 		const mcpServerSupportScopes = [...this._mcpServerSupportScopes.values()];

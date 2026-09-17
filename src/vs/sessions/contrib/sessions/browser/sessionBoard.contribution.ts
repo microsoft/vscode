@@ -14,12 +14,12 @@ import { localize, localize2 } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -29,7 +29,8 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { Menus } from '../../../browser/menus.js';
 import { getSessionConversationStatusLabel } from '../../../browser/sessionConversationGroups.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { SessionReviewArtifactsFocusContext, SessionReviewHasPullRequestContext, SessionReviewHasSelectionContext, SessionReviewSectionContext, SessionReviewSidebarFocusContext, SessionReviewVisibleContext, SessionsBoardCardExpandedContext, SessionsBoardCardFocusContext, SessionsBoardFocusContext, SessionsBoardVisibleContext } from '../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionReviewArtifactsFocusContext, SessionReviewHasPullRequestContext, SessionReviewHasSelectionContext, SessionReviewSectionContext, SessionReviewSidebarFocusContext, SessionReviewVisibleContext, SessionsBoardCardExpandedContext, SessionsBoardCardFocusContext, SessionsBoardFocusContext, SessionsBoardVisibleContext } from '../../../common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_WORK_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { ICustomViewGridPartService } from '../../../services/customView/browser/customViewGridPartService.js';
 import { ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
@@ -38,7 +39,7 @@ import { ISessionReviewService } from '../../../services/sessions/browser/sessio
 import { ISessionsBoardService } from '../../../services/sessions/browser/sessionsBoardService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { SESSION_BOARD_VIEW_ID, SessionReviewSection } from '../../../services/sessions/common/sessionReview.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getSessionWorkViewLabel, SESSION_WORK_VIEWS } from '../../../services/sessions/common/sessionWorkQuery.js';
@@ -54,22 +55,31 @@ registerAction2(class ShowSessionBoard extends Action2 {
 			title: localize2('sessionBoard.show', "Show Work Overview"),
 			category: SessionsCategories.Sessions,
 			icon: Codicon.layout,
+			toggled: { condition: SessionsBoardVisibleContext, title: localize('sessionBoard.legacy', "Switch to Legacy View"), icon: Codicon.listTree },
 			f1: true,
 			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled),
 			menu: { id: Menus.SidebarSessionsHeader, group: 'navigation', order: 5, when: ChatContextKeys.enabled },
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		if (accessor.get(IChatEntitlementService).sentiment.hidden) { return; }
+		const sessions = accessor.get(ISessionsService);
+		if (sessions.isSessionBoardVisible.get()) {
+			const part = accessor.get(ISessionsPartService);
+			if (!await accessor.get(ISessionReviewService).close()) { return; }
+			sessions.setSessionBoardVisible(false);
+			part.focusSession(sessions.activeSession.get());
+			return;
+		}
 		accessor.get(ISessionsBoardService).updateOptions({ view: 'overview', collection: undefined, status: undefined, filter: '' });
-		accessor.get(ISessionsService).setSessionBoardVisible(true);
+		sessions.setSessionBoardVisible(true);
 		accessor.get(ICustomViewGridPartService).focusActiveView();
 	}
 });
 
 registerAction2(class CreateWorkCollection extends Action2 {
 	constructor() {
-		super({ id: 'sessions.work.createCollection', title: localize2('sessionsWork.createCollection', "Create Collection"), icon: Codicon.newFolder, precondition: boardEnabled, f1: true });
+		super({ id: 'sessions.work.createCollection', title: localize2('sessionsWork.createCollection', "Create Collection"), icon: Codicon.library, precondition: boardEnabled, f1: true, menu: { id: Menus.SessionsBoardControls, group: 'secondary', order: 10 } });
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const groups = accessor.get(ISessionGroupsService);
@@ -117,19 +127,49 @@ registerAction2(class NewWork extends Action2 {
 	constructor() {
 		super({ id: 'sessions.work.newSession', title: localize2('sessionsWork.newSession', "New Work"), icon: Codicon.add, precondition: boardEnabled, f1: true });
 	}
-	override run(accessor: ServicesAccessor): void {
-		const sessions = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const board = accessor.get(ISessionsBoardService);
-		const groups = accessor.get(ISessionGroupsService);
-		const notification = accessor.get(INotificationService);
 		if (accessor.get(IChatEntitlementService).sentiment.hidden) { return; }
-		const collection = board.options.get().collection;
-		const session = sessions.openQuickChat();
-		if (!session) {
-			notification.warn(localize('sessionsWork.noQuickChatProvider', "No provider is currently available for workspace-less work. Choose a provider in New Session and try again."));
-			return;
+		const view = board.activeView.get();
+		if (!view?.startNewWork) {
+			throw new Error(localize('sessionsWork.creationUnavailable', "The work dashboard is not ready to create work. Try again once it is open."));
 		}
-		if (collection) { groups.setPendingNewSessionGroup(collection); }
+		await view.startNewWork();
+	}
+});
+
+registerAction2(class ArchiveDashboardSession extends Action2 {
+	constructor() {
+		super({
+			id: ARCHIVE_WORK_SESSION_COMMAND_ID,
+			title: localize2('sessionsWork.archiveSession', "Archive Session"),
+			icon: Codicon.archive,
+			precondition: boardEnabled,
+			menu: { id: Menus.SessionReviewNavigation, group: 'navigation', order: 3, when: ContextKeyExpr.and(SessionsBoardVisibleContext, SessionIsArchivedContext.negate()) },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session: ISession): Promise<void> {
+		const sessions = accessor.get(ISessionsService);
+		const management = accessor.get(ISessionsManagementService);
+		const review = accessor.get(ISessionReviewService);
+		const commandService = accessor.get(ICommandService);
+		const board = accessor.get(ISessionsBoardService);
+		if (!session || !sessions.isSessionBoardVisible.get()) {
+			throw new Error(localize('sessionsWork.archiveUnavailable', "Choose a session in the dashboard to archive."));
+		}
+		if (isEqual(sessions.sessionReview.get()?.sessionResource, session.resource) && !await review.close()) { return; }
+		const current = management.getSession(session.resource);
+		if (!current) { throw new Error(localize('sessionsWork.missingArchiveSession', "This session is no longer available.")); }
+		if (current.isArchived.get()) { return; }
+		const view = board.activeView.get();
+		const previousFocus = getActiveElement();
+		await commandService.executeCommand(ARCHIVE_SESSION_COMMAND_ID, current);
+		const focused = getActiveElement();
+		if (current.isArchived.get() && sessions.isSessionBoardVisible.get() && !sessions.sessionReview.get() && board.activeView.get() === view
+			&& (!isHTMLElement(focused) || focused === previousFocus || focused === focused.ownerDocument.body)) {
+			view?.focusSession(undefined);
+		}
 	}
 });
 
@@ -206,9 +246,9 @@ registerAction2(class ExpandBoardChat extends Action2 {
 		super({
 			id: 'sessions.board.toggleExpanded',
 			title: localize2('sessionBoard.expand', "Expand Chat"),
-			icon: Codicon.screenFull,
+			icon: Codicon.chevronDown,
 			precondition: boardEnabled,
-			toggled: { condition: SessionsBoardCardExpandedContext, title: localize('sessionBoard.collapse', "Collapse Chat"), icon: Codicon.screenNormal },
+			toggled: { condition: SessionsBoardCardExpandedContext, title: localize('sessionBoard.collapse', "Collapse Chat"), icon: Codicon.chevronUp },
 			menu: { id: Menus.SessionsBoardCard, group: 'navigation', order: 1 },
 		});
 	}
@@ -283,7 +323,11 @@ registerAction2(class BackToSessionBoard extends Action2 {
 
 registerAction2(class ResetBoardLayout extends Action2 {
 	constructor() {
-		super({ id: 'sessions.resetSessionBoardLayout', title: localize2('sessionBoard.reset', "Reset Board Layout"), category: SessionsCategories.Sessions, icon: Codicon.discard, f1: true, precondition: boardEnabled, menu: { id: Menus.SessionsBoardToolbar, group: 'secondary', order: 1 } });
+		super({
+			id: 'sessions.resetSessionBoardLayout', title: localize2('sessionBoard.reset', "Reset Board Layout"), category: SessionsCategories.Sessions,
+			icon: Codicon.discard, f1: true, precondition: boardEnabled,
+			menu: [{ id: Menus.SessionsBoardToolbar, group: 'secondary', order: 1 }, { id: Menus.SessionsBoardControls, group: 'secondary', order: 40 }],
+		});
 	}
 	override run(accessor: ServicesAccessor): void { accessor.get(ISessionsBoardService).activeView.get()?.resetLayout(); }
 });
@@ -307,7 +351,7 @@ for (const item of [
 
 registerAction2(class BoardViewOptions extends Action2 {
 	constructor() {
-		super({ id: 'sessions.board.viewOptions', title: localize2('sessionBoard.options', "View Options"), icon: Codicon.settingsGear, precondition: boardEnabled, menu: { id: Menus.SessionsBoardControls, group: 'navigation', order: 10 } });
+		super({ id: 'sessions.board.viewOptions', title: localize2('sessionBoard.options', "View Options"), icon: Codicon.settingsGear, precondition: boardEnabled, menu: { id: Menus.SessionsBoardControls, group: 'secondary', order: 1 } });
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const board = accessor.get(ISessionsBoardService);
@@ -341,6 +385,22 @@ registerAction2(class SaveBoardView extends Action2 {
 		if (name) { board.saveView(name); }
 	}
 });
+
+for (const view of ['archive', 'archived'] as const) {
+	registerAction2(class ShowArchiveWork extends Action2 {
+		constructor() {
+			super({
+				id: `sessions.work.${view}`, title: getSessionWorkViewLabel(view),
+				icon: view === 'archive' ? Codicon.archive : Codicon.history,
+				precondition: boardEnabled,
+				menu: { id: Menus.SessionsBoardControls, group: 'secondary', order: view === 'archive' ? 20 : 30 },
+			});
+		}
+		override run(accessor: ServicesAccessor): void {
+			accessor.get(ISessionsBoardService).updateOptions({ view, collection: undefined, filter: '' });
+		}
+	});
+}
 
 registerAction2(class MoveBoardSessionToGroup extends Action2 {
 	constructor() { super({ id: 'sessions.board.moveToGroup', title: localize2('sessionBoard.moveGroup', "Move to Collection..."), precondition: boardEnabled, menu: { id: Menus.SessionsBoardCard, group: 'secondary', order: 10 } }); }
@@ -385,6 +445,7 @@ class SessionBoardAccessibility implements IAccessibleViewImplementation {
 			? board.activeView.get()?.getAccessibilityHelp?.() ?? [
 				localize('sessionBoard.help', "My work contains Needs you, Needs review, In progress, and a collapsed All sessions section. Every session is a compact card. Ordinary cards show metadata and a lightweight reply input without loading conversations. Visible cards waiting for input load their real approval or question controls automatically; a decision always requires your action. Use arrow keys to navigate the tree and Tab to enter card controls. Enter opens focused review from a card header and sends from its reply input; Shift+Enter adds a line. Find Work filters titles and workspaces without performing actions."),
 				localize('sessionBoard.collectionsHelp', "Pin as Automatic Collection adds a section to the sidebar while keeping it in My work. Automatic collections update as sessions change and do not accept manual drops. Drag a card header onto a manual collection, or use Move to Collection in the card menu. This changes its manual collection, not its status or repository. Removing a collection leaves its sessions available in All sessions. Save View stores filter criteria. More Actions provides archive suggestions, archived sessions, and view options."),
+				localize('sessionBoard.controlsHelp', "The sidebar view switch returns to the legacy view while the dashboard is active. New Session moves into the dashboard toolbar. Archive Session is available on idle cards, in card More Actions while working, and in focused review. Collections have a library icon, distinct from workspace folders."),
 				localize('sessionBoard.resizeHelp', "Drag the right or bottom edge of a card to resize it. Increasing height reveals the conversation above the reply; reducing height returns to the compact card without losing its draft. With a card header focused, use {0} or {1} to resize its width and {2} or {3} to show more or less conversation. Expand or Collapse Conversation is also available in the card menu. These resize commands are available in the Command Palette.", '<keybinding:sessions.board.increaseWidth>', '<keybinding:sessions.board.decreaseWidth>', '<keybinding:sessions.board.increaseHeight>', '<keybinding:sessions.board.decreaseHeight>'),
 				localize('sessionBoard.reviewArchiveHelp', "Mark Results Reviewed records a review checkpoint, not approval or task completion. Consider Archiving uses explicit local activity and known outcomes; automatic card loading does not count as human activity. Missing data requires inspection. Select cards with their checkboxes, or press Space on a card header. Archive Selected previews effects and rechecks each session; Keep Selected dismisses suggestions."),
 			].join('\n\n')

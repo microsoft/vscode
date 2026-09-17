@@ -15,6 +15,9 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ARCHIVE_WORK_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionInputDraft, ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionReviewService } from '../../../../services/sessions/browser/sessionReviewService.js';
@@ -41,7 +44,19 @@ suite('Wrapping session card board', () => {
 			return state;
 		};
 		instantiation.stub(ISessionInputDraftService, { getDraft, setDraft: (resource, state) => getDraft(resource).set(state, undefined) });
-		instantiation.stub(ISessionReviewService, { send: async () => true });
+		const stopped: IChat[] = [];
+		const errors: unknown[] = [];
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		let stopFailure: Error | undefined;
+		instantiation.stub(ISessionReviewService, {
+			send: async () => true,
+			stop: async (_session, chat) => {
+				stopped.push(chat);
+				if (stopFailure) { throw stopFailure; }
+			},
+		});
+		instantiation.stub(INotificationService, { error: error => { errors.push(error); }, info: () => { } });
+		instantiation.stub(ICommandService, { executeCommand: async (id, ...args) => { commands.push({ id, args }); } });
 		instantiation.stub(ISessionsService, { visibleSessions: constObservable([]) });
 		instantiation.stub(ISessionsBoardService, store.add(new SessionsBoardService(store.add(new InMemoryStorageService()), new NullLogService())));
 		let loads = 0;
@@ -71,7 +86,7 @@ suite('Wrapping session card board', () => {
 		container.appendChild(board.element);
 		store.add(toDisposable(() => container.remove()));
 		board.layout(984, height);
-		return { board, data, container, getDraft, counts: () => ({ loads, disposals }), ids: data.map(data => data.session.sessionId) };
+		return { board, data, container, getDraft, stopped, errors, commands, failStop: (error?: Error) => { stopFailure = error; }, counts: () => ({ loads, disposals }), ids: data.map(data => data.session.sessionId) };
 	}
 
 	test('cards own their rectangles and do not create a native tree or transcript at rest', () => {
@@ -82,6 +97,77 @@ suite('Wrapping session card board', () => {
 			trees: container.querySelectorAll('[role=tree]').length,
 			counts: counts(),
 		}, { columns: 3, widths: [320, 320, 320, 320, 320, 320], trees: 0, counts: { loads: 0, disposals: 0 } });
+	});
+
+	test('unchanged data, layout state and viewport do not recompute card placement', () => {
+		const h = setup(2);
+		const layout = h.board.layoutInfo;
+		h.board.setItems([...h.data]);
+		h.board.setLayoutState({ order: [...h.board.layoutState.order], sizes: [...h.board.layoutState.sizes] });
+		h.board.layout(984, 700);
+		h.board.setViewport(0, 700);
+		assert.strictEqual(h.board.layoutInfo, layout);
+	});
+
+	test('action keys avoid constructing replacements for unchanged action state', () => {
+		let creations = 0;
+		const h = setup(1, 700, {
+			getActions: (_entry, actions) => { creations++; return actions; },
+			getActionsKey: entry => String(entry.pinned),
+		});
+		const initial = creations;
+		h.board.setItems([{ ...h.data[0], description: 'New activity' }]);
+		const activity = creations;
+		h.board.setItems([{ ...h.data[0], pinned: true }]);
+		assert.deepStrictEqual({ initial, activity, changed: creations }, { initial: 1, activity: 1, changed: 2 });
+	});
+
+	test('a waiting card exposes an icon-only Stop Response targeting its pending peer', async () => {
+		const h = setup(1);
+		const original = h.data[0].session;
+		const main = { ...original.mainChat.get(), status: constObservable(SessionStatus.Completed) };
+		const peer = { ...main, resource: URI.parse('test:/pending-peer'), status: observableValue('status', SessionStatus.NeedsInput) };
+		const session = { ...original, mainChat: constObservable(main), chats: constObservable([main, peer]), status: peer.status };
+		h.board.setItems([{ ...h.data[0], session, summary: readSessionWorkSummary(session, {}, { now: Date.now(), inactivityDays: 30, active: false, pinned: false }) }]);
+		const stop = h.container.querySelector<HTMLElement>('.session-work-card-actions .codicon-debug-stop')!;
+		assert.ok(stop);
+		const label = stop.getAttribute('aria-label');
+		const text = stop.textContent;
+		stop.focus();
+		stop.click();
+		await timeout(0);
+		peer.status.set(SessionStatus.Completed, undefined);
+		assert.deepStrictEqual({
+			label, text, stopped: h.stopped, errors: h.errors,
+			remainingStop: h.container.querySelectorAll('.codicon-debug-stop').length,
+			replyFocused: document.activeElement === h.container.querySelector('textarea'),
+		}, { label: 'Stop Response', text: '', stopped: [peer], errors: [], remainingStop: 0, replyFocused: true });
+	});
+
+	test('a failed stop is reported and leaves the response control available', async () => {
+		const h = setup(1);
+		const failure = new Error('Could not stop the response');
+		h.failStop(failure);
+		h.container.querySelector<HTMLElement>('.codicon-debug-stop')!.click();
+		await timeout(0);
+		h.failStop();
+		h.container.querySelector<HTMLElement>('.codicon-debug-stop')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ errors: h.errors, requests: h.stopped.length }, { errors: [failure], requests: 2 });
+	});
+
+	test('an idle card offers an archive codicon for its own session', async () => {
+		const h = setup(1);
+		const original = h.data[0].session;
+		const chat = { ...original.mainChat.get(), status: constObservable(SessionStatus.Completed) };
+		const session = { ...original, status: chat.status, mainChat: constObservable(chat), chats: constObservable([chat]) };
+		h.board.setItems([{ ...h.data[0], session }]);
+		const archive = h.container.querySelector<HTMLElement>('.session-work-card-actions .codicon-archive')!;
+		assert.ok(archive);
+		archive.click();
+		await timeout(0);
+		assert.deepStrictEqual({ label: archive.getAttribute('aria-label'), text: archive.textContent, commands: h.commands, errors: h.errors },
+			{ label: 'Archive Session', text: '', commands: [{ id: ARCHIVE_WORK_SESSION_COMMAND_ID, args: [session] }], errors: [] });
 	});
 
 	test('resize preview moves neighboring cards and cancellation restores the original geometry', () => {

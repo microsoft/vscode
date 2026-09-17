@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
-import { joinPath } from '../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -36,6 +36,7 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { AGENT_WORKSPACE_SETUP_META_KEY, readAgentWorkspaceSetup, type IAgentWorkspaceSetup } from '../../common/meta/agentWorkspaceConversionMeta.js';
 import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
@@ -8239,6 +8240,38 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(getStateManager(localService).getSessionState(sessionResource.toString())?._meta, { workspaceless: true });
+		});
+
+		test('lists and restores interrupted workspace setup as unknown without replay', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			await createAgentSession(copilotAgent);
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			const db = sessionData.database(sessionResource);
+			copilotAgent.sessionMessages = [];
+			const setup: IAgentWorkspaceSetup = {
+				version: 1, operationId: 'operation-1', chat: buildDefaultChatUri(sessionResource), turnId: 'turn-1',
+				requestedWorkspace: 'file:///workspace/project', isolation: 'worktree',
+				phase: 'preparing', continuation: 'pending', continuationTurnId: 'continuation-1',
+			};
+			await db.setMetadata(AGENT_WORKSPACE_SETUP_META_KEY, JSON.stringify(setup));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
+			copilotAgent.listChatsToMigrate = () => copilotAgent.listExternalChats();
+			registerTestAgentProvider(localService, copilotAgent);
+			const listed = (await localService.listSessions()).find(session => isEqual(session.session, sessionResource));
+			assert.ok(listed, 'The interrupted session must be discoverable');
+			await localService.restoreSession(sessionResource);
+			const restored = readAgentWorkspaceSetup(getStateManager(localService).getSessionState(sessionResource.toString())!);
+			assert.deepStrictEqual({
+				listedPhase: readAgentWorkspaceSetup(listed)?.phase,
+				restoredPhase: restored?.phase,
+				continuation: restored?.continuation,
+				operationId: restored?.operationId,
+				messages: copilotAgent.sessionMessages,
+			}, {
+				listedPhase: 'unknown', restoredPhase: 'unknown', continuation: 'unknown',
+				operationId: 'operation-1', messages: [],
+			});
 		});
 
 		test('restores persisted multi-root metadata', async () => {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -19,16 +18,14 @@ import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
+import { NewChatInSessionsWindowAction } from './newChatInSessionsWindowAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './modelPicker.js';
 import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 import { RegisterDefaultSessionTaskRunnersContribution } from './registerDefaultSessionTaskRunners.js';
@@ -48,9 +45,9 @@ import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contr
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
-import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
@@ -149,66 +146,6 @@ const chatBackgroundImageLayoutEnumConfiguration = {
 	enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
 	enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
 };
-
-class NewChatInSessionsWindowAction extends Action2 {
-
-	constructor() {
-		super({
-			id: NEW_SESSION_ACTION_ID,
-			title: localize2('sessions.newSession.label', "New Session"),
-			category: CHAT_CATEGORY,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.SessionsContrib,
-				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
-				// editor area so the standard editor commands (new untitled file,
-				// expand line selection) handle the shortcut instead.
-				when: EditorAreaFocusContext.negate(),
-				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
-				mac: {
-					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
-				},
-			},
-			menu: [
-				{
-					id: Menus.SidebarSessionsHeader,
-					group: 'navigation',
-					// Render before the filter (order 10) and find (order 20)
-					// actions so the sessions sidebar header reads: New, Filter, Find.
-					order: 0,
-				},
-				{
-					id: Menus.TitleBarLeftLayout,
-					group: 'navigation',
-					order: 1,
-					// Show in the titlebar only when the sidebar is hidden, gated behind an A/B experiment.
-					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
-				}
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean }): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const activeSession = sessionsService.activeSession.get();
-		// A quick chat never contributes its folder — it is workspace-less by
-		// intent (any scratch working directory must not seed the workspace
-		// composer), so it always falls to the New Session composer's folder picker.
-		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
-		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
-		// Inherit the active session's harness so the new session defaults to
-		// the kind the user is working in — but only while the folder still
-		// offers it (see `inheritableSessionTarget`).
-		await sessionsService.openNewSession({
-			folderUri,
-			toSide: options?.toSide,
-			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
-		});
-	}
-}
 
 registerAction2(NewChatInSessionsWindowAction);
 

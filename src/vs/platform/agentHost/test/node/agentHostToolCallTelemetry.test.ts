@@ -277,6 +277,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				requestSessionWorkspaceUpdate: () => { },
 				isPending: () => false,
 				cancel: () => { },
+				finishContinuation: () => { },
+				resumeContinuation: () => { },
 				updateSessionWorkspace: async () => { },
 			}],
 		);

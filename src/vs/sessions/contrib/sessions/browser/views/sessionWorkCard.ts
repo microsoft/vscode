@@ -10,13 +10,15 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { ResizableHTMLElement } from '../../../../../base/browser/ui/resizable/resizable.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -26,12 +28,14 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { SessionsBoardCardExpandedContext, SessionsBoardCardFocusContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_WORK_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionReviewService } from '../../../../services/sessions/browser/sessionReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionWorkEntry } from '../../../../services/sessions/common/sessionWorkQuery.js';
 import { SessionWorkCardContent, SessionWorkCardContentMode } from './sessionWorkCardContent.js';
+import { canStopSessionResponse, SessionResponseStopAction } from '../sessionResponseStopAction.js';
 
 export interface ISessionWorkCardData extends ISessionWorkEntry {
 	readonly description: string;
@@ -53,6 +57,7 @@ const MIN_CONVERSATION_HEIGHT = 40;
 const statusColors = {
 	input: 'list.warningForeground',
 	connection: 'list.warningForeground',
+	setup: 'list.warningForeground',
 	working: 'textLink.foreground',
 	error: 'errorForeground',
 	review: 'charts.green',
@@ -74,6 +79,11 @@ export class SessionWorkCard extends Disposable {
 	private readonly input: InputBox;
 	private readonly send: Button;
 	private readonly toolbar: WorkbenchToolBar;
+	private readonly stopAction: SessionResponseStopAction;
+	private readonly archiveAction: Action;
+	private actions: readonly IAction[] = [];
+	private canStop = false;
+	private canArchive = false;
 	private readonly hover = this._register(new MutableDisposable());
 	private readonly content = this._register(new MutableDisposable<SessionWorkCardContent>());
 	private readonly contentStore = this._register(new DisposableStore());
@@ -160,6 +170,7 @@ export class SessionWorkCard extends Disposable {
 		@ISessionReviewService private readonly review: ISessionReviewService,
 		@ISessionsService private readonly sessions: ISessionsService,
 		@INotificationService private readonly notifications: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.element.classList.add('session-work-card');
@@ -183,6 +194,11 @@ export class SessionWorkCard extends Disposable {
 		this.toolbar = this._register(this.scopedInstantiation.createInstance(WorkbenchToolBar, actions, {
 			ariaLabel: localize('sessionWorkCard.actions', "Session Card Actions"),
 		}));
+		this.stopAction = this._register(this.scopedInstantiation.createInstance(SessionResponseStopAction, () => {
+			const session = this.data.get()?.session;
+			return session && this.chat ? { session, chat: this.chat } : undefined;
+		}));
+		this.archiveAction = this._register(new Action(ARCHIVE_WORK_SESSION_COMMAND_ID, localize('sessionWorkCard.archive', "Archive Session"), ThemeIcon.asClassName(Codicon.archive), true, () => this.archiveSession()));
 		const inputContainer = $('.session-work-card-input');
 		this.input = this._register(new InputBox(inputContainer, contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
@@ -270,7 +286,7 @@ export class SessionWorkCard extends Disposable {
 			this.hover.value = this.hoverService.setupDelayedHover(this.header, { content: `${title}\n${data.description}` });
 			const archived = session.isArchived.read(reader);
 			const status = archived ? 'archived' : summary.attention ?? (summary.running ? 'working' : summary.hasResults ? 'review' : 'idle');
-			const glyph = status === 'input' ? Codicon.question : status === 'error' ? Codicon.error
+			const glyph = status === 'input' || status === 'setup' ? Codicon.question : status === 'error' ? Codicon.error
 				: status === 'connection' ? Codicon.debugDisconnect : status === 'working' ? Codicon.sessionInProgress
 					: status === 'review' ? Codicon.gitPullRequest : status === 'archived' ? Codicon.archive : Codicon.circleSmallFilled;
 			const icon = renderIcon(glyph);
@@ -284,6 +300,14 @@ export class SessionWorkCard extends Disposable {
 			const selected = active?.activeChat.read(reader) ?? session.mainChat.read(reader);
 			const chat = pendingChat ?? selected;
 			this.chat = chat;
+			const canStop = canStopSessionResponse(session, chat, reader);
+			const canArchive = !archived && session.status.read(reader) !== SessionStatus.Untitled;
+			const restoreReplyFocus = this.canStop && !canStop && isAncestorOfActiveElement(actions);
+			if (canStop !== this.canStop || canArchive !== this.canArchive) {
+				this.canStop = canStop;
+				this.canArchive = canArchive;
+				this.updateActions();
+			}
 			const draft = this.drafts.getDraft(chat.resource).read(reader);
 			this.updatingInput = true;
 			if (this.input.value !== draft.inputText) { this.input.value = draft.inputText; }
@@ -338,11 +362,34 @@ export class SessionWorkCard extends Disposable {
 			}
 			this.contentContainer.hidden = !this.content.value;
 			this.updateLayout();
+			if (restoreReplyFocus) { this.focus(); }
 		}));
 	}
 
 	update(data: ISessionWorkCardData): void { this.data.set(data, undefined); }
-	setActions(actions: readonly IAction[]): void { this.toolbar.setActions(actions.slice(0, 2), actions.slice(2)); }
+	setActions(actions: readonly IAction[]): void { this.actions = actions; this.updateActions(); }
+	private updateActions(): void {
+		this.toolbar.setActions(
+			[...this.actions.slice(0, 2), ...this.canStop ? [this.stopAction] : this.canArchive ? [this.archiveAction] : []],
+			[...this.canStop && this.canArchive ? [this.archiveAction] : [], ...this.actions.slice(2)],
+		);
+	}
+	private async archiveSession(): Promise<void> {
+		const session = this.data.get()?.session;
+		if (!session) {
+			this.notifications.error(localize('sessionWorkCard.archiveUnavailable', "This session is no longer available."));
+			return;
+		}
+		if (session.isArchived.get() || !this.archiveAction.enabled) { return; }
+		this.archiveAction.enabled = false;
+		try {
+			await this.commandService.executeCommand(ARCHIVE_WORK_SESSION_COMMAND_ID, session);
+		} catch (error) {
+			this.notifications.error(error);
+		} finally {
+			if (!this._store.isDisposed) { this.archiveAction.enabled = true; }
+		}
+	}
 	setVisible(visible: boolean): void { this.visible.set(visible, undefined); }
 
 	layout(availableWidth: number, size?: ISessionWorkCardSize): void {

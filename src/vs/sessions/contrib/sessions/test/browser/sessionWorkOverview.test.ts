@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, size } from '../../../../../base/browser/dom.js';
+import sinon from 'sinon';
+import { $, getWindow, size } from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -33,14 +35,19 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISession, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionReviewState, SessionReviewSection } from '../../../../services/sessions/common/sessionReview.js';
 import { SessionWorkView } from '../../../../services/sessions/common/sessionWorkQuery.js';
-import { readSessionWorkSummary } from '../../../../services/sessions/common/sessionWorkSummary.js';
+import { readSessionWorkResultVersion, readSessionWorkSummary } from '../../../../services/sessions/common/sessionWorkSummary.js';
+import { createWorkTestSession } from '../../../../services/sessions/test/common/sessionWorkTestUtils.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
+import { ISessionIntentService } from '../../../intent/common/sessionIntent.js';
+import { IDashboardWorkService } from '../../../intent/common/dashboardWork.js';
+import { SessionWorkCard } from '../../browser/views/sessionWorkCard.js';
 import { SessionBoardView } from '../../browser/views/sessionBoardView.js';
 import { SessionWorkCardContent } from '../../browser/views/sessionWorkCardContent.js';
 
 suite('Native wrapping work overview', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	function createOverview(sessions: ISession[], view: SessionWorkView = 'overview', options?: {
 		readonly confirm?: () => boolean;
@@ -51,6 +58,7 @@ suite('Native wrapping work overview', () => {
 		readonly cachedModels?: boolean;
 		readonly collection?: string;
 		readonly collectionMembers?: readonly string[];
+		readonly dashboardConversation?: ISession;
 	}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		const board = store.add(new SessionsBoardService(store.add(new InMemoryStorageService()), new NullLogService()));
@@ -70,6 +78,11 @@ suite('Native wrapping work overview', () => {
 			return draft;
 		};
 		instantiation.stub(ISessionsBoardService, board);
+		instantiation.stub(ISessionIntentService, { intakes: constObservable([]) });
+		instantiation.stub(IDashboardWorkService, {
+			sessions: constObservable(options?.dashboardConversation ? [options.dashboardConversation] : []), executions: constObservable([]),
+			getSessionForChat: () => options?.dashboardConversation,
+		});
 		instantiation.stub(ISessionsManagementService, {
 			getSessions: () => sessions,
 			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
@@ -154,6 +167,69 @@ suite('Native wrapping work overview', () => {
 		assert.ok(slot, `Missing visible card ${id}`);
 		return slot;
 	}
+
+	test('an unreviewed catalog does not eagerly calculate result fingerprints', () => {
+		const { session } = createWorkTestSession();
+		session.changes.set([{ modifiedUri: URI.file('/repo/file.ts'), insertions: 4, deletions: 2 }], undefined);
+		const hashes = sinon.spy(StringSHA1.prototype, 'update');
+		const h = createOverview([session], 'all');
+		assert.deepStrictEqual({ hashes: hashes.callCount, cards: h.container.querySelectorAll('.session-work-card').length }, { hashes: 0, cards: 1 });
+	});
+
+	test('one result update rehashes and updates only its session card', async () => {
+		const first = createWorkTestSession(URI.parse('test:/first')).session;
+		const second = createWorkTestSession(URI.parse('test:/second')).session;
+		const change = { modifiedUri: URI.file('/repo/file.ts'), insertions: 4, deletions: 2 };
+		first.changes.set([change], undefined);
+		second.changes.set([change], undefined);
+		const checkpoints = new ResourceMap([[first.resource, readSessionWorkResultVersion(first)], [second.resource, readSessionWorkResultVersion(second)]]);
+		const h = createOverview([first, second], 'all', { reviewCheckpoints: checkpoints });
+		const hashes = sinon.spy(StringSHA1.prototype, 'update');
+		const updates = sinon.spy(SessionWorkCard.prototype, 'update');
+		first.changes.set([{ ...change, insertions: 5 }], undefined);
+		h.catalog.fire({ added: [], removed: [], changed: [first] });
+		await new Promise<void>(resolve => getWindow(h.container).requestAnimationFrame(() => resolve()));
+		assert.deepStrictEqual({ hashes: hashes.callCount, updated: updates.getCalls().map(call => call.args[0].session.sessionId) },
+			{ hashes: 1, updated: [first.sessionId] });
+	});
+
+	test('a burst of metadata changes produces one update for the affected card', async () => {
+		const first = createWorkTestSession(URI.parse('test:/first')).session;
+		const second = createWorkTestSession(URI.parse('test:/second')).session;
+		const h = createOverview([first, second], 'all');
+		const updates = sinon.spy(SessionWorkCard.prototype, 'update');
+		const hashes = sinon.spy(StringSHA1.prototype, 'update');
+		for (let index = 0; index < 20; index++) { first.title.set(`Title ${index}`, undefined); }
+		const synchronousUpdates = updates.callCount;
+		await new Promise<void>(resolve => getWindow(h.container).requestAnimationFrame(() => resolve()));
+		assert.deepStrictEqual({
+			synchronousUpdates, updated: updates.getCalls().map(call => call.args[0].session.sessionId), hashes: hashes.callCount,
+			title: card(h.container, first.sessionId).querySelector('.session-work-title')?.textContent,
+		}, { synchronousUpdates: 0, updated: [first.sessionId], hashes: 0, title: 'Title 19' });
+	});
+
+	test('filtering, sorting and resizing do not rehash unchanged reviewed results', () => {
+		const { session } = createWorkTestSession();
+		session.changes.set([{ modifiedUri: URI.file('/repo/file.ts'), insertions: 4, deletions: 2 }], undefined);
+		const h = createOverview([session], 'all', { reviewCheckpoints: new ResourceMap([[session.resource, readSessionWorkResultVersion(session)]]) });
+		const hashes = sinon.spy(StringSHA1.prototype, 'update');
+		h.board.updateOptions({ filter: 'Work' });
+		h.board.updateOptions({ sort: 'updated' });
+		h.overview.resizeCard(session.sessionId, 1, 0);
+		assert.strictEqual(hashes.callCount, 0);
+	});
+
+	test('Stop and pending controls remain available before a scheduled catalog repaint', async () => {
+		const { session, chat } = createWorkTestSession();
+		const h = createOverview([session], 'all');
+		transaction(tx => {
+			session.status.set(SessionStatus.NeedsInput, tx);
+			chat.status.set(SessionStatus.NeedsInput, tx);
+		});
+		assert.strictEqual(card(h.container, session.sessionId).querySelectorAll('.codicon-debug-stop').length, 1);
+		await new Promise<void>(resolve => getWindow(h.container).requestAnimationFrame(() => resolve()));
+		assert.strictEqual(card(h.container, session.sessionId).querySelectorAll('.codicon-debug-stop').length, 1);
+	});
 
 	test('real work uses wrapping cards and only the custom-view host owns board scrolling', () => {
 		const sessions = Array.from({ length: 30 }, (_, index) => makeSession(URI.parse(`test:/work-${index}`), { status: SessionStatus.InProgress }));
@@ -312,6 +388,23 @@ suite('Native wrapping work overview', () => {
 		assert.deepStrictEqual(openDetails, [{ sessionId: current.sessionId, section: SessionReviewSection.Conversation, chatResource: waiting.resource.toString() }]);
 	});
 
+	test('Open Work on a workspace-less dashboard conversation uses review without moving its card into the draft area', async () => {
+		const base = makeSession(URI.parse('test:/dashboard-work'));
+		const chat = { ...base.mainChat.get(), status: constObservable(SessionStatus.NeedsInput) };
+		const session = { ...base, status: chat.status, mainChat: constObservable(chat), chats: constObservable([chat]), workspace: constObservable(undefined), isQuickChat: constObservable(true) };
+		const { container, openDetails } = createOverview([session], 'all', { dashboardConversation: session });
+		const original = card(container, session.sessionId);
+		original.querySelector<HTMLElement>('.codicon-link-external')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			openDetails, retainedCard: card(container, session.sessionId) === original,
+			creationPanels: container.querySelectorAll('.session-work-intake').length,
+		}, {
+			openDetails: [{ sessionId: session.sessionId, section: SessionReviewSection.Conversation, chatResource: chat.resource.toString() }],
+			retainedCard: true, creationPanels: 0,
+		});
+	});
+
 	test('opening completed changes selects the existing native changes review', async () => {
 		const session = makeSession(URI.parse('test:/changed'), { changes: [{ uri: URI.file('/repo/test.ts'), insertions: 1, deletions: 0 }] });
 		const { container, openDetails } = createOverview([session], 'all');
@@ -337,6 +430,41 @@ suite('Native wrapping work overview', () => {
 			sameInput: input === card(container, session.sessionId).querySelector('textarea'),
 			restoredFocus: document.activeElement === header,
 		}, { suspendedDisposals: 1, loads: 2, sameInput: true, restoredFocus: true });
+	});
+
+	test('closing review reveals completed work that moved into collapsed All sessions', async () => {
+		const original = makeSession(URI.parse('test:/stopped-work'));
+		const state = observableValue('status', SessionStatus.NeedsInput);
+		const chat = { ...original.mainChat.get(), status: state };
+		const session = { ...original, status: state, mainChat: constObservable(chat), chats: constObservable([chat]), workspace: constObservable(undefined) };
+		const h = createOverview([session]);
+		const all = section(h.container, 'All sessions').querySelector<HTMLElement>('.session-work-section-toggle')!;
+		assert.strictEqual(all.getAttribute('aria-expanded'), 'false');
+		h.review.set({ sessionResource: session.resource, section: SessionReviewSection.Conversation }, undefined);
+		state.set(SessionStatus.Completed, undefined);
+		h.review.set(undefined, undefined);
+		await new Promise<void>(resolve => getWindow(h.container).requestAnimationFrame(() => resolve()));
+		const returned = card(h.container, session.sessionId);
+		assert.deepStrictEqual({
+			allExpanded: all.getAttribute('aria-expanded'),
+			focused: document.activeElement === returned.querySelector('.session-work-card-header'),
+			view: h.board.options.get().view,
+			draftPanels: h.container.querySelectorAll('.session-work-intake').length,
+		}, { allExpanded: 'true', focused: true, view: 'overview', draftPanels: 0 });
+	});
+
+	test('returning from review does not change a query that no longer matches the session', async () => {
+		const original = makeSession(URI.parse('test:/filtered-stop'));
+		const state = observableValue('status', SessionStatus.NeedsInput);
+		const chat = { ...original.mainChat.get(), status: state };
+		const session = { ...original, status: state, mainChat: constObservable(chat), chats: constObservable([chat]) };
+		const h = createOverview([session], 'needsInput');
+		h.review.set({ sessionResource: session.resource, section: SessionReviewSection.Conversation }, undefined);
+		state.set(SessionStatus.Completed, undefined);
+		h.review.set(undefined, undefined);
+		await new Promise<void>(resolve => getWindow(h.container).requestAnimationFrame(() => resolve()));
+		assert.deepStrictEqual({ view: h.board.options.get().view, cards: h.container.querySelectorAll('.session-work-card').length },
+			{ view: 'needsInput', cards: 0 });
 	});
 
 	test('regrouping waits for the reply to lose focus but does not remain stale afterwards', async () => {

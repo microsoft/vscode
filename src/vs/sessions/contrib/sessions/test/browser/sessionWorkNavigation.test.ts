@@ -119,6 +119,16 @@ suite('Native session work navigation', () => {
 		}, { labels: ['My work', 'Create Collection...'], levels: ['1', '1'], draggable: false, acquisitions: 0 });
 	});
 
+	test('new manual collections use a library icon, not a filesystem folder', () => {
+		const { container, setGroups } = createNavigation();
+		setGroups([release]);
+		const collection = row(container, 'Release');
+		assert.deepStrictEqual({
+			library: collection.querySelectorAll('.codicon-library').length,
+			folder: collection.querySelectorAll('.codicon-folder, .codicon-folder-library').length,
+		}, { library: 1, folder: 0 });
+	});
+
 	test('manual collections, promoted builtin filters, and saved queries are flat and in that order', () => {
 		const { container, board, setGroups } = createNavigation();
 		setGroups([fixes, release]);

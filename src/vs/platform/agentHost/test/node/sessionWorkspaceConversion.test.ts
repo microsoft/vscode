@@ -14,10 +14,11 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/agent.js';
-import type { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContributionContext, IAppliedClientAction } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWorkspaceContinuationMeta.js';
+import { AGENT_WORKSPACE_SETUP_META_KEY, readAgentWorkspaceSetup, restoreAgentWorkspaceSetup, withAgentWorkspaceSetup } from '../../common/meta/agentWorkspaceConversionMeta.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -207,7 +208,7 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: [scratch.toString()],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
-		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools };
+		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools, turnService };
 	}
 
 	function setSessionConfig(harness: ReturnType<typeof createHarness>, values: Record<string, unknown>): void {
@@ -242,6 +243,267 @@ suite('SessionWorkspaceConversionService', () => {
 	function updateSessionWorkspace(harness: ReturnType<typeof createHarness>): Promise<void> {
 		return harness.service.updateSessionWorkspace(harness.chat.toString(), 'turn-1');
 	}
+
+	test('reports requested, preparing, and the actual attached worktree for one operation', async () => {
+		const trust = new DeferredPromise<boolean>();
+		const worktree = URI.file('/worktrees/project');
+		const harness = createHarness(new TestWorktreeIsolation(worktree), () => trust.p);
+		harness.agent.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), true, 'client-1');
+		const requested = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		completeTurn(harness.stateManager, harness.chat);
+		const conversion = updateSessionWorkspace(harness);
+		const preparing = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		trust.complete(true);
+		await conversion;
+		const attached = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		const restored = restoreAgentWorkspaceSetup(await harness.database.getMetadata(AGENT_WORKSPACE_SETUP_META_KEY));
+		assert.deepStrictEqual({
+			phases: [requested?.phase, preparing?.phase, attached?.phase],
+			sameOperation: requested?.operationId === attached?.operationId,
+			requested: attached?.requestedWorkspace,
+			actual: attached?.actualWorkspace,
+			isolation: attached?.isolation,
+			continuation: attached?.continuation,
+			restoredPhase: restored?.phase,
+			restoredContinuation: restored?.continuation,
+			count: harness.continuations.length,
+		}, {
+			phases: ['requested', 'preparing', 'attached'], sameOperation: true,
+			requested: 'file:///workspace/project', actual: worktree.toString(), isolation: 'worktree',
+			continuation: 'running', restoredPhase: 'attached', restoredContinuation: 'unknown', count: 1,
+		});
+	});
+
+	test('reports attachment failure without claiming the requested workspace was attached', async () => {
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => false);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		const setup = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		assert.deepStrictEqual({
+			phase: setup?.phase, actual: setup?.actualWorkspace,
+			error: setup?.attachmentError, continuationError: setup?.continuationError,
+			scratch: harness.stateManager.getSessionState(harness.session.toString())?.workingDirectories,
+		}, {
+			phase: 'failed', actual: undefined,
+			error: `Workspace trust was not granted for '${URI.file('/workspace/project').fsPath}'`, continuationError: undefined,
+			scratch: [harness.scratch.toString()],
+		});
+	});
+
+	test('does not change the provider when the requested setup marker cannot be persisted', async () => {
+		const database = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				if (key === AGENT_WORKSPACE_SETUP_META_KEY) {
+					throw new Error('setup write failed');
+				}
+				await super.setMetadata(key, value);
+			}
+		}();
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
+		let providerCalls = 0;
+		harness.agent.setWorkingDirectory = async () => { providerCalls++; };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			providerCalls,
+			phase: readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)?.phase,
+			continuations: harness.continuations.length,
+			blocked: harness.service.isPending(harness.chat.toString()),
+		}, { providerCalls: 0, phase: 'unknown', continuations: 0, blocked: true });
+	});
+
+	test('a new confirmed request replaces a cancelled operation without stale metadata writes', async () => {
+		const harness = createHarness();
+		harness.agent.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/first'), false, 'client-1');
+		const first = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!;
+		harness.service.cancel(harness.chat.toString(), 'turn-1');
+		const cancelled = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)?.phase;
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/second'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		const restored = restoreAgentWorkspaceSetup(await harness.database.getMetadata(AGENT_WORKSPACE_SETUP_META_KEY));
+		assert.deepStrictEqual({
+			cancelled, newOperation: restored?.operationId !== first.operationId,
+			actual: restored?.actualWorkspace, phase: restored?.phase, count: harness.continuations.length,
+		}, { cancelled: 'cancelled', newOperation: true, actual: 'file:///workspace/second', phase: 'attached', count: 1 });
+	});
+
+	test('keeps attached state when starting the continuation fails', async () => {
+		const harness = createHarness();
+		harness.agent.setWorkingDirectory = async () => { };
+		harness.turnService.continueDeferredTurnMessage = () => { throw new Error('Provider disconnected'); };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		const setup = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		assert.deepStrictEqual({
+			phase: setup?.phase, actual: setup?.actualWorkspace,
+			attachmentError: setup?.attachmentError, continuation: setup?.continuation, error: setup?.continuationError,
+		}, {
+			phase: 'attached', actual: 'file:///workspace/project', attachmentError: undefined,
+			continuation: 'failed', error: 'Provider disconnected',
+		});
+	});
+
+	test('tracks an asynchronous continuation error separately from successful attachment', async () => {
+		const harness = createHarness();
+		harness.agent.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		harness.service.finishContinuation({
+			session: harness.session.toString(), channel: harness.chat.toString(), turnId: 'continuation-1',
+			reason: { kind: 'error', error: { errorType: 'provider', message: 'Provider disconnected' }, resumable: false },
+		});
+		const setup = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		assert.deepStrictEqual({
+			phase: setup?.phase, continuation: setup?.continuation, error: setup?.continuationError,
+		}, { phase: 'attached', continuation: 'failed', error: 'Provider disconnected' });
+	});
+
+	test('an explicitly resumed continuation reports running and completion without repeating setup', async () => {
+		const harness = createHarness();
+		let mutations = 0;
+		harness.agent.setWorkingDirectory = async () => { mutations++; };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		const contribution = disposables.add(new SessionWorkspaceConversionContribution(
+			new class extends mock<IAgentHostChatContributionContext>() { }(), harness.service,
+		));
+		contribution.onTurnEnd({
+			session: harness.session.toString(), channel: harness.chat.toString(), turnId: 'continuation-1',
+			reason: { kind: 'error', error: { errorType: 'provider', message: 'Disconnected' }, resumable: true },
+		});
+		const failed = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!;
+		contribution.onDidApplyClientAction(new class extends mock<IAppliedClientAction>() {
+			override readonly channel = harness.chat.toString();
+			override readonly action = { type: ActionType.ChatTurnResume, turnId: 'continuation-1' } as const;
+		}());
+		const running = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!;
+		contribution.onTurnEnd({
+			session: harness.session.toString(), channel: harness.chat.toString(), turnId: 'continuation-1', reason: { kind: 'success' },
+		});
+		const completed = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!;
+		assert.deepStrictEqual({
+			continuations: [failed.continuation, running.continuation, completed.continuation],
+			errors: [failed.continuationError, running.continuationError, completed.continuationError],
+			phase: completed.phase, mutations, sends: harness.continuations.length,
+		}, { continuations: ['failed', 'running', 'completed'], errors: ['Disconnected', undefined, undefined], phase: 'attached', mutations: 1, sends: 1 });
+	});
+
+	test('continuation recovery uses restored operation identity and ignores unrelated turns', () => {
+		const harness = createHarness();
+		const setup = restoreAgentWorkspaceSetup(JSON.stringify({
+			version: 1, operationId: 'operation-restored', chat: harness.chat.toString(), turnId: 'request',
+			requestedWorkspace: 'file:///workspace/project', actualWorkspace: 'file:///workspace/project',
+			isolation: 'folder', phase: 'attached', continuation: 'failed', continuationTurnId: 'continuation-restored', continuationError: 'Disconnected',
+		}))!;
+		harness.stateManager.setSessionMeta(harness.session.toString(), withAgentWorkspaceSetup(withSessionWorkspaceless(undefined, false), setup));
+		harness.service.resumeContinuation(harness.chat.toString(), 'unrelated');
+		const ignored = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!.continuation;
+		harness.service.resumeContinuation(harness.chat.toString(), 'continuation-restored');
+		const inactive = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!.continuation;
+		startTurn(harness.stateManager, harness.chat, 'continuation-restored');
+		harness.service.resumeContinuation(harness.chat.toString(), 'continuation-restored');
+		const running = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!.continuation;
+		harness.service.finishContinuation({
+			session: harness.session.toString(), channel: harness.chat.toString(), turnId: 'continuation-restored', reason: { kind: 'success' },
+		});
+		const completed = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!;
+		assert.deepStrictEqual({ ignored, inactive, running, continuation: completed.continuation, error: completed.continuationError, operation: completed.operationId, sends: harness.continuations.length }, {
+			ignored: 'failed', inactive: 'failed', running: 'running', continuation: 'completed', error: undefined, operation: 'operation-restored', sends: 0,
+		});
+	});
+
+	test('an older failed persistence write cannot overwrite successful continuation recovery', async () => {
+		const failedWrite = new DeferredPromise<void>();
+		const releaseFailure = new DeferredPromise<void>();
+		const completedWrite = new DeferredPromise<void>();
+		const database = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				const setup = key === AGENT_WORKSPACE_SETUP_META_KEY ? restoreAgentWorkspaceSetup(value) : undefined;
+				if (setup?.continuation === 'failed') {
+					failedWrite.complete();
+					await releaseFailure.p;
+					throw new Error('Old failure could not be persisted');
+				}
+				await super.setMetadata(key, value);
+				if (setup?.continuation === 'completed') {
+					completedWrite.complete();
+				}
+			}
+		}();
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
+		harness.agent.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		harness.service.finishContinuation({
+			session: harness.session.toString(), channel: harness.chat.toString(), turnId: 'continuation-1',
+			reason: { kind: 'error', error: { errorType: 'provider', message: 'Disconnected' }, resumable: true },
+		});
+		await failedWrite.p;
+		harness.service.resumeContinuation(harness.chat.toString(), 'continuation-1');
+		harness.service.finishContinuation({
+			session: harness.session.toString(), channel: harness.chat.toString(), turnId: 'continuation-1', reason: { kind: 'success' },
+		});
+		releaseFailure.complete();
+		await completedWrite.p;
+		assert.deepStrictEqual({
+			live: readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)?.continuation,
+			persisted: restoreAgentWorkspaceSetup(await database.getMetadata(AGENT_WORKSPACE_SETUP_META_KEY))?.continuation,
+		}, { live: 'completed', persisted: 'completed' });
+	});
+
+	test('never replays an interrupted restored setup marker', async () => {
+		const harness = createHarness();
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		const requested = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)!;
+		harness.service.cancel(harness.chat.toString(), 'turn-1');
+		const restored = restoreAgentWorkspaceSetup(JSON.stringify(requested))!;
+		harness.stateManager.setSessionMeta(harness.session.toString(), withAgentWorkspaceSetup(withSessionWorkspaceless(undefined, true), restored));
+		await updateSessionWorkspace(harness);
+		assert.throws(() => harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1'), /outcome is unknown/);
+		assert.deepStrictEqual({
+			phase: readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!)?.phase,
+			continuations: harness.continuations.length,
+		}, { phase: 'unknown', continuations: 0 });
+	});
+
+	test('requires worktree metadata to identify the actual resolved directory', async () => {
+		const worktreeIsolation = new TestWorktreeIsolation(URI.file('/worktrees/project'));
+		worktreeIsolation.sessionWorktreeInfo = () => ({
+			project: { uri: URI.file('/workspace/project'), displayName: 'project' },
+			workingDirectory: URI.file('/other/worktree'), branchName: 'feature',
+		});
+		const harness = createHarness(worktreeIsolation);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), true, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		const setup = readAgentWorkspaceSetup(harness.stateManager.getSessionState(harness.session.toString())!);
+		assert.deepStrictEqual({
+			phase: setup?.phase, actual: setup?.actualWorkspace,
+			error: setup?.attachmentError, removed: worktreeIsolation.removedWorktrees.length,
+		}, {
+			phase: 'failed', actual: undefined,
+			error: 'The isolated worktree does not match the resolved working directory.', removed: 1,
+		});
+	});
 
 	test('keeps a visible continuation in progress while converting after the invoking turn', async () => {
 		const trustDecision = new DeferredPromise<boolean>();

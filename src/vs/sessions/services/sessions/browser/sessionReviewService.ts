@@ -22,6 +22,7 @@ export interface ISessionReviewService {
 	close(): Promise<boolean>;
 	discuss(): void;
 	send(session: ISession, chat: IChat, query: string, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean>;
+	stop(session: ISession, chat: IChat): Promise<void>;
 	focusReply(): void;
 }
 

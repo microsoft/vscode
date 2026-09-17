@@ -498,6 +498,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		attachments: [],
 	};
 	private _applyingDraft = false;
+	private readonly _draftListener = this._register(new MutableDisposable());
 
 	// Input history
 	private readonly _history: ChatHistoryNavigator;
@@ -836,7 +837,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._secondaryPickerResponsiveLayout.layout();
 
 		if (this.options.draft) {
-			this._register(autorun(reader => this._applyDraft(this.options.draft!.state.read(reader))));
+			const draft = this.options.draft;
+			this._draftListener.value = autorun(reader => this._applyDraft(draft.state.read(reader)));
 		} else {
 			this._restoreState();
 		}
@@ -1615,7 +1617,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			: undefined;
 		const request = query;
 		const notificationContext = this._getNotificationContext();
-		const scopedDraft = this.options.draft?.state.get();
+		const targetDraft = this.options.draft;
+		const submittedDraft = targetDraft?.state.get() ?? this.getInputDraft();
 
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
@@ -1635,16 +1638,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			if (!sent) {
 				return false;
 			}
-			if (this._store.isDisposed) {
-				if (scopedDraft && isNewChatInputDraftUnchanged(this.options.draft!.state.get(), scopedDraft)) {
-					this.options.draft!.save({ inputText: '', attachments: [] });
-				}
-				return true;
-			}
-			this.chatInputNotificationService.handleMessageSent(notificationContext);
-			if (!scopedDraft || isNewChatInputDraftUnchanged(this.options.draft!.state.get(), scopedDraft)) {
-				this._contextAttachments.clear();
-				this._editor.getModel()?.setValue('');
+			this._clearSubmittedDraft(targetDraft, submittedDraft);
+			if (!this._store.isDisposed) {
+				this.chatInputNotificationService.handleMessageSent(notificationContext);
 			}
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
@@ -1662,6 +1658,24 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			}
 		}
 		return sent;
+	}
+
+	private _clearSubmittedDraft(targetDraft: INewChatInputDraft | undefined, submitted: INewChatInputDraftState): void {
+		const unchangedSource = targetDraft && isNewChatInputDraftUnchanged(targetDraft.state.get(), submitted);
+		const current = this.options.draft;
+		const clearVisible = !this._store.isDisposed && (current === targetDraft
+			? !targetDraft || unchangedSource
+			: !current && isNewChatInputDraftUnchanged(this.getInputDraft(), submitted));
+		if (unchangedSource) {
+			targetDraft.save({ inputText: '', attachments: [] });
+		}
+		if (clearVisible) {
+			if (!current) {
+				this._clearDraftState();
+			}
+			this._contextAttachments.clear();
+			this._editor.getModel()?.setValue('');
+		}
 	}
 
 	private _getNotificationContext(): IChatInputNotificationContext {
@@ -1714,6 +1728,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		} finally {
 			this._applyingDraft = false;
 		}
+	}
+
+	/** Bind a seeded chat-scoped draft; unbinding keeps the user's visible input. */
+	setDraft(draft: INewChatInputDraft | undefined): void {
+		if (this.options.draft === draft) {
+			return;
+		}
+		this.options.draft = draft;
+		this._draftListener.value = draft && this._editor ? autorun(reader => this._applyDraft(draft.state.read(reader))) : undefined;
+	}
+
+	getInputDraft(): INewChatInputDraftState {
+		return { inputText: this._editor?.getValue() ?? this._draftState?.inputText ?? '', attachments: this._contextAttachments.attachments };
 	}
 
 	private _getDraftState(): INewChatInputDraftState | undefined {

@@ -367,6 +367,23 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('cancelCurrentRequest targets an explicit peer chat rather than the session main chat', async () => {
+		const peer = { ...stubChat, resource: URI.parse('test:/peer') };
+		const session = { ...stubSession({ sessionId: 'session', providerId: 'test' }), chats: constObservable([stubChat, peer]) };
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+		await service.cancelCurrentRequest(session, peer);
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources, cancelled: chatService.cancelledResources, released: chatService.disposedModelRefs,
+		}, { loaded: [peer.resource], cancelled: [peer.resource], released: 1 });
+	});
+
+	test('cancelCurrentRequest rejects a chat from another session without loading or cancelling it', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+		await assert.rejects(service.cancelCurrentRequest(session, { ...stubChat, resource: URI.parse('test:/foreign') }), /no longer belongs/);
+		assert.deepStrictEqual({ loaded: chatService.loadedResources, cancelled: chatService.cancelledResources }, { loaded: [], cancelled: [] });
+	});
+
 	test('cancelCurrentRequest rejects when the chat model cannot be loaded', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);
@@ -2825,6 +2842,35 @@ suite('SessionsManagementService', () => {
 			isQuickChat: constObservable(true),
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
+		});
+
+		test('caller-owned drafts and replies do not replace or discard the regular Quick Chat draft', async () => {
+			const active = stubSession({ sessionId: 'active', providerId: 'test' });
+			const regular = stubSession({ sessionId: 'regular-draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+			const dashboard = stubSession({ sessionId: 'dashboard-draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+			const other = stubSession({ sessionId: 'other-dashboard-draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+			let created = 0;
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override readonly supportsQuickChats = true;
+				override createQuickChat(): ISession { return [regular, dashboard, other][created++]; }
+				override deleteNewSession(id: string): void { deleted.push(id); }
+				override async sendRequest(id: string): Promise<ISession> { return id === dashboard.sessionId ? { ...dashboard, status: constObservable(SessionStatus.Completed) } : active; }
+			}(active);
+			const { service, view } = createSessionsManagementService(active, disposables, provider);
+			await view.openSession(active.resource);
+			service.createQuickChat();
+			let ordinarySendFocus = 0;
+			disposables.add(service.onWillSendRequest(() => ordinarySendFocus++));
+			const draft = service.createSessionDraft(undefined, { providerId: 'test', sessionTypeId: 'test' });
+			const discarded = service.createSessionDraft(undefined, { providerId: 'test', sessionTypeId: 'test' });
+			service.discardSessionDraft(discarded);
+			const committed = await service.sendSessionDraft(draft, { query: 'Build an extension' });
+			await service.sendRequest(committed!, committed!.mainChat.get(), { query: 'Continue', preservePendingDraft: true });
+			assert.deepStrictEqual({
+				pending: service.newSession.get()?.sessionId, active: view.activeSession.get()?.sessionId,
+				committed: committed?.sessionId, deleted, ordinarySendFocus,
+			}, { pending: regular.sessionId, active: active.sessionId, committed: dashboard.sessionId, deleted: [other.sessionId], ordinarySendFocus: 0 });
 		});
 		const sendStarted = new DeferredPromise<void>();
 		const sendDone = new DeferredPromise<void>();

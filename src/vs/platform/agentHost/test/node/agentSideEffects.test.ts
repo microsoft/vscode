@@ -24,6 +24,7 @@ import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readAgentWorkspaceConversionCapability } from '../../common/meta/agentWorkspaceConversionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -186,6 +187,8 @@ function createTestSideEffects(
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
 		cancel: () => { },
+		finishContinuation: () => { },
+		resumeContinuation: () => { },
 		updateSessionWorkspace: async () => { },
 	});
 	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
@@ -3337,6 +3340,16 @@ suite('AgentSideEffects', () => {
 	// ---- agents observable --------------------------------------------------
 
 	suite('agents observable', () => {
+
+		test('publishes workspace conversion from actual host capability for any provider', async () => {
+			const capable = new MockAgent('custom-provider', {}, { workspaceConversion: true });
+			disposables.add({ dispose: () => capable.dispose() });
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => e.action.type === ActionType.RootAgentsChanged));
+			agentList.set([agent, capable], undefined);
+			const { action } = await envelope;
+			assert.strictEqual(action.type, ActionType.RootAgentsChanged);
+			assert.deepStrictEqual(action.agents.map(info => readAgentWorkspaceConversionCapability(info)), [false, true]);
+		});
 
 		test('dispatches root/agentsChanged without fetching models when observable changes', async () => {
 			agentList.set([], undefined);

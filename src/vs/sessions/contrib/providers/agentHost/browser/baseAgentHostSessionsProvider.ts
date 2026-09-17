@@ -33,6 +33,7 @@ import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionCo
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
+import { AGENT_WORKSPACE_SETUP_META_KEY, readAgentWorkspaceConversionCapability, readAgentWorkspaceSetup, restoreAgentWorkspaceSetup, withAgentWorkspaceSetup, type IAgentWorkspaceSetup } from '../../../../../platform/agentHost/common/meta/agentWorkspaceConversionMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -61,7 +62,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISessionWorkspaceSetup, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -216,6 +217,7 @@ interface ISerializedSessionMetadata {
 	readonly multiRoot?: ISessionMultiRootMetadata;
 	readonly createdBySession?: IProtocolSessionCreationReference;
 	readonly devContainerWorktree?: IAgentDevContainerWorktreeMetadata;
+	readonly workspaceSetup?: IAgentWorkspaceSetup;
 }
 
 /**
@@ -241,6 +243,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 		createdBySession: readSessionCreationReference(meta._meta),
 		devContainerWorktree: readAgentDevContainerWorktreeMetadata(meta._meta),
+		workspaceSetup: readAgentWorkspaceSetup(meta),
 	};
 }
 
@@ -255,6 +258,11 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		}
 		if (raw.devContainerWorktree) {
 			_meta = withAgentDevContainerWorktreeMetadata(_meta, raw.devContainerWorktree.handle);
+		}
+		const setup = readAgentWorkspaceSetup({ _meta: { [AGENT_WORKSPACE_SETUP_META_KEY]: raw.workspaceSetup } });
+		const restoredSetup = setup ? restoreAgentWorkspaceSetup(JSON.stringify(setup)) : undefined;
+		if (restoredSetup) {
+			_meta = withAgentWorkspaceSetup(_meta, restoredSetup);
 		}
 		return {
 			session: URI.parse(raw.session),
@@ -789,6 +797,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
+	readonly workspaceSetup: IObservable<ISessionWorkspaceSetup | undefined>;
+	private readonly _conversionChatEligible = observableValue(this, false);
 	readonly isAutomation = observableValue('isAutomation', false);
 	readonly isExternal: IObservable<boolean>;
 	readonly remoteConnectionStatus: IObservable<SessionRemoteConnectionStatus> | undefined;
@@ -1006,6 +1016,24 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
+		this.workspaceSetup = derived(this, reader => {
+			const setup = readAgentWorkspaceSetup({ _meta: this._metaObs.read(reader) });
+			if (!setup || parseChatUri(setup.chat)?.session !== this.backendUri.toString()) {
+				return undefined;
+			}
+			return {
+				operationId: setup.operationId,
+				chatResource: this.resource,
+				turnId: setup.turnId,
+				requestedWorkspace: URI.parse(setup.requestedWorkspace),
+				isolation: setup.isolation,
+				phase: setup.phase,
+				actualWorkspace: setup.actualWorkspace ? URI.parse(setup.actualWorkspace) : undefined,
+				attachmentError: setup.attachmentError,
+				continuation: setup.continuation,
+				continuationError: setup.continuationError,
+			};
+		});
 		this.isExternal = derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		const connectionStatus = _options.connectionStatus;
 		this.remoteConnectionStatus = toSessionRemoteConnectionStatus(this, connectionStatus);
@@ -1172,12 +1200,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
+			const setup = this.workspaceSetup.read(reader);
 			return {
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
 				supportsRename: true,
 				supportsDelete: true,
+				supportsWorkspaceConversion: readAgentWorkspaceConversionCapability({ capabilities: agentCapabilities })
+					&& this._conversionChatEligible.read(reader)
+					&& this.isQuickChat.read(reader)
+					&& this._defaultChat.interactivity.read(reader) === ChatInteractivity.Full
+					&& (!connectionStatus || connectionStatus.read(reader).kind === 'connected')
+					&& setup?.phase !== 'requested' && setup?.phase !== 'preparing' && setup?.phase !== 'unknown',
 			};
 		});
 	}
@@ -1222,6 +1257,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			? summary.resource.toString() === defaultChatUri
 			: isDefaultChatUri(summary.resource);
 		const defaultSummary = state.chats.find(isDefault);
+		this._conversionChatEligible.set(state.defaultChat === buildDefaultChatUri(this.backendUri)
+			&& state.workingDirectories?.length === 1
+			&& !!defaultSummary, undefined);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 
@@ -2193,7 +2231,13 @@ class NewSession extends Disposable {
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
-			capabilities: constObservable({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true }),
+			capabilities: derived(this, reader => ({
+				supportsMultipleChats: false, supportsRename: true, supportsDelete: true,
+				supportsWorkspaceConversion: this._kind.isQuickChat
+					&& readAgentWorkspaceConversionCapability({ capabilities: this._options.agentCapabilities.read(reader)?.get(ctx.sessionType.id) })
+					&& !(this._options.readOnly?.read(reader) ?? false)
+					&& (!connectionStatus || connectionStatus.read(reader).kind === 'connected'),
+			})),
 		};
 		this.sessionId = this.session.sessionId;
 
@@ -3209,11 +3253,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		this._syncAgentCapabilities(rootState.agents);
+		const { supportsQuickChats }: IAgentHostSessionsProvider = this;
 		const next = rootState.agents
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				supportsWorkspaceConversion: supportsQuickChats && readAgentWorkspaceConversionCapability(agent),
 				authRequirement: resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
@@ -3224,7 +3270,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 
 		const prev = this._sessionTypes;
-		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement)) {
+		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement && t.supportsWorkspaceConversion === next[i].supportsWorkspaceConversion)) {
 			return;
 		}
 		this._sessionTypes = next;

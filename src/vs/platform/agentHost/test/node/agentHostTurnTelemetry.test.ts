@@ -243,6 +243,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				requestSessionWorkspaceUpdate: () => { },
 				isPending: () => false,
 				cancel: () => { },
+				finishContinuation: () => { },
+				resumeContinuation: () => { },
 				updateSessionWorkspace: async () => { },
 			}],
 		);

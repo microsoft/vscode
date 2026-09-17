@@ -76,6 +76,7 @@ export class SessionBoardView extends AbstractCustomView implements ISessionsBoa
 	}
 	override focus(): void { this.overview?.focus(); }
 	focusSearch(): void { this.overview?.focusSearch(); }
+	async startNewWork(): Promise<void> { await this.overview?.startNewWork(); }
 	focusSession(sessionId: string | undefined): void { this.overview?.focusSession(sessionId); }
 	getAccessibleContent(): string { return this.overview?.getAccessibleContent() ?? ''; }
 	getAccessibilityHelp(): string { return this.overview?.getAccessibilityHelp() ?? ''; }

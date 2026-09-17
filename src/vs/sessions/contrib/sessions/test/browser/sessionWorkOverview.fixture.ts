@@ -31,6 +31,8 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionWorkView } from '../../../../services/sessions/common/sessionWorkQuery.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
+import { ISessionIntentService } from '../../../intent/common/sessionIntent.js';
+import { IDashboardWorkService } from '../../../intent/common/dashboardWork.js';
 import { SessionBoardView } from '../../browser/views/sessionBoardView.js';
 import { addWorkCardRequest, SessionWorkCardTestChatService } from './sessionWorkCardContentTestUtils.js';
 
@@ -72,6 +74,8 @@ async function renderWorkOverview({ container, disposableStore, theme, fileIconT
 			registerChatFixtureServices(registration);
 			registration.defineInstance(IChatService, chatService);
 			registration.define(ISessionsBoardService, SessionsBoardService);
+			registration.definePartialInstance(ISessionIntentService, { intakes: constObservable([]) });
+			registration.definePartialInstance(IDashboardWorkService, { sessions: constObservable([]), executions: constObservable([]), getSessionForChat: () => undefined });
 			registration.definePartialInstance(ISessionsManagementService, { onDidChangeSessions: Event.None, getSessions: () => sessions, getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()) });
 			registration.definePartialInstance(ISessionsService, {
 				activeSession: constObservable(undefined),

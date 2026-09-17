@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SequencerByKey } from '../../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type IAgent, type IAgentSessionProjectInfo } from '../../../common/agent.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../../common/agentHostSchema.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { AGENT_WORKSPACE_SETUP_META_KEY, readAgentWorkspaceSetup, withAgentWorkspaceSetup, type IAgentWorkspaceSetup } from '../../../common/meta/agentWorkspaceConversionMeta.js';
+import type { ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
+import { ChatInteractivity } from '../../../common/state/protocol/state.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, chatStorageUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
@@ -28,8 +33,13 @@ import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentH
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 
-interface IPendingSessionWorkspaceConversion {
+interface IWorkspaceSetupRecord {
+	readonly session: URI;
 	readonly chat: URI;
+	setup: IAgentWorkspaceSetup;
+}
+
+interface IPendingSessionWorkspaceConversion extends IWorkspaceSetupRecord {
 	readonly turnId: string;
 	readonly workspaceFolder: URI;
 	readonly isolation: boolean;
@@ -62,6 +72,8 @@ export interface ISessionWorkspaceConversionService {
 	isPending(chat: ProtocolURI): boolean;
 	cancel(chat: ProtocolURI, turnId: string | undefined): void;
 	updateSessionWorkspace(chat: ProtocolURI, turnId: string | undefined): Promise<void>;
+	finishContinuation(turn: ITurnEnd): void;
+	resumeContinuation(chat: ProtocolURI, turnId: string): void;
 }
 
 /** Converts workspace-less sessions in place while preserving their session and chat identities. */
@@ -71,6 +83,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	private readonly _pending = new Map<string, IPendingSessionWorkspaceConversion>();
 	private readonly _quarantined = new Set<string>();
+	private readonly _setupWrites = new SequencerByKey<string>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -95,7 +108,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (!initiatingClientId) {
 			throw new Error('Session workspace conversion requires an initiating client.');
 		}
-		this._validateConversion(chat, workspaceFolder);
+		const { session } = this._validateConversion(chat, workspaceFolder);
+		if (!this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion) {
+			throw new Error('The provider does not support workspace conversion.');
+		}
+		if (readAgentWorkspaceSetup(this._stateManager.getSessionState(session.toString()) ?? {})?.phase === 'unknown') {
+			throw new Error('The previous workspace setup outcome is unknown. Inspect the session workspace before trying again.');
+		}
 		const activeTurnId = this._stateManager.getActiveTurnId(chat.toString());
 		if (activeTurnId !== turnId) {
 			throw new Error('Session workspace conversion must be requested from the active turn.');
@@ -106,7 +125,17 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (this.isPending(key)) {
 			throw new Error('A workspace conversion is already pending for this session.');
 		}
-		this._pending.set(key, { chat, turnId, workspaceFolder, isolation, initiatingClientId, prompt, showTransition: !!chatState?.turns.length, phase: 'requested' });
+		const pending: IPendingSessionWorkspaceConversion = {
+			session, chat, turnId, workspaceFolder, isolation, initiatingClientId, prompt,
+			showTransition: !!chatState?.turns.length, phase: 'requested',
+			setup: {
+				version: 1, operationId: generateUuid(), chat: key, turnId,
+				requestedWorkspace: workspaceFolder.toString(), isolation: isolation ? 'worktree' : 'folder',
+				phase: 'requested', continuation: 'not-started',
+			},
+		};
+		this._pending.set(key, pending);
+		void this._recordSetup(pending, {});
 	}
 
 	isPending(chat: ProtocolURI): boolean {
@@ -117,7 +146,37 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const pending = this._pending.get(chat);
 		if (pending && pending.turnId === turnId && pending.phase === 'requested') {
 			this._pending.delete(chat);
+			void this._recordSetup(pending, { phase: 'cancelled' });
 		}
+	}
+
+	finishContinuation(turn: ITurnEnd): void {
+		const record = this._continuationRecord(turn.channel, turn.turnId);
+		if (!record) {
+			return;
+		}
+		void this._recordSetup(record, {
+			continuation: turn.reason.kind === 'success' ? 'completed' : turn.reason.kind === 'cancelled' ? 'cancelled' : 'failed',
+			continuationError: turn.reason.kind === 'error' || turn.reason.kind === 'rejected' ? turn.reason.error.message : undefined,
+		});
+	}
+
+	resumeContinuation(chat: ProtocolURI, turnId: string): void {
+		const record = this._continuationRecord(chat, turnId);
+		if (record && this._stateManager.getActiveTurnId(chat) === turnId) {
+			void this._recordSetup(record, { continuation: 'running', continuationError: undefined });
+		}
+	}
+
+	private _continuationRecord(chat: ProtocolURI, turnId: string | undefined): IWorkspaceSetupRecord | undefined {
+		const session = parseChatUri(chat)?.session;
+		const state = session ? this._stateManager.getSessionState(session) : undefined;
+		const setup = state ? readAgentWorkspaceSetup(state) : undefined;
+		if (!session || !setup || !turnId || setup.chat !== chat || setup.continuationTurnId !== turnId
+			|| (setup.continuation !== 'running' && setup.continuation !== 'failed' && setup.continuation !== 'unknown')) {
+			return undefined;
+		}
+		return { session: URI.parse(session), chat: URI.parse(chat), setup };
 	}
 
 	async updateSessionWorkspace(chat: ProtocolURI, turnId: string | undefined): Promise<void> {
@@ -130,6 +189,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		let continuation: IDeferredAgentHostTurn | undefined;
 		try {
 			continuation = this._beginContinuation(pending);
+			await this._recordSetup(pending, { phase: 'preparing', continuation: 'pending', continuationTurnId: continuation.turnId });
 			if (pending.showTransition) {
 				pending.transition = this._createWorkspaceTransition(pending);
 			}
@@ -149,17 +209,56 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			if (conversionError instanceof UnsafeProviderWorkingDirectoryError) {
 				this._pending.delete(chat);
 				this._quarantined.add(chat);
+				await this._recordSetup(pending, { phase: 'unknown', actualWorkspace: pending.resolvedWorkingDirectory?.toString(), attachmentError: toErrorMessage(conversionError), continuation: 'not-started' });
 				this._failConversion(continuation, pending, conversionError);
 			} else {
 				this._pending.delete(chat);
+				await this._recordSetup(pending, { phase: 'failed', actualWorkspace: pending.resolvedWorkingDirectory?.toString(), attachmentError: toErrorMessage(conversionError) });
 				await this._continueConversion(continuation, pending, false, conversionError);
 			}
 		}
 	}
 
+	private _recordSetup(pending: IWorkspaceSetupRecord, update: Partial<IAgentWorkspaceSetup>): Promise<void> {
+		pending.setup = { ...pending.setup, ...update };
+		const setup = pending.setup;
+		const session = pending.session.toString();
+		const state = this._stateManager.getSessionState(session);
+		if (state) {
+			this._stateManager.setSessionMeta(session, withAgentWorkspaceSetup(state._meta, setup));
+		}
+		return this._setupWrites.queue(session, async () => {
+			if (this._store.isDisposed || !this._stateManager.getSessionState(session)) {
+				return;
+			}
+			let database: IReference<ISessionDatabase> | undefined;
+			try {
+				database = this._sessionDataService.openDatabase(pending.session);
+				await database.object.setMetadata(AGENT_WORKSPACE_SETUP_META_KEY, JSON.stringify(setup));
+			} catch (error) {
+				this._logService.error(`[SessionWorkspaceConversionService] Failed to persist workspace setup for ${session}: ${toErrorMessage(error)}`);
+				const current = this._stateManager.getSessionState(session);
+				if (current && equals(readAgentWorkspaceSetup(current), readAgentWorkspaceSetup({ _meta: withAgentWorkspaceSetup(undefined, setup) }))) {
+					if (pending.setup.phase === 'attached') {
+						pending.setup = { ...pending.setup, continuation: 'unknown', continuationError: toErrorMessage(error) };
+					} else {
+						this._quarantined.add(pending.chat.toString());
+						pending.setup = { ...pending.setup, phase: 'unknown', attachmentError: toErrorMessage(error) };
+					}
+					this._stateManager.setSessionMeta(session, withAgentWorkspaceSetup(current._meta, pending.setup));
+				}
+			} finally {
+				database?.dispose();
+			}
+		});
+	}
+
 	private async _convert(pending: IPendingSessionWorkspaceConversion, continuation: IDeferredAgentHostTurn): Promise<URI> {
 		const { chat, workspaceFolder, isolation, initiatingClientId, prompt, transition } = pending;
 		const { session, state, previousWorkingDirectory } = this._validateConversion(chat, workspaceFolder);
+		if (this._quarantined.has(chat.toString())) {
+			throw new UnsafeProviderWorkingDirectoryError('Workspace setup metadata could not be persisted.');
+		}
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.agentHostCapabilities.workspaceConversion) {
 			throw new Error(`Provider does not support changing the working directory: ${AgentSession.provider(session) ?? '(unknown)'}`);
@@ -172,6 +271,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		let authoritativeWorkingDirectory = resolvedWorkspace.workingDirectory;
 		let providerAlignmentError: AgentWorkingDirectoryChangedError | undefined;
 		try {
+			this._validateConversion(chat, workspaceFolder);
+			if (!this._getUnchangedConversionState(session, chat, previousWorkingDirectory)
+				|| this._providerService.getProviderForSession(session) !== provider
+				|| !provider.agentHostCapabilities.workspaceConversion) {
+				throw new Error('The session or provider changed while workspace setup was being prepared.');
+			}
 			await provider.setWorkingDirectory(chat, session, resolvedWorkspace.workingDirectory);
 		} catch (error) {
 			if (!(error instanceof AgentWorkingDirectoryChangedError)) {
@@ -184,6 +289,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			authoritativeWorkingDirectory = error.workingDirectory;
 			providerAlignmentError = error;
 		}
+		pending.resolvedWorkingDirectory = authoritativeWorkingDirectory;
 		if (!isEqual(authoritativeWorkingDirectory, resolvedWorkspace.workingDirectory)) {
 			try {
 				await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, authoritativeWorkingDirectory);
@@ -228,7 +334,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const persistTransition = !!transition && this._stateManager.getActiveTurnId(chat.toString()) === continuation.turnId;
 		const database = this._sessionDataService.openDatabase(session);
 		try {
-			const metadata = { [AH_META_WORKSPACELESS_DB_KEY]: 'false' };
+			const setup: IAgentWorkspaceSetup = {
+				...pending.setup,
+				phase: providerAlignmentError || worktreeCleanupError ? 'failed' : 'attached',
+				actualWorkspace: authoritativeWorkingDirectory.toString(),
+				attachmentError: providerAlignmentError ? toErrorMessage(providerAlignmentError) : worktreeCleanupError ? toErrorMessage(worktreeCleanupError) : undefined,
+			};
+			const metadata = { [AH_META_WORKSPACELESS_DB_KEY]: 'false', [AGENT_WORKSPACE_SETUP_META_KEY]: JSON.stringify(setup) };
 			if (configValues) {
 				Object.assign(metadata, { configValues: JSON.stringify(configValues) });
 			}
@@ -238,6 +350,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			} else {
 				await database.object.setMetadataValues(metadata);
 			}
+			pending.setup = setup;
 		} catch (error) {
 			persistenceError = error;
 		} finally {
@@ -273,7 +386,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 		this._stateManager.setSessionMeta(
 			session.toString(),
-			withSessionHasWorkspaceTransitions(withSessionWorkspaceless(finalState._meta, false), persistTransition),
+			withAgentWorkspaceSetup(withSessionHasWorkspaceTransitions(withSessionWorkspaceless(finalState._meta, false), persistTransition), pending.setup),
 		);
 		this._stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionWorkingDirectoryReplaced,
@@ -408,6 +521,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				? `The isolated worktree project could not be resolved, and cleanup failed: ${toErrorMessage(cleanupError)}`
 				: 'The isolated worktree project could not be resolved.');
 		}
+		if (!isEqual(worktreeInfo.workingDirectory, workingDirectory)) {
+			const cleanupError = await this._removeWorktree(session);
+			throw new Error(`The isolated worktree does not match the resolved working directory${cleanupError ? `; cleanup failed: ${toErrorMessage(cleanupError)}` : ''}.`);
+		}
 		return { workingDirectory, configValues, isolationConfig, isolated: true, project: worktreeInfo.project };
 	}
 
@@ -490,6 +607,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (!isDefaultChatUri(chat) || state.defaultChat !== chat.toString()) {
 			throw new Error('Only the owning default chat can convert the session to a workspace session.');
 		}
+		const chatState = this._stateManager.getChatState(chat.toString());
+		if (!chatState || (chatState.interactivity !== undefined && chatState.interactivity !== ChatInteractivity.Full)) {
+			throw new Error('Only an interactive default chat can convert the session workspace.');
+		}
 		if (state.workingDirectories?.length !== 1) {
 			throw new Error('A workspace-less session must have exactly one working directory before conversion.');
 		}
@@ -517,6 +638,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	private async _continueConversion(continuation: IDeferredAgentHostTurn | undefined, pending: IPendingSessionWorkspaceConversion, converted: boolean, error?: unknown): Promise<void> {
 		if (!continuation) {
 			this._logService.error(`[SessionWorkspaceConversionService] Cannot continue workspace conversion for ${pending.chat.toString()} because its deferred turn did not start.`);
+			await this._recordSetup(pending, { continuation: 'failed', continuationError: localize('agentHost.workspaceContinuationNotStarted', "The workspace setup continuation could not be started.") });
 			return;
 		}
 		const errorMessage = error === undefined ? undefined : toErrorMessage(error).replace(/\.+$/, '');
@@ -541,11 +663,16 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			this._publishConversionOutcome(pending.chat, continuation, label);
 		}
 		try {
+			await this._recordSetup(pending, { continuation: 'running' });
+			if (this._quarantined.has(pending.chat.toString())) {
+				throw new Error('Workspace setup state could not be persisted; continuation was not sent.');
+			}
 			if (!this._turnService.continueDeferredTurnMessage(pending.chat, continuation, withMessageSystemInitiatedLabel({
 				text,
 				origin: { kind: MessageKind.SystemNotification },
 			}, label))) {
 				await this._discardPersistedWorkspaceTransition(pending, continuation);
+				await this._recordSetup(pending, { continuation: 'cancelled' });
 				this._logService.info(`[SessionWorkspaceConversionService] The deferred workspace conversion turn for ${pending.chat.toString()} ended before it could continue.`);
 			}
 		} catch (continuationError) {
@@ -556,6 +683,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				failure = new Error(`${toErrorMessage(continuationError)}; failed to discard the workspace transition: ${toErrorMessage(discardError)}`);
 			}
 			this._logService.error(`[SessionWorkspaceConversionService] Failed to start the conversion continuation for ${pending.chat.toString()}: ${toErrorMessage(failure)}`);
+			await this._recordSetup(pending, { continuation: 'failed', continuationError: toErrorMessage(failure) });
 			this._failConversion(continuation, pending, failure instanceof Error ? failure : new Error(toErrorMessage(failure)), false);
 		}
 	}

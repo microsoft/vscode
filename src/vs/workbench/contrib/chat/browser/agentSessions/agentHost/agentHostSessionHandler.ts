@@ -2332,7 +2332,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		}
 
-		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
+		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource), sessionResource);
 		const entry = new ActiveClientEntry(
 			scope,
 			this._config.connection.clientId,
@@ -2651,6 +2651,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						void this._executeClientTool(
 							request,
 							contextSessionResource,
+							sessionResource,
 							execution.source.token,
 							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
 							() => {
@@ -2800,7 +2801,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * attribute to that observer's chat. Without it the tool runs headlessly,
 	 * independent of whether the owning turn is live.
 	 */
-	private async _executeClientTool(request: ClientToolExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
+	private async _executeClientTool(request: ClientToolExecutionRequest, contextSessionResource: URI | undefined, originSessionResource: URI, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
 		const chatURI = request.chat.toString();
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
@@ -2890,6 +2891,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				toolId: toolData.id,
 				parameters,
 				context: contextSessionResource ? { sessionResource: contextSessionResource } : undefined,
+				...(toolData.requiresSessionContext ? { originSessionResource } : {}),
 				chatStreamToolCallId: toolCall.toolCallId,
 				preApproved: toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall),
 			}, async () => 0, token);

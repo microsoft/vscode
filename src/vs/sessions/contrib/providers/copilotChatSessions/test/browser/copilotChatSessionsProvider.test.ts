@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,6 +23,9 @@ import { IConfigurationService, IConfigurationValue } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -38,8 +43,8 @@ import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatMode, CustomChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
-import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { GitRepositoryState, IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
+import { ISessionChangeEvent, ISessionWorkspaceIntentAction } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -65,6 +70,7 @@ import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIco
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../../../../github/common/types.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -198,6 +204,10 @@ interface ICreateProviderOptions {
 	readonly consolidatedRemoteWorkspaces?: boolean;
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
+	readonly commandService?: ICommandService;
+	readonly fileService?: IFileService;
+	readonly sentiment?: IChatSentiment;
+	readonly cloudRegistered?: () => boolean;
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
 	readonly gitHubService?: IGitHubService;
@@ -305,7 +315,7 @@ function createProviderWithConfig(
 	instantiationService.stub(IDialogService, {
 		confirm: async () => ({ confirmed: true }),
 	});
-	instantiationService.stub(ICommandService, {
+	instantiationService.stub(ICommandService, opts?.commandService ?? {
 		executeCommand: async (id: string, ...args: unknown[]) => {
 			opts?.commandExecutions?.push({ id, args });
 			// Simulate 'agents.github.copilot.cli.deleteSessions' removing sessions
@@ -328,7 +338,7 @@ function createProviderWithConfig(
 		getSession: (resource: URI) => model.getSession(resource),
 	});
 	instantiationService.stub(IChatSessionsService, {
-		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
+		getChatSessionContribution: () => opts?.cloudRegistered?.() === false ? undefined : ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 		onDidCommitSession: Event.None,
 		updateSessionOptions: () => true,
@@ -360,6 +370,8 @@ function createProviderWithConfig(
 	const labelService = new MockLabelService();
 	instantiationService.stub(ILabelService, labelService);
 	instantiationService.stub(IPathService, opts?.pathService ?? new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(IFileService, opts?.fileService ?? new class extends mock<IFileService>() { }());
+	instantiationService.stub(IChatEntitlementService, { sentiment: opts?.sentiment ?? {} });
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IGitService, opts?.gitService ?? { repositories: [], openRepository: async () => undefined });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
@@ -470,6 +482,8 @@ function createProviderForSendTests(
 	instantiationService.stub(IInstantiationService, instantiationService);
 	instantiationService.stub(ILabelService, new MockLabelService());
 	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(IFileService, new class extends mock<IFileService>() { }());
+	instantiationService.stub(IChatEntitlementService, { sentiment: {} });
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -566,6 +580,287 @@ suite('CopilotChatSessionsProvider', () => {
 				{ label: 'Pull Request...', icon: 'github' },
 			],
 		});
+	});
+
+	suite('workspace intent actions', () => {
+		const repository = { owner: 'microsoft', repo: 'vscode' };
+		const folder = URI.file('/repos/vscode');
+
+		function action(provider: CopilotChatSessionsProvider, kind: ISessionWorkspaceIntentAction['kind']): ISessionWorkspaceIntentAction {
+			const action = provider.workspaceIntentActions.find(action => action.kind === kind);
+			assert.ok(action);
+			return action;
+		}
+
+		async function setupActions(
+			result: () => string | undefined | Promise<string | undefined> = () => undefined,
+			options: ICreateProviderOptions = {},
+		) {
+			const calls: IExecutedCommand[] = [];
+			let repositoryLookups = 0;
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const fileSystem = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.file, fileSystem));
+			await fileService.createFolder(folder);
+			const gitRepository = new class extends mock<IGitRepository>() {
+				override readonly rootUri = folder;
+				override readonly state = constObservable<GitRepositoryState>({
+					remotes: [{ name: 'origin', fetchUrl: 'git@github.com:microsoft/vscode.git', isReadOnly: false }],
+					mergeChanges: [], indexChanges: [], workingTreeChanges: [], untrackedChanges: [],
+				});
+			}();
+			const setup = createProviderWithConfig(disposables, model, {
+				commandService: new class extends mock<ICommandService>() {
+					override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+						calls.push({ id, args });
+						return await result() as T | undefined;
+					}
+				}(),
+				gitService: new class extends mock<IGitService>() {
+					override readonly repositories = [];
+					override async openRepository() {
+						repositoryLookups++;
+						return gitRepository;
+					}
+				}(),
+				fileService,
+				...options,
+			});
+			return { ...setup, calls, fileService, repositoryLookups: () => repositoryLookups };
+		}
+
+		test('advertises stable semantic actions without running setup or claiming runtime availability', async () => {
+			const { provider, calls, repositoryLookups } = await setupActions();
+			assert.deepStrictEqual({
+				actions: provider.workspaceIntentActions.map(action => ({
+					id: action.id, kind: action.kind, availability: action.availability, hasReason: !!action.reason,
+				})),
+				calls,
+				repositoryLookups: repositoryLookups(),
+				sessions: provider.getSessions().length,
+			}, {
+				actions: [
+					{ id: 'clone', kind: 'clone', availability: isWeb ? 'unavailable' : 'unknown', hasReason: true },
+					{ id: 'cloud', kind: 'cloud', availability: 'unknown', hasReason: true },
+				],
+				calls: [],
+				repositoryLookups: 0,
+				sessions: 0,
+			});
+		});
+
+		test('keeps ordinary cloud setup independent of Agent Host sandbox feature gates', async () => {
+			const { provider, configService, calls } = await setupActions();
+			const availability: string[] = [];
+			for (const remoteEnabled of [false, true]) {
+				for (const sandboxEnabled of [false, true]) {
+					configService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, remoteEnabled);
+					configService.setUserConfiguration(CloudSandboxEnabledSettingId, sandboxEnabled);
+					availability.push(action(provider, 'cloud').availability);
+				}
+			}
+			assert.deepStrictEqual({ availability, calls }, { availability: ['unknown', 'unknown', 'unknown', 'unknown'], calls: [] });
+		});
+
+		test('refuses a stale cloud action when its provider disappears', async () => {
+			let registered = true;
+			const { provider, calls } = await setupActions(() => 'microsoft/vscode', { cloudRegistered: () => registered });
+			const cloud = action(provider, 'cloud');
+			registered = false;
+			await assert.rejects(cloud.run(repository), /not currently registered/);
+			assert.deepStrictEqual({ availability: action(provider, 'cloud').availability, calls }, { availability: 'unavailable', calls: [] });
+		});
+
+		test('hides actions when AI is disabled and refuses previously captured actions', async () => {
+			let hidden = false;
+			const { provider, calls } = await setupActions(() => 'microsoft/vscode', { sentiment: { get hidden() { return hidden; } } });
+			const cloud = action(provider, 'cloud');
+			hidden = true;
+			await assert.rejects(cloud.run(repository), /Chat is currently disabled/);
+			assert.deepStrictEqual({ actions: provider.workspaceIntentActions, calls }, { actions: [], calls: [] });
+		});
+
+		test('does not offer local cloning from a remote window', async () => {
+			const { provider, calls } = await setupActions(() => folder.fsPath, {
+				pathService: new TestPathService(URI.file('/home/test'), Schemas.vscodeRemote),
+			});
+			await assert.rejects(action(provider, 'clone').run(repository), /local file system/);
+			assert.deepStrictEqual({ availability: action(provider, 'clone').availability, calls }, { availability: 'unavailable', calls: [] });
+		});
+
+		(isWeb ? test.skip : test)('rechecks Git enablement before invoking a captured clone action', async () => {
+			const { provider, configService, calls } = await setupActions(() => folder.fsPath);
+			const clone = action(provider, 'clone');
+			configService.setUserConfiguration('git.enabled', false);
+			await assert.rejects(clone.run(repository), /Git is disabled/);
+			assert.deepStrictEqual({ availability: action(provider, 'clone').availability, calls }, { availability: 'unavailable', calls: [] });
+		});
+
+		test('rejects malformed repository seeds before either action invokes a command', async () => {
+			const { provider, calls } = await setupActions();
+			for (const seed of [
+				{ owner: 'microsoft/other', repo: 'vscode' },
+				{ owner: 'microsoft', repo: '../vscode' },
+				{ owner: 'microsoft', repo: '..' },
+				{ owner: 'microsoft', repo: 'vscode?token=secret' },
+				{ owner: 'microsoft', repo: 'vscode\n--upload-pack=other' },
+			]) {
+				for (const kind of ['clone', 'cloud'] as const) {
+					await assert.rejects(action(provider, kind).run(seed), /valid GitHub repository/);
+				}
+			}
+			assert.deepStrictEqual(calls, []);
+		});
+
+		(isWeb ? test.skip : test)('clones only on invocation and returns a verified local workspace without changing providers', async () => {
+			const { provider, calls, repositoryLookups } = await setupActions(() => folder.fsPath);
+			const result = await action(provider, 'clone').run(repository);
+			assert.deepStrictEqual({
+				calls,
+				repositoryLookups: repositoryLookups(),
+				result: result.kind === 'selected' ? {
+					kind: result.kind, uri: result.workspace.uri.toString(), virtual: result.workspace.isVirtualWorkspace,
+					providerId: result.providerId, sessionTypeId: result.sessionTypeId,
+				} : result,
+				sessions: provider.getSessions().length,
+			}, {
+				calls: [{ id: 'git.clone', args: ['https://github.com/microsoft/vscode.git', undefined, { postCloneAction: 'none' }] }],
+				repositoryLookups: 1,
+				result: { kind: 'selected', uri: folder.toString(), virtual: false, providerId: undefined, sessionTypeId: undefined },
+				sessions: 0,
+			});
+		});
+
+		(isWeb ? test.skip : test)('does not reinterpret an invalid clone result as cancellation', async () => {
+			let result = 'relative/folder';
+			const { provider, fileService } = await setupActions(() => result);
+			const clone = action(provider, 'clone');
+			await assert.rejects(clone.run(repository), /absolute local repository folder/);
+			result = `${folder.fsPath}.code-workspace`;
+			await assert.rejects(clone.run(repository), /workspace file/);
+			result = folder.fsPath;
+			await fileService.del(folder);
+			await assert.rejects(clone.run(repository));
+			await fileService.writeFile(folder, VSBuffer.fromString('not a directory'));
+			await assert.rejects(clone.run(repository), /not a local directory/);
+		});
+
+		(isWeb ? test.skip : test)('captures the repository seed before waiting for the clone picker', async () => {
+			const selected = new DeferredPromise<string>();
+			const { provider } = await setupActions(() => selected.p);
+			const seed = { ...repository };
+			const pending = action(provider, 'clone').run(seed);
+			seed.repo = 'other';
+			await selected.complete(folder.fsPath);
+			const result = await pending;
+			assert.strictEqual(result.kind, 'selected');
+		});
+
+		(isWeb ? test.skip : test)('rechecks clone availability after Git returns without changing settings back', async () => {
+			const { provider, configService, repositoryLookups } = await setupActions(() => {
+				configService.setUserConfiguration('git.enabled', false);
+				return folder.fsPath;
+			});
+			await assert.rejects(action(provider, 'clone').run(repository), /Git is disabled/);
+			assert.deepStrictEqual({
+				gitEnabled: configService.getValue('git.enabled'),
+				repositoryLookups: repositoryLookups(),
+			}, { gitEnabled: false, repositoryLookups: 0 });
+		});
+
+		(isWeb ? test.skip : test)('rejects a cached checkout whose repository no longer matches the seed', async () => {
+			const { provider } = await setupActions(() => folder.fsPath);
+			await assert.rejects(action(provider, 'clone').run({ owner: 'microsoft', repo: 'other' }), /could not be verified as a checkout/);
+		});
+
+		(isWeb ? test.skip : test)('propagates file access failures rather than reporting a cancelled clone', async () => {
+			const error = new Error('Access denied');
+			const { provider } = await setupActions(() => folder.fsPath, {
+				fileService: new class extends mock<IFileService>() {
+					override async stat(): Promise<never> { throw error; }
+				}(),
+			});
+			await assert.rejects(action(provider, 'clone').run(repository), error);
+		});
+
+		test('resolves an exact dashboard cloud target without a picker or execution', async () => {
+			const { provider, calls, repositoryLookups } = await setupActions();
+			const workspace = action(provider, 'cloud').resolveRepositoryWorkspace?.(repository);
+			assert.deepStrictEqual({
+				uri: workspace?.uri.toString(), root: workspace?.folders[0].root.toString(),
+				virtual: workspace?.isVirtualWorkspace, calls, lookups: repositoryLookups(), sessions: provider.getSessions().length,
+			}, {
+				uri: 'github-remote-file://github/microsoft/vscode/HEAD', root: 'github-remote-file://github/microsoft/vscode/HEAD',
+				virtual: true, calls: [], lookups: 0, sessions: 0,
+			});
+			assert.throws(() => action(provider, 'cloud').resolveRepositoryWorkspace?.({ owner: 'microsoft', repo: '..' }), /valid GitHub repository/);
+		});
+
+		(isWeb ? test.skip : test)('uses an explicit clone parent without opening a different workspace', async () => {
+			const { provider, calls, fileService } = await setupActions(() => folder.fsPath);
+			const parent = URI.file('/repos');
+			await fileService.createFolder(parent);
+			await action(provider, 'clone').run(repository, { destinationParent: parent });
+			assert.deepStrictEqual(calls, [{ id: 'git.clone', args: ['https://github.com/microsoft/vscode.git', parent.fsPath, { postCloneAction: 'none' }] }]);
+		});
+
+		test('returns the selected cloud workspace and destination without creating a session', async () => {
+			const { provider, calls, repositoryLookups } = await setupActions(() => 'Microsoft/VSCode');
+			const result = await action(provider, 'cloud').run(repository);
+			assert.deepStrictEqual({
+				calls,
+				repositoryLookups: repositoryLookups(),
+				result: result.kind === 'selected' ? {
+					kind: result.kind, uri: result.workspace.uri.toString(), virtual: result.workspace.isVirtualWorkspace,
+					root: result.workspace.folders[0].root.toString(), providerId: result.providerId, sessionTypeId: result.sessionTypeId,
+				} : result,
+				sessions: provider.getSessions().length,
+			}, {
+				calls: [{ id: 'github.copilot.chat.cloudSessions.openRepository', args: [] }],
+				repositoryLookups: 0,
+				result: {
+					kind: 'selected', uri: 'https://github.com/Microsoft/VSCode', virtual: true,
+					root: 'github-remote-file://github/Microsoft/VSCode/HEAD', providerId: COPILOT_PROVIDER_ID, sessionTypeId: CopilotCloudSessionType.id,
+				},
+				sessions: 0,
+			});
+		});
+
+		test('does not silently redirect a seeded cloud action to a different or malformed selection', async () => {
+			let selected = 'microsoft/other';
+			const { provider } = await setupActions(() => selected);
+			for (selected of ['microsoft/other', 'microsoft/vscode/extra', 'microsoft/vscode?token=secret', '']) {
+				await assert.rejects(action(provider, 'cloud').run(repository), /does not match microsoft\/vscode/);
+			}
+		});
+
+		test('rechecks availability after the cloud picker completes', async () => {
+			let disabled = false;
+			const { provider } = await setupActions(() => {
+				disabled = true;
+				return 'microsoft/vscode';
+			}, { sentiment: { get disabled() { return disabled; } } });
+			await assert.rejects(action(provider, 'cloud').run(repository), /Chat is currently disabled/);
+		});
+
+		for (const kind of ['clone', 'cloud'] as const) {
+			(kind === 'clone' && isWeb ? test.skip : test)(`${kind} distinguishes dismissal, cancellation, and command failure`, async () => {
+				let failure: Error | undefined;
+				const { provider } = await setupActions(() => {
+					if (failure) {
+						throw failure;
+					}
+					return undefined;
+				});
+				const selectedAction = action(provider, kind);
+				const dismissed = await selectedAction.run(repository);
+				failure = new CancellationError();
+				const cancelled = await selectedAction.run(repository);
+				failure = new Error('Provider setup failed');
+				await assert.rejects(selectedAction.run(repository), failure);
+				assert.deepStrictEqual({ dismissed, cancelled }, { dismissed: { kind: 'cancelled' }, cancelled: { kind: 'cancelled' } });
+			});
+		}
 	});
 
 	test('adds a selected GitHub repository by cloning it locally', async () => {

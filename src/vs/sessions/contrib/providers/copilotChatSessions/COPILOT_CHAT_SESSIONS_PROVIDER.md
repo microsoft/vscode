@@ -19,6 +19,10 @@
 
 The provider may expose local-folder and remote-repository browse actions. Workspace URI schemes select the applicable draft implementation.
 
+The optional `workspaceIntentActions` contract exposes stable `clone` and `cloud` operations independently of localized browse labels. Reading the descriptors performs no setup or access checks. An approved operation requires a concrete repository and returns a verified local workspace or a selected cloud workspace with the destination provider/session type, not a running session. Cancellation is distinct from failure.
+
+Cloud supports pure exact-repository workspace resolution for agent-led discovery without opening its browse picker. Clone can accept an exact local parent directory; omission preserves interactive selection. Neither operation opens a different workspace window. The provider validates repository identity and rechecks availability. Cloud setup availability does not establish authentication, backend access, or Agent Host sandbox availability. Shared Sessions services own draft creation and the existing first-send path remains authoritative for execution.
+
 ## Drafts
 
 Local and cloud drafts implement the same `ISession` contract while adapting different backend options:

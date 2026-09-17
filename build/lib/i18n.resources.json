@@ -741,6 +741,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/intent",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},

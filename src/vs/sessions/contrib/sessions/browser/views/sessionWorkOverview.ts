@@ -4,22 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/sessionWorkOverview.css';
-import { $, addDisposableListener, AnimationFrameScheduler, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { equals } from '../../../../../base/common/arrays.js';
+import { WeakCachedFunction } from '../../../../../base/common/cache.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableSignal, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IReader, observableSignal, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -31,6 +34,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ICustomViewViewport } from '../../../../services/customView/browser/customView.js';
+import { Menus } from '../../../../browser/menus.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionWorkTrackingService } from '../../../../services/sessions/browser/sessionWorkTrackingService.js';
@@ -40,11 +44,14 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ChatInteractivity, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionReviewSection } from '../../../../services/sessions/common/sessionReview.js';
 import { getSessionWorkViewLabel, matchesSessionWorkQuery, PromotableSessionWorkView, SessionWorkView } from '../../../../services/sessions/common/sessionWorkQuery.js';
-import { readSessionWorkSummary } from '../../../../services/sessions/common/sessionWorkSummary.js';
+import { ISessionWorkSummary, readSessionWorkSummary } from '../../../../services/sessions/common/sessionWorkSummary.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionIntentService } from '../../../intent/common/sessionIntent.js';
+import { IDashboardWorkService } from '../../../intent/common/dashboardWork.js';
 import { ISessionCardBoardState, SessionCardBoard } from './sessionCardBoard.js';
 import { ISessionWorkCardData } from './sessionWorkCard.js';
 import { SessionWorkDragAndDrop } from './sessionWorkDragAndDrop.js';
+import { DashboardChatInput } from './dashboardChatInput.js';
 
 interface IWorkSection {
 	readonly id: string;
@@ -75,10 +82,40 @@ interface ISectionView {
 	readonly boardListeners: DisposableStore;
 }
 
+interface IWorkEntryContext {
+	readonly pinned: boolean;
+	readonly active: boolean;
+	readonly collection: string | undefined;
+	readonly archive: boolean;
+	readonly inactivityDays: number;
+	readonly now: number;
+	readonly intake: boolean;
+	readonly pendingExecution: boolean;
+}
+
+/** Adds presentation-only pending state without evaluating the result fingerprint. */
+function pendingWorkSummary(summary: ISessionWorkSummary, attention: ISessionWorkSummary['attention'], running: boolean, archiveReason: string): ISessionWorkSummary {
+	return {
+		attention, running,
+		...(summary.setupDescription !== undefined ? { setupDescription: summary.setupDescription } : {}),
+		hasResults: summary.hasResults,
+		hasUnreviewedResults: false,
+		hasReviewCheckpoint: summary.hasReviewCheckpoint,
+		get resultVersion() { return summary.resultVersion; },
+		archiveKind: 'excluded', archiveReason,
+		lastOpenedAt: summary.lastOpenedAt,
+	};
+}
+
 /** Native section headers and wrapping card boards sharing the custom-view host's viewport. */
 export class SessionWorkOverview extends Disposable {
 	readonly element = $('.session-work-overview');
 	private readonly sectionContainer = $('.session-work-sections');
+	private readonly intakeContainer = $('.session-work-intake-container');
+	private readonly intake = this._register(new MutableDisposable<DashboardChatInput>());
+	private readonly intakeListeners = this._register(new DisposableStore());
+	private readonly startedWork: Button;
+	private startedSession: ISession | undefined;
 	private readonly description = $('.session-work-overview-description');
 	private readonly batch = $('.session-work-batch');
 	private readonly selectionLabel = $('.session-work-selection-label');
@@ -91,7 +128,19 @@ export class SessionWorkOverview extends Disposable {
 	private readonly sections = new Map<string, ISectionView>();
 	private readonly pendingRequestsChanged = observableSignal(this);
 	private readonly refresh = observableSignal(this);
+	private readonly renderFrame = this._register(new MutableDisposable<IDisposable>());
+	private pendingRender: (() => void) | undefined;
+	private rendering = false;
+	private lastPresentationInputs: readonly object[] = [];
 	private readonly viewportScheduler = this._register(new AnimationFrameScheduler(this.element, () => this.updateViewports()));
+	private reviewedSessionResource: URI | undefined;
+	private readonly reviewReturnScheduler = this._register(new AnimationFrameScheduler(this.element, () => {
+		if (this.sessionsService.sessionReview.get()) { return; }
+		const resource = this.reviewedSessionResource;
+		this.reviewedSessionResource = undefined;
+		const entry = resource && this.entries.find(entry => isEqual(entry.session.resource, resource));
+		if (entry && this.element.isConnected) { this.focusSession(entry.session.sessionId); }
+	}));
 	private readonly collectionDrop: SessionWorkDragAndDrop<string>;
 	private readonly searchCollapse = new Map<string, boolean>();
 	private viewport: ICustomViewViewport | undefined;
@@ -123,8 +172,11 @@ export class SessionWorkOverview extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IChatEntitlementService private readonly entitlement: IChatEntitlementService,
 		@IChatService private readonly chatService: IChatService,
+		@ISessionIntentService private readonly intent: ISessionIntentService,
+		@IDashboardWorkService private readonly dashboardWork: IDashboardWorkService,
 	) {
 		super();
+		this._register(toDisposable(() => { this.pendingRender = undefined; }));
 		const controls = $('.session-work-controls');
 		const searchContainer = $('.session-work-search');
 		const ageContainer = $('.session-work-age-filter');
@@ -140,27 +192,26 @@ export class SessionWorkOverview extends Disposable {
 			ariaLabel: localize('sessionsWork.inactivityLabel', "Minimum time since this session was opened here"),
 		}));
 		this.ageSelect.render(ageContainer);
-		const toolbar = this._register(instantiation.createInstance(WorkbenchToolBar, toolbarContainer, {}));
-		const command = (id: string) => async () => {
-			try { await this.commandService.executeCommand(id); } catch (error) { this.notificationService.error(error); }
-		};
-		toolbar.setActions([
-			this._register(new Action('sessions.work.newSession', localize('sessionsWork.newSession', "New Work"), ThemeIcon.asClassName(Codicon.add), true, command('sessions.work.newSession'))),
-		], [
-			this._register(new Action('sessions.board.viewOptions', localize('sessionsWork.viewOptions', "View Options"), ThemeIcon.asClassName(Codicon.settingsGear), true, command('sessions.board.viewOptions'))),
-			this._register(new Action('sessions.work.createCollection', localize('sessionsWork.createCollection', "Create Collection"), ThemeIcon.asClassName(Codicon.newFolder), true, command('sessions.work.createCollection'))),
-			this._register(new Action('sessions.board.saveView', localize('sessionsWork.saveView', "Save View"), ThemeIcon.asClassName(Codicon.bookmark), true, command('sessions.board.saveView'))),
-			this._register(new Action('sessions.work.archive', getSessionWorkViewLabel('archive'), ThemeIcon.asClassName(Codicon.archive), true, () => this.boardService.updateOptions({ view: 'archive', collection: undefined, filter: '' }))),
-			this._register(new Action('sessions.work.archived', getSessionWorkViewLabel('archived'), ThemeIcon.asClassName(Codicon.history), true, () => this.boardService.updateOptions({ view: 'archived', collection: undefined, filter: '' }))),
-			this._register(new Action('sessions.work.resetLayout', localize('sessionsWork.resetLayout', "Reset View Layout"), ThemeIcon.asClassName(Codicon.discard), true, () => this.resetLayout())),
-		]);
+		this._register(instantiation.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionsBoardControls, {
+			ariaLabel: localize('sessionsWork.toolbar', "Dashboard Actions"),
+		}));
 		this.collectionDrop = this._register(instantiation.createInstance(SessionWorkDragAndDrop<string>, () => undefined, collection => collection));
+		this.startedWork = this._register(new Button(this.intakeContainer, { ...defaultButtonStyles, secondary: true }));
+		this.startedWork.element.classList.add('session-work-started-receipt');
+		this.startedWork.element.hidden = true;
+		this._register(this.startedWork.onDidClick(() => {
+			const session = this.startedSession;
+			if (!session) { return; }
+			this.boardService.updateOptions({ view: 'all', collection: this.groupsService.getGroupOfSession(session.sessionId), status: undefined, filter: '' });
+			this.focusSession(session.sessionId);
+			this.startedWork.element.hidden = true;
+		}));
 		this.archiveButton = this._register(new Button(this.batch, defaultButtonStyles));
 		this.archiveButton.label = localize('sessionsWork.archiveSelected', "Archive Selected");
 		this.keepButton = this._register(new Button(this.batch, { ...defaultButtonStyles, secondary: true }));
 		this.keepButton.label = localize('sessionsWork.keepSelected', "Keep Selected");
 		this.batch.prepend(this.selectionLabel);
-		this.element.append(controls, this.description, this.sectionContainer, this.empty, this.batch);
+		this.element.append(controls, this.intakeContainer, this.description, this.sectionContainer, this.empty, this.batch);
 		this._register(this.search.onDidChange(filter => this.boardService.updateOptions({ filter })));
 		this._register(this.ageSelect.onDidSelect(event => this.boardService.updateOptions({ inactivityDays: ages[event.index] })));
 		this._register(this.archiveButton.onDidClick(() => void this.archiveSelection().catch(error => this.notificationService.error(error))));
@@ -178,9 +229,47 @@ export class SessionWorkOverview extends Disposable {
 		const catalog = observableSignalFromEvent(this, this.management.onDidChangeSessions);
 		const groups = observableSignalFromEvent(this, this.groupsService.onDidChange);
 		const ordering = observableSignalFromEvent(this, this.listModel.onDidChange);
+		const archive = derived(this, reader => this.boardService.options.read(reader).view === 'archive');
+		const inactivityDays = derived(this, reader => this.boardService.options.read(reader).inactivityDays ?? 30);
+		const archiveClock = derived(this, reader => {
+			if (!archive.read(reader)) { return 0; }
+			this.boardService.options.read(reader);
+			catalog.read(reader);
+			groups.read(reader);
+			ordering.read(reader);
+			this.refresh.read(reader);
+			this.pendingRequestsChanged.read(reader);
+			this.chatService.chatModels.read(reader);
+			return Date.now();
+		});
+		const entryModels = new WeakCachedFunction((session: ISession) => {
+			const pinned = derived(this, reader => { ordering.read(reader); return this.listModel.isSessionPinned(session); });
+			const collection = derived(this, reader => { groups.read(reader); return this.groupsService.getGroupOfSession(session.sessionId); });
+			const active = derived(this, reader => isEqual(this.sessionsService.activeSession.read(reader)?.resource, session.resource));
+			const intake = derived(this, reader => this.intent.intakes.read(reader).some(intake => intake.sessionId === session.sessionId));
+			const pendingExecution = derived(this, reader => {
+				catalog.read(reader);
+				return this.dashboardWork.executions.read(reader).some(execution => isEqual(execution.source, session.resource)
+					&& (execution.phase === 'starting' || execution.phase === 'started' && execution.sessionResource
+						&& this.management.getSession(execution.sessionResource)?.status.read(reader) === SessionStatus.InProgress));
+			});
+			return derived(this, reader => {
+				const isArchive = archive.read(reader);
+				if (isArchive) { archiveClock.read(reader); }
+				return this.readEntry(session, {
+					pinned: pinned.read(reader), active: active.read(reader), collection: collection.read(reader),
+					archive: isArchive, inactivityDays: inactivityDays.read(reader), now: Date.now(),
+					intake: intake.read(reader), pendingExecution: pendingExecution.read(reader),
+				}, reader);
+			});
+		});
 		this._register(autorun(reader => {
 			const review = this.sessionsService.sessionReview.read(reader);
+			this.intake.value?.setSuspended(!!review);
 			if (review) {
+				this.renderFrame.clear();
+				this.pendingRender = undefined;
+				this.reviewedSessionResource = review.sessionResource;
 				for (const section of this.sections.values()) { section.board.value?.setSuspended(true); }
 				return;
 			}
@@ -189,14 +278,10 @@ export class SessionWorkOverview extends Disposable {
 			groups.read(reader);
 			ordering.read(reader);
 			this.refresh.read(reader);
-			this.boardService.cardLayouts.read(reader);
-			this.boardService.collapsedSections.read(reader);
-			this.boardService.promotedViews.read(reader);
-			const viewIdentity = `${options.view ?? 'overview'}:${options.collection ?? ''}:${options.filter}:${options.status ?? ''}:${options.sort}`;
-			if (options.filter !== this.lastFilter) { this.searchCollapse.clear(); this.lastFilter = options.filter; }
-			const sameView = viewIdentity === this.lastView;
-			this.lastView = viewIdentity;
-			const active = this.sessionsService.activeSession.read(reader);
+			const presentationInputs = [options, this.boardService.cardLayouts.read(reader), this.boardService.collapsedSections.read(reader), this.boardService.promotedViews.read(reader)];
+			const intakeOpen = this.intake.value?.isOpen.read(reader) === true;
+			const openIntake = intakeOpen ? this.intake.value?.session.read(reader) : undefined;
+			const viewIdentity = `${options.view ?? 'overview'}:${options.collection ?? ''}:${options.filter}:${options.status ?? ''}:${options.sort}:${intakeOpen}:${openIntake?.sessionId ?? ''}`;
 			if (options.view === 'archive') {
 				this.pendingRequestsChanged.read(reader);
 				for (const model of this.chatService.chatModels.read(reader)) {
@@ -204,63 +289,107 @@ export class SessionWorkOverview extends Disposable {
 				}
 			}
 			const entries = this.management.getSessions().map(session => {
-				const pinned = this.listModel.isSessionPinned(session);
-				const summary = readSessionWorkSummary(session, this.tracking.getState(session.resource).read(reader), {
-					now: Date.now(), inactivityDays: options.inactivityDays ?? 30, pinned,
-					active: isEqual(active?.resource, session.resource),
-					pendingRequestCount: options.view === 'archive' ? this.readPendingRequestCount(session, reader) : undefined,
-				}, reader);
-				const inputChat = summary.attention === 'input' ? session.chats.read(reader).find(chat => chat.status.read(reader) === SessionStatus.NeedsInput && chat.interactivity.read(reader) !== ChatInteractivity.Hidden) : undefined;
-				const description = options.view === 'archive' ? summary.archiveReason
-					: summary.attention === 'connection' ? localize('sessionsWork.disconnected', "Connection unavailable; last known execution state may be stale.")
-						: summary.attention === 'input' ? inputChat?.description.read(reader)?.value ?? localize('sessionsWork.inputNeeded', "{0} needs your input.", inputChat?.title.read(reader) ?? session.title.read(reader))
-							: summary.attention === 'error' ? localize('sessionsWork.error', "Work reported an error. Open the conversation to inspect it.")
-								: summary.running ? localize('sessionsWork.working', "Work is in progress.")
-									: summary.hasUnreviewedResults ? summary.hasReviewCheckpoint
-										? localize('sessionsWork.results', "New recorded results since you last marked this work reviewed.")
-										: localize('sessionsWork.reviewUnknown', "Recorded results are available; review status has not been recorded here.")
-										: localize('sessionsWork.idle', "No active request reported.");
-				session.title.read(reader);
-				session.workspace.read(reader);
 				if (options.sort === 'updated') { session.updatedAt.read(reader); }
-				return { session, summary, pinned, collection: this.groupsService.getGroupOfSession(session.sessionId), description, archive: options.view === 'archive' };
+				return entryModels.get(session).read(reader);
 			}).sort((a, b) => this.listModel.getSortKey(b.session, options.sort) - this.listModel.getSortKey(a.session, options.sort) || a.session.sessionId.localeCompare(b.session.sessionId));
-			this.canonical = entries.filter(entry => matchesSessionWorkQuery(entry, { view: options.view === 'archived' ? 'archived' : 'all', collection: options.collection, filter: '' }, reader));
-			const filtered = entries.filter(entry => matchesSessionWorkQuery(entry, options, reader));
-			const interacting = [...this.sections.values()].some(section => section.board.value?.isInteracting);
-			const canonicalIds = new Set(this.canonical.map(entry => entry.session.sessionId));
-			if (sameView && interacting && this.entries.every(entry => canonicalIds.has(entry.session.sessionId))) {
-				const latest = new Map(entries.map(entry => [entry.session.sessionId, entry]));
-				this.entries = this.entries.map(entry => latest.get(entry.session.sessionId) ?? entry);
-				for (const section of this.sections.values()) {
-					section.spec = { ...section.spec, entries: section.spec.entries.map(entry => latest.get(entry.session.sessionId) ?? entry) };
-					section.board.value?.setItems(section.spec.entries);
-					section.board.value?.setLayoutState(this.stateFor(section.spec));
-					section.board.value?.setSuspended(false);
+			const canonical = entries.filter(entry => matchesSessionWorkQuery(entry, { view: options.view === 'archived' ? 'archived' : 'all', collection: options.collection, filter: '' }, reader));
+			const filtered = entries.filter(entry => !isEqual(entry.session.resource, openIntake?.resource) && matchesSessionWorkQuery(entry, options, reader));
+			const presentationChanged = viewIdentity !== this.lastView || !equals(presentationInputs, this.lastPresentationInputs);
+			this.pendingRender = () => {
+				if (options.filter !== this.lastFilter) { this.searchCollapse.clear(); this.lastFilter = options.filter; }
+				const sameView = viewIdentity === this.lastView;
+				this.lastView = viewIdentity;
+				this.lastPresentationInputs = presentationInputs;
+				this.canonical = canonical;
+				const interacting = [...this.sections.values()].some(section => section.board.value?.isInteracting);
+				const canonicalIds = new Set(this.canonical.map(entry => entry.session.sessionId));
+				if (sameView && interacting && this.entries.every(entry => canonicalIds.has(entry.session.sessionId))) {
+					const latest = new Map(entries.map(entry => [entry.session.sessionId, entry]));
+					this.entries = this.entries.map(entry => latest.get(entry.session.sessionId) ?? entry);
+					for (const section of this.sections.values()) {
+						section.spec = { ...section.spec, entries: section.spec.entries.map(entry => latest.get(entry.session.sessionId) ?? entry) };
+						section.board.value?.setItems(section.spec.entries);
+						section.board.value?.setLayoutState(this.stateFor(section.spec));
+						section.board.value?.setSuspended(false);
+					}
+					return;
 				}
-				return;
-			}
-			this.entries = filtered;
-			this.selected = new Set([...this.selected].filter(id => filtered.some(entry => entry.session.sessionId === id)));
-			if (this.search.value !== options.filter) { this.search.value = options.filter; }
-			const age = options.inactivityDays ?? 30;
-			if (!ages.includes(age)) {
-				ages = [...ages, age].sort((a, b) => a - b);
-				this.ageSelect.setOptions(ages.map(value => ({ text: localize('sessionsWork.inactivity', "Last opened here {0}+ days ago", value) })), ages.indexOf(age));
-			} else { this.ageSelect.select(ages.indexOf(age)); }
-			ageContainer.hidden = options.view !== 'archive';
-			this.description.hidden = options.view !== 'archive';
-			this.description.textContent = localize('sessionsWork.archiveDescription', "Suggestions use recorded activity here and known results, not age alone. Select cards using their checkboxes. Unknown or unreviewed work requires inspection.");
-			const desired = this.createSections(options.view ?? 'overview', options.collection);
-			const ids = new Set<string>();
-			this.reconcile(desired, this.sectionContainer, undefined, true, ids);
-			for (const id of this.sectionStores.keys()) { if (!ids.has(id)) { this.sectionStores.deleteAndDispose(id); } }
-			this.empty.hidden = filtered.length > 0 || !!options.collection;
-			this.empty.textContent = localize('sessionsWork.empty', "No matching work. Choose All sessions or adjust the filters.");
-			this.updateSelection();
-			this.layout(this.width, 0);
-			for (const section of this.sections.values()) { section.board.value?.setSuspended(false); }
+				this.entries = filtered;
+				this.selected = new Set([...this.selected].filter(id => filtered.some(entry => entry.session.sessionId === id)));
+				if (this.search.value !== options.filter) { this.search.value = options.filter; }
+				const age = options.inactivityDays ?? 30;
+				if (!ages.includes(age)) {
+					ages = [...ages, age].sort((a, b) => a - b);
+					this.ageSelect.setOptions(ages.map(value => ({ text: localize('sessionsWork.inactivity', "Last opened here {0}+ days ago", value) })), ages.indexOf(age));
+				} else { this.ageSelect.select(ages.indexOf(age)); }
+				ageContainer.hidden = options.view !== 'archive';
+				this.description.hidden = options.view !== 'archive';
+				this.description.textContent = localize('sessionsWork.archiveDescription', "Suggestions use recorded activity here and known results, not age alone. Select cards using their checkboxes. Unknown or unreviewed work requires inspection.");
+				const desired = this.createSections(options.view ?? 'overview', options.collection);
+				const ids = new Set<string>();
+				this.reconcile(desired, this.sectionContainer, undefined, true, ids);
+				for (const id of this.sectionStores.keys()) { if (!ids.has(id)) { this.sectionStores.deleteAndDispose(id); } }
+				this.sectionContainer.hidden = intakeOpen && filtered.length === 0;
+				this.empty.hidden = filtered.length > 0 || !!options.collection || intakeOpen;
+				this.empty.textContent = localize('sessionsWork.empty', "No matching work. Choose All sessions or adjust the filters.");
+				this.updateSelection();
+				this.layout(this.width, 0);
+				for (const section of this.sections.values()) { section.board.value?.setSuspended(false); }
+				if (this.reviewedSessionResource) { this.reviewReturnScheduler.schedule(); }
+			};
+			if (presentationChanged || this.reviewedSessionResource) { this.flushRender(); }
+			else { this.scheduleRender(); }
 		}));
+	}
+
+	private scheduleRender(): void {
+		if (this.renderFrame.value || this._store.isDisposed) { return; }
+		this.renderFrame.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => {
+			this.renderFrame.clear();
+			this.flushRender();
+		});
+	}
+
+	private flushRender(): void {
+		if (this.rendering) { this.scheduleRender(); return; }
+		const render = this.pendingRender;
+		if (!render || this._store.isDisposed) { return; }
+		this.pendingRender = undefined;
+		this.renderFrame.clear();
+		this.rendering = true;
+		try { render(); }
+		finally { this.rendering = false; }
+	}
+
+	private readEntry(session: ISession, context: IWorkEntryContext, reader: IReader): ISessionWorkCardData {
+		let summary = readSessionWorkSummary(session, this.tracking.getState(session.resource).read(reader), {
+			now: context.now, inactivityDays: context.inactivityDays, pinned: context.pinned, active: context.active,
+			pendingRequestCount: context.archive ? this.readPendingRequestCount(session, reader) : undefined,
+		}, reader);
+		if (context.pendingExecution && !summary.attention) {
+			summary = pendingWorkSummary(summary, summary.attention, true, localize('sessionsWork.backgroundRunning', "Background work is still running."));
+		}
+		const needsWorkspace = context.intake && session.isQuickChat?.read(reader) && !session.workspace.read(reader)
+			&& !session.workspaceSetup?.read(reader) && !summary.attention && !summary.running;
+		const proposedWorkspace = needsWorkspace ? this.intent.getPresentation(session).read(reader).proposedWorkspace : undefined;
+		if (needsWorkspace) {
+			summary = pendingWorkSummary(summary, 'setup', summary.running, localize('sessionsWork.intakePending', "This work is still choosing its workspace."));
+		}
+		const inputChat = summary.attention === 'input' ? session.chats.read(reader).find(chat => chat.status.read(reader) === SessionStatus.NeedsInput && chat.interactivity.read(reader) !== ChatInteractivity.Hidden) : undefined;
+		const description = context.archive ? summary.archiveReason
+			: needsWorkspace ? proposedWorkspace ? localize('sessionsWork.confirmWorkspace', "A workspace choice is staged in the reply. Send it to review the exact folder and isolation.")
+				: localize('sessionsWork.chooseWorkspace', "Choose a workspace to continue this work.")
+				: summary.attention === 'connection' ? localize('sessionsWork.disconnected', "Connection unavailable; last known execution state may be stale.")
+					: summary.attention === 'input' ? inputChat?.description.read(reader)?.value ?? localize('sessionsWork.inputNeeded', "{0} needs your input.", inputChat?.title.read(reader) ?? session.title.read(reader))
+						: summary.attention === 'error' ? localize('sessionsWork.error', "Work reported an error. Open the conversation to inspect it.")
+							: summary.setupDescription ?? (summary.running ? localize('sessionsWork.working', "Work is in progress.")
+								: summary.hasUnreviewedResults ? summary.hasReviewCheckpoint
+									? localize('sessionsWork.results', "New recorded results since you last marked this work reviewed.")
+									: localize('sessionsWork.reviewUnknown', "Recorded results are available; review status has not been recorded here.")
+									: localize('sessionsWork.idle', "No active request reported."));
+		session.title.read(reader);
+		session.workspace.read(reader);
+		return { session, summary, pinned: context.pinned, collection: context.collection, description, archive: context.archive };
 	}
 
 	private createSections(view: SessionWorkView, collection: string | undefined): IWorkSection[] {
@@ -276,7 +405,7 @@ export class SessionWorkOverview extends Disposable {
 		if (collection) {
 			return [make(`collection:${collection}`, this.groupsService.getGroup(collection)?.name ?? getSessionWorkViewLabel(view), () => true, { collection, hideHeader: true })];
 		}
-		const needs = make('status:needsInput', getSessionWorkViewLabel('needsInput'), entry => entry.summary.attention === 'input' || entry.summary.attention === 'error', {
+		const needs = make('status:needsInput', getSessionWorkViewLabel('needsInput'), entry => !!entry.summary.attention && entry.summary.attention !== 'connection', {
 			view: 'needsInput', hideHeader: view === 'needsInput',
 			children: [make('status:unavailable', localize('sessionsWork.unavailableConnections', "Unavailable connections"), entry => entry.summary.attention === 'connection', { defaultCollapsed: true })],
 		});
@@ -344,6 +473,8 @@ export class SessionWorkOverview extends Disposable {
 						scrollBy: delta => this.viewport?.scrollBy(delta),
 						selectable: this.boardService.options.get().view === 'archive',
 						getActions: (entry, layoutActions) => this.cardActions(entry, layoutActions),
+						getActionsKey: entry => entry.session.isArchived.get() ? 'archived'
+							: `${entry.summary.hasUnreviewedResults}:${entry.summary.running}:${entry.summary.attention}:${entry.pinned}:${this.tracking.getState(entry.session.resource).get().keepArchiveSuggestion}`,
 						onOpen: entry => { void this.open(entry.session.sessionId).catch(error => this.notificationService.error(error)); },
 						externalDrop: spec.collection ? {
 							canDrop: event => this.collectionDrop.canDropIntoCollection(section.spec.collection!, event),
@@ -452,6 +583,7 @@ export class SessionWorkOverview extends Disposable {
 	}
 	layout(width: number, _height: number): void {
 		this.width = width;
+		this.intake.value?.layout(Math.max(0, this.intakeContainer.clientWidth));
 		for (const section of this.sections.values()) { section.board.value?.layout(Math.max(0, section.content.clientWidth), 0); }
 		this.updateViewports();
 	}
@@ -460,7 +592,43 @@ export class SessionWorkOverview extends Disposable {
 		if (first) { first.toggle.focus(); } else { this.search.focus(); }
 	}
 	focusSearch(): void { this.search.focus(); }
+	async startNewWork(): Promise<void> {
+		if (this.entitlement.sentiment.hidden) { return; }
+		this.startedWork.element.hidden = true;
+		const intake = this.getIntake();
+		const opening = intake.open(this.boardService.options.get().collection);
+		this.refresh.trigger(undefined);
+		this.viewport?.scrollBy(-(this.viewport.top));
+		await opening;
+	}
+
+	private getIntake(): DashboardChatInput {
+		if (!this.intake.value) {
+			const intake = this.instantiation.createInstance(DashboardChatInput);
+			this.intake.value = intake;
+			this.intakeContainer.appendChild(intake.element);
+			this.intakeListeners.clear();
+			this.intakeListeners.add(intake.onDidChangeHeight(() => this.viewportScheduler.schedule()));
+			this.intakeListeners.add(intake.onDidClose(() => {
+				this.refresh.trigger(undefined);
+				const id = intake.session.get()?.sessionId;
+				if (id && this.entries.some(entry => entry.session.sessionId === id)) { this.focusSession(id); }
+				else {
+					const session = intake.session.get();
+					if (session && session.status.get() !== SessionStatus.Untitled) {
+						this.startedSession = session;
+						this.startedWork.label = localize('sessionsWork.showStarted', "Show Work: {0}", session.title.get());
+						this.startedWork.element.hidden = false;
+						this.startedWork.focus();
+					} else { this.focusSearch(); }
+				}
+			}));
+			intake.layout(Math.max(0, this.intakeContainer.clientWidth));
+		}
+		return this.intake.value;
+	}
 	focusSession(id: string | undefined): void {
+		this.flushRender();
 		const records = [...this.sections.values()];
 		const section = records.find(section => section.spec.id === this.focusedSection && section.spec.entries.some(entry => id === undefined || entry.session.sessionId === id))
 			?? records.find(section => section.visible && section.spec.entries.some(entry => id === undefined || entry.session.sessionId === id))
@@ -469,6 +637,7 @@ export class SessionWorkOverview extends Disposable {
 		const parents: ISectionView[] = [];
 		for (let current: ISectionView | undefined = section; current; current = current.parent) { parents.unshift(current); }
 		for (const current of parents) { if (current.collapsed) { this.setCollapsed(current, false); } }
+		this.flushRender();
 		this.focusedSection = section.spec.id;
 		section.board.value?.focusSession(id ?? section.spec.entries[0]?.session.sessionId);
 	}
@@ -482,11 +651,16 @@ export class SessionWorkOverview extends Disposable {
 		for (const section of this.sections.values()) { this.boardService.resetCardLayout(this.layoutKey(section.spec)); }
 	}
 	getAccessibilityHelp(): string {
-		return localize('sessionsWork.wrappingHelp', "My work groups native cards into Needs you, Needs review, In progress, and All sessions. Activate a section header to expand or collapse it. Pin as Automatic Collection keeps a section in the sidebar without removing it from My work. Cards wrap into columns: drag a header to reorder, drag an edge or corner to resize, press Escape to cancel, or double-click an edge to reset it. With a card header focused, Left and Right Arrow move focus, Alt+Left and Alt+Right reorder, and Alt+Shift+Arrow resize. Enter or the title opens focused review; Tab reaches the reply and actions. Card layout is saved for the view and sort mode. Search filters metadata without starting work. Visible cards waiting for input load the real request controls; decisions always require an explicit action. Only manual collections accept membership drops. In Consider archiving, use checkboxes to select cards; Space also toggles selection from a card header. Archive Selected previews effects and rechecks each session. Keep Selected dismisses suggestions.");
+		return [
+			localize('sessionsWork.intakeHelp', "New Session in the dashboard toolbar opens a dashboard-owned draft without a required repository or execution picker. The sidebar view switch returns to the legacy view while the dashboard is open. Describe your outcome and attach evidence; the agent can discover workspaces, ask native questions, and start linked work on eligible local, remote, or cloud targets. Enter sends and Shift+Enter adds a line. Close New Work preserves an unsent draft. After sending, the same focused conversation and review view used by Open Work opens. Its native maximize, restore, and close controls change the view, not the running work. Stop Response cancels the selected conversation's current response, including a response waiting for approval. Close and stop are separate actions. Icon controls have tooltips and accessible labels. Regular Quick Chat and its pending draft stay separate."),
+			localize('sessionsWork.archiveHelp', "Archive Session is available on idle cards, in More Actions while a response is running, and in focused review. It uses the provider's normal archive behavior. Archived work remains available from Archived sessions in the dashboard view options. Archiving is separate from stopping a response or marking results reviewed. Collections use a library icon and do not represent filesystem folders."),
+			localize('sessionsWork.wrappingHelp', "My work groups native cards into Needs you, Needs review, In progress, and All sessions. Activate a section header to expand or collapse it. Pin as Automatic Collection keeps a section in the sidebar without removing it from My work. Cards wrap into columns: drag a header to reorder, drag an edge or corner to resize, press Escape to cancel, or double-click an edge to reset it. With a card header focused, Left and Right Arrow move focus, Alt+Left and Alt+Right reorder, and Alt+Shift+Arrow resize. Enter or the title opens focused review; Tab reaches the reply and actions. Card layout is saved for the view and sort mode. Search filters metadata without starting work. Visible cards waiting for input load the real request controls; decisions always require an explicit action. Only manual collections accept membership drops. In Consider archiving, use checkboxes to select cards; Space also toggles selection from a card header. Archive Selected previews effects and rechecks each session. Keep Selected dismisses suggestions."),
+		].join('\n\n');
 	}
 	getAccessibleContent(): string {
+		this.flushRender();
 		const details = [...this.sections.values()].filter(section => section.visible).map(section => section.board.value?.getAccessibleContent() ?? '').filter(Boolean);
-		return [getSessionWorkViewLabel(this.boardService.options.get().view ?? 'overview'), ...details,
+		return [getSessionWorkViewLabel(this.boardService.options.get().view ?? 'overview'), this.intake.value?.isVisible ? this.intake.value.getAccessibleContent() : '', ...details,
 		...this.entries.filter(entry => ![...this.sections.values()].some(section => section.visible && section.spec.entries.includes(entry))).map(entry => localize('sessionsWork.accessibleEntry', "{0}. {1}", entry.session.title.get(), entry.description)),
 		].join('\n\n');
 	}
@@ -496,6 +670,7 @@ export class SessionWorkOverview extends Disposable {
 		const action = (suffix: string, label: string, glyph: ThemeIcon, run: (entry: ISessionWorkCardData) => void | Promise<void>, enabled = true) =>
 			new Action(`sessions.work.${suffix}`, label, ThemeIcon.asClassName(glyph), enabled, async () => {
 				try {
+					this.flushRender();
 					const current = this.entries.find(entry => entry.session.sessionId === id);
 					if (!current) { throw new Error(localize('sessionsWork.unavailable', "This session is no longer available in the view.")); }
 					await run(current);
@@ -512,12 +687,15 @@ export class SessionWorkOverview extends Disposable {
 		}
 		if (data.summary.hasUnreviewedResults) {
 			actions.push(action('reviewed', localize('sessionsWork.markReviewed', "Mark Results Reviewed"), Codicon.checkAll, entry => {
-				if (entry.summary.running || entry.summary.attention) { throw new Error(localize('sessionsWork.reviewStateChanged', "This session is working or needs attention. Inspect its current state before marking results reviewed.")); }
+				const current = readSessionWorkSummary(entry.session, {}, {
+					now: Date.now(), inactivityDays: this.boardService.options.get().inactivityDays ?? 30, pinned: entry.pinned, active: false,
+				});
+				if (entry.session.isArchived.get() || entry.summary.running || entry.summary.attention || current.running || current.attention) { throw new Error(localize('sessionsWork.reviewStateChanged', "This session is working or needs attention. Inspect its current state before marking results reviewed.")); }
 				this.tracking.markReviewed(entry.session);
 				status(localize('sessionsWork.reviewRecorded', "Recorded results marked reviewed. This does not approve or complete the work."));
 			}, !data.summary.running && !data.summary.attention));
 		}
-		actions.push(action('move', localize('sessionsWork.move', "Move to Collection"), Codicon.folder, async entry => {
+		actions.push(action('move', localize('sessionsWork.move', "Move to Collection"), Codicon.library, async entry => {
 			await this.commandService.executeCommand('sessions.board.moveToGroup', entry.session);
 		}));
 		actions.push(action('pin', data.pinned ? localize('sessionsWork.unpin', "Unpin") : localize('sessionsWork.pin', "Pin"), data.pinned ? Codicon.pinned : Codicon.pin, entry => {
@@ -530,11 +708,18 @@ export class SessionWorkOverview extends Disposable {
 	}
 
 	private async open(id: string): Promise<void> {
+		this.flushRender();
 		if (this.entitlement.sentiment.hidden) { return; }
 		const entry = this.entries.find(entry => entry.session.sessionId === id);
 		if (!entry) { throw new Error(localize('sessionsWork.unavailable', "This session is no longer available in the view.")); }
 		const { session, summary } = entry;
-		if (session.isArchived.get()) { await this.sessionsService.openSession(session.resource); return; }
+		if (summary.attention === 'setup' && !session.workspaceSetup?.get() && session.capabilities.get().supportsWorkspaceConversion) {
+			await this.sessionsService.openSessionReview(session, SessionReviewSection.Conversation);
+			return;
+		}
+		if (session.isArchived.get()) {
+			throw new Error(localize('sessionsWork.restoreToReview', "Restore this session using its card menu before opening it in the dashboard."));
+		}
 		let section = SessionReviewSection.Conversation;
 		if (!summary.attention && !summary.running && summary.hasUnreviewedResults) {
 			if (session.changes.get().length || session.changesSummary?.get()?.files) { section = SessionReviewSection.Changes; }
@@ -555,6 +740,7 @@ export class SessionWorkOverview extends Disposable {
 	}
 
 	private async archiveSelection(): Promise<void> {
+		this.flushRender();
 		if (this.archiving || this.entitlement.sentiment.hidden) { return; }
 		const captured = this.entries.filter(entry => this.selected.has(entry.session.sessionId) && entry.summary.archiveKind === 'suggested').map(entry => entry.session);
 		const inactivityDays = this.boardService.options.get().inactivityDays ?? 30;
@@ -582,7 +768,8 @@ export class SessionWorkOverview extends Disposable {
 					const draft = this.drafts.getDraft(chat.resource).get();
 					return !!draft.inputText.trim() || draft.attachments.length > 0;
 				});
-				if (summary.archiveKind !== 'suggested' || hasDraft || this.entitlement.sentiment.hidden) {
+				const unfinishedIntake = this.intent.intakes.get().some(intake => isEqual(intake.resource, session.resource)) && !session.workspace.get();
+				if (summary.archiveKind !== 'suggested' || unfinishedIntake || hasDraft || this.entitlement.sentiment.hidden) {
 					failures.push(localize('sessionsWork.skippedArchive', "{0}: state changed or an unsent draft needs attention.", session.title.get()));
 					continue;
 				}

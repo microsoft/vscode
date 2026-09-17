@@ -840,6 +840,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
 		cancel: () => { },
+		finishContinuation: () => { },
+		resumeContinuation: () => { },
 		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
 	});
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
@@ -891,6 +893,8 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => conversionPending,
 		cancel: () => { },
+		finishContinuation: () => { },
+		resumeContinuation: () => { },
 		updateSessionWorkspace: async () => { },
 	});
 	const mockAgent = new MockAgent();

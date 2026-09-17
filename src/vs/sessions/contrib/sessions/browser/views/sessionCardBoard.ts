@@ -34,6 +34,8 @@ export interface ISessionCardBoardOptions {
 	readonly scrollBy?: (delta: number) => void;
 	readonly getViewport?: () => { readonly top: number; readonly height: number };
 	readonly getActions?: (data: ISessionWorkCardData, layoutActions: readonly Action[]) => readonly Action[];
+	/** Reuse actions while their availability and labels have the same key. */
+	readonly getActionsKey?: (data: ISessionWorkCardData) => string;
 	readonly onOpen?: (data: ISessionWorkCardData) => void;
 	readonly selectable?: boolean;
 	readonly externalDrop?: {
@@ -69,6 +71,7 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 	private readonly cardsElement = $('.session-card-board-items');
 	private readonly placeholder = $('.session-card-board-placeholder', { 'aria-hidden': 'true' });
 	private readonly emptyDrop = $('.session-card-board-empty');
+	private hasRendered = false;
 	private readonly records = new Map<string, ICardRecord>();
 	private readonly measurements = new Map<string, number>();
 	private readonly gestureStore = this._register(new MutableDisposable<DisposableStore>());
@@ -162,6 +165,8 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 
 	setItems(entries: readonly ISessionWorkCardData[]): void {
 		if (new Set(entries.map(entry => entry.session.sessionId)).size !== entries.length) { throw new Error('Duplicate session card identity'); }
+		if (this.hasRendered && equals([...this.data.values()], entries)) { return; }
+		const previous = this.data;
 		this.data = new Map(entries.map(entry => [entry.session.sessionId, entry]));
 		if (this.gesture && !this.data.has(this.gesture.id)) {
 			this.cancelGesture(false);
@@ -171,26 +176,31 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 		this.state = this.withCurrentItems(this.state);
 		for (const [id, record] of this.records) {
 			const data = this.data.get(id);
-			if (data) { record.card.update(data); }
+			if (data && previous.get(id) !== data) { record.card.update(data); }
 		}
 		this.renderLayout();
 	}
 
 	layout(width: number, height: number): void {
+		const viewport = this.options.getViewport?.() ?? { top: this.viewport.top, height };
+		if (width === this.width && viewport.top === this.viewport.top && viewport.height === this.viewport.height) { return; }
 		if (width !== this.width && this.gesture) { this.cancelGesture(false); this.commitGesture(); }
 		this.width = width;
-		this.viewport.height = height;
+		this.viewport = viewport;
 		this.renderLayout();
 	}
 
 	setViewport(top: number, height: number): void {
+		if (top === this.viewport.top && height === this.viewport.height) { return; }
 		this.viewport = { top, height };
 		this.renderLayout();
 	}
 
 	setLayoutState(state: ISessionCardBoardState): void {
-		if (this.gesture) { return; }
-		this.state = this.withCurrentItems(state);
+		if (this.gesture || state === this.state) { return; }
+		const next = this.withCurrentItems(state);
+		if (!this.layoutChanged(this.state, next)) { this.state = next; return; }
+		this.state = next;
 		this.renderLayout();
 	}
 
@@ -220,6 +230,7 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 
 	private renderLayout(): void {
 		if (this._store.isDisposed) { return; }
+		this.hasRendered = true;
 		const state = this.gesture && !this.gesture.cancelled ? this.gesture.preview : this.state;
 		const layout = this.compute(state);
 		const previousHeight = this.currentLayout.height;
@@ -293,6 +304,7 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 		south.orthogonalEndSash = east;
 		const actionStore = store.add(new DisposableStore());
 		let actionData: ISessionWorkCardData | undefined;
+		let actionKey: string | undefined;
 		let currentActions: readonly Action[] = [];
 		const record: ICardRecord = {
 			slot, card, store, east, south,
@@ -300,11 +312,18 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 			set placement(value: ISessionCardPlacement) { geometry.placement = value; },
 			updateActions: () => {
 				const index = this.state.order.indexOf(placement.id);
+				const expanded = this.state.sizes.some(size => size.id === placement.id && size.height !== undefined);
+				actions[0].label = expanded ? localize('sessionCardBoard.collapse', "Collapse Conversation") : localize('sessionCardBoard.expand', "Expand Conversation");
+				actions[0].class = ThemeIcon.asClassName(expanded ? Codicon.chevronUp : Codicon.chevronDown);
 				actions[1].enabled = index > 0;
 				actions[2].enabled = index < this.state.order.length - 1;
 				const data = this.data.get(placement.id);
 				if (!data || actionData === data) { return; }
+				const nextKey = this.options.getActionsKey?.(data);
+				const actionsUnchanged = actionData !== undefined && nextKey !== undefined && actionKey === nextKey;
 				actionData = data;
+				actionKey = nextKey;
+				if (actionsUnchanged) { return; }
 				const next = this.options.getActions?.(data, actions) ?? actions;
 				if (currentActions.length === next.length && currentActions.every((action, index) => action.id === next[index].id)) {
 					for (let index = 0; index < next.length; index++) {
@@ -360,7 +379,7 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 		const data = this.data.get(placement.id)!;
 		card.update(data);
 		const actions = [
-			new Action('sessionCardBoard.expand', localize('sessionCardBoard.expand', "Expand or Collapse Conversation"), ThemeIcon.asClassName(Codicon.screenFull), true, () => { this.toggleMaximizeSession(placement.id); }),
+			new Action('sessionCardBoard.expand', localize('sessionCardBoard.expand', "Expand Conversation"), ThemeIcon.asClassName(Codicon.chevronDown), true, () => { this.toggleMaximizeSession(placement.id); }),
 			new Action('sessionCardBoard.earlier', localize('sessionCardBoard.earlier', "Move Earlier"), ThemeIcon.asClassName(Codicon.arrowLeft), true, () => this.moveCard(placement.id, -1)),
 			new Action('sessionCardBoard.later', localize('sessionCardBoard.later', "Move Later"), ThemeIcon.asClassName(Codicon.arrowRight), true, () => this.moveCard(placement.id, 1)),
 			new Action('sessionCardBoard.reset', localize('sessionCardBoard.resetCard', "Reset Card Size"), ThemeIcon.asClassName(Codicon.discard), true, () => this.updateSize(placement.id, { columnSpan: 1, height: undefined })),
@@ -517,9 +536,12 @@ export class SessionCardBoard extends Disposable implements ISessionsBoardView {
 	}
 
 	private layoutChanged(before: ISessionCardBoardState, after: ISessionCardBoardState): boolean {
-		return !equals(before.order, after.order) || before.order.some(id => {
-			const previous = before.sizes.find(size => size.id === id);
-			const next = after.sizes.find(size => size.id === id);
+		if (!equals(before.order, after.order)) { return true; }
+		const previousSizes = new Map(before.sizes.map(size => [size.id, size]));
+		const nextSizes = new Map(after.sizes.map(size => [size.id, size]));
+		return before.order.some(id => {
+			const previous = previousSizes.get(id);
+			const next = nextSizes.get(id);
 			return (previous?.columnSpan ?? 1) !== (next?.columnSpan ?? 1) || previous?.height !== next?.height;
 		});
 	}

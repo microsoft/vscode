@@ -142,9 +142,7 @@ export class SessionReviewSidebar extends Disposable {
 		this._register(resizeObserver.observe(scrollable.getDomNode()));
 		const navigationToolbar = this._register(scopedInstantiation.createInstance(MenuWorkbenchToolBar, navigation, Menus.SessionReviewNavigation, {
 			menuOptions: { shouldForwardArgs: true },
-			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionReview.navigation', "Session review navigation"),
-			actionViewItemProvider: (action, options) => action instanceof MenuItemAction ? new ReviewActionViewItem(action, options) : undefined,
 		}));
 		navigationToolbar.context = session;
 		const counts = new Map([

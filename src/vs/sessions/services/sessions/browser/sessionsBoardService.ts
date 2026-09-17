@@ -44,6 +44,7 @@ export interface ISessionsBoardView {
 	getAccessibleContent?(): string;
 	getAccessibilityHelp?(): string;
 	focusSearch?(): void;
+	startNewWork?(): Promise<void>;
 	focusSession(sessionId: string | undefined): void;
 	getSessionView(sessionId: string | undefined): SessionView | undefined;
 	getFocusedSessionView(): SessionView | undefined;

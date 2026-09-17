@@ -94,9 +94,12 @@
 	white-space: nowrap;
 }
 
-.session-review-sidebar .action-label,
-.session-review-reply .action-label {
+.session-review-related-work {
+	white-space: pre-line;
 	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+	margin-top: var(--vscode-spacing-size80);
 }
 
 .session-review-sidebar .action-label.session-review-action,
@@ -104,6 +107,7 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .session-review-action-name {
@@ -127,20 +131,6 @@
 
 .session-review-navigation .action-label {
 	color: var(--vscode-descriptionForeground);
-}
-
-.session-review-navigation .monaco-action-bar.vertical .actions-container {
-	align-items: stretch;
-}
-
-.session-review-navigation .monaco-action-bar.vertical .action-item,
-.session-review-navigation .monaco-action-bar.vertical .action-label {
-	width: 100%;
-	box-sizing: border-box;
-}
-
-.session-review-navigation .monaco-action-bar.vertical .action-label {
-	justify-content: flex-start;
 }
 
 .session-review-sections {

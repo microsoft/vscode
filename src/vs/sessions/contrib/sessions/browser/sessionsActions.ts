@@ -1383,8 +1383,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
- * header and the titlebar.
+ * Renders the compact "New" pill shared by the sidebar, titlebar, and dashboard.
  */
 export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
@@ -1447,7 +1446,7 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 }
 
 /**
- * Registers {@link NewSessionActionViewItem} in the sessions sidebar header and the titlebar.
+ * Registers {@link NewSessionActionViewItem} in the sidebar, titlebar, and dashboard.
  * The titlebar entry is gated behind an A/B experiment via {@link SessionsTitleBarNewSessionEnabledContext}.
  */
 export class NewSessionActionViewItemContribution extends Disposable implements IWorkbenchContribution {
@@ -1482,9 +1481,9 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		}));
 
 		const onDidRegister = this._register(new Emitter<void>());
-		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
+		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout, Menus.SessionsBoardControls];
 		for (const menu of menus) {
-			const source: SessionsInteractionSource = menu === Menus.TitleBarLeftLayout ? 'titleBar' : 'sidebar';
+			const source: SessionsInteractionSource = menu === Menus.TitleBarLeftLayout ? 'titleBar' : menu === Menus.SessionsBoardControls ? 'dashboard' : 'sidebar';
 			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;

@@ -198,6 +198,24 @@ suite('AgentHostClientTools', () => {
 			syncProviderIsStable: true,
 			scopeAfterReleaseIsResolved: true,
 		});
+
+		test('session tools never leak to another quick chat sharing the same customization roots', async () => {
+			const { service } = createActiveClientService();
+			const dashboard = URI.parse('agent-host-copilotcli:/dashboard');
+			const regular = URI.parse('agent-host-copilotcli:/regular');
+			const dashboardScope = disposables.add(service.acquireScope('agent-host-copilotcli', [], dashboard));
+			const regularScope = disposables.add(service.acquireScope('agent-host-copilotcli', [], regular));
+			const shared = disposables.add(service.acquireScope('agent-host-copilotcli', []));
+			const before = regularScope.tools.get();
+			const registration = disposables.add(service.registerSessionTools(dashboard, [{ name: 'dashboard_discover_work', description: 'Discover dashboard work' }]));
+			assert.deepStrictEqual({
+				dashboard: dashboardScope.tools.get().map(tool => tool.name),
+				regular: regularScope.tools.get(), shared: shared.tools.get(),
+				customizationsShared: dashboardScope.customizations === regularScope.customizations,
+			}, { dashboard: ['dashboard_discover_work'], regular: before, shared: before, customizationsShared: true });
+			registration.dispose();
+			assert.deepStrictEqual(dashboardScope.tools.get(), before);
+		});
 	});
 
 	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
@@ -2461,6 +2479,30 @@ suite('AgentHostClientTools', () => {
 				begun: 1,
 				invoked: 1,
 			});
+		}));
+
+		test('passes trusted caller identity to a session-scoped headless client tool', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [{ ...testRunTaskTool, requiresSessionContext: true }]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'scoped-execution', kind: SessionInputRequestKind.ToolClientExecution,
+					chat: buildDefaultChatUri(backendSession), turnId: 'turn-1', clientId: connection.clientId,
+					toolCall: {
+						status: ToolCallStatus.Running, toolCallId: 'scoped-call', toolName: 'runTask', displayName: 'Run Task',
+						invocationMessage: 'Run Task', toolInput: '{"task":"build","sessionResource":"forged"}',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+					},
+				},
+			});
+			await timeout(0);
+			assert.deepStrictEqual(toolsService.invokedToolCalls.map(call => ({
+				origin: call.originSessionResource, renderedContext: call.context, parameters: call.parameters,
+			})), [{ origin: sessionResource, renderedContext: undefined, parameters: { task: 'build', sessionResource: 'forged' } }]);
 		}));
 
 		test('runs an unclaimed non-confirmable client tool headlessly without waiting for the grace window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

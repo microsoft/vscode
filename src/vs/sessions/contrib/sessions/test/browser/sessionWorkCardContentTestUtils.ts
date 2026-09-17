@@ -55,13 +55,13 @@ export class SessionWorkCardTestChatService extends MockChatService {
 	}
 }
 
-export function addWorkCardRequest(model: ChatModel, text: string, progress: readonly IChatProgress[] = []) {
+export function addWorkCardRequest(model: ChatModel, text: string, progress: readonly IChatProgress[] = [], timestamp = 1705320000000) {
 	const request = model.addRequest({
 		text,
 		parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
 	}, { variables: [] }, 0, { kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined, telemetryModeId: 'agent', applyCodeBlockSuggestionId: undefined },
 		undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-		undefined, undefined, undefined, undefined, 1705320000000);
+		undefined, undefined, undefined, undefined, timestamp);
 	for (const part of progress) {
 		model.acceptResponseProgress(request, part);
 	}

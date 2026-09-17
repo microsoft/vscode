@@ -32,12 +32,13 @@ import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../../../work
 import { ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionWorkTrackingService } from '../../../../services/sessions/browser/sessionWorkTrackingService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionArtifact, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionReviewState, SessionReviewSection } from '../../../../services/sessions/common/sessionReview.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { makeChange, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { OPEN_PULL_REQUEST_REVIEW_ACTION_ID } from '../../../github/common/types.js';
+import { IDashboardWorkService } from '../../../intent/common/dashboardWork.js';
 import { SessionReviewController } from '../../browser/sessionReviewController.js';
 import { SessionReviewComposer } from '../../browser/sessionReviewComposer.js';
 import { SessionReviewEditorInput } from '../../browser/sessionReviewEditor.js';
@@ -76,6 +77,10 @@ suite('SessionReviewController', () => {
 		const errors: unknown[] = [];
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const replies: { chat: IChat; query: string; attachments: readonly IChatRequestVariableEntry[] }[] = [];
+		const dashboardReplies: { query: string; attachments: readonly IChatRequestVariableEntry[] }[] = [];
+		const preservedDrafts: (boolean | undefined)[] = [];
+		const stopped: IChat[] = [];
+		let dashboardOwned = false;
 		const references: { resource: URI; entries: readonly IChatRequestVariableEntry[] }[] = [];
 		let modal: IModalEditorPart | undefined;
 		let modalCount = 0;
@@ -175,7 +180,15 @@ suite('SessionReviewController', () => {
 			},
 		});
 		instantiation.stub(ISessionsManagementService, {
-			sendRequest: async (_session, chat, request) => { replies.push({ chat, query: request.query, attachments: request.attachedContext ?? [] }); },
+			sendRequest: async (_session, chat, request) => {
+				replies.push({ chat, query: request.query, attachments: request.attachedContext ?? [] });
+				preservedDrafts.push(request.preservePendingDraft);
+			},
+			cancelCurrentRequest: async (_session, chat) => { stopped.push(chat!); },
+		});
+		instantiation.stub(IDashboardWorkService, {
+			getSessionForChat: () => dashboardOwned ? session : undefined,
+			send: async (_session, query, attachments) => { dashboardReplies.push({ query, attachments }); return session; },
 		});
 		instantiation.stub(ISessionInputDraftService, {
 			addAttachments: (resource, entries) => { references.push({ resource, entries }); },
@@ -214,7 +227,8 @@ suite('SessionReviewController', () => {
 		instantiation.stubInstance(SessionReviewComposer, { dispose: () => { }, focus: () => { replyFocusCount++; } });
 		const controller = store.add(instantiation.createInstance(SessionReviewController));
 		return {
-			controller, review, session, sessions, activeSession, opens, closes, errors, commands, replies, references, modalOptions, localReplies, changesTargets,
+			controller, review, session, sessions, activeSession, opens, closes, errors, commands, replies, references, modalOptions, localReplies, changesTargets, dashboardReplies, preservedDrafts, stopped,
+			setDashboardOwned: () => { dashboardOwned = true; },
 			modal: () => modal,
 			counts: () => ({ modalCount, sidebarCount, footerCount }),
 			replyFocusCount: () => replyFocusCount,
@@ -445,6 +459,32 @@ suite('SessionReviewController', () => {
 			replies: harness.replies,
 			modalCount: harness.counts().modalCount,
 		}, { replies: [{ chat, query: 'Reply without opening a view', attachments: [] }], modalCount: 0 });
+	});
+
+	test('dashboard conversation replies retain their orchestration route in focused review', async () => {
+		const h = setup();
+		h.setDashboardOwned();
+		const attachments = [toFileVariableEntry(URI.file('/project/result.txt'))];
+		const sent = await h.controller.send(h.session, h.session.mainChat.get(), 'Continue the work', attachments);
+		assert.deepStrictEqual({ sent, dashboard: h.dashboardReplies, ordinary: h.replies },
+			{ sent: true, dashboard: [{ query: 'Continue the work', attachments }], ordinary: [] });
+	});
+
+	test('ordinary review replies preserve the unrelated pending draft', async () => {
+		const h = setup();
+		await h.controller.send(h.session, h.session.mainChat.get(), 'Review this', []);
+		assert.deepStrictEqual({ dashboard: h.dashboardReplies, preserved: h.preservedDrafts }, { dashboard: [], preserved: [true] });
+	});
+
+	test('stopping the selected peer does not close review, navigate, or cancel the main chat', async () => {
+		const original = makeSession(URI.parse('test:/session'));
+		const peer = { ...original.mainChat.get(), resource: URI.parse('test:/peer'), status: constObservable(SessionStatus.NeedsInput) };
+		const session = { ...original, chats: constObservable([original.mainChat.get(), peer]), activeChat: constObservable(peer) };
+		const h = setup(session);
+		h.setHidden(true);
+		await h.controller.stop(session, peer);
+		assert.deepStrictEqual({ stopped: h.stopped, opens: h.opens, closes: h.closes, interaction: h.localReplies },
+			{ stopped: [peer], opens: [], closes: [], interaction: [session.resource] });
 	});
 
 	test('sending keeps the captured chat and attachments while trust is pending', async () => {

@@ -155,6 +155,9 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	createSessionDraft(): ISession { throw new Error('Not used by navigation'); }
+	async sendSessionDraft(): Promise<ISession | undefined> { throw new Error('Not used by navigation'); }
+	discardSessionDraft(): void { throw new Error('Not used by navigation'); }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }

@@ -35,6 +35,8 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 * existing session).
 	 */
 	readonly background?: boolean;
+	/** A caller-owned surface may send without abandoning the ordinary new-session draft. */
+	readonly preservePendingDraft?: boolean;
 }
 
 export interface IDeferredNewSessionRequestOptions {
@@ -438,6 +440,13 @@ export interface ISessionsManagementService {
 	 */
 	createQuickChat(options?: ICreateNewSessionOptions): ISession;
 
+	/** Creates a caller-owned draft without replacing the ordinary new-session composer draft. */
+	createSessionDraft(folder: URI | undefined, options?: ICreateNewSessionOptions): ISession;
+	/** Sends a caller-owned draft and returns its committed identity without changing navigation or the ordinary draft. */
+	sendSessionDraft(session: ISession, options: ISendRequestOptions, token?: CancellationToken): Promise<ISession | undefined>;
+	/** Discards only a still-owned caller draft. A committed session is never deleted. */
+	discardSessionDraft(session: ISession): void;
+
 	/**
 	 * Create (or reuse an existing untitled) chat in the given session via its
 	 * provider so it can be shown as the new-chat-in-session view. Pass
@@ -525,8 +534,8 @@ export interface ISessionsManagementService {
 
 	// -- Session Actions --
 
-	/** Cancel the current request in a session's main chat. */
-	cancelCurrentRequest(session: ISession): Promise<void>;
+	/** Cancel the selected chat's current request, defaulting to the session's main chat. */
+	cancelCurrentRequest(session: ISession, chat?: IChat): Promise<void>;
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;

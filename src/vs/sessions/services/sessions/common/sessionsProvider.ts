@@ -71,6 +71,34 @@ export interface ISessionWorktreeConfiguration {
 	readonly branch?: string;
 }
 
+/** A concrete GitHub repository, without credentials or executable command arguments. */
+export interface ISessionWorkspaceIntentRepository {
+	readonly owner: string;
+	readonly repo: string;
+}
+
+export type SessionWorkspaceIntentActionResult =
+	| { readonly kind: 'cancelled' }
+	| {
+		readonly kind: 'selected';
+		readonly workspace: ISessionWorkspace;
+		readonly providerId?: string;
+		readonly sessionTypeId?: string;
+	};
+
+/** Provider-owned setup selection; availability describes known facts, not a provisioning guarantee. */
+export interface ISessionWorkspaceIntentAction {
+	readonly id: string;
+	readonly kind: 'clone' | 'cloud';
+	readonly label: string;
+	readonly availability: 'available' | 'unavailable' | 'unknown';
+	readonly reason: string;
+	/** Resolve a concrete repository target without opening a picker or starting execution. */
+	resolveRepositoryWorkspace?(repository: ISessionWorkspaceIntentRepository): ISessionWorkspace | undefined;
+	/** Invoke through an approved setup operation. Failures reject; selection never sends a request. */
+	run(repository: ISessionWorkspaceIntentRepository, options?: { readonly destinationParent?: URI }): Promise<SessionWorkspaceIntentActionResult>;
+}
+
 /**
  * Presentation options for the sessions-core model picker. A provider returns
  * these from {@link ISessionsProvider.getModelPickerOptions} so it controls how
@@ -239,6 +267,9 @@ export interface ISessionsProvider {
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
 	 */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+
+	/** Optional semantic setup actions. Read afresh before invocation; do not infer kinds from browse-action labels. */
+	readonly workspaceIntentActions?: readonly ISessionWorkspaceIntentAction[];
 
 	/**
 	 * Whether this provider can resolve and run sessions against local file-system workspaces.

@@ -1040,6 +1040,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				toolCallId: dto.callId,
 				chatRequestId: dto.chatRequestId,
 				chatSessionResource: dto.context?.sessionResource,
+				...(dto.originSessionResource ? { originSessionResource: dto.originSessionResource } : {}),
 				chatInteractionId: dto.chatInteractionId,
 				modelId: dto.modelId,
 				forceConfirmationReason: forceConfirmationReason,

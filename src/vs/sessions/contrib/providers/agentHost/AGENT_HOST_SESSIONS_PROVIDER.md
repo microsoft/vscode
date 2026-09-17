@@ -65,6 +65,10 @@ The local provider uses:
 
 Agent provider names form logical session-type identifiers. Resource URI schemes remain the routing identity for content and model providers. Consumers must not derive one identifier by parsing another.
 
+First-workspace conversion is separately advertised through the versioned `vscode.workspaceConversion` agent capability. The provider projects it onto session types before draft creation and onto live session capabilities only when the owning default chat is eligible. Quick-chat support alone does not imply conversion support; an older host or an unhydrated committed session conservatively withholds this capability.
+
+`ISession.workspaceSetup` projects the conversion owner's optional `vscode.workspaceSetup` session metadata. The host persists the operation identity, requested folder/isolation, actual resulting folder, and separate attachment and continuation outcomes. In-flight persisted state becomes unknown after restart and is never authority to repeat setup. An attached workspace remains attached when continuation fails; explicitly resuming that continuation updates its original turn's outcome without repeating setup. Visible-session wrappers forward this projection without acquiring conversation history.
+
 ## Session adaptation
 
 `AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:

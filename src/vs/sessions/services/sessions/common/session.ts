@@ -25,6 +25,8 @@ export interface ISessionType {
 	readonly icon: ThemeIcon;
 	/** Whether new sessions of this type support Worktree isolation and base-branch selection. */
 	readonly supportsWorktreeConfiguration?: boolean;
+	/** Whether the host can attach a first workspace to a quick chat of this type in place. */
+	readonly supportsWorkspaceConversion?: boolean;
 	/**
 	 * The workbench chat session type (contribution id) this session type maps
 	 * to, when it differs from {@link id}. Agent-host providers use a bare agent
@@ -744,6 +746,8 @@ export interface ISession {
 	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
+	/** Host-reported workspace setup; absent when no setup operation has been reported. */
+	readonly workspaceSetup?: IObservable<ISessionWorkspaceSetup | undefined>;
 	/** Whether this session is associated with an automation run. Absent means `false`. */
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
@@ -810,6 +814,20 @@ export interface ISessionCreationReference {
 	readonly turnId?: string;
 }
 
+/** Reported setup facts, not permission to start or retry conversion. A completed continuation is not acceptance of the task's results. */
+export interface ISessionWorkspaceSetup {
+	readonly operationId: string;
+	readonly chatResource: URI;
+	readonly turnId: string;
+	readonly requestedWorkspace: URI;
+	readonly isolation: 'folder' | 'worktree';
+	readonly phase: 'requested' | 'preparing' | 'attached' | 'failed' | 'cancelled' | 'unknown';
+	readonly actualWorkspace?: URI;
+	readonly attachmentError?: string;
+	readonly continuation: 'not-started' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'unknown';
+	readonly continuationError?: string;
+}
+
 /** Returns whether any chat or session-level fallback reports file changes. */
 export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
 	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
@@ -844,6 +862,8 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether the live owning default chat is eligible to attach its first workspace in place. */
+	readonly supportsWorkspaceConversion?: boolean;
 	/**
 	 * Whether this session supports forking a chat from a turn into a new peer
 	 * chat. The agents-window fork gesture gates on this flag rather than on the

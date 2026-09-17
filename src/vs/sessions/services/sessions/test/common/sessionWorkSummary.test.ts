@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatInteractivity, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionFileChange, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspaceSetup, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionStatus } from '../../common/session.js';
 import { ISessionWorkSummary, ISessionWorkSummaryOptions, ISessionWorkTrackingState, readSessionWorkResultVersion, readSessionWorkSummary } from '../../common/sessionWorkSummary.js';
 import { createWorkTestChat, createWorkTestSession } from './sessionWorkTestUtils.js';
 
@@ -44,6 +46,16 @@ function setupPullRequests(pullRequests: readonly IGitHubPullRequestRef[] = [pul
 	return { session, chat, gitHubInfo };
 }
 
+function createSetupTestSession(phase: ISessionWorkspaceSetup['phase'], continuation: ISessionWorkspaceSetup['continuation']) {
+	const { session, chat } = createWorkTestSession();
+	const workspaceSetup = observableValue<ISessionWorkspaceSetup | undefined>('workspaceSetup', {
+		operationId: 'setup-operation', chatResource: chat.resource, turnId: 'setup-turn',
+		requestedWorkspace: URI.file('/repo'), isolation: 'worktree', phase, continuation,
+		actualWorkspace: phase === 'attached' ? URI.file('/worktrees/repo') : undefined,
+	});
+	return { session: { ...session, workspaceSetup }, chat };
+}
+
 function changeset(id = 'session') {
 	return new class extends mock<ISessionChangeset>() {
 		override readonly id = id;
@@ -58,6 +70,86 @@ function changeset(id = 'session') {
 
 suite('Session work summary', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	test('preserves the version-one fingerprint format byte for byte', () => {
+		const { session } = createWorkTestSession();
+		const empty = readSessionWorkResultVersion(session);
+		session.changes.set([fileChange], undefined);
+		assert.deepStrictEqual({ empty, changed: readSessionWorkResultVersion(session) }, {
+			empty: '1:e78a7e5183c067a0984fb7bc4b67f74090cad48e',
+			changed: '1:76e9e5854f638b209f5cda8e539d17e431076533',
+		});
+	});
+
+	test('defers an unused fingerprint and computes it once for the captured metadata', () => {
+		const { session } = createWorkTestSession();
+		session.changes.set([fileChange], undefined);
+		const hash = sinon.spy(StringSHA1.prototype, 'update');
+		const summary = readSessionWorkSummary(session, {}, options);
+		const beforeRead = hash.callCount;
+		const first = summary.resultVersion;
+		const second = summary.resultVersion;
+		const checkpoint = readSessionWorkSummary(session, { reviewedResult: first }, options);
+		assert.deepStrictEqual({
+			beforeRead, first, second, hashes: hash.callCount,
+			unreviewed: summary.hasUnreviewedResults, reviewed: checkpoint.hasUnreviewedResults,
+		}, {
+			beforeRead: 0, first: '1:76e9e5854f638b209f5cda8e539d17e431076533',
+			second: first, hashes: 2, unreviewed: true, reviewed: false,
+		});
+	});
+
+	test('observed metadata is shared across readers and unrelated refreshes', () => {
+		const first = createWorkTestSession(URI.parse('test:/first')).session;
+		const second = createWorkTestSession(URI.parse('test:/second')).session;
+		first.changes.set([fileChange], undefined);
+		second.changes.set([fileChange], undefined);
+		const refresh = observableValue('refresh', 0);
+		const hash = sinon.spy(StringSHA1.prototype, 'update');
+		let firstVersion = '', secondVersion = '';
+		store.add(autorun(reader => {
+			refresh.read(reader);
+			firstVersion = readSessionWorkSummary(first, {}, options, reader).resultVersion;
+			secondVersion = readSessionWorkSummary(second, {}, options, reader).resultVersion;
+		}));
+		store.add(autorun(reader => readSessionWorkResultVersion(first, reader)));
+		const initialHashes = hash.callCount;
+		const previousFirst = firstVersion, previousSecond = secondVersion;
+		refresh.set(1, undefined);
+		const refreshHashes = hash.callCount;
+		first.changes.set([{ ...fileChange, insertions: 5 }], undefined);
+		assert.deepStrictEqual({
+			initialHashes, refreshHashes, finalHashes: hash.callCount,
+			firstChanged: firstVersion !== previousFirst, secondUnchanged: secondVersion === previousSecond,
+		}, { initialHashes: 2, refreshHashes: 2, finalHashes: 3, firstChanged: true, secondUnchanged: true });
+	});
+
+	test('lazy versions retain the snapshot rather than reading newer observable values', () => {
+		const { session } = createWorkTestSession();
+		session.changes.set([fileChange], undefined);
+		const summary = readSessionWorkSummary(session, {}, options);
+		session.changes.set([], undefined);
+		assert.deepStrictEqual({ previous: summary.resultVersion, current: readSessionWorkResultVersion(session) }, {
+			previous: '1:76e9e5854f638b209f5cda8e539d17e431076533',
+			current: '1:e78a7e5183c067a0984fb7bc4b67f74090cad48e',
+		});
+	});
+
+	test('imperative validation stays fresh and disposed readers release their dependencies', () => {
+		const { session } = createWorkTestSession();
+		const hash = sinon.spy(StringSHA1.prototype, 'update');
+		const reader = store.add(autorun(reader => readSessionWorkResultVersion(session, reader)));
+		const observed = hash.callCount;
+		readSessionWorkResultVersion(session);
+		const imperative = hash.callCount;
+		reader.dispose();
+		session.changes.set([fileChange], undefined);
+		const afterDispose = hash.callCount;
+		store.add(autorun(reader => readSessionWorkResultVersion(session, reader)));
+		assert.deepStrictEqual({ observed, imperative, afterDispose, resubscribed: hash.callCount },
+			{ observed: 1, imperative: 2, afterDispose: 2, resubscribed: 3 });
+	});
 
 	test('does not invent results from completed status, read state, or activity', () => {
 		const { session } = createWorkTestSession();
@@ -461,6 +553,267 @@ suite('Session work summary', () => {
 			turnRecorded: summaries[2].hasResults,
 			versions: new Set(summaries.map(summary => summary.resultVersion)).size,
 		}, { count: 8, lastAttention: 'connection', turnRecorded: true, versions: 6 });
+	});
+});
+
+suite('Session work workspace setup summary', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const phases: readonly ISessionWorkspaceSetup['phase'][] = ['requested', 'preparing', 'attached', 'failed', 'cancelled', 'unknown'];
+	const continuations: readonly ISessionWorkspaceSetup['continuation'][] = ['not-started', 'pending', 'running', 'completed', 'failed', 'cancelled', 'unknown'];
+	const setups = phases.flatMap(phase => continuations.map(continuation => ({ phase, continuation })));
+
+	for (const expected of [
+		{ phase: 'requested', running: true, description: 'Workspace setup requested.' },
+		{ phase: 'preparing', running: true, description: 'Preparing the workspace.' },
+		{ phase: 'failed', running: false, description: 'Workspace setup failed.' },
+		{ phase: 'cancelled', running: false, description: 'Workspace setup was cancelled.' },
+		{ phase: 'unknown', running: false, description: 'Workspace setup status is unknown.' },
+	] as const) {
+		test(`setup phase ${expected.phase} protects reviewed results regardless of the reported continuation`, () => {
+			const summaries = continuations.map(continuation => {
+				const { session, chat } = createSetupTestSession(expected.phase, continuation);
+				chat.lastTurnEnd.set(new Date(day), undefined);
+				const state = Object.freeze(reviewed(session));
+				const summary = readSessionWorkSummary(session, state, options);
+				return {
+					attention: summary.attention, running: summary.running, setupDescription: summary.setupDescription,
+					archiveKind: summary.archiveKind, archiveReason: summary.archiveReason,
+					hasResults: summary.hasResults, hasUnreviewedResults: summary.hasUnreviewedResults,
+					sameResult: summary.resultVersion === state.reviewedResult,
+				};
+			});
+			assert.deepStrictEqual(summaries, continuations.map(() => ({
+				attention: expected.running ? undefined : 'setup', running: expected.running, setupDescription: expected.description,
+				archiveKind: expected.running ? 'excluded' : 'inspect', archiveReason: expected.description,
+				hasResults: true, hasUnreviewedResults: false, sameResult: true,
+			})));
+		});
+	}
+
+	for (const expected of [
+		{ continuation: 'not-started', running: false, description: 'Workspace ready; the task has not continued.' },
+		{ continuation: 'pending', running: true, description: 'Workspace ready; waiting to continue the task.' },
+		{ continuation: 'running', running: true, description: 'Workspace ready; continuing the task.' },
+		{ continuation: 'completed', running: false, description: undefined },
+		{ continuation: 'failed', running: false, description: 'Workspace ready; the task could not continue.' },
+		{ continuation: 'cancelled', running: false, description: 'Workspace ready; task continuation was cancelled.' },
+		{ continuation: 'unknown', running: false, description: 'Workspace ready; task continuation status is unknown.' },
+	] as const) {
+		test(`attachment succeeds separately from ${expected.continuation} continuation`, () => {
+			const { session, chat } = createSetupTestSession('attached', expected.continuation);
+			chat.lastTurnEnd.set(new Date(day), undefined);
+			const state = Object.freeze(reviewed(session));
+			const summary = readSessionWorkSummary(session, state, options);
+			assert.deepStrictEqual({
+				attention: summary.attention, running: summary.running, setupDescription: summary.setupDescription,
+				archiveKind: summary.archiveKind,
+				hasResults: summary.hasResults, hasUnreviewedResults: summary.hasUnreviewedResults,
+				sameResult: summary.resultVersion === state.reviewedResult,
+				actualWorkspace: session.workspaceSetup.get()?.actualWorkspace?.path,
+			}, {
+				attention: expected.description && !expected.running ? 'setup' : undefined,
+				running: expected.running, setupDescription: expected.description,
+				archiveKind: expected.running ? 'excluded' : expected.description ? 'inspect' : 'suggested',
+				hasResults: true, hasUnreviewedResults: false, sameResult: true,
+				actualWorkspace: '/worktrees/repo',
+			});
+		});
+	}
+
+	for (const status of [SessionStatus.NeedsInput, SessionStatus.Error]) {
+		test(`real runtime status ${status} takes precedence over every setup outcome`, () => {
+			assert.deepStrictEqual(setups.flatMap(({ phase, continuation }) => {
+				const { session, chat } = createSetupTestSession(phase, continuation);
+				const peer = createWorkTestChat(URI.parse('test:/peer'));
+				peer.interactivity.set(ChatInteractivity.Hidden, undefined);
+				session.chats.set([chat, peer], undefined);
+				return [session.status, peer.status].map(runtimeStatus => {
+					runtimeStatus.set(status, undefined);
+					const summary = readSessionWorkSummary(session, reviewed(session), options);
+					runtimeStatus.set(SessionStatus.Completed, undefined);
+					return { attention: summary.attention, protected: summary.archiveKind !== 'suggested' };
+				});
+			}), setups.flatMap(() => [0, 1].map(() => ({
+				attention: status === SessionStatus.NeedsInput ? 'input' : 'error', protected: true,
+			}))));
+		});
+	}
+
+	test('connection problems take precedence over setup and runtime attention', () => {
+		assert.deepStrictEqual(setups.map(({ phase, continuation }) => {
+			const { session, chat } = createSetupTestSession(phase, continuation);
+			session.status.set(SessionStatus.Error, undefined);
+			chat.status.set(SessionStatus.NeedsInput, undefined);
+			session.remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+			const disconnected = readSessionWorkSummary(session, reviewed(session), options);
+			session.remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+			const connected = readSessionWorkSummary(session, reviewed(session), options);
+			return [disconnected.attention, connected.attention];
+		}), setups.map(() => ['connection', 'input']));
+	});
+
+	test('queued requests retain archive protection without fabricating input or running state', () => {
+		assert.deepStrictEqual((['failed', 'completed'] as const).flatMap(continuation => {
+			const { session } = createSetupTestSession('attached', continuation);
+			return [0, 1, undefined].map(pendingRequestCount => {
+				const summary = readSessionWorkSummary(session, reviewed(session), { ...options, pendingRequestCount });
+				return { attention: summary.attention, running: summary.running, archiveKind: summary.archiveKind };
+			});
+		}), [
+			{ attention: 'setup', running: false, archiveKind: 'inspect' },
+			{ attention: 'setup', running: false, archiveKind: 'excluded' },
+			{ attention: 'setup', running: false, archiveKind: 'inspect' },
+			{ attention: undefined, running: false, archiveKind: 'suggested' },
+			{ attention: undefined, running: false, archiveKind: 'excluded' },
+			{ attention: undefined, running: false, archiveKind: 'inspect' },
+		]);
+	});
+
+	test('existing exclusions still protect sessions whose setup needs attention', () => {
+		const { session } = createSetupTestSession('attached', 'failed');
+		const state = reviewed(session);
+		const guards = [session.isArchived, session.loading, session.isNewSessionRequestInProgress, session.worktreePending];
+		const kinds = guards.map(guard => {
+			guard.set(true, undefined);
+			const result = readSessionWorkSummary(session, state, options).archiveKind;
+			guard.set(false, undefined);
+			return result;
+		});
+		kinds.push(
+			readSessionWorkSummary(session, state, { ...options, active: true }).archiveKind,
+			readSessionWorkSummary(session, state, { ...options, pinned: true }).archiveKind,
+			readSessionWorkSummary(session, { ...state, keepArchiveSuggestion: true }, options).archiveKind,
+		);
+		assert.deepStrictEqual(kinds, Array(7).fill('excluded'));
+	});
+
+	test('missing setup, ordinary quick chats, and completed setup preserve normal session behavior', () => {
+		const { session, chat } = createSetupTestSession('attached', 'completed');
+		const { workspaceSetup, ...normal } = session;
+		const absent = { ...normal, workspaceSetup: constObservable(undefined) };
+		const quickChat = { ...normal, isQuickChat: constObservable(true) };
+		const statuses = [SessionStatus.Completed, SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Untitled];
+		const summaries = statuses.map(status => {
+			session.status.set(status, undefined);
+			chat.status.set(status, undefined);
+			const state = reviewed(normal);
+			return {
+				ordinary: readSessionWorkSummary(normal, state, options),
+				variants: [
+					readSessionWorkSummary({ ...normal, workspaceSetup }, state, options),
+					readSessionWorkSummary(absent, state, options),
+					readSessionWorkSummary(quickChat, state, options),
+				],
+			};
+		});
+		assert.deepStrictEqual(
+			summaries.map(summary => summary.variants),
+			summaries.map(summary => [summary.ordinary, summary.ordinary, summary.ordinary]),
+		);
+	});
+
+	test('setup never fabricates results, read state, or review checkpoints', () => {
+		assert.deepStrictEqual(setups.map(({ phase, continuation }) => {
+			const { session, chat } = createSetupTestSession(phase, continuation);
+			const state = Object.freeze({ lastOpenedAt: day });
+			const summary = readSessionWorkSummary(session, state, options);
+			return {
+				hasResults: summary.hasResults, hasUnreviewedResults: summary.hasUnreviewedResults,
+				hasReviewCheckpoint: summary.hasReviewCheckpoint,
+				read: [session.isRead.get(), chat.isRead.get()],
+				status: [session.status.get(), chat.status.get()],
+			};
+		}), setups.map(() => ({
+			hasResults: false, hasUnreviewedResults: false, hasReviewCheckpoint: false,
+			read: [false, false], status: [SessionStatus.Completed, SessionStatus.Completed],
+		})));
+	});
+
+	test('observes setup transitions without changing output fingerprints or review state', () => {
+		const { session } = createSetupTestSession('requested', 'not-started');
+		const setup = session.workspaceSetup.get()!;
+		const state = Object.freeze(reviewed(session));
+		const summaries: ISessionWorkSummary[] = [];
+		const versions: string[] = [];
+		store.add(autorun(reader => versions.push(readSessionWorkResultVersion(session, reader))));
+		store.add(autorun(reader => summaries.push(readSessionWorkSummary(session, state, options, reader))));
+		session.workspaceSetup.set({ ...setup, phase: 'preparing' }, undefined);
+		session.workspaceSetup.set({ ...setup, phase: 'attached', continuation: 'pending' }, undefined);
+		session.workspaceSetup.set({ ...setup, phase: 'attached', continuation: 'running' }, undefined);
+		session.workspaceSetup.set({ ...setup, phase: 'attached', continuation: 'failed' }, undefined);
+		session.workspaceSetup.set({ ...setup, phase: 'attached', continuation: 'completed' }, undefined);
+		session.workspaceSetup.set(undefined, undefined);
+		assert.deepStrictEqual({
+			kinds: summaries.map(summary => summary.archiveKind),
+			attentions: summaries.map(summary => summary.attention),
+			versions, sameResults: summaries.every(summary => summary.resultVersion === state.reviewedResult),
+		}, {
+			kinds: ['excluded', 'excluded', 'excluded', 'excluded', 'inspect', 'suggested', 'suggested'],
+			attentions: [undefined, undefined, undefined, undefined, 'setup', undefined, undefined],
+			versions: [state.reviewedResult], sameResults: true,
+		});
+	});
+
+	test('unrecognized setup metadata fails closed', () => {
+		const { session } = createSetupTestSession('unknown', 'unknown');
+		const setup = session.workspaceSetup.get()!;
+		const variants: ISessionWorkspaceSetup[] = [
+			{ ...setup, phase: 'future-phase' as ISessionWorkspaceSetup['phase'] },
+			{ ...setup, phase: 'attached', continuation: 'future-continuation' as ISessionWorkspaceSetup['continuation'] },
+		];
+		assert.deepStrictEqual(variants.map(value => {
+			session.workspaceSetup.set(value, undefined);
+			const summary = readSessionWorkSummary(session, reviewed(session), options);
+			return { attention: summary.attention, running: summary.running, archiveKind: summary.archiveKind };
+		}), variants.map(() => ({ attention: 'setup', running: false, archiveKind: 'inspect' })));
+	});
+
+	test('all setup outcomes remain metadata-only without lazy GitHub or history reads', () => {
+		const { session, chat } = createSetupTestSession('requested', 'not-started');
+		const { session: withRepository } = setupPullRequests();
+		const workspace = withRepository.workspace.get()!;
+		const folder = workspace.folders[0];
+		let lazyReads = 0;
+		const unexpectedRead = (): never => {
+			lazyReads++;
+			throw new Error('Setup summaries must not load conversation history or lazy presentation state');
+		};
+		session.workspace.set({
+			...workspace, folders: [{
+				...folder, gitRepository: {
+					...folder.gitRepository!,
+					get gitHubInfo(): never { return unexpectedRead(); },
+					resolveGitHubInfo: unexpectedRead,
+				},
+			}],
+		}, undefined);
+		const metadataChat = {
+			...chat,
+			get description(): never { return unexpectedRead(); },
+			get history(): never { return unexpectedRead(); },
+		};
+		session.chats.set([metadataChat], undefined);
+		session.mainChat.set(metadataChat, undefined);
+		const metadataSession = {
+			...session,
+			get description(): never { return unexpectedRead(); },
+			get history(): never { return unexpectedRead(); },
+			get isQuickChat(): never { return unexpectedRead(); },
+		};
+		const setup = session.workspaceSetup.get()!;
+		const version = readSessionWorkResultVersion(metadataSession);
+		const summaries = setups.map(({ phase, continuation }) => {
+			session.workspaceSetup.set({
+				...setup, phase, continuation,
+				attachmentError: 'Attachment details that are not result or status text.',
+				continuationError: 'Continuation details that are not result or status text.',
+			}, undefined);
+			return readSessionWorkSummary(metadataSession, { lastOpenedAt: day, reviewedResult: version }, options);
+		});
+		assert.deepStrictEqual({
+			lazyReads, sameResults: summaries.every(summary => summary.resultVersion === version),
+			suggested: summaries.filter(summary => summary.archiveKind === 'suggested').length,
+		}, { lazyReads: 0, sameResults: true, suggested: 1 });
 	});
 });
 

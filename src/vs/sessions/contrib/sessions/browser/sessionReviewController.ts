@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isHTMLElement } from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -45,6 +46,7 @@ import { ISessionReviewState, SessionReviewSection } from '../../../services/ses
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { OPEN_PULL_REQUEST_REVIEW_ACTION_ID } from '../../github/common/types.js';
+import { IDashboardWorkService } from '../../intent/common/dashboardWork.js';
 import { getArtifactPullRequest, getSessionReviewPullRequests } from '../common/sessionReviewResources.js';
 import { SessionReviewEditorInput } from './sessionReviewEditor.js';
 import { SessionReviewComposer } from './sessionReviewComposer.js';
@@ -87,6 +89,7 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
+		@IDashboardWorkService private readonly dashboardWork: IDashboardWorkService,
 	) {
 		super();
 		const visibleKey = SessionReviewVisibleContext.bindTo(contextKeyService);
@@ -411,12 +414,23 @@ export class SessionReviewController extends Disposable implements ISessionRevie
 		try {
 			if (!await this.sessionsService.canOpenSession(session)) { return false; }
 			this._assertCanReply(session, chat);
-			await this.managementService.sendRequest(session, chat, { query, attachedContext });
+			const dashboardSession = this.dashboardWork.getSessionForChat(chat.resource);
+			if (dashboardSession) {
+				await this.dashboardWork.send(dashboardSession, query, attachedContext);
+			} else {
+				await this.managementService.sendRequest(session, chat, { query, attachedContext, preservePendingDraft: true });
+			}
 			this.workTracking.markOpened(session.resource);
 			return true;
 		} finally {
 			this._sending.delete(chat.resource);
 		}
+	}
+
+	async stop(session: ISession, chat: IChat): Promise<void> {
+		await this.managementService.cancelCurrentRequest(session, chat);
+		this.workTracking.markOpened(session.resource);
+		status(localize('sessionReview.stopRequested', "Stop requested for {0}.", chat.title.get() || session.title.get()));
 	}
 
 	private _assertCanReply(session: ISession, chat: IChat): void {

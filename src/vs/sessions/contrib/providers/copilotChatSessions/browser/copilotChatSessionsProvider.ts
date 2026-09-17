@@ -14,6 +14,8 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IObservabl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { isAbsolute } from '../../../../../base/common/path.js';
+import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,7 +32,7 @@ import { AutomationModelConfiguration } from '../../../automations/browser/autom
 import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorkspaceIntentAction, ISessionWorkspaceIntentRepository, SessionWorkspaceIntentActionResult } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -64,6 +66,8 @@ import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -165,6 +169,14 @@ export interface ICopilotChatSession {
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const OPEN_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+
+async function cloneRepository(commandService: ICommandService, url?: string, destinationParent?: URI): Promise<string | undefined> {
+	const repositoryPath = await commandService.executeCommand<string>('git.clone', url, destinationParent?.fsPath, { postCloneAction: 'none' });
+	if (repositoryPath?.endsWith('.code-workspace')) {
+		throw new Error(localize('cloneRepository.workspaceFile', "The selected clone is a workspace file. Choose Clone again to select a repository folder."));
+	}
+	return repositoryPath;
+}
 
 interface IGitHubContextSelection {
 	readonly repoId: string;
@@ -1554,6 +1566,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IGitService private readonly gitService: IGitService,
 		@IPathService private readonly pathService: IPathService,
+		@IFileService private readonly fileService: IFileService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -1634,6 +1648,119 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest, workspace),
 			},
 		];
+	}
+
+	get workspaceIntentActions(): readonly ISessionWorkspaceIntentAction[] {
+		if (this.chatEntitlementService.sentiment.hidden) {
+			return [];
+		}
+		return [
+			{
+				id: 'clone',
+				kind: 'clone',
+				label: localize('intent.clone', "Clone Locally"),
+				...this._workspaceIntentAvailability('clone'),
+				run: (repository, options) => this._runWorkspaceIntentAction('clone', repository, options?.destinationParent),
+			},
+			{
+				id: 'cloud',
+				kind: 'cloud',
+				label: localize('intent.cloud', "Set Up in Cloud"),
+				...this._workspaceIntentAvailability('cloud'),
+				resolveRepositoryWorkspace: repository => {
+					this._validateWorkspaceIntentRepository(repository);
+					if (this._workspaceIntentAvailability('cloud').availability === 'unavailable') { return undefined; }
+					return this.resolveWorkspace(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }));
+				},
+				run: repository => this._runWorkspaceIntentAction('cloud', repository),
+			},
+		];
+	}
+
+	private _workspaceIntentAvailability(kind: ISessionWorkspaceIntentAction['kind']): Pick<ISessionWorkspaceIntentAction, 'availability' | 'reason'> {
+		const sentiment = this.chatEntitlementService.sentiment;
+		if (sentiment.hidden || sentiment.disabled || sentiment.disabledInWorkspace) {
+			return { availability: 'unavailable', reason: localize('intent.aiDisabled', "Chat is currently disabled.") };
+		}
+		if (kind === 'clone') {
+			if (isWeb || this.pathService.defaultUriScheme !== Schemas.file) {
+				return { availability: 'unavailable', reason: localize('intent.cloneNotLocal', "Local cloning requires a desktop window connected to the local file system.") };
+			}
+			if (this.configurationService.getValue<boolean>('git.enabled') === false) {
+				return { availability: 'unavailable', reason: localize('intent.gitDisabled', "Git is disabled in this window.") };
+			}
+			return { availability: 'unknown', reason: localize('intent.cloneAvailability', "Git availability and repository access have not been checked.") };
+		}
+		if (!this.chatSessionsService.getChatSessionContribution(AgentSessionProviders.Cloud)) {
+			return { availability: 'unavailable', reason: localize('intent.cloudNotRegistered', "The cloud session provider is not currently registered.") };
+		}
+		return { availability: 'unknown', reason: localize('intent.cloudAvailability', "Authentication and cloud execution access have not been checked; this does not establish Agent Host sandbox availability.") };
+	}
+
+	private _requireWorkspaceIntentAction(kind: ISessionWorkspaceIntentAction['kind']): void {
+		const availability = this._workspaceIntentAvailability(kind);
+		if (availability.availability === 'unavailable') {
+			throw new Error(availability.reason);
+		}
+	}
+
+	private _validateWorkspaceIntentRepository(repository: ISessionWorkspaceIntentRepository): void {
+		const { owner, repo } = repository;
+		if (typeof owner !== 'string' || typeof repo !== 'string' || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(owner) || !/^[a-zA-Z0-9_.-]+$/.test(repo) || repo === '.' || repo === '..') {
+			throw new Error(localize('intent.invalidRepository', "Choose a valid GitHub repository before setting up a workspace."));
+		}
+	}
+
+	private async _runWorkspaceIntentAction(kind: ISessionWorkspaceIntentAction['kind'], repository: ISessionWorkspaceIntentRepository, destinationParent?: URI): Promise<SessionWorkspaceIntentActionResult> {
+		this._validateWorkspaceIntentRepository(repository);
+		const { owner, repo } = repository;
+		this._requireWorkspaceIntentAction(kind);
+		try {
+			if (kind === 'cloud') {
+				// The existing picker has no seed argument; require its explicit selection to match the requested repository.
+				const workspace = await this._browseForCloudRepo(`${owner}/${repo}`);
+				if (!workspace) {
+					return { kind: 'cancelled' };
+				}
+				this._requireWorkspaceIntentAction(kind);
+				return { kind: 'selected', workspace, providerId: this.id, sessionTypeId: CopilotCloudSessionType.id };
+			}
+
+			if (destinationParent && (destinationParent.scheme !== Schemas.file || destinationParent.authority || !(await this.fileService.stat(destinationParent)).isDirectory)) {
+				throw new Error(localize('intent.cloneInvalidParent', "Choose an existing local parent directory for the clone."));
+			}
+			this._requireWorkspaceIntentAction(kind);
+			const repositoryPath = await cloneRepository(this.commandService, `https://github.com/${owner}/${repo}.git`, destinationParent);
+			if (repositoryPath === undefined) {
+				return { kind: 'cancelled' };
+			}
+			this._requireWorkspaceIntentAction(kind);
+			if (!isAbsolute(repositoryPath)) {
+				throw new Error(localize('intent.cloneInvalidPath', "Git did not return an absolute local repository folder."));
+			}
+			const folder = URI.file(repositoryPath);
+			const stat = await this.fileService.stat(folder);
+			if (!stat.isDirectory) {
+				throw new Error(localize('intent.cloneNotDirectory', "The selected clone is not a local directory."));
+			}
+			const gitRepository = await this.gitService.openRepository(folder);
+			const remote = gitRepository && this.uriIdentityService.extUri.isEqual(gitRepository.rootUri, folder)
+				? getGitHubRemoteInfo(gitRepository.state.get()) : undefined;
+			if (!remote || !equalsIgnoreCase(remote.owner, owner) || !equalsIgnoreCase(remote.repo, repo)) {
+				throw new Error(localize('intent.cloneRepositoryMismatch', "The selected folder could not be verified as a checkout of {0}/{1}. Choose a folder or retry cloning.", owner, repo));
+			}
+			this._requireWorkspaceIntentAction(kind);
+			const workspace = this.resolveWorkspace(folder);
+			if (!workspace) {
+				throw new Error(localize('intent.cloneUnresolved', "The selected local repository could not be resolved as a workspace."));
+			}
+			return { kind: 'selected', workspace };
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return { kind: 'cancelled' };
+			}
+			throw error;
+		}
 	}
 
 	// -- Sessions --
@@ -2940,16 +3067,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private async _cloneRepository(url?: string): Promise<ISessionWorkspace | undefined> {
 		try {
-			const repositoryPath = await this.commandService.executeCommand<string>(
-				'git.clone',
-				url,
-				undefined,
-				{ postCloneAction: 'none' },
-			);
-			if (repositoryPath?.endsWith('.code-workspace')) {
-				this.notificationService.error(localize('cloneRepository.workspaceFile', "The selected clone is a workspace file. Choose Clone again to select a repository folder."));
-				return undefined;
-			}
+			const repositoryPath = await cloneRepository(this.commandService, url);
 			return repositoryPath ? this.resolveWorkspace(URI.file(repositoryPath)) : undefined;
 		} catch (error) {
 			if (!isCancellationError(error)) {
@@ -2959,10 +3077,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	private async _browseForCloudRepo(): Promise<ISessionWorkspace | undefined> {
+	private async _browseForCloudRepo(expectedRepository?: string): Promise<ISessionWorkspace | undefined> {
 		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
-		if (!repoId) {
+		if (repoId === undefined || !expectedRepository && !repoId) {
 			return undefined;
+		}
+		if (expectedRepository && !equalsIgnoreCase(repoId, expectedRepository)) {
+			throw new Error(localize('intent.cloudRepositoryChanged', "The selected cloud repository does not match {0}. Review the repository recommendation before choosing a different target.", expectedRepository));
 		}
 		const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
 		const folder: ISessionFolder = {

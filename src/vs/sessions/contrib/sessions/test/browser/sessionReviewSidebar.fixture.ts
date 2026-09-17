@@ -9,9 +9,10 @@ import '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor
 import { getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -34,42 +35,22 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatRequestTextPart } from '../../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IChatDebugService } from '../../../../../workbench/contrib/chat/common/chatDebugService.js';
-import { IChatGoalSummaryService } from '../../../../../workbench/contrib/chat/browser/chatGoalSummaryService.js';
-import { ChatLayoutService } from '../../../../../workbench/contrib/chat/browser/widget/chatLayoutService.js';
-import { IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
-import { IChatLayoutService } from '../../../../../workbench/contrib/chat/common/widget/chatLayoutService.js';
-import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem, MultiDiffSourceResolverService } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
-import { EditorService } from '../../../../../workbench/services/editor/browser/editorService.js';
-import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IEditorService, MODAL_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
+import { MODAL_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { createEditorParts, TestLayoutService, TestLifecycleService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionOpenTelemetryService } from '../../../../services/sessions/browser/sessionOpenTelemetryService.js';
-import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionReviewHasSelectionContext, SessionReviewVisibleContext, SessionsBoardVisibleContext } from '../../../../common/contextkeys.js';
 import { ISessionInputDraft, ISessionInputDraftService } from '../../../../services/sessions/browser/sessionInputDraftService.js';
 import { ISessionReviewService } from '../../../../services/sessions/browser/sessionReviewService.js';
@@ -81,12 +62,6 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { SessionReviewSection } from '../../../../services/sessions/common/sessionReview.js';
 import { SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { createNewChatInputFixtureServices } from '../../../chat/test/browser/newChatInput.fixture.js';
-import { ChatView } from '../../../chat/browser/chatView.js';
-import { ISessionsChatViewStateService, SessionsChatViewStateService } from '../../../chat/browser/chatViewStateService.js';
-import { ISessionChatPillsDebugService } from '../../../chat/browser/sessionChatInputToolbarDebug.js';
-import { ISessionArchiveNudgeService } from '../../../chat/browser/sessionArchiveNudge.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -94,10 +69,13 @@ import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubP
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { PullRequestReviewEditorInput } from '../../../github/browser/pullRequestReviewEditor.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubCICheck } from '../../../github/common/types.js';
+import { IDashboardWorkService } from '../../../intent/common/dashboardWork.js';
 import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 import { SessionReviewSidebar } from '../../browser/sessionReviewSidebar.js';
 import { SessionReviewComposer } from '../../browser/sessionReviewComposer.js';
 import { SessionReviewEditorInput } from '../../browser/sessionReviewEditor.js';
+import { configureSessionReviewConversationServices, createNativeSessionReviewFixture, registerSessionReviewConversationServices } from './sessionReviewFixtureUtils.js';
+import { addWorkCardRequest } from './sessionWorkCardContentTestUtils.js';
 
 interface IReviewFixtureOptions {
 	readonly width?: number;
@@ -172,6 +150,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 			: options.result ? [toFileVariableEntry(resource)] : [],
 	});
 	const selection = observableValue('selection', options.pullRequest ? { resource: pullRequest.uri, label: 'Preserve permission prompts' } : options.result || options.changes ? { resource, label: 'src/permissions.ts' } : undefined);
+	let conversationModel: ChatModel | undefined;
 	let navigate: ((section: SessionReviewSection) => Promise<void>) | undefined;
 	let pendingNavigation = Promise.resolve();
 	const provider: ISessionsProvider = new class extends mock<ISessionsProvider>() {
@@ -204,17 +183,23 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 				visibleSessions: constObservable([session]),
 				openSessionReview: async (_session, target) => {
 					section.set(target, undefined);
-					pendingNavigation = navigate?.(target) ?? Promise.resolve();
+					if (!navigate) { throw new Error('Native review navigation is not ready'); }
+					pendingNavigation = navigate(target);
 					await pendingNavigation;
 				},
 				setSessionReviewSection: target => {
 					section.set(target, undefined);
-					pendingNavigation = navigate?.(target) ?? Promise.resolve();
+					if (!navigate) { throw new Error('Native review navigation is not ready'); }
+					pendingNavigation = navigate(target);
 				},
 			});
 			registration.definePartialInstance(ISessionsManagementService, {
-				onDidChangeSessionTypes: Event.None,
+				onDidChangeSessionTypes: Event.None, onDidChangeSessions: Event.None,
 				getSessionTypesForFolder: () => [],
+				getSession: resource => isEqual(resource, session.resource) ? session : undefined,
+			});
+			registration.definePartialInstance(IDashboardWorkService, {
+				executions: constObservable([]), getSessionForChat: () => undefined,
 			});
 			registration.definePartialInstance(ISessionsProvidersService, {
 				onDidChangeProviders: Event.None,
@@ -224,7 +209,18 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 			registration.definePartialInstance(ISessionReviewService, {
 				section,
 				selection,
-				send: async () => true,
+				send: async (target, targetChat, query) => {
+					if (!conversationModel || !isEqual(target.resource, session.resource) || !isEqual(targetChat.resource, chat.resource)) {
+						throw new Error('This fixture has no matching conversation to send to');
+					}
+					addWorkCardRequest(conversationModel, query, [{ kind: 'markdownContent', content: new MarkdownString('Sample reply received in the selected conversation. No real session was changed.') }]).response?.complete();
+					return true;
+				},
+				stop: async () => { throw new Error('This completed review fixture has no response to stop'); },
+				close: () => {
+					if (!closeNativeModal) { throw new Error('The native review fixture has not opened'); }
+					return closeNativeModal();
+				},
 				discuss: () => {
 					const selected = selection.get();
 					if (!selected) { throw new Error('A fixture result must be selected before adding it to the reply'); }
@@ -241,36 +237,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 						return { object: model, dispose: () => { } };
 					}
 				});
-				registration.define(ILifecycleService, TestLifecycleService);
-				registration.define(IChatAgentService, ChatAgentService);
-				registration.define(IChatLayoutService, ChatLayoutService);
-				registration.definePartialInstance(IChatDebugService, { onDidAddEvent: Event.None, getEvents: () => [] });
-				registration.definePartialInstance(IChatGoalSummaryService, {});
-				registration.definePartialInstance(IChatTipService, {
-					onDidDismissTip: Event.None, onDidNavigateTip: Event.None, onDidHideTip: Event.None, onDidDisableTips: Event.None,
-					getWelcomeTip: () => undefined, resetSession: () => { }, hasMultipleTips: () => false,
-				});
-				registration.definePartialInstance(ILanguageModelToolsService, {
-					onDidChangeTools: Event.None, onDidPrepareToolCallBecomeUnresponsive: Event.None, onDidInvokeTool: Event.None,
-					getTools: () => [], observeTools: () => constObservable([]), getToolSetsForModel: () => [],
-				});
-				registration.define(ISessionsChatViewStateService, SessionsChatViewStateService);
-				registration.definePartialInstance(ISessionChatPillsDebugService, { register: () => Disposable.None, clear: () => { } });
-				registration.definePartialInstance(ISessionOpenTelemetryService, { modelBound: () => { }, modelUnbound: () => { }, modelBindFailed: () => { throw new Error('Native fixture conversation failed to bind'); } });
-				registration.definePartialInstance(ISessionsChatBackgroundService, { onDidChangeBackground: Event.None, getBackground: () => undefined });
-				registration.definePartialInstance(ISessionsPartService, {});
-				registration.definePartialInstance(ISessionArchiveNudgeService, {});
-				registration.definePartialInstance(IGitHubService, {});
-				registration.definePartialInstance(ISessionChangesService, { activeSessionUncommittedChangesCountObs: constObservable(undefined) });
-				registration.definePartialInstance(IAgentWorkbenchLayoutService, {
-					isSinglePaneLayoutEnabled: false, mainContainer: container, mainContainerDimension: { width, height },
-					getContainer: () => container, onDidChangePartVisibility: Event.None, onDidChangeWindowMaximized: Event.None,
-					isVisible: () => true,
-				});
-				registration.definePartialInstance(IAgentFeedbackService, {
-					onDidChangeFeedback: Event.None, onDidChangeFeedbackVisibility: Event.None, onDidChangeFeedbackScope: Event.None,
-					getFeedback: () => [],
-				});
+				registerSessionReviewConversationServices(registration, container, { width, height });
 			}
 		},
 	});
@@ -286,11 +253,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 	}();
 	instantiation.stub(ICommandService, commands);
 	if (options.conversation) {
-		instantiation.stub(IChatSessionsService, instantiation.get(IChatSessionsService), 'onDidChangeContentProviderSchemes', Event.None);
-		instantiation.stub(IChatSessionsService, instantiation.get(IChatSessionsService), 'getChatSessionContribution', () => undefined);
-		instantiation.stub(IChatSessionsService, instantiation.get(IChatSessionsService), 'sessionSupportsFork', () => false);
-		instantiation.stub(IChatSessionsService, instantiation.get(IChatSessionsService), 'sessionSupportsRename', () => false);
-		instantiation.stub(IPromptsService, instantiation.get(IPromptsService), 'listAgentInstructions', async () => []);
+		configureSessionReviewConversationServices(instantiation);
 		const configuration = instantiation.get(IConfigurationService);
 		if (configuration instanceof TestConfigurationService) {
 			configuration.setUserConfiguration('chat', { editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: 'off' } });
@@ -299,6 +262,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 		const model = disposableStore.add(instantiation.createInstance(ChatModel, undefined, {
 			initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: chat.resource,
 		}));
+		conversationModel = model;
 		const service = instantiation.get(IChatService);
 		if (!(service instanceof MockChatService)) { throw new Error('Expected fixture chat service'); }
 		service.addSession(model);
@@ -314,35 +278,8 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 	SessionReviewVisibleContext.bindTo(keys).set(true);
 	SessionReviewHasSelectionContext.bindTo(keys).set(!!options.result || !!options.changes || !!options.pullRequest);
 	{
-		container.style.position = 'relative';
-		const nativeDisposables = disposableStore.add(new DisposableStore());
-		const editors = workbenchInstantiationService(undefined, nativeDisposables);
-		editors.stub(ILogService, log);
-		const layoutService = new TestLayoutService();
-		layoutService.mainContainer = container;
-		layoutService.activeContainer = container;
-		layoutService.containers = [container];
-		layoutService.mainContainerDimension = { width, height };
-		const layoutChanged = nativeDisposables.add(new Emitter<{ readonly width: number; readonly height: number }>());
-		layoutService.onDidLayoutMainContainer = layoutChanged.event;
-		editors.stub(IWorkbenchLayoutService, layoutService);
-		editors.stub(IContextKeyService, keys);
-		editors.stub(IThemeService, instantiation.get(IThemeService));
-		editors.stub(ISessionsService, instantiation.get(ISessionsService));
-		editors.stub(IChatViewFactory, {
-			createChatView: scope => {
-				if (!options.conversation) { throw new Error('Artifact review must not load the conversation'); }
-				const context = scope?.invokeFunction(accessor => accessor.get(IContextKeyService)) ?? keys;
-				const scoped = nativeDisposables.add(instantiation.createChild(new ServiceCollection([IContextKeyService, context])));
-				return scoped.createInstance(ChatView);
-			}
-		});
-		editors.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(editors, nativeDisposables);
+		const { nativeDisposables, editors, parts, editorService, layoutService, layoutChanged } = await createNativeSessionReviewFixture({ ...context, disposableStore }, instantiation, { width, height, conversation: options.conversation });
 		closeNativeModal = () => parts.activeModalEditorPart?.close() ?? Promise.resolve(true);
-		editors.stub(IEditorGroupsService, parts);
-		const editorService = nativeDisposables.add(editors.createInstance(EditorService, undefined));
-		editors.stub(IEditorService, editorService);
 		navigate = async target => {
 			const input = nativeDisposables.add(new SessionReviewEditorInput(session.resource, target));
 			await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
@@ -487,8 +424,11 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 	if (container.querySelector<HTMLElement>('.session-review-composer')?.style.top) {
 		throw new Error('An embedded reply must not apply the welcome composer centering offset to its host.');
 	}
-	if (container.querySelector('.session-review-navigation .action-label.codicon, .session-review-selected-actions .action-label.codicon')) {
+	if ([...container.querySelectorAll('.session-review-navigation .action-label.codicon, .session-review-selected-actions .action-label.codicon')].some(action => action.textContent?.trim())) {
 		throw new Error('Review action labels must not render text in the icon font.');
+	}
+	if ([...container.querySelectorAll('.session-review-navigation .action-label')].some(action => !action.classList.contains('codicon') || !action.getAttribute('aria-label'))) {
+		throw new Error('Review navigation controls must be codicons with accessible labels.');
 	}
 	const footer = container.querySelector<HTMLElement>('.modal-editor-content-footer');
 	const editor = footer?.parentElement?.querySelector<HTMLElement>(':scope > .content');
@@ -513,7 +453,7 @@ async function renderReview(context: ComponentFixtureContext, options: IReviewFi
 }
 
 const expectedVisualDescriptions = [
-	'The session title and a readable selected section establish the review context. Back to Board is separate from result actions.',
+	'The session title and a readable selected section establish the review context. Navigation uses accessible codicons, separate from result actions and the native modal maximize, restore, and close controls.',
 	'One native reply editor stays below the editor content column, with a named chat target, explicit Add to Reply action, attachments, and send controls.',
 	'Navigation stays on the left at every size; the footer scrolls independently when the window is short.',
 ];

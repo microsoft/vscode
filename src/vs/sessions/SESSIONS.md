@@ -48,12 +48,14 @@ The model-orchestration service:
 
 - aggregates sessions and session types;
 - resolves workspaces and selects providers for new sessions;
-- owns pending workspace-session, quick-chat, and automation drafts;
+- owns pending workspace-session, quick-chat, automation, and caller-owned drafts;
 - routes model and lifecycle operations to the owning provider;
 - exposes provider-neutral lookup and recency APIs;
 - emits lifecycle notifications for operations initiated through the service.
 
 It does not own active or visible session state, focus, or layout.
+
+`createSessionDraft`, `sendSessionDraft`, and `discardSessionDraft` give an independent surface its own provisional session without replacing the regular composer or automation slot. Canonical preparation and first-send publication use the existing provider lifecycle. Discard affects only a still-owned draft. Programmatic sends can explicitly preserve the regular pending draft and its send-follow/group intent; successful start and send notifications still update the catalog and observers.
 
 ### `ISessionsService`
 
@@ -76,6 +78,8 @@ Surfaces that can represent a session other than the window-global active sessio
 `ISessionInputDraftService` owns lightweight Sessions input drafts keyed by chat resource. Reading or editing an unloaded draft does not acquire a chat model. When a native model is already loaded, the service shares text and attachments through its public `IInputModel` state; pending local edits are handed to that model when it is created. Model listeners have model-scoped lifetimes. Canonical session replacement rebinds the main-chat draft, including existing draft handles, to the replacement resource.
 
 Compact board inputs and the review composer use that shared draft contract. The existing Sessions composer accepts a host-owned draft instead of using the new-session composer's private storage. Explicit result references remain in the draft until removed or successfully sent; changing the viewed artifact, diff, or pull request does not replace them.
+
+The native new-session input accepts an optional host-owned draft binding. The dashboard's creation input uses its own stable blank-input resource; accepted requests open the existing review composer bound to the committed chat. The regular standalone composer retains its ordinary draft behavior and does not adopt that experimental draft. Send completion clears only the submitted draft, not another input that became current while the request was being accepted. Failure to open the review view does not turn an accepted request into an unsent draft.
 
 ### Work overview and review checkpoints
 
@@ -119,6 +123,18 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 ### Workspaces and quick chats
 
 `ISession.workspace` describes the workspace in which a session operates. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+
+The intent contribution owns bounded workspace discovery and reviewed setup proposals. Recommendations contain validated paths and revisions, not execution authority. Discovery does not acquire conversation history, start execution, or establish access to a remote or cloud target. Native questions, tool approval, trust, workspace conversion, and continuation remain owned by the existing chat/provider/host path.
+
+`IDashboardWorkService` owns the experimental workspace-less conversation, its independent draft, and links to execution sessions. Only conversations created through that service receive its orchestration context and client-tool definitions. Ordinary Quick Chat creation, prompts, tools, draft state, and private composer lifecycle remain separate.
+
+Dashboard-owned replies retain that orchestration route when sent from shared cards or focused review. Response cancellation captures and validates the selected chat rather than using a window-global active chat; callers omitting a chat retain main-chat cancellation.
+
+The shared active-client service can overlay tool definitions for one chat resource while retaining shared provider/workspace customization scopes. The session handler supplies trusted caller identity separately from rendered request context, so read-only operations can run without a mounted card. Dashboard tool implementations validate that identity against their owned conversations; model-supplied parameters cannot enroll an ordinary chat. Hiding AI features removes the experimental registrations and blocks operations.
+
+The dashboard agent can discover eligible local, known remote, and concrete cloud targets; clone through provider-owned setup actions; start a separate worker through management; and explicitly read or wait for its bounded recent output. Worker creation sends only the explicit task, without copying the parent's history, attachments, or permission grants. A different execution target creates another session rather than migrating the live conversation. Runtime approval and managed-policy enforcement remain authoritative, and provider, workspace, and isolation eligibility are rechecked before execution.
+
+Conversation membership and execution records are client-owned persisted state, not a portable task scheduler. Canonical publication rebinds their source and destination resources. Stable operation IDs prevent repeated starts; an interrupted start restores as uncertain, not as authority to retry. Discovery revisions and approvals are not restored. Control operations require the client connection even though started workers run through their own providers. Unsent text, evidence, and collection intent remain independently restorable without consuming the regular pending draft.
 
 ### Capabilities
 

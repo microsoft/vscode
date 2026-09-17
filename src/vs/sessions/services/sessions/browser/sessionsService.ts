@@ -522,7 +522,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onDidSendRequest(event => {
+			if (!event.options.preservePendingDraft) { this._sendFollow.clear(); }
+		}));
 
 		const boardVisibleKey = SessionsBoardVisibleContext.bindTo(this.contextKeyService);
 		const catalogChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);

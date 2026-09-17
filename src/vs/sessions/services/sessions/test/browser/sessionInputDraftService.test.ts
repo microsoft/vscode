@@ -77,6 +77,43 @@ suite('SessionInputDraftService', () => {
 			loads: 0,
 			stable: true,
 		});
+
+		test('observing a seeded composer does not adopt an empty passive draft', () => {
+			const { service, loads } = setup();
+			const present = service.getDraftIfPresent(resource);
+			const before = present.get();
+			service.getDraft(resource).get();
+			const passive = present.get();
+			service.setDraft(resource, { inputText: 'Seeded outcome', attachments: [] });
+			const seeded = present.get();
+			service.setDraft(resource, { inputText: '', attachments: [] });
+			assert.deepStrictEqual({ before, passive, seeded, cleared: present.get(), loads: loads() }, {
+				before: undefined, passive: undefined,
+				seeded: { inputText: 'Seeded outcome', attachments: [] },
+				cleared: { inputText: '', attachments: [] }, loads: 0,
+			});
+
+			test('explicitly adopting a mounted composer captures its existing text and evidence', () => {
+				const { service, loads } = setup();
+				const attachment = toFileVariableEntry(URI.file('/evidence.png'));
+				let reads = 0;
+				const registration = store.add(service.registerDraftProvider(resource, () => {
+					reads++;
+					return { inputText: 'Existing native outcome', attachments: [attachment] };
+				}));
+				const before = service.getDraftIfPresent(resource).get();
+				const observedReads = reads;
+				const adopted = service.getDraft(resource).get();
+				service.setDraft(resource, { inputText: 'Reviewed task', attachments: [attachment] });
+				const updated = service.getDraft(resource).get();
+				registration.dispose();
+				assert.deepStrictEqual({ before, observedReads, adopted, updated, reads, loads: loads() }, {
+					before: undefined, observedReads: 0,
+					adopted: { inputText: 'Existing native outcome', attachments: [attachment] },
+					updated: { inputText: 'Reviewed task', attachments: [attachment] }, reads: 1, loads: 0,
+				});
+			});
+		});
 	});
 
 	test('references preserve text, deduplicate attachments, and stay chat-scoped', () => {

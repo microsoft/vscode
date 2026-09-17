@@ -150,7 +150,7 @@ export class SessionWorkNavigation extends Disposable {
 			};
 			const items: IObjectTreeElement<IWorkNavigationItem>[] = [
 				{ element: { id: 'overview', label: getSessionWorkViewLabel('overview'), icon: Codicon.layout, view: 'overview' } },
-				...groups.getGroups().map(group => ({ element: { id: `collection:${group.id}`, label: group.name, icon: Codicon.folder, view: 'all' as const, collection: group.id } })),
+				...groups.getGroups().map(group => ({ element: { id: `collection:${group.id}`, label: group.name, icon: Codicon.library, view: 'all' as const, collection: group.id } })),
 				...promotedViews.map(view => ({ element: { id: view, label: getSessionWorkViewLabel(view), icon: viewIcons[view], view } })),
 				...savedViews.map(view => ({ element: { id: `saved:${view.id}`, label: view.name, icon: Codicon.bookmark, savedView: view.id } })),
 				{ element: { id: 'createCollection', label: localize('sessionsWork.newCollection', "Create Collection..."), icon: Codicon.add, command: 'sessions.work.createCollection' } },

@@ -5,7 +5,8 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAppliedClientAction, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
 import { parseAgentWorkspaceTransition, AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
@@ -25,10 +26,17 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
+		this._conversionService.finishContinuation(turn);
 		if (turn.reason.kind === 'success') {
 			void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
 		} else {
 			this._conversionService.cancel(turn.channel, turn.turnId);
+		}
+	}
+
+	onDidApplyClientAction(event: IAppliedClientAction): void {
+		if (event.action.type === ActionType.ChatTurnResume) {
+			this._conversionService.resumeContinuation(event.channel, event.action.turnId);
 		}
 	}
 
