@@ -17,6 +17,7 @@ export interface EditorViewConfig {
 	tabSize?: number;
 	indentSize?: number;
 	indentGuides?: boolean;
+	bracketGuides?: boolean;
 	indentGuideColors?: number[];
 	activeIndentGuideColors?: number[];
 	maxIndentGuideOffset?: number;
@@ -56,6 +57,14 @@ export interface EditorViewConfig {
 
 export type CursorStyle = 'line' | 'line-thin' | 'block' | 'block-outline' | 'underline' | 'underline-thin';
 export type FoldingControlInput = 'expanded' | 'expanded-auto-hide' | 'collapsed';
+
+export type BracketGuideInput = (
+	| { column: number; visibleColumn?: never }
+	| { visibleColumn: number; column?: never }
+) & {
+	color: number;
+	horizontalLine?: { top: boolean; endColumn: number };
+};
 
 export interface CursorInput {
 	line: number;
@@ -126,6 +135,8 @@ export type ModelDeltaInput =
 export interface EditorView {
 	setLines(lines: LineInput[]): void;
 	applyDelta(delta: ModelDeltaInput): void;
+	/** Absent in npm 0.0.1; hosts must check before enabling bracket guide paint. */
+	setBracketGuides?(start: number, guides: BracketGuideInput[][]): void;
 	setConfig(config: EditorViewConfig): void;
 	setViewport(viewport: { width: number; height: number; scrollTop?: number; scrollLeft?: number; devicePixelRatio?: number }): void;
 	decorationRanges(ranges: DecorationRangeInput[]): { line: number; left: number; width: number; continuesOnNextLine: boolean }[][];

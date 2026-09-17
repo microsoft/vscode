@@ -29,6 +29,8 @@ import type { IContentDecorationLineRange, IContentDecorationRangeRequest } from
 import type { IEditorViewLineWidthProvider } from '../viewLines/viewLines.js';
 import type { IViewLineHitTestProvider } from '../../controller/mouseHandler.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { EditorViewBracketGuideColors, toEditorViewBracketGuide } from './editorViewGuides.js';
+import { localize } from '../../../../nls.js';
 
 /**
  * Which editor surfaces the `@vscode/editor-view` (Rust/WASM) renderer draws
@@ -50,8 +52,8 @@ export interface EditorViewGpuCapabilities {
 	readonly cursor: boolean;
 	/** Visible space/tab markers (`WhitespaceOverlay`). */
 	readonly whitespace: boolean;
-	/** Indentation guides (`IndentGuidesOverlay`), including active highlighting. */
-	readonly indentGuides: boolean;
+	/** Indentation and bracket-pair guides (`IndentGuidesOverlay`). */
+	readonly guides: boolean;
 	/** Gutter line numbers (`LineNumbersOverlay`). */
 	readonly lineNumbers: boolean;
 	/**
@@ -95,7 +97,7 @@ export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
 	currentLine: true,
 	cursor: true,
 	whitespace: true,
-	indentGuides: true,
+	guides: true,
 	lineNumbers: true,
 	foldingControls: true,
 	supportedContentDecorations: true,
@@ -133,6 +135,8 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private readonly _sync = new EditorViewModelSync();
 	private readonly _decorationResolver: EditorViewDecorationResolver;
 	private _decorationsDirty = true;
+	private _bracketGuideColors: EditorViewBracketGuideColors | undefined;
+	private _bracketGuideSupportFailure = false;
 	private _foldingControlsHovered = false;
 	/** View line (1-based) holding the primary cursor; its number is highlighted. */
 	private _activeLineNumber = 1;
@@ -293,6 +297,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			tabSize: this._context.viewModel.model.getOptions().tabSize,
 			indentSize: this._context.viewModel.model.getOptions().indentSize,
 			indentGuides: options.get(EditorOption.guides).indentation,
+			bracketGuides: options.get(EditorOption.guides).bracketPairs !== false,
 			indentGuideColors: guideColors.map(colors => this._packColor(colors.inactive, 0)),
 			activeIndentGuideColors: guideColors.map(colors => this._packColor(colors.active, 0)),
 			maxIndentGuideOffset: wrappingInfo.wrappingColumn === -1
@@ -716,9 +721,9 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 	}
 
-	private _syncIndentGuides(scrollTop: number, height: number): void {
+	private _syncGuides(scrollTop: number, height: number): void {
 		const guideOptions = this._context.configuration.options.get(EditorOption.guides);
-		if (!guideOptions.indentation) {
+		if (!guideOptions.indentation && guideOptions.bracketPairs === false) {
 			return;
 		}
 		const lineCount = this._context.viewModel.getLineCount();
@@ -731,29 +736,38 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		if (start >= end) {
 			return;
 		}
+		const activeCursor = this._cursorPositions[0];
+		const position = activeCursor ? new Position(activeCursor.lineNumber, activeCursor.column) : null;
+		const bracketGuides = guideOptions.bracketPairs !== false
+			? this._context.viewModel.getBracketGuidesInRangeByLine(start + 1, end, position, {
+				highlightActive: guideOptions.highlightActiveBracketPair,
+				horizontalGuides: guideOptions.bracketPairsHorizontal === true
+					? HorizontalGuidesState.Enabled
+					: guideOptions.bracketPairsHorizontal === 'active'
+						? HorizontalGuidesState.EnabledForActive
+						: HorizontalGuidesState.Disabled,
+				includeInactive: guideOptions.bracketPairs === true,
+			})
+			: undefined;
+		if (bracketGuides && this._editorView?.setBracketGuides) {
+			const colors = this._bracketGuideColors ??= new EditorViewBracketGuideColors(this._context.theme);
+			this._editorView.setBracketGuides(start, bracketGuides.map(guides => guides.map(guide =>
+				toEditorViewBracketGuide(guide, this._packColor(colors.getColor(guide.className), 0))
+			)));
+		}
+		if (!guideOptions.indentation) {
+			return;
+		}
 		const counts = this._context.viewModel.getLinesIndentGuides(start + 1, end);
 		const activeLevels = new Array<number>(counts.length).fill(0);
-		const activeCursor = this._cursorPositions[0];
 		if (guideOptions.highlightActiveIndentation !== false && activeCursor) {
-			const position = new Position(activeCursor.lineNumber, activeCursor.column);
-			const active = this._context.viewModel.getActiveIndentGuide(position.lineNumber, start + 1, end);
-			const bracketGuides = guideOptions.highlightActiveIndentation !== 'always' && guideOptions.bracketPairs !== false
-				? this._context.viewModel.getBracketGuidesInRangeByLine(start + 1, end, position, {
-					highlightActive: guideOptions.highlightActiveBracketPair,
-					horizontalGuides: guideOptions.bracketPairsHorizontal === true
-						? HorizontalGuidesState.Enabled
-						: guideOptions.bracketPairsHorizontal === 'active'
-							? HorizontalGuidesState.EnabledForActive
-							: HorizontalGuidesState.Disabled,
-					includeInactive: guideOptions.bracketPairs === true,
-				})
-				: undefined;
+			const active = this._context.viewModel.getActiveIndentGuide(activeCursor.lineNumber, start + 1, end);
 			for (let lineNumber = active.startLineNumber; lineNumber <= active.endLineNumber; lineNumber++) {
 				const index = lineNumber - start - 1;
 				if (index >= 0 && index < counts.length
 					&& active.indent > 0
 					&& active.indent <= counts[index]
-					&& (!bracketGuides || bracketGuides[index].length === 0)) {
+					&& (guideOptions.highlightActiveIndentation === 'always' || !bracketGuides || bracketGuides[index].length === 0)) {
 					activeLevels[index] = active.indent;
 				}
 			}
@@ -838,6 +852,18 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		if (!this._editorView || this._disposed) {
 			return;
 		}
+		if (this._context.configuration.options.get(EditorOption.guides).bracketPairs !== false && !this._editorView.setBracketGuides) {
+			if (!this._bracketGuideSupportFailure) {
+				this._bracketGuideSupportFailure = true;
+				queueMicrotask(() => {
+					if (!this._disposed) {
+						editorGpuAcceleration.disableEditorView();
+						onUnexpectedError(new Error(localize('editorView.bracketGuidesUnsupported', "The installed @vscode/editor-view package does not support bracket-pair guides. Update the package to use GPU rendering with bracket-pair guides. Using DOM rendering instead.")));
+					}
+				});
+			}
+			return;
+		}
 
 		const { width, height, dpr } = this._measure();
 		const backingWidth = Math.max(1, Math.round(width * dpr));
@@ -854,7 +880,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._editorView.setConfig(this._buildConfig());
 		this._syncModel();
 		this._syncDecorations();
-		this._syncIndentGuides(scrollTop, height);
+		this._syncGuides(scrollTop, height);
 		this._editorView.setViewport({
 			width,
 			height,
@@ -1022,6 +1048,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		// colors are baked into per-line tokens, so rebuild them all.
 		this._sync.scheduleFullReload();
 		this._decorationResolver.clear();
+		this._bracketGuideColors = undefined;
 		this._decorationsDirty = true;
 		return true;
 	}

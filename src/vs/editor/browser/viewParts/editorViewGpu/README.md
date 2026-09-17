@@ -5,6 +5,10 @@ The editor builds without it. The host-owned subset of its API is declared in
 [`editorViewTypes.ts`](./editorViewTypes.ts); keep it compatible with the version
 installed by the distro.
 
+Bracket-pair guides require a renderer exposing `setBracketGuides`; this API is
+not in the initial npm `0.0.1` release. Use the updated local build during
+development and pin the next published release in the distro to enable it.
+
 ## Distro setup
 
 Add the pinned runtime dependency to `npm/package.json` and its lockfile in
@@ -38,6 +42,9 @@ their product configuration **before** editor settings are registered:
 - Import or initialization failure: report the error, remove `editorView` for
   that renderer window, and rebuild affected editors using the DOM renderer.
   User settings are not rewritten.
+- Older renderer without `setBracketGuides`: ordinary GPU rendering still works
+  with bracket guides disabled. Enabling bracket guides reports an unsupported
+  package error and returns to DOM rendering instead of hiding the guides.
 
 The existing `on` renderer is independent of this package and is unchanged.
 Availability is detected on application startup; restart after installing or
@@ -56,6 +63,17 @@ Ordinary edits remain incremental regardless of document length. Initial loads
 and complete view remaps still transfer the full document; indentation guides
 and paint are restricted to the viewport. Large documents remain subject to
 normal editor and available-memory limits, not silent truncation.
+
+## Guide ownership
+
+The GPU owns both indentation and bracket-pair guides through the shared
+`guides` capability. VS Code supplies visible/overscan per-view-line guide
+descriptions, including active/inactive filtering and wrap remapping, and resolves
+the theme palette using the same transparent-color fallbacks as the DOM overlay.
+Rust owns endpoint measurement, vertical/horizontal stroke geometry, clipping
+and indentation overlap suppression. Both horizontal guide modes and all
+bracket-pair settings remain host-controlled. Cursor moves, model edits, theme
+changes and scrolling update the next visible batch.
 
 ## Validation
 
