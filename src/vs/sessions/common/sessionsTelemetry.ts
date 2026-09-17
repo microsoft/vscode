@@ -32,6 +32,21 @@ export function hashSessionIdForTelemetry(sessionId: string): string {
 	return sha1.digest();
 }
 
+type SessionsListCompactViewStateEvent = {
+	enabled: boolean;
+};
+
+type SessionsListCompactViewStateClassification = {
+	owner: 'sandy081';
+	comment: 'Tracks compact Sessions list adoption when the Sessions view initializes.';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has compact Sessions list view enabled.' };
+};
+
+/** Logs the profile-persisted compact Sessions list preference once when the Sessions view initializes. */
+export function logSessionsListCompactViewState(telemetryService: ITelemetryService, enabled: boolean): void {
+	telemetryService.publicLog2<SessionsListCompactViewStateEvent, SessionsListCompactViewStateClassification>('vscodeAgents.sessionsList/compactViewState', { enabled });
+}
+
 // --- Titlebar button interactions ---
 
 export type SessionsInteractionButton =

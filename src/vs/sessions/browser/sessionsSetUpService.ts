@@ -486,6 +486,7 @@ class SessionsSetUpWidget extends Disposable {
 			let success: boolean | undefined;
 			try {
 				success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
+					telemetrySource: 'sessionsSetup',
 					...createSessionsSignInDialogOptions(this.commandService, showReturnToVSCodeEditor, allowContinueWithoutSignIn, onContinueWithoutSignIn),
 					cancellationToken: setupCancellation.token,
 					onSignInStarted: (cancel: () => void) => {

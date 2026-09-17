@@ -105,6 +105,40 @@ export interface ILocalTurnRecord {
 	payload: string;
 }
 
+interface ISessionCatalogSyncIdentity {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+}
+
+/** Durable canonical catalog projection awaiting central acknowledgement. */
+export interface ISessionCatalogSyncPendingSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: string;
+	readonly payloadHash: string;
+	readonly acknowledgedHash?: string;
+	readonly state: 'pending';
+}
+
+/** Compact receipt retained after the pending payload has been acknowledged. */
+export interface ISessionCatalogSyncAcknowledgedSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: undefined;
+	readonly payloadHash: string;
+	readonly acknowledgedHash: string;
+	readonly state: 'acknowledged';
+}
+
+export type ISessionCatalogSyncSnapshot = ISessionCatalogSyncPendingSnapshot | ISessionCatalogSyncAcknowledgedSnapshot;
+
+/** Identity fields required to acknowledge exactly one catalog synchronization snapshot. */
+export interface ISessionCatalogSyncAcknowledgement {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+	readonly payloadHash: string;
+}
+
+/** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -338,6 +372,26 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
 
 	/**
+	 * Atomically stores metadata and advances the durable catalog relay snapshot.
+	 */
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+
+	/**
+	 * Atomically transitions to a new session generation when the stored generation matches.
+	 */
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+
+	/**
+	 * Returns the durable catalog relay snapshot, if one has been stored.
+	 */
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined>;
+
+	/**
+	 * Acknowledges the snapshot only when every supplied identity field still matches.
+	 */
+	acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean>;
+
+	/**
 	 * Store or clear the draft for a chat in this session.
 	 */
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
@@ -497,6 +551,33 @@ export interface ISessionDataService {
 	 * otherwise be lost when the process exits.
 	 */
 	whenIdle(): Promise<void>;
+
+	/**
+	 * Cumulative per-session storage access counts for this host process, when
+	 * the implementation tracks them.
+	 *
+	 * Opening a session database is the dominant cost of any listing that
+	 * cannot be served from the catalog, and it is the one figure that
+	 * compares across machines — wall-clock timings do not, because per-file
+	 * costs differ by an order of magnitude between platforms (virus
+	 * scanning, filesystem). Diagnostics log these counts so a single log
+	 * export explains a slow session list without needing a custom build.
+	 *
+	 * Optional because it is diagnostics only: an implementation that does not
+	 * own real files (test doubles, in-memory fakes) has nothing to report.
+	 */
+	readonly storageAccessCounts?: ISessionStorageAccessCounts;
+}
+
+/**
+ * Cumulative counts of per-session storage accesses. See
+ * {@link ISessionDataService.storageAccessCounts}.
+ */
+export interface ISessionStorageAccessCounts {
+	/** Databases actually opened (cache misses), not reference acquisitions. */
+	readonly opens: number;
+	/** Existence probes performed by `tryOpenDatabase`. */
+	readonly stats: number;
 }
 
 /**

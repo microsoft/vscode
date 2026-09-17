@@ -31,6 +31,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -38,6 +39,7 @@ import { openChatFileChanges } from '../../editorChatResponseFileChangesService.
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -117,7 +119,7 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
-	const pullRequestTitles = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry.label]));
+	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
 	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
 	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
@@ -264,15 +266,26 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
+		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super();
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
+		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
 			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
-			return resource ? connectionsService.resolveSessionResource(resource) : undefined;
+			if (!resource) {
+				return undefined;
+			}
+			provisionalSessionChanged.read(reader);
+			const provisionalBackend = provisionalSessions.get(resource);
+			if (isUntitledChatSession(resource) && !provisionalBackend) {
+				return undefined;
+			}
+			const resolved = connectionsService.resolveSessionResource(resource);
+			return resolved && provisionalBackend ? { ...resolved, backendSession: provisionalBackend } : resolved;
 		});
 		const sessionStateSource = derived(this, reader => {
 			const current = resolution.read(reader);

@@ -127,10 +127,12 @@ export interface IChatWidgetFixtureOptions {
 	readonly stickyScroll?: boolean;
 }
 
-interface IChatWidgetFixtureHandle {
+export interface IChatWidgetFixtureHandle {
+	readonly instantiationService: ReturnType<typeof createEditorServices>;
 	readonly inputPart: ChatInputPart;
 	readonly listWidget: ChatListWidget;
 	readonly model: ChatModel;
+	readonly viewModel: ChatViewModel;
 	readonly width: number;
 	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
 }
@@ -192,6 +194,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override readonly lastFocusedWidget = undefined;
 				override readonly onDidAddWidget = Event.None;
+				override readonly onDidRemoveWidget = Event.None;
 				override readonly onDidBackgroundSession = Event.None;
 				override readonly onDidChangeFocusedWidget = Event.None;
 				override readonly onDidChangeFocusedSession = Event.None;
@@ -440,13 +443,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
 	const fixtureWidget = new class extends mock<IChatWidget>() {
-		override readonly onDidChangeViewModel = new Emitter<never>().event;
+		override readonly onDidChangeViewModel = disposableStore.add(new Emitter<never>()).event;
 		override readonly viewModel = viewModel;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
 		override readonly input = inputPart;
 		override readonly inputPart = inputPart;
+		override focusInput(): void { inputPart.focus(); }
+		override reveal(...args: Parameters<IChatWidget['reveal']>): void { listWidget.reveal(...args); }
 	}();
 	widgetHolder.current = fixtureWidget;
 
@@ -520,9 +525,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	}
 
 	options.onRendered?.({
+		instantiationService,
 		inputPart,
 		listWidget,
 		model,
+		viewModel,
 		width,
 		addTerminalConfirmation: (request, command) => {
 			model.acceptResponseProgress(request, new ChatToolInvocation(

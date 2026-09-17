@@ -6,41 +6,53 @@
 import assert from 'assert';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { TestChatEntitlementService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { Memento } from '../../../../../workbench/common/memento.js';
+import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
+import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
-import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenario, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
+import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
-import { IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
+import { SESSION_ARCHIVE_TOUR_ID } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
-import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
+import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
 suite('SessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => Memento.clear(StorageScope.APPLICATION));
 
 	function artifact(number: number, overrides: Partial<ISessionArtifact> = {}): ISessionArtifact {
 		return {
@@ -71,6 +83,22 @@ suite('SessionArchiveNudge', () => {
 			override readonly workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>(this, { kind: 'connected' });
 		}();
+	}
+
+	function pullRequestRef(number: number, overrides: Partial<IGitHubPullRequestRef> = {}): IGitHubPullRequestRef {
+		return { owner: 'owner', repo: 'repo', number, uri: URI.parse(`https://github.com/owner/repo/pull/${number}`), createdByThisSession: true, ...overrides };
+	}
+
+	function setGitHubInfo(session: ReturnType<typeof createSession>, ...infos: IGitHubInfo[]) {
+		const values = infos.map(info => observableValue<IGitHubInfo | undefined>('gitHubInfo', info));
+		session.workspace.set(upcastPartial<ISessionWorkspace>({
+			folders: values.map((gitHubInfo, index) => ({
+				root: URI.file(`/repo${index}`), workingDirectory: URI.file(`/repo${index}`), name: `repo${index}`, description: undefined,
+				gitRepository: { uri: URI.file(`/repo${index}`), workTreeUri: undefined, baseBranchName: undefined, gitHubInfo },
+			})),
+			isVirtualWorkspace: false,
+		}), undefined);
+		return values;
 	}
 
 	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string, onboardingEnabled = false) {
@@ -154,7 +182,7 @@ suite('SessionArchiveNudge', () => {
 		const onboardingPayloads: ISpotlightPayload[] = [];
 		const onboardingStarted = new DeferredPromise<void>();
 		let onboardingResult = Promise.resolve(OnboardingOutcome.Completed);
-		let onboardingShown = false;
+		let onboardingPresentation: IOnboardingPresentation | undefined;
 		let viewAvailable = true;
 		const view = upcastPartial<SessionsView>({
 			setExpanded: expanded => { onboardingEvents.push(`expanded:${expanded}`); return true; },
@@ -172,18 +200,36 @@ suite('SessionArchiveNudge', () => {
 			return viewAvailable ? view : null;
 		});
 		const viewsService = instantiationService.get(IViewsService);
-		const onboardingService = new class extends mock<IOnboardingScenarioService>() {
-			override hasBeenShown(): boolean { return onboardingShown; }
-			override reset(): void { onboardingShown = false; }
-			override async runScenario(id: string): Promise<OnboardingOutcome> {
-				const scenario = onboardingScenarioRegistry.getScenario(id) as IOnboardingScenario<ISpotlightPayload>;
-				onboardingShown = true;
-				onboardingPayloads.push(scenario.presentation.payload);
-				await scenario.presentation.payload.steps[0].onBeforeShow?.();
+		store.add(onboardingPresentationRegistry.register({
+			kind: SPOTLIGHT_PRESENTATION_KIND,
+			async run(scenario, runContext) {
+				const payload = scenario.presentation.payload as ISpotlightPayload;
+				onboardingPayloads.push(payload);
+				if (onboardingPresentation) {
+					return onboardingPresentation.run(scenario, runContext);
+				}
+				await payload.steps[0].onBeforeShow?.();
 				onboardingStarted.complete();
-				return onboardingResult;
-			}
-		}();
+				const outcome = await onboardingResult;
+				return {
+					outcome,
+					shown: true,
+					dismissReason: outcome === OnboardingOutcome.Aborted ? OnboardingDismissReason.Aborted
+						: outcome === OnboardingOutcome.Skipped ? OnboardingDismissReason.EscapeKey
+							: OnboardingDismissReason.Completed,
+					lastStepIndex: 0,
+					stepCount: payload.steps.length,
+				};
+			},
+		}));
+		const onboardingService = store.add(new OnboardingScenarioService(
+			storage,
+			store.add(new ContextKeyService(configuration)),
+			configuration,
+			store.add(new TestLifecycleService()),
+			new NullWorkbenchAssignmentService(),
+			NullTelemetryService,
+		));
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
 		function createNudge() {
@@ -197,10 +243,12 @@ suite('SessionArchiveNudge', () => {
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
 			onboarding: {
+				service: onboardingService,
 				events: onboardingEvents,
 				payloads: onboardingPayloads,
 				started: onboardingStarted.p,
 				setResult(result: Promise<OnboardingOutcome>) { onboardingResult = result; },
+				setPresentation(presentation: IOnboardingPresentation) { onboardingPresentation = presentation; },
 				setViewAvailable(value: boolean) { viewAvailable = value; },
 			},
 			reloadService() {
@@ -216,6 +264,7 @@ suite('SessionArchiveNudge', () => {
 			async setEnabled(value: boolean) {
 				await configuration.setUserConfiguration(SESSION_ARCHIVE_NUDGE_SETTING, value);
 				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([SESSION_ARCHIVE_NUDGE_SETTING]),
 					affectsConfiguration: key => key === SESSION_ARCHIVE_NUDGE_SETTING,
 				}));
 			},
@@ -277,8 +326,141 @@ suite('SessionArchiveNudge', () => {
 		});
 	});
 
-	test('does not resolve github.com artifacts against a different GitHub host', () => {
-		const context = setup(undefined, true, 'github.example.com');
+	test('waits for authoritative merged state of an association without artifacts', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1, { state: 'merged', liveState: 'merged' })] });
+		const context = setup([session]);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		for (const state of [GitHubPullRequestState.Open, GitHubPullRequestState.Closed, GitHubPullRequestState.Merged, undefined]) {
+			context.setPullRequest(1, state);
+			states.push(!!nudge.options.get());
+		}
+		assert.deepStrictEqual({ states, requests: context.requests }, { states: [false, false, false, true, false], requests: ['owner/repo/1'] });
+	});
+
+	test('ignores inherited and unowned multi-PR refs, including an empty list with a primary PR', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		const inherited = pullRequestRef(1, { createdByThisSession: false });
+		const info = { owner: 'owner', repo: 'repo', pullRequest: inherited };
+		const [gitHubInfo] = setGitHubInfo(session, { ...info, pullRequests: [inherited, pullRequestRef(2, { createdByThisSession: undefined })] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		gitHubInfo.set({ ...info, pullRequests: [] }, undefined);
+		states.push(!!nudge.options.get());
+		gitHubInfo.set({ ...info, pullRequests: [inherited, pullRequestRef(3)] }, undefined);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual({ states, requests: context.requests }, { states: [false, false, true], requests: ['owner/repo/3'] });
+	});
+
+	test('accepts a legacy primary PR without artifacts or provenance', () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequest: pullRequestRef(1, { createdByThisSession: undefined }) });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		assert.deepStrictEqual({ count: nudge.options.get()?.pullRequestCount, requests: context.requests }, { count: 1, requests: ['owner/repo/1'] });
+	});
+
+	test('deduplicates artifacts and associations across folders without restarting unchanged models', () => {
+		const session = createSession();
+		const duplicate = pullRequestRef(1, { owner: 'OWNER', repo: 'REPO', uri: URI.parse('https://github.com/OWNER/REPO/pull/01/') });
+		const [gitHubInfo] = setGitHubInfo(session,
+			{ owner: 'owner', repo: 'repo', pullRequests: [duplicate, pullRequestRef(2)] },
+			{ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1), pullRequestRef(2)] },
+		);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		gitHubInfo.set({ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2), duplicate] }, undefined);
+		session.artifacts.set([], undefined);
+		nudge.markShown();
+		assert.deepStrictEqual({
+			count: nudge.options.get()?.pullRequestCount, requests: context.requests, counts: context.counts, events: context.events,
+		}, {
+			count: 2, requests: ['owner/repo/1', 'owner/repo/2'], counts: { references: 2, polling: 2, refreshes: 2 },
+			events: [{ name: 'agents/sessionArchiveNudge', data: { agentSessionId: hashSessionIdForTelemetry(session.sessionId), action: 'shown', pullRequestCount: 2, hasWorktree: false } }],
+		});
+	});
+
+	test('waits for mixed artifacts and associations in every repository and reacts to their removal', () => {
+		const session = createSession();
+		const [gitHubInfo] = setGitHubInfo(session,
+			{ owner: 'other', repo: 'project', pullRequests: [pullRequestRef(2, { owner: 'other', repo: 'project', uri: URI.parse('https://github.com/other/project/pull/2') })] },
+			{ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(3)] },
+		);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [nudge.options.get()?.pullRequestCount];
+		context.setPullRequest(2, GitHubPullRequestState.Merged, 'other', 'project');
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		states.push(nudge.options.get()?.pullRequestCount);
+		gitHubInfo.set({ owner: 'other', repo: 'project', pullRequests: [pullRequestRef(4)] }, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		gitHubInfo.set(undefined, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		session.workspace.set(undefined, undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.current.set(undefined, undefined);
+		assert.deepStrictEqual({ states, references: context.counts.references, polling: context.counts.polling }, {
+			states: [undefined, undefined, 3, undefined, 2, 1], references: 0, polling: 0,
+		});
+	});
+
+	test('invalid GitHub artifacts still block merged associations', () => {
+		const session = createSession();
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(1)] });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states: boolean[] = [];
+		for (const invalid of [
+			artifact(2, { link: undefined }),
+			artifact(2, { link: URI.parse('https://github.com/owner/repo/pull/invalid'), isGitHub: undefined }),
+			artifact(0),
+			artifact(Number.MAX_SAFE_INTEGER + 1),
+			artifact(2, { link: URI.parse('https://github.example.com/owner/repo/pull/2') }),
+		]) {
+			session.artifacts.set([invalid], undefined);
+			states.push(!!nudge.options.get());
+		}
+		session.artifacts.set([], undefined);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual(states, [false, false, false, false, false, true]);
+	});
+
+	test('invalid or unsupported owned association URLs block merged artifacts', () => {
+		const session = createSession();
+		const [gitHubInfo] = setGitHubInfo(session, { owner: 'owner', repo: 'repo' });
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states: boolean[] = [];
+		for (const uri of [
+			'https://github.com/owner/repo/pull/invalid',
+			'https://github.com/owner/repo/pull/0',
+			'https://github.com/owner/repo/pull/9007199254740992',
+			'https://github.example.com/owner/repo/pull/2',
+		]) {
+			gitHubInfo.set({ owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2, { uri: URI.parse(uri) })] }, undefined);
+			states.push(!!nudge.options.get());
+		}
+		assert.deepStrictEqual(states, [false, false, false, false]);
+	});
+
+	test('does not resolve github.com artifacts or associations against a different GitHub host', () => {
+		const session = createSession();
+		setGitHubInfo(session, { owner: 'owner', repo: 'repo', pullRequests: [pullRequestRef(2)] });
+		const context = setup([session], true, 'github.example.com');
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		assert.deepStrictEqual({ visible: !!nudge.options.get(), requests: context.requests }, { visible: false, requests: [] });
@@ -561,9 +743,118 @@ suite('SessionArchiveNudge', () => {
 				button: 'Understood',
 				advanceOnTargetClick: 'advanceOnly',
 				hideNext: false,
-				missingTarget: { kind: 'abort' },
+				missingTarget: { kind: 'wait', timeoutMs: 2000, onTimeout: 'abort' },
 			});
 		});
+	}
+
+	function setupSpotlight(context: ReturnType<typeof setup>, onDidShow: () => void) {
+		const container = $('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const layoutService = new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}();
+		const presentation = store.add(new SpotlightPresentation(
+			layoutService,
+			new TestHostService(),
+			store.add(new ContextKeyService(context.configuration)),
+		));
+		context.onboarding.setPresentation({
+			kind: presentation.kind,
+			run: (scenario, runContext) => presentation.run(scenario, {
+				...runContext,
+				onDidShow: () => {
+					runContext.onDidShow?.();
+					onDidShow();
+				},
+			}),
+		});
+		return {
+			createTarget(session: ISession, delayMs: number): HTMLElement {
+				const target = $('button');
+				target.textContent = 'Archive';
+				store.add(markOnboardingTarget(target, getSessionArchiveOnboardingTargetId(session)));
+				store.add(disposableTimeout(() => container.appendChild(target), delayMs));
+				return target;
+			},
+		};
+	}
+
+	test('waits for a late archive target before showing the spotlight and archiving exactly once', () => runWithFakedTimers({ startTime: 1 }, async () => {
+		const session = createSession();
+		const context = setup([session], true, undefined, true);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		let archiveCountWhenShown: number | undefined;
+		let nativeActions = 0;
+		const spotlight = setupSpotlight(context, () => {
+			archiveCountWhenShown = context.archiveTargets.length;
+			target.click();
+		});
+		const target = spotlight.createTarget(session, 100);
+		store.add(addDisposableListener(target, EventType.CLICK, () => nativeActions++));
+
+		await nudge.options.get()!.onArchive();
+		await context.service.showArchiveOnboarding(createSession('after-completion'));
+
+		assert.deepStrictEqual({
+			archiveCountWhenShown,
+			nativeActions,
+			targets: context.archiveTargets,
+			archived: session.isArchived.get(),
+			tours: context.onboarding.payloads.length,
+			released: context.onboarding.events.at(-1),
+		}, {
+			archiveCountWhenShown: 0,
+			nativeActions: 0,
+			targets: [session],
+			archived: true,
+			tours: 1,
+			released: 'released',
+		});
+	}));
+
+	for (const developerMode of [false, true]) {
+		test(`archives after the archive target times out and retries the unseen spotlight (developer mode: ${developerMode})`, () => runWithFakedTimers({ startTime: 1 }, async () => {
+			const session = createSession();
+			const context = setup([session], true, undefined, true);
+			await context.configuration.setUserConfiguration(ONBOARDING_DEVELOPER_MODE_CONFIG, { [SESSION_ARCHIVE_TOUR_ID]: developerMode });
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			let shown = 0;
+			const spotlight = setupSpotlight(context, () => {
+				shown++;
+				target.click();
+			});
+
+			const startTime = Date.now();
+			await nudge.options.get()!.onArchive();
+			const afterTimeout = {
+				elapsed: Date.now() - startTime,
+				shown,
+				hasBeenShown: context.onboarding.service.hasBeenShown(SESSION_ARCHIVE_TOUR_ID),
+				archived: session.isArchived.get(),
+			};
+			const nextSession = createSession('retry');
+			const target = spotlight.createTarget(nextSession, 100);
+			await context.service.showArchiveOnboarding(nextSession);
+			await context.service.showArchiveOnboarding(createSession('after-completion'));
+
+			assert.deepStrictEqual({
+				afterTimeout,
+				shown,
+				tours: context.onboarding.payloads.length,
+				targets: context.archiveTargets,
+				released: context.onboarding.events.at(-1),
+			}, {
+				afterTimeout: { elapsed: 2000, shown: 0, hasBeenShown: false, archived: true },
+				shown: 1,
+				tours: 2,
+				targets: [session],
+				released: 'released',
+			});
+		}));
 	}
 
 	test('clicking the spotlighted action completes onboarding before archiving exactly once', async () => {
@@ -609,32 +900,62 @@ suite('SessionArchiveNudge', () => {
 		}, { archivesBeforeTourFinished: 0, nativeActions: 0, targets: [session], released: 'released' });
 	});
 
-	test('does not archive when onboarding aborts and allows a retry', async () => {
+	for (const outcome of [OnboardingOutcome.Aborted, OnboardingOutcome.Dismissed]) {
+		for (const developerMode of [false, true]) {
+			test(`archives when onboarding is ${outcome} and allows a retry in the same window (developer mode: ${developerMode})`, async () => {
+				const session = createSession();
+				const context = setup([session], true, undefined, true);
+				await context.configuration.setUserConfiguration(ONBOARDING_DEVELOPER_MODE_CONFIG, { [SESSION_ARCHIVE_TOUR_ID]: developerMode });
+				context.setPullRequest(1, GitHubPullRequestState.Merged);
+				const nudge = context.createNudge();
+				context.onboarding.setResult(Promise.resolve(outcome));
+				await nudge.options.get()!.onArchive();
+				assert.deepStrictEqual({
+					targets: context.archiveTargets,
+					archived: session.isArchived.get(),
+					visible: !!nudge.options.get(),
+					released: context.onboarding.events.at(-1),
+				}, { targets: [session], archived: true, visible: false, released: 'released' });
+
+				context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
+				await context.service.showArchiveOnboarding(createSession('another'));
+				await context.service.showArchiveOnboarding(createSession('after-completion'));
+				assert.strictEqual(context.onboarding.payloads.length, 2);
+			});
+		}
+	}
+
+	test('still reports archive failures after onboarding aborts', async () => {
 		const context = setup(undefined, true, undefined, true);
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Aborted));
-		await assert.rejects(nudge.options.get()!.onArchive(), /introduction was interrupted/);
-		assert.deepStrictEqual(context.archiveTargets, []);
-		context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
-		await nudge.options.get()!.onArchive();
-		assert.deepStrictEqual({ tours: context.onboarding.payloads.length, targets: context.archiveTargets.length }, { tours: 2, targets: 1 });
+		context.setArchiveError(new Error('Archive failed'));
+		await assert.rejects(nudge.options.get()!.onArchive(), /Archive failed/);
+		assert.deepStrictEqual({
+			targets: context.archiveTargets.length,
+			visible: !!nudge.options.get(),
+			events: context.events,
+			released: context.onboarding.events.at(-1),
+		}, { targets: 1, visible: true, events: [], released: 'released' });
 	});
 
-	test('revalidates the session after onboarding instead of archiving a stale suggestion', async () => {
-		const session = createSession();
-		const context = setup([session], true, undefined, true);
-		context.setPullRequest(1, GitHubPullRequestState.Merged);
-		const nudge = context.createNudge();
-		const finish = new DeferredPromise<OnboardingOutcome>();
-		context.onboarding.setResult(finish.p);
-		const archive = nudge.options.get()!.onArchive();
-		await context.onboarding.started;
-		session.status.set(SessionStatus.InProgress, undefined);
-		finish.complete(OnboardingOutcome.Completed);
-		await assert.rejects(archive, /no longer available/);
-		assert.deepStrictEqual(context.archiveTargets, []);
-	});
+	for (const outcome of [OnboardingOutcome.Completed, OnboardingOutcome.Aborted, OnboardingOutcome.Dismissed]) {
+		test(`revalidates the session after onboarding is ${outcome} instead of archiving a stale suggestion`, async () => {
+			const session = createSession();
+			const context = setup([session], true, undefined, true);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			const finish = new DeferredPromise<OnboardingOutcome>();
+			context.onboarding.setResult(finish.p);
+			const archive = nudge.options.get()!.onArchive();
+			await context.onboarding.started;
+			session.status.set(SessionStatus.InProgress, undefined);
+			finish.complete(outcome);
+			await assert.rejects(archive, /no longer available/);
+			assert.deepStrictEqual(context.archiveTargets, []);
+		});
+	}
 
 	test('coalesces concurrent onboarding requests', async () => {
 		const context = setup(undefined, true, undefined, true);

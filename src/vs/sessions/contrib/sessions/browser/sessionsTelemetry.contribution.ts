@@ -192,7 +192,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	// -- event handlers --------------------------------------------------------
 
 	private _logRequestSent(e: ISendRequestSentEvent): void {
-		const { session, chat, isNewSession, isNewChat, options } = e;
+		const { session, chat, isNewSession, isNewChat, newSessionConfig, options } = e;
 
 		if (isNewChat) {
 			const wasTracked = this._lifecycleTracker.isTracked(session.sessionId);
@@ -212,6 +212,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.
 		const workspace = session.workspace.get();
+		const isolationKind = isNewSession ? newSessionConfig?.isolation : undefined;
 		const requestCounters = isNewSession
 			? this._lifecycleTracker.incrementAndGetUserRequestCounters(session)
 			: this._lifecycleTracker.getUserRequestCounters(session);
@@ -228,7 +229,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		void this._getOrFetchWorkspaceFileCount(session.sessionId, workspace).then(workspaceFileCount => {
 			this._telemetryService.publicLog2<SessionRequestSentEvent, SessionRequestSentClassification>('agents/requestSent', {
 				...sync,
-				...this._getWorkspaceFields(workspace, workspaceFileCount),
+				...this._getWorkspaceFields(workspace, workspaceFileCount, isolationKind),
 				...this._getWorkspaceTopologyFields(workspace),
 			});
 		});
@@ -622,19 +623,19 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		};
 	}
 
-	private _getWorkspaceFields(workspace: ISessionWorkspace | undefined, workspaceFileCount: number): WorkspaceFields {
+	private _getWorkspaceFields(workspace: ISessionWorkspace | undefined, workspaceFileCount: number, isolationKind?: SessionIsolationKind): WorkspaceFields {
+		isolationKind ??= workspace?.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined) ? 'worktree' : 'folder';
 		if (!workspace) {
 			return {
-				isolationKind: 'folder',
+				isolationKind,
 				workspaceHash: '',
 				hasGitRepository: false,
 				isVirtualWorkspace: false,
 				workspaceFileCount,
 			};
 		}
-		const hasWorktree = workspace.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined);
 		return {
-			isolationKind: hasWorktree ? 'worktree' : 'folder',
+			isolationKind,
 			workspaceHash: hash(workspace.uri.toString()).toString(16),
 			hasGitRepository: workspace.folders.some(folder => folder.gitRepository !== undefined),
 			isVirtualWorkspace: workspace.uri.scheme !== Schemas.file,
@@ -941,7 +942,7 @@ type SessionRequestSentClassification = {
 	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
 	isExternal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the session was discovered in an application other than the current host (an external session).' };
 	chatModeKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Built-in chat mode kind (e.g., ask, agent, edit); empty when no mode is selected.' };
-	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
+	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode (worktree or folder), using the selected mode for new sessions when available and workspace state otherwise.' };
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };

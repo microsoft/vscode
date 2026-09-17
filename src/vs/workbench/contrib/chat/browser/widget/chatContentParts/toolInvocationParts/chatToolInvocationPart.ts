@@ -92,6 +92,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		return this.subPart?.codeblocksPartId;
 	}
 
+	public acceptConfirmation(): void {
+		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			this.subPart.acceptConfirmation();
+		}
+	}
+
 	private subPart!: BaseChatToolInvocationSubPart;
 	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
 	private readonly renderedSessionCreatedResult: boolean;

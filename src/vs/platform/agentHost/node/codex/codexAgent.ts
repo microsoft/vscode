@@ -8,7 +8,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_proc
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, retry, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, retry, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -44,7 +44,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { buildDefaultChatUri, chatStorageUri, createErrorResponsePart, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
-import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
@@ -596,6 +596,12 @@ interface ICodexTargetChat {
 	readonly configurationResource: URI;
 }
 
+interface ICodexSessionHookTrust {
+	readonly grants: Record<string, JsonValue>;
+	/** Working directory and Workspace Trust snapshot that authorized the grants. */
+	readonly contextSignature: string;
+}
+
 interface ICodexSession {
 	/** Caller-facing session id used in the `codex:/<id>` URI; may differ from the codex thread id. */
 	readonly sessionId: string;
@@ -745,6 +751,10 @@ interface ICodexSession {
 	materializedMcpSig: string | undefined;
 	/** Signature of custom agents, instructions, and skill capability roots applied to the thread. */
 	materializedCustomizationsSig: string | undefined;
+	/** Signature of the workspace hook trust overlay applied to the thread. */
+	materializedHookTrustSig: string | undefined;
+	/** Hook trust discovered from a provisional thread and pending application to its replacement. */
+	pendingHookTrustState: ICodexSessionHookTrust | undefined;
 	/** Model provider backing the current materialized thread. */
 	materializedModelProvider: string | undefined;
 	pendingModelProviderSwitch?: { readonly threadId: string; readonly fromProvider: string };
@@ -968,6 +978,10 @@ function mcpServersSignature(servers: Record<string, ICodexMcpServerConfigJson>)
 	return names.map(name => `${name}\u0000${JSON.stringify(servers[name])}`).join('\u0001');
 }
 
+function hookTrustSignature(trust: ICodexSessionHookTrust): string {
+	return Object.keys(trust.grants).sort().map(key => `${key}\u0000${JSON.stringify(trust.grants[key])}`).join('\u0001');
+}
+
 /**
  * Opaque per-chat backing blob the orchestrator persists (in the session's
  * default-chat record or its peer-chat catalog) and hands back to
@@ -1175,6 +1189,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _directoryCustomizationSequencers = new WeakMap<ICodexSession, Sequencer>();
 	private readonly _workingDirectoryMutations = new WeakMap<ICodexSession, ICodexWorkingDirectoryChange>();
 	private readonly _skillExtraRootsSequencer = new Sequencer();
+	private readonly _mcpInventoryRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery; dispose(): void }>();
 	private readonly _pendingMcpStartupStatuses = new Map<string, Array<{ readonly client: ICodexAppServerClient; readonly name: string; readonly status: McpServerStartupState; readonly error: string | null }>>();
 	/**
@@ -3642,6 +3657,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedToolsSig: undefined,
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
+			materializedHookTrustSig: undefined,
+			pendingHookTrustState: undefined,
 			materializedModelProvider: parent.materializedModelProvider,
 			hasNativeHistory: parent.hasNativeHistory,
 			firstTurnSent: true,
@@ -4195,6 +4212,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._abandonManagedWorkingDirectory(session);
 			session.materializedMcpSig = undefined;
 			session.materializedCustomizationsSig = undefined;
+			session.materializedHookTrustSig = undefined;
+			session.pendingHookTrustState = undefined;
 			if (session.firstTurnSent) {
 				this._markSessionForReload(session);
 			}
@@ -4770,6 +4789,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedToolsSig: undefined,
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
+			materializedHookTrustSig: undefined,
+			pendingHookTrustState: undefined,
 			materializedModelProvider: undefined,
 			hasNativeHistory: false,
 			firstTurnSent: false,
@@ -4860,7 +4881,8 @@ export class CodexAgent extends Disposable implements IAgent {
 
 			const conn = await this._ensureConnection();
 			const resolvedModel = parseCodexModelSelection(model);
-			this._applySessionHookTrustState(threadConfig, await this._buildSessionHookTrustState(conn.client, workingDirectory.fsPath));
+			const sessionHookTrust = await this._buildSessionHookTrustState(conn.client, workingDirectory.fsPath);
+			this._applySessionHookTrustState(threadConfig, sessionHookTrust, workingDirectory.fsPath);
 			this._assertCurrentConnection(conn);
 			const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 				cwd: workingDirectory.fsPath,
@@ -4884,6 +4906,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.materializedEventFired = false;
 			session.materializedMcpSig = mcpServersSignature(mcpServers);
 			session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
+			session.materializedHookTrustSig = hookTrustSignature(sessionHookTrust);
 			session.managedWorkingDirectory = managedWorkingDirectory;
 			this._sessions.set(threadId, session);
 			this._sessionIdByThreadId.set(threadId, threadId);
@@ -5089,6 +5112,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedToolsSig: undefined,
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
+			materializedHookTrustSig: undefined,
+			pendingHookTrustState: undefined,
 			materializedModelProvider,
 			hasNativeHistory: materializedModelProvider ? materializedModelProvider === CODEX_OPENAI_MODEL_PROVIDER : undefined,
 			firstTurnSent: true,
@@ -5125,11 +5150,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * through a host-supplied session hint or chat-URI shape. An unbound
 	 * source therefore fails fast rather than guessing its owning session.
 	 *
-	 * We `thread/fork` the source thread — which copies its full history — then
-	 * `thread/rollback` the trailing turns so the fork retains only the turns up
-	 * to and including `fork.turnId`. The forked thread already exists on the
-	 * app-server, so the runtime is registered as resumable (its first send
-	 * issues a `thread/resume`).
+	 * We `thread/fork` the source thread through the requested source turn, so
+	 * trailing history is never copied into the fork. The forked thread already
+	 * exists on the app-server, so the runtime is registered as resumable (its
+	 * first send issues a `thread/resume`).
 	 *
 	 * `adoptedSessionId`, when set, is the owning session's identity this
 	 * backing adopts (the session's runtime is stood up by this fork); otherwise
@@ -5165,10 +5189,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			? distinctAbsolutePaths(inheritedWorkingDirectories.map(directory => directory.fsPath))
 			: undefined;
 
-		// Resolve how many trailing turns to drop so the fork keeps turns up to
-		// and including `fork.turnId`. A live source maps host turn ids to codex
-		// turn ids; a restored source already uses codex ids. Fall back to the
-		// caller-supplied `turnIndex` when the id can't be resolved.
+		// Resolve the last source turn the fork should include. A live source maps
+		// host turn ids to codex turn ids; a restored source already uses codex
+		// ids. Fall back to the caller-supplied `turnIndex` when the id can't be
+		// resolved.
 		const codexTurnId = sourceSession?.codexTurnIdByHostTurnId.get(fork.turnId) ?? fork.turnId;
 		// Reject an unresolvable fork boundary rather than silently keeping the
 		// full history: if neither the mapped codex turn id nor the caller's
@@ -5182,6 +5206,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Cannot fork codex session ${sourceThreadId}: unable to resolve fork boundary for turn ${fork.turnId} (turnIndex=${fallbackTurnIndex}, turns=${sourceTurns.length})`);
 		}
 		const { keepThroughIndex, numTurnsToDrop } = boundary;
+		const lastTurnId = keepThroughIndex >= 0 ? sourceTurns[keepThroughIndex].id : undefined;
 
 		const inheritedModel = sourceSession?.model
 			?? (sourceRead.persistedModelId ? { id: sourceRead.persistedModelId } : undefined)
@@ -5235,10 +5260,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
-			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd));
+			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd), forkCwd);
 			this._assertCurrentConnection(forkConnection);
 			forkResult = await forkConnection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
 				threadId: sourceThreadId,
+				...(lastTurnId !== undefined ? { lastTurnId } : {}),
 				...(forkManagedWorkingDirectory ? {
 					cwd: forkManagedWorkingDirectory.fsPath,
 				} : runtimeWorkspaceRoots?.length ? {
@@ -5258,25 +5284,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw err;
 		}
 		const newThreadId = forkResult.thread.id;
-
-		// The fork copies the full source history; drop the trailing turns so
-		// the new thread ends at the requested fork point. A failed rollback
-		// would leave the fork carrying the very turns the user asked to branch
-		// away from, so treat it as a hard failure: archive the orphaned fork
-		// and reject rather than returning a session with the wrong history.
-		if (numTurnsToDrop > 0) {
-			try {
-				await forkConnection.client.request<'thread/rollback'>('thread/rollback', { threadId: newThreadId, numTurns: numTurnsToDrop });
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				this._logService.warn(`[Codex:${newThreadId}] fork rollback failed (numTurns=${numTurnsToDrop}); discarding fork: ${message}`);
-				await this._archiveThreadBestEffort(newThreadId, 'fork rollback failed', forkConnection);
-				if (forkManagedWorkingDirectory) {
-					await this._removeManagedWorkingDirectory(forkManagedWorkingDirectory);
-				}
-				throw new Error(`Failed to fork codex session ${sourceThreadId}: could not roll back forked thread ${newThreadId} to the requested turn (${message})`);
-			}
-		}
 
 		// The runtime's durable id: the owning session's when this fork stands
 		// that session up (so every session-addressed call keeps resolving), and
@@ -5320,7 +5327,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Seed the host→codex turn-id map for the copied turns so a later
 		// edit/truncate of an inherited turn can resolve its app-server turn id.
 		// Without this, `truncateChat` can't map the host id and skips the
-		// rollback. `thread/fork` may regenerate turn ids, so read the forked
+		// truncation. `thread/fork` may regenerate turn ids, so read the forked
 		// thread's authoritative kept turns and pair them, in order, with the new
 		// host turn ids from `fork.turnIdMapping`. Best-effort: a failed read just
 		// leaves the map unseeded (same as before), never blocking the fork.
@@ -5490,7 +5497,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Resolve the process only after every filesystem/configuration await so a
 		// connection that died during preparation is never used for thread/start.
 		const conn = await this._ensureConnection();
-		this._applySessionHookTrustState(threadConfig, await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath));
+		const pendingHookTrustState = session.pendingHookTrustState;
+		const sessionHookTrust = pendingHookTrustState && this._isCurrentSessionHookTrustState(pendingHookTrustState, session.workingDirectory.fsPath)
+			? pendingHookTrustState
+			: await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath);
+		this._applySessionHookTrustState(threadConfig, sessionHookTrust, session.workingDirectory.fsPath);
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
@@ -5527,6 +5538,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.materializedMcpSig = mcpServersSignature(mcpServers);
 		session.materializedCustomizationsSig = customizationLaunch.signature;
 		session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
+		session.materializedHookTrustSig = hookTrustSignature(sessionHookTrust);
+		if (session.pendingHookTrustState === pendingHookTrustState) {
+			session.pendingHookTrustState = undefined;
+		}
 		session.materializedModelProvider = resolvedModel.modelProvider;
 		session.hasNativeHistory = resolvedModel.modelProvider === CODEX_OPENAI_MODEL_PROVIDER;
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
@@ -5818,6 +5833,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		// exit. Resolve the connection only after it completes so the remainder of
 		// this send never retains the pre-materialization client.
 		let conn = await this._ensureConnection();
+		let sessionHookTrustChanged = false;
+		if (!session.firstTurnSent && !session.needsResume) {
+			const discoveredSessionHookTrust = await this._tryBuildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
+			if (discoveredSessionHookTrust !== undefined) {
+				sessionHookTrustChanged = hookTrustSignature(discoveredSessionHookTrust) !== session.materializedHookTrustSig;
+				if (sessionHookTrustChanged) {
+					session.pendingHookTrustState = discoveredSessionHookTrust;
+				}
+			}
+		}
 
 		// Check needsResume before the resume block clears it so restored sessions never receive a late baseline.
 		if (!session.firstTurnSent && !session.needsResume) {
@@ -5839,7 +5864,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.firstTurnSent && mcpChanged) {
 			this._markSessionForReload(session);
 		}
-		if (!session.firstTurnSent && !session.needsResume && (toolsChanged || mcpChanged || customizationsChanged)) {
+		if (!session.firstTurnSent && !session.needsResume && (toolsChanged || mcpChanged || customizationsChanged || sessionHookTrustChanged)) {
 			try {
 				await this._restartThreadWithCurrentTools(session, configResource);
 				this._persistMaterializedSession(session);
@@ -6348,10 +6373,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * runtime bound to `chat` — resolved through the recorded binding, never by
 	 * re-deriving membership from its configuration scope or URI shape.
 	 *
-	 * Codex rolls back by a count of trailing turns. Resolve how many turns
-	 * follow `turnId` (or all of them when omitted) from the persisted thread,
-	 * whose turn ids match the workbench's restored turn ids (see
-	 * {@link replayThreadToTurns}). Unknown ids no-op to avoid data loss.
+	 * Resolve the first turn to remove from the persisted thread, whose turn ids
+	 * match the workbench's restored turn ids (see {@link replayThreadToTurns}).
+	 * Paginated threads revert before that turn; legacy threads roll back by the
+	 * equivalent trailing-turn count. Unknown ids no-op to avoid data loss.
 	 */
 	async truncateChat(chat: URI, turnId?: string, context?: URI | IAgentChatContext): Promise<void> {
 		const targetUri = this._resolveConversationSession(chat, context);
@@ -6370,9 +6395,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (turns.length === 0) {
 			return;
 		}
-		let numTurns: number;
+		let firstTurnToRemove: number;
 		if (turnId === undefined) {
-			numTurns = turns.length;
+			firstTurnToRemove = 0;
 		} else {
 			// A live session's workbench turn id maps to a codex turn id; a
 			// restored session already uses codex turn ids, so fall back to the
@@ -6383,18 +6408,28 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Codex] truncateChat: turnId ${turnId} not found in thread ${read.thread.id}; skipping`);
 				return;
 			}
-			numTurns = turns.length - (index + 1);
+			firstTurnToRemove = index + 1;
 		}
-		if (numTurns <= 0) {
+		if (firstTurnToRemove >= turns.length) {
 			return;
 		}
 		try {
 			const conn = targetSession
 				? (await this._ensureThreadConnection(targetSession)).connection
 				: await this._ensureConnection();
-			await conn.client.request<'thread/rollback'>('thread/rollback', { threadId: read.thread.id, numTurns });
+			if (read.thread.historyMode === 'paginated') {
+				await conn.client.request<'thread/revert'>('thread/revert', {
+					threadId: read.thread.id,
+					beforeTurnId: turns[firstTurnToRemove].id,
+				});
+			} else {
+				await conn.client.request<'thread/rollback'>('thread/rollback', {
+					threadId: read.thread.id,
+					numTurns: turns.length - firstTurnToRemove,
+				});
+			}
 		} catch (err) {
-			this._logService.warn(`[Codex:${read.thread.id}] thread/rollback failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[Codex:${read.thread.id}] thread/${read.thread.historyMode === 'paginated' ? 'revert' : 'rollback'} failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
@@ -6498,6 +6533,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.materializedToolsSig = undefined;
 		session.materializedMcpSig = undefined;
 		session.materializedCustomizationsSig = undefined;
+		session.materializedHookTrustSig = undefined;
+		session.pendingHookTrustState = undefined;
 		session.materializedModelProvider = undefined;
 		session.materializedEventFired = false;
 		session.hostTurnIdByAppTurnId.clear();
@@ -6574,8 +6611,36 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (session.disposed) {
 					throw new CancellationError();
 				}
-				const resumeConfig = { ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model) };
-				this._applySessionHookTrustState(resumeConfig, await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath));
+				const baseResumeConfig = { ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model) };
+				let sessionHookTrust = await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
+				const resumeWithHookTrust = async () => {
+					if (!this._isCurrentSessionHookTrustState(sessionHookTrust, session.workingDirectory?.fsPath)) {
+						sessionHookTrust = await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
+					}
+					if (session.disposed) {
+						throw new CancellationError();
+					}
+					this._assertCurrentConnection(conn);
+					const resumeConfig = { ...baseResumeConfig };
+					this._applySessionHookTrustState(resumeConfig, sessionHookTrust, session.workingDirectory?.fsPath);
+					return conn.client.request<'thread/resume', ThreadResumeResponse>(
+						'thread/resume',
+						{
+							...buildCodexResumeParams(
+								resolvedModel,
+								threadId,
+								mcpServers,
+								runtimeWorkspaceRoots,
+								{ ...resumeConfig, ...this._portableHistoryConfig(session.hasNativeHistory) },
+								customizationLaunch.developerInstructions,
+								this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
+								{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
+							),
+							cwd: session.workingDirectory?.fsPath,
+						},
+						this._traceContext(session),
+					);
+				};
 				if (session.disposed) {
 					throw new CancellationError();
 				}
@@ -6590,24 +6655,23 @@ export class CodexAgent extends Disposable implements IAgent {
 					}
 					this._assertCurrentConnection(conn);
 				}
-				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
-					'thread/resume',
-					{
-						...buildCodexResumeParams(
-							resolvedModel,
-							threadId,
-							mcpServers,
-							runtimeWorkspaceRoots,
-							{ ...resumeConfig, ...this._portableHistoryConfig(session.hasNativeHistory) },
-							customizationLaunch.developerInstructions,
-							this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
-							{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
-						),
-						cwd: session.workingDirectory?.fsPath,
-					},
-					this._traceContext(session),
-				);
+				let resumeResult = await resumeWithHookTrust();
 				this._assertCurrentConnection(conn);
+				// Non-project hooks must not suppress a recheck for late project hooks.
+				if (Object.keys(sessionHookTrust.grants).length === 0) {
+					const discoveredSessionHookTrust = await this._tryBuildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
+					this._assertCurrentConnection(conn);
+					if (discoveredSessionHookTrust !== undefined && hookTrustSignature(discoveredSessionHookTrust) !== '') {
+						await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+						if (session.disposed) {
+							throw new CancellationError();
+						}
+						this._assertCurrentConnection(conn);
+						sessionHookTrust = discoveredSessionHookTrust;
+						resumeResult = await resumeWithHookTrust();
+						this._assertCurrentConnection(conn);
+					}
+				}
 				if (session.disposed) {
 					try {
 						await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
@@ -6622,6 +6686,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				session.materializedMcpSig = mcpServersSignature(mcpServers);
 				session.materializedCustomizationsSig = customizationLaunch.signature;
+				session.materializedHookTrustSig = hookTrustSignature(sessionHookTrust);
 				if (session.firstTurnSent && session.materializedModelProvider !== undefined && session.materializedModelProvider !== resolvedModel.modelProvider
 					&& session.pendingModelProviderSwitch?.threadId !== threadId) {
 					session.pendingModelProviderSwitch = { threadId, fromProvider: session.materializedModelProvider };
@@ -7391,11 +7456,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				const owningRuntimeOrder = Number(!isEqual(a.sessionUri, configurationResource)) - Number(!isEqual(b.sessionUri, configurationResource));
 				return owningRuntimeOrder || a.sessionId.localeCompare(b.sessionId);
 			});
+		const runtimeStates = this._preferredMcpPublisher(configurationResource)?.mcpController?.runtimeStates.get();
 		const byId = new Map<string, PluginCustomization>();
 		for (const session of sessions) {
 			for (const customization of this._resolveClientCustomizationEnablement(session).resolution.customizations) {
 				if (customization.type === CustomizationType.Plugin && !byId.has(customization.id)) {
-					byId.set(customization.id, customization);
+					byId.set(customization.id, applyMcpServerRuntimeStates(customization, runtimeStates));
 				}
 			}
 		}
@@ -7550,10 +7616,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		return [...codexSkillsToContainers(effectiveSkills), ...codexHooksToContainers(effectiveHooks)];
 	}
 
-	/** Builds per-thread trust for the project hooks Codex discovered from the primary workspace. */
-	private async _buildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<Record<string, JsonValue>> {
+	/** Builds per-thread project-hook grants bound to the current Workspace Trust snapshot. */
+	private async _buildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<ICodexSessionHookTrust> {
+		return await this._tryBuildSessionHookTrustState(client, cwd) ?? { grants: {}, contextSignature: this._sessionHookTrustContext(cwd) };
+	}
+
+	private async _tryBuildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<ICodexSessionHookTrust | undefined> {
 		if (!cwd || !this._isWorkspaceTrusted(URI.file(cwd))) {
-			return {};
+			return { grants: {}, contextSignature: this._sessionHookTrustContext(cwd) };
 		}
 
 		let response: HooksListResponse;
@@ -7561,9 +7631,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			response = await client.request<'hooks/list', HooksListResponse>('hooks/list', { cwds: [cwd] });
 		} catch (error) {
 			this._logService.warn(`[Codex] hooks/list for session hook trust failed: ${error instanceof Error ? error.message : String(error)}`);
-			return {};
+			return undefined;
 		}
 
+		const workspaceTrust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
 		const trust: Record<string, JsonValue> = {};
 		for (const entry of response.data) {
 			for (const error of entry.errors) {
@@ -7573,16 +7644,26 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Codex] hooks/list for session hook trust: ${warning}`);
 			}
 			for (const hook of entry.hooks) {
-				if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath))) {
+				if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath), workspaceTrust)) {
 					trust[hook.key] = { trusted_hash: hook.currentHash };
 				}
 			}
 		}
-		return this._isWorkspaceTrusted(URI.file(cwd)) ? trust : {};
+		return {
+			grants: this._isWorkspaceTrusted(URI.file(cwd), workspaceTrust) ? trust : {},
+			contextSignature: this._sessionHookTrustContext(cwd, workspaceTrust),
+		};
 	}
 
-	private _isWorkspaceTrusted(resource: URI): boolean {
-		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+	private _sessionHookTrustContext(cwd: string | undefined, trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)): string {
+		return JSON.stringify([cwd, trust]);
+	}
+
+	private _isCurrentSessionHookTrustState(trust: ICodexSessionHookTrust, cwd: string | undefined): boolean {
+		return trust.contextSignature === this._sessionHookTrustContext(cwd);
+	}
+
+	private _isWorkspaceTrusted(resource: URI, trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)): boolean {
 		if (!trust) {
 			return false;
 		}
@@ -7598,10 +7679,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/** Adds a non-empty hook trust map to the per-thread Codex config. */
-	private _applySessionHookTrustState(config: Record<string, JsonValue>, trust: Record<string, JsonValue>): void {
-		if (Object.keys(trust).length > 0) {
-			config['hooks.state'] = trust;
+	/** Adds current hook grants to the per-thread config, rejecting a changed authorization context. */
+	private _applySessionHookTrustState(config: Record<string, JsonValue>, trust: ICodexSessionHookTrust, cwd: string | undefined): void {
+		if (!this._isCurrentSessionHookTrustState(trust, cwd)) {
+			throw new CancellationError();
+		}
+		if (Object.keys(trust.grants).length > 0) {
+			config['hooks.state'] = trust.grants;
 		}
 	}
 
@@ -7815,7 +7899,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		if (preferred?.mcpController) {
-			preferred.mcpController.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(preferred.threadId)));
+			preferred.mcpController.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(preferred.threadId)), true);
 		}
 	}
 
@@ -7882,7 +7966,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshMcpInventory(client: ICodexAppServerClient, threadId: string | null): Promise<void> {
+	private _refreshMcpInventory(client: ICodexAppServerClient, threadId: string | null): Promise<void> {
+		return this._mcpInventoryRefreshThrottler.queue(`${this._connectionGeneration}:${threadId ?? ''}`, () => this._doRefreshMcpInventory(client, threadId));
+	}
+
+	private async _doRefreshMcpInventory(client: ICodexAppServerClient, threadId: string | null): Promise<void> {
 		let data: ListMcpServerStatusResponse['data'] = [];
 		try {
 			let cursor: string | null | undefined = null;

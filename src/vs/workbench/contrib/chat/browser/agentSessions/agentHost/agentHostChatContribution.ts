@@ -118,7 +118,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
-	private readonly _authRecovery = new AgentHostAuthenticationRecovery();
+	private readonly _authRecovery: AgentHostAuthenticationRecovery;
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
@@ -145,6 +145,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
+		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 

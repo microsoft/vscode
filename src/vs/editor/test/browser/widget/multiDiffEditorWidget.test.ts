@@ -7,7 +7,8 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -23,7 +24,7 @@ import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
-import { getMultiDiffEditorVariantConfiguration, MultiDiffEditorVariant } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
+import { getMultiDiffEditorVariantConfiguration, multiDiffEditorVariants } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -43,24 +44,216 @@ suite('MultiDiffEditorWidget', () => {
 
 	test('uses closed variant configurations', () => {
 		assert.deepStrictEqual({
-			standard: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Standard),
-			compact: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Compact),
+			variants: multiDiffEditorVariants,
+			cards: getMultiDiffEditorVariantConfiguration('cards'),
+			noCardsNonCompact: getMultiDiffEditorVariantConfiguration('noCardsNonCompact'),
+			noCards: getMultiDiffEditorVariantConfiguration('noCards'),
 		}, {
-			standard: {
-				className: 'multiDiffEditor-standard',
+			variants: ['cards', 'noCards', 'noCardsNonCompact'],
+			cards: {
+				diffEditorVariant: 'compact',
+				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
+				horizontalInsets: { left: 9, right: 9 },
+				headerHeight: 40,
+				contentBottomPadding: 0,
+				headerClickToCollapse: true,
+				diffEditorOptions: { hideOriginalLineNumbers: true },
+			},
+			noCardsNonCompact: {
+				classNames: ['multiDiffEditor-standard'],
 				horizontalInsets: { left: 9, right: 9 },
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: false,
 			},
-			compact: {
-				className: 'multiDiffEditor-compact',
+			noCards: {
+				classNames: ['multiDiffEditor-compact'],
 				horizontalInsets: { left: 0, right: 0 },
 				headerHeight: 32,
 				contentBottomPadding: 8,
 				headerClickToCollapse: true,
+				diffEditorOptions: { hideOriginalLineNumbers: true },
 			},
 		});
+	});
+
+	test('resolves original line number visibility from variant and explicit options', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const originalUri = URI.parse('inmemory://original/line-numbers.js');
+		const modifiedUri = URI.parse('inmemory://modified/line-numbers.js');
+		const original = instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, originalUri);
+		const modified = instantiateTextModel(instantiationService, 'const value = 2;', undefined, undefined, modifiedUri);
+		const optionsChanged = disposables.add(new Emitter<void>());
+		let hideOriginalLineNumbers: boolean | undefined;
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
+			get options() {
+				return hideOriginalLineNumbers === undefined ? {} : { hideOriginalLineNumbers };
+			},
+			onOptionsDidChange: optionsChanged.event,
+		}, { dispose() { } });
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCards' },
+		);
+		widget.setRenderSideBySide(false);
+		widget.layout(new Dimension(800, 300));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const([documentItem]) });
+		disposables.add(toDisposable(() => {
+			widget.dispose();
+			viewModel.dispose();
+			original.dispose();
+			modified.dispose();
+		}));
+		await waitForState(viewModel.items, items => items.length === 1);
+		await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+		widget.setViewModel(viewModel);
+		widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+		await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
+
+		const originalEditorWidth = () => Number.parseInt(widget.getRootElement().querySelector<HTMLElement>('.monaco-diff-editor > .editor.original')!.style.width);
+		const defaultNoCardsWidth = originalEditorWidth();
+		hideOriginalLineNumbers = false;
+		optionsChanged.fire();
+		await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+		const explicitShowWidth = originalEditorWidth();
+		hideOriginalLineNumbers = true;
+		optionsChanged.fire();
+		await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+		const explicitHideWidth = originalEditorWidth();
+		hideOriginalLineNumbers = undefined;
+		optionsChanged.fire();
+		widget.setVariant('cards');
+		await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+		const defaultCardsWidth = originalEditorWidth();
+		widget.setVariant('noCardsNonCompact');
+		await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+		const defaultNonCompactWidth = originalEditorWidth();
+
+		assert.deepStrictEqual({
+			defaultNoCardsHidden: defaultNoCardsWidth === 0,
+			explicitFalseShows: explicitShowWidth > 0,
+			explicitTrueHides: explicitHideWidth === 0,
+			defaultCardsHidden: defaultCardsWidth === 0,
+			defaultNonCompactShows: defaultNonCompactWidth > 0,
+		}, {
+			defaultNoCardsHidden: true,
+			explicitFalseShows: true,
+			explicitTrueHides: true,
+			defaultCardsHidden: true,
+			defaultNonCompactShows: true,
+		});
+		widget.setViewModel(undefined);
+	});
+
+	test('switches variants while preserving view state, focus, and sticky state', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const originalUri = URI.parse('inmemory://original/variant-switch.js');
+		const modifiedUri = URI.parse('inmemory://modified/variant-switch.js');
+		const original = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;\nconst other = 1;', undefined, undefined, originalUri));
+		const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 2;\nconst other = 1;', undefined, undefined, modifiedUri));
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
+		}, { dispose() { } });
+		const secondOriginalUri = URI.parse('inmemory://original/variant-switch-second.js');
+		const secondModifiedUri = URI.parse('inmemory://modified/variant-switch-second.js');
+		const secondOriginal = disposables.add(instantiateTextModel(instantiationService, 'const second = 1;', undefined, undefined, secondOriginalUri));
+		const secondModified = disposables.add(instantiateTextModel(instantiationService, 'const second = 2;', undefined, undefined, secondModifiedUri));
+		const secondDocumentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(secondOriginalUri, secondOriginal),
+			modified: new DiffItemSource(secondModifiedUri, secondModified),
+		}, { dispose() { } });
+		const widget = disposables.add(instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCards' },
+		));
+		widget.setRenderSideBySide(false);
+		widget.layout(new Dimension(800, 80));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const([documentItem, secondDocumentItem]) }));
+		await waitForState(viewModel.items, items => items.length === 2);
+		widget.setViewModel(viewModel);
+		try {
+			widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
+			viewModel.items.get()[1].collapsed.set(true, undefined);
+			const header = widget.getRootElement().querySelector<HTMLElement>('.multiDiffEntry .header')!;
+			assert.strictEqual(header.classList.contains('shadow'), false);
+			widget.setViewState({ scrollState: { top: 10, left: 0 } });
+			assert.strictEqual(header.classList.contains('shadow'), true);
+			widget.setViewState({ scrollState: { top: 0, left: 0 } });
+			assert.strictEqual(header.classList.contains('shadow'), false);
+			widget.setViewState({ scrollState: { top: 10, left: 0 } });
+
+			const control = widget.getActiveControl()!;
+			control.getModifiedEditor().setSelection({ startLineNumber: 1, startColumn: 7, endLineNumber: 1, endColumn: 12 });
+			control.getModifiedEditor().focus();
+			const previousRoot = widget.getRootElement();
+			const previousState = widget.getViewState();
+
+			widget.setVariant('cards');
+
+			const currentRoot = widget.getRootElement();
+			const currentControl = widget.getActiveControl()!;
+			assert.deepStrictEqual({
+				rootWasReplaced: currentRoot !== previousRoot,
+				oldRootWasDisposed: !previousRoot.isConnected,
+				hasCardsVariant: currentRoot.classList.contains('multiDiffEditor-card'),
+				viewState: widget.getViewState(),
+				modifiedEditorHasFocus: currentControl.getModifiedEditor().hasTextFocus(),
+			}, {
+				rootWasReplaced: true,
+				oldRootWasDisposed: true,
+				hasCardsVariant: true,
+				viewState: previousState,
+				modifiedEditorHasFocus: true,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
 	});
 
 	test('models bottom padding as trailing scroll content', () => {
@@ -85,7 +278,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			{ variant: MultiDiffEditorVariant.Standard },
+			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 200));
 		const initialState = widget.getLayoutDebugState().get();
@@ -141,7 +334,7 @@ suite('MultiDiffEditorWidget', () => {
 			{
 				openDiffEditor: (original, modified) => openedDiff = { original, modified },
 			} satisfies IWorkbenchUIElementFactory,
-			{ variant: MultiDiffEditorVariant.Standard },
+			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 600));
 		const viewModel = widget.createViewModel(model);
@@ -237,7 +430,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			{ variant: MultiDiffEditorVariant.Standard },
+			{ variant: 'noCardsNonCompact' },
 		);
 		widget.setViewMode('automatic');
 		widget.layout(new Dimension(800, 600));
@@ -315,7 +508,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			{ variant: MultiDiffEditorVariant.Standard },
+			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 600));
 		const viewModel = widget.createViewModel(model);
@@ -395,7 +588,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			{ variant: MultiDiffEditorVariant.Standard },
+			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 200));
 		const viewModel = widget.createViewModel(model);

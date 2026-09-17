@@ -11,6 +11,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AhpJsonlLogger, isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -246,7 +247,7 @@ suite('collectRotatedLogFiles', () => {
 		]);
 	});
 
-	test('bounds inline content for non-local rotated logs', async () => {
+	test('keeps every non-local rotated log as a streamable resource', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 		const logs = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
@@ -256,20 +257,20 @@ suite('collectRotatedLogFiles', () => {
 			fileService.writeFile(URI.joinPath(logs, 'renderer.1.log'), VSBuffer.fromString('efgh')),
 		]);
 
-		const files = await collectRotatedLogFiles('vscode-logs/Window', URI.joinPath(logs, 'renderer.log'), fileService, 6);
+		const files = await collectRotatedLogFiles('vscode-logs/Window', URI.joinPath(logs, 'renderer.log'), fileService);
 
 		assert.deepStrictEqual({
 			count: files.length,
-			allInline: files.every(file => hasKey(file, { contents: true })),
+			allResources: files.every(file => hasKey(file, { resource: true })),
 			totalSize: files.reduce((total, file) => total + file.size, 0),
 		}, {
 			count: 2,
-			allInline: true,
-			totalSize: 6,
+			allResources: true,
+			totalSize: 8,
 		});
 	});
 
-	test('finds the newest matching output channel backing files', async () => {
+	test('finds all matching output channel backing files', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 		const windowLogs = URI.file('/logs/window1');
@@ -286,7 +287,59 @@ suite('collectRotatedLogFiles', () => {
 
 		assert.deepStrictEqual(files.map(file => file.toString()), [
 			'file:///logs/window1/output_20260825T090000/agentHost.otlp.remote.log',
+			'file:///logs/window1/output_20260825T080000/agentHost.otlp.remote.log',
 		]);
+	});
+
+	test('selects tunnel reconnect and rotation logs by logical host without address filename matching', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const logsHome = URI.file('/logs');
+		const tunnelAddress = 'tunnel:dev/name';
+		const initial = disposables.add(new AhpJsonlLogger(
+			{ logsHome, logId: tunnelAddress, connectionId: 'relay-uuid-1', transport: 'tunnel', maxFileSizeBytes: 1, maxFiles: 3 },
+			fileService,
+			new NullLogService(),
+		));
+		initial.log({ jsonrpc: '2.0', id: 1, result: 'initial' }, 's2c');
+		initial.log({ jsonrpc: '2.0', id: 2, result: 'rotated' }, 's2c');
+		await initial.flush();
+
+		const reconnected = disposables.add(new AhpJsonlLogger(
+			{ logsHome, logId: tunnelAddress, connectionId: 'relay-uuid-2', transport: 'tunnel' },
+			fileService,
+			new NullLogService(),
+		));
+		reconnected.log({ jsonrpc: '2.0', id: 3, result: 'reconnected' }, 's2c');
+		await reconnected.flush();
+
+		const collidingOldToken = disposables.add(new AhpJsonlLogger(
+			{ logsHome, logId: 'tunnel:dev:name', connectionId: 'relay-uuid-other', transport: 'tunnel' },
+			fileService,
+			new NullLogService(),
+		));
+		collidingOldToken.log({ jsonrpc: '2.0', id: 4, result: 'other' }, 's2c');
+		await collidingOldToken.flush();
+
+		const directory = await fileService.resolve(URI.joinPath(logsHome, 'ahp'));
+		const matching = (directory.children ?? []).filter(child => isAhpLogFileFor(tunnelAddress, child.name));
+		const entries: Array<{ readonly id: number; readonly _ahpLog: { readonly connectionId: string } }> = [];
+		for (const file of matching) {
+			const content = (await fileService.readFile(file.resource)).value.toString();
+			entries.push(...content.split('\n').filter(Boolean).map(line => JSON.parse(line)));
+		}
+
+		assert.deepStrictEqual({
+			fileCount: matching.length,
+			fileNamesContainLogicalAddress: matching.some(file => file.name.includes('tunnel-dev-name')),
+			connectionIds: entries.map(entry => entry._ahpLog.connectionId).sort(),
+			messageIds: entries.map(entry => entry.id).sort(),
+		}, {
+			fileCount: 3,
+			fileNamesContainLogicalAddress: false,
+			connectionIds: ['relay-uuid-1', 'relay-uuid-1', 'relay-uuid-2'],
+			messageIds: [1, 2, 3],
+		});
 	});
 
 	test('collects local user data logs as resources', async () => {

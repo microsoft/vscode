@@ -3497,6 +3497,11 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
+		 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
+		 * Defaults to false.
+		 */
+		wordWrapIndicator?: boolean;
+		/**
 		 * Override the `wordWrap` setting.
 		 */
 		wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -5258,21 +5263,22 @@ declare namespace monaco.editor {
 		inertialScroll = 159,
 		inlayHints = 160,
 		wrapOnEscapedLineFeeds = 161,
-		effectiveCursorStyle = 162,
-		editorClassName = 163,
-		pixelRatio = 164,
-		tabFocusMode = 165,
-		layoutInfo = 166,
-		wrappingInfo = 167,
-		defaultColorDecorators = 168,
-		colorDecoratorsActivatedOn = 169,
-		inlineCompletionsAccessibilityVerbose = 170,
-		effectiveEditContext = 171,
-		scrollOnMiddleClick = 172,
-		effectiveAllowVariableFonts = 173,
-		doubleClickSelectsBlock = 174,
-		fullwidthCharacterWidth = 175,
-		effectiveFullwidthCharacterWidth = 176
+		wordWrapIndicator = 162,
+		effectiveCursorStyle = 163,
+		editorClassName = 164,
+		pixelRatio = 165,
+		tabFocusMode = 166,
+		layoutInfo = 167,
+		wrappingInfo = 168,
+		defaultColorDecorators = 169,
+		colorDecoratorsActivatedOn = 170,
+		inlineCompletionsAccessibilityVerbose = 171,
+		effectiveEditContext = 172,
+		scrollOnMiddleClick = 173,
+		effectiveAllowVariableFonts = 174,
+		doubleClickSelectsBlock = 175,
+		fullwidthCharacterWidth = 176,
+		effectiveFullwidthCharacterWidth = 177
 	}
 
 	export const EditorOptions: {
@@ -5435,6 +5441,7 @@ declare namespace monaco.editor {
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, string[]>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
+		wordWrapIndicator: IEditorOption<EditorOption.wordWrapIndicator, boolean>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
