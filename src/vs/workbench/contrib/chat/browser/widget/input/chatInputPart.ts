@@ -1079,6 +1079,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// snapshot that overwrites the newer config on reopen. The `_syncFromModel` guard
 		// and the store's redundant-update short-circuit prevent feedback loops on restore.
 		this._register(this._modelConfigStore.onDidChange(() => this._syncInputStateToModel()));
+		this._register(this._modelConfigStore.onDidSelectConfiguration(modelId => {
+			const model = this._currentLanguageModel.get();
+			if (model?.identifier === modelId) {
+				this.setCurrentLanguageModel(model, true, false);
+			}
+		}));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, {
 			get attachments() { return attachmentModel.attachments; },

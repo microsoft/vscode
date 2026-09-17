@@ -33,6 +33,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange: Event<string> = this._onDidChange.event;
 
+	private readonly _onDidSelectConfiguration = this._register(new Emitter<string>());
+	/** Explicit selections, including reselecting a value; restores and schema updates do not fire. */
+	readonly onDidSelectConfiguration: Event<string> = this._onDidSelectConfiguration.event;
+
 	constructor(
 		private readonly getStorageKey: () => string,
 		private readonly languageModelsService: ILanguageModelsService,
@@ -98,6 +102,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
 		const changed = this._applyLocalModelConfiguration(modelId, values);
+		this._onDidSelectConfiguration.fire(modelId);
 		if (!changed) {
 			// No-op (e.g. re-selecting the already-current value): skip the global
 			// write to avoid a redundant profile-file write and the resulting

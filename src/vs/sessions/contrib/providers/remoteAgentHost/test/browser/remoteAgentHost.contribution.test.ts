@@ -17,6 +17,7 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { RemoteAgentHostContribution } from '../../browser/remoteAgentHost.contribution.js';
@@ -57,7 +58,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const address = 'test-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }]]);
+		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }]]);
 		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = { get: () => undefined };
@@ -94,8 +95,8 @@ suite('RemoteAgentHost auth notifications', () => {
 		const calls: string[] = [];
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
 		contribution._connections = new Map([
-			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }],
-			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }],
+			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }],
+			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }],
 		]);
 		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
@@ -133,7 +134,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		let envelopeNumber = 0;
 		const address = 'sealed-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery() }]]);
+		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService) }]]);
 		contribution._sessionsProvidersService = { getProvider: () => undefined };
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = {

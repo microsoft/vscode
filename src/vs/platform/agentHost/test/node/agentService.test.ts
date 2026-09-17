@@ -334,6 +334,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
+	private readonly _provisionalSessions = new Set<string>();
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
@@ -414,6 +415,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
+		this._provisionalSessions.delete(session);
 		this._sessionChats.delete(session);
 	}
 
@@ -566,6 +568,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
 		}
+		if (registerOptions.provisional) {
+			this._provisionalSessions.add(session);
+		}
 		return true;
 	}
 
@@ -576,6 +581,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionChats.delete(session);
 		this._sessions.delete(session);
 		this._agentMergeEnabled.delete(session);
+		this._provisionalSessions.delete(session);
 	}
 
 	async updateRuntimeSessionExternal(updates: readonly { readonly session: string; readonly external: boolean }[]): Promise<void> {
@@ -611,6 +617,18 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
 		return [...this._agentMergeEnabled];
+	}
+
+	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		if (provisional) {
+			this._provisionalSessions.add(session);
+		} else {
+			this._provisionalSessions.delete(session);
+		}
+	}
+
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		return [...this._provisionalSessions];
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -795,6 +813,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private readonly _agentMergeEnabled = new Set<string>();
+	private readonly _provisionalSessions = new Set<string>();
 	private readonly _sessionChats = new Map<string, IAgentHostDatabaseSessionChatCatalog>();
 	private _backfilled = false;
 	catalogListCalls = 0;
@@ -820,6 +839,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	async unregisterSession(session: string): Promise<void> {
 		this._sessions.delete(session);
 		this._agentMergeEnabled.delete(session);
+		this._provisionalSessions.delete(session);
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
@@ -828,6 +848,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this._sessionV2Registrations.delete(session);
 		this._sessionsV2.delete(session);
 		this._agentMergeEnabled.delete(session);
+		this._provisionalSessions.delete(session);
 		this._sessionChats.delete(session);
 	}
 
@@ -937,6 +958,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		if (registered) {
 			this._sessions.set(session, this._sessionV2Registrations.get(session)!);
 		}
+		if (registerOptions.provisional) {
+			this._provisionalSessions.add(session);
+		}
 		return registered;
 	}
 
@@ -971,6 +995,18 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 
 	async listAgentMergeEnabledSessions(): Promise<readonly string[]> {
 		return [...this._agentMergeEnabled];
+	}
+
+	async setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		if (provisional) {
+			this._provisionalSessions.add(session);
+		} else {
+			this._provisionalSessions.delete(session);
+		}
+	}
+
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		return [...this._provisionalSessions];
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -5167,6 +5203,201 @@ suite('AgentService (node dispatcher)', () => {
 				providerMetadataCalls: [],
 				providerPrewarmCalls: 0,
 				sessionDatabaseOpens: 0,
+			});
+		});
+
+		suite('crash-orphaned provisional sessions', () => {
+			/**
+			 * A provider whose backing is deferred until the first send, so it can never describe a session that was not materialized.
+			 *
+			 * Suppression asks the provider through `getChatMetadata`. A test double
+			 * that vouches only via `getSessionMetadata`/`listSessions` is not
+			 * vouching at all on this path, and will look like real content being
+			 * wrongly hidden.
+			 */
+			class DeferredBackingAgent extends TimedExternalAgent {
+				override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
+					return undefined;
+				}
+				override async listSessions() {
+					return [];
+				}
+			}
+
+			/**
+			 * Rebuilds the durable state a crash leaves behind: the session is
+			 * registered and has a catalog row written from creation state, but its
+			 * provider never created a backing and no in-memory state survives.
+			 *
+			 * The provider is marked already-backfilled, as it is on any restart
+			 * after the first, so its catalog reads as readable this run. Suppression
+			 * deliberately requires that, and a fixture that skipped it would exercise
+			 * the fail-open path instead of the one under test.
+			 */
+			async function seedCrashedProvisional(provisional: boolean, orchestratorDatabase: CentralCatalogDatabase = new CentralCatalogDatabase(), id = `crashed-${provisional ? 'provisional' : 'materialized'}`, catalogReadable = true): Promise<{ orchestratorDatabase: CentralCatalogDatabase; session: URI }> {
+				const session = AgentSession.uri('copilot', id);
+				await orchestratorDatabase.registerRuntimeSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 10,
+					modifiedTime: 10,
+					source: 'explicit',
+				}, { checkTombstone: false, provisional });
+				const data = centralData(10, 'Session');
+				orchestratorDatabase.setCatalog(session, data);
+				await orchestratorDatabase.upsertSessionV2(catalogEnvelope(session, data), undefined);
+				if (catalogReadable) {
+					// A receipt and a backfill marker, so the import finds nothing left
+					// to carry over and reports the provider's catalog readable — the
+					// shape any restart after the first produces.
+					await orchestratorDatabase.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				}
+				return { orchestratorDatabase, session };
+			}
+
+			async function createCrashedService(orchestratorDatabase: CentralCatalogDatabase): Promise<AgentService> {
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new DeferredBackingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				return svc;
+			}
+
+			test('hides a crash-orphaned provisional session and reports it as never created (#321269)', async () => {
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = await createCrashedService(orchestratorDatabase);
+
+				const listed = await svc.listSessions();
+				const restoreError = await svc.restoreSession(session).then(() => undefined, err => err);
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
+					saysYet: /yet$/.test(restoreError?.message ?? ''),
+				}, {
+					listed: [],
+					restoreCode: AHP_SESSION_NOT_FOUND,
+					saysYet: false,
+				});
+			});
+
+			test('keeps a registered session whose provider is merely unavailable', async () => {
+				// Same undescribable provider, but no provisional marker: this is a
+				// real session whose provider cannot answer right now, so it must
+				// stay listed and must not be reported as permanently absent.
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(false);
+				const svc = await createCrashedService(orchestratorDatabase);
+
+				const listed = await svc.listSessions();
+				const restoreError = await svc.restoreSession(session).then(() => undefined, err => err);
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
+				}, {
+					listed: [session.toString()],
+					restoreCode: JSON_RPC_INTERNAL_ERROR,
+				});
+			});
+
+			test('keeps a provisional session the provider can still describe', async () => {
+				// The marker survived but materialization did happen (a promotion
+				// write that never landed). The provider vouches, so the session
+				// carries real content and must never be hidden by a stale marker.
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new TimedExternalAgent('copilot'));
+				agent.addSession(AgentSession.id(session), 10, undefined, 'Session');
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), [session.toString()]);
+			});
+
+			test('deleting a crash-orphaned provisional session succeeds and clears its marker', async () => {
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = await createCrashedService(orchestratorDatabase);
+
+				await svc.disposeSession(session);
+
+				assert.deepStrictEqual({
+					provisionalMarkers: await orchestratorDatabase.listProvisionalSessions(),
+					listed: (await svc.listSessions()).map(metadata => metadata.session.toString()),
+				}, {
+					provisionalMarkers: [],
+					listed: [],
+				});
+			});
+
+			test('suppresses a crash-orphaned session cached by a listing that raced the marker read', async () => {
+				// A real marker read hits SQLite, so an early listing can be computed
+				// and cached before any marker is known. The in-memory double always
+				// wins that race, so the delay is what makes this test meaningful.
+				let markerReadStarted: () => void = () => { };
+				const markerReadHasStarted = new Promise<void>(resolve => { markerReadStarted = resolve; });
+				class SlowMarkerReadDatabase extends CentralCatalogDatabase {
+					override async listProvisionalSessions(): Promise<readonly string[]> {
+						markerReadStarted();
+						await timeout(50);
+						return super.listProvisionalSessions();
+					}
+				}
+				const { orchestratorDatabase: slowDatabase, session } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-read');
+				const svc = createCentralCatalogService(createSessionDataService(), slowDatabase);
+				const agent = disposables.add(new DeferredBackingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				// Deferred work settles only once startup is complete *and* a first
+				// listing has been served, so mark it before awaiting below.
+				svc.markStartupComplete();
+				// Listed while the markers are still being read: listing fails open
+				// rather than hiding a session it cannot yet classify.
+				await markerReadHasStarted;
+				const listedDuringRead = await svc.listSessions();
+
+				await svc.whenDeferredWorkSettled();
+				const listedAfterRead = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					listedDuringRead: listedDuringRead.map(metadata => metadata.session.toString()),
+					listedAfterRead: listedAfterRead.map(metadata => metadata.session.toString()),
+				}, {
+					listedDuringRead: [session.toString()],
+					listedAfterRead: [],
+				});
+			});
+
+			test('keeps a materialized session whose provider catalog is not readable yet', async () => {
+				// The failure CCR identified: marker-clearing is best-effort, so a
+				// materialized session can still carry one. If its provider cannot
+				// answer yet it returns `undefined` *without throwing*, which is not
+				// evidence of absence — suppressing on that would hide real work and
+				// report it as never created. Mirrors Claude before its SDK is
+				// downloaded (#331648), which defers rather than failing.
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new CentralCatalogDatabase(), 'crashed-unreadable-catalog', false);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				class DeferredCatalogAgent extends DeferredBackingAgent {
+					override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+						return AgentChatMigrationDeferred;
+					}
+				}
+				const agent = disposables.add(new DeferredCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+
+				const listed = await svc.listSessions();
+				const restoreError = await svc.restoreSession(session).then(() => undefined, err => err);
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
+				}, {
+					listed: [session.toString()],
+					restoreCode: JSON_RPC_INTERNAL_ERROR,
+				});
 			});
 		});
 

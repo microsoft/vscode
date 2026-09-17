@@ -36,6 +36,8 @@ The provider cache is keyed by resource identity. Refreshing the backing agent s
 
 Provider metadata translation, including repository and pull-request metadata, remains inside the adapter. Shared Sessions code consumes provider-neutral workspace, changes, status, and GitHub information.
 
+The cloud provider reports verified PR-closing issues through `linkedIssues` metadata containing their URLs and titles. The adapter exposes these as session artifacts and, for public GitHub URLs, issue references for the existing issue pill. Enterprise-hosted issues remain openable artifacts without public GitHub polling.
+
 ## Request lifecycle
 
 The provider separates chat creation from request sending:

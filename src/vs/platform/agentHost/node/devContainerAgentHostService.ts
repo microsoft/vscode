@@ -106,8 +106,8 @@ class DevContainerRelay extends Disposable implements IDevContainerRelay {
 	}
 }
 
-/** Launches Dev Containers and relays their Agent Host protocol through the shared process. */
-export class DevContainerAgentHostMainService extends Disposable implements IDevContainerAgentHostMainService {
+/** Launches Dev Containers and relays their Agent Host protocol on the owning host. */
+export abstract class DevContainerAgentHostService extends Disposable implements IDevContainerAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
@@ -134,7 +134,6 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
@@ -142,11 +141,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
-		await this.disconnect(config.connectionId);
+		this._disconnect(config.connectionId);
 		const store = new DisposableStore();
 		const tokenSource = store.add(new CancellationTokenSource());
 		this._connectionTokenSources.set(config.connectionId, tokenSource);
-		store.add(toDisposable(() => this._connectionTokenSources.delete(config.connectionId)));
+		store.add(toDisposable(() => {
+			if (this._connectionTokenSources.get(config.connectionId) === tokenSource) {
+				this._connectionTokenSources.delete(config.connectionId);
+			}
+		}));
 		this._connectionStores.set(config.connectionId, store);
 
 		try {
@@ -241,6 +244,10 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				endpoint.connectionToken,
 				tokenSource.token,
 			);
+			if (tokenSource.token.isCancellationRequested) {
+				relay.dispose();
+				throw new CancellationError();
+			}
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
 
@@ -249,9 +256,12 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				address: `devcontainer:${upResult.containerId}`,
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
+				hostWorkspaceFolder: config.workspaceFolder,
 			};
 		} catch (error) {
-			this._connectionStores.deleteAndDispose(config.connectionId);
+			if (this._connectionStores.get(config.connectionId) === store) {
+				this._connectionStores.deleteAndDispose(config.connectionId);
+			}
 			throw error;
 		}
 	}
@@ -566,14 +576,8 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._nativeRequire;
 	}
 
-	protected _resolveUserShellEnvironment(): Promise<typeof process.env> {
-		return getResolvedShellEnv(
-			this._configurationService,
-			this._logService,
-			{ ...this._environmentService.args, 'force-user-env': true },
-			process.env,
-		);
-	}
+	protected abstract _resolveUserShellEnvironment(): Promise<typeof process.env>;
+	protected abstract _useSystemCertificates(): boolean;
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
 		this._shellEnvironment ??= this._doResolveShellEnvironment();
@@ -607,7 +611,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
 			return environment;
 		}
-		if (this._configurationService.getValue<boolean>('http.systemCertificates') === false) {
+		if (!this._useSystemCertificates()) {
 			return environment;
 		}
 		const certificates = await this._requestService.loadCertificates();
@@ -709,9 +713,53 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
+		this._disconnect(connectionId);
+	}
+
+	private _disconnect(connectionId: string): void {
 		this._connectionTokenSources.get(connectionId)?.cancel();
 		this._connectionStores.deleteAndDispose(connectionId);
 		this._connections.deleteAndDispose(connectionId);
+	}
+
+	override dispose(): void {
+		for (const tokenSource of this._connectionTokenSources.values()) {
+			tokenSource.cancel();
+		}
+		super.dispose();
+	}
+}
+
+/** Shared-process adapter that preserves the desktop's shell and certificate settings. */
+export class DevContainerAgentHostMainService extends DevContainerAgentHostService {
+	constructor(
+		@ILogService private readonly _mainLogService: ILogService,
+		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
+		@IRequestService requestService: IRequestService,
+	) {
+		super(_mainLogService, productService, telemetryService, _nativeEnvironmentService, requestService);
+	}
+
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return getResolvedShellEnv(this._configurationService, this._mainLogService, { ...this._nativeEnvironmentService.args, 'force-user-env': true }, process.env);
+	}
+
+	protected override _useSystemCertificates(): boolean {
+		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
+	}
+}
+
+/** Standalone hosts inherit the environment of their SSH, tunnel, or CLI launcher. */
+export class RemoteDevContainerAgentHostService extends DevContainerAgentHostService {
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return Promise.resolve(process.env);
+	}
+
+	protected override _useSystemCertificates(): boolean {
+		return true;
 	}
 }
 
