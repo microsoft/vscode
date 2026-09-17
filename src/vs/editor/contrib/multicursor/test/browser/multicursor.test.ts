@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
@@ -86,6 +87,8 @@ function fromRange(rng: Range): number[] {
 
 suite('Multicursor selection', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
@@ -514,13 +517,72 @@ suite('Multicursor selection', () => {
 	suite('Selection match case', () => {
 
 		const text = ['foo', 'FOObar', 'foobar', 'FOO', 'foo'];
-		const actions = [
-			{ action: new AddSelectionToNextFindMatchAction(), startLine: 1, sensitive: [1, 3], insensitive: [1, 2], wholeWord: [1, 5] },
-			{ action: new AddSelectionToPreviousFindMatchAction(), startLine: 5, sensitive: [5, 3], insensitive: [5, 4], wholeWord: [5, 1] },
-			{ action: new MoveSelectionToNextFindMatchAction(), startLine: 1, sensitive: [3], insensitive: [2], wholeWord: [5] },
-			{ action: new MoveSelectionToPreviousFindMatchAction(), startLine: 5, sensitive: [3], insensitive: [4], wholeWord: [1] },
-			{ action: new SelectHighlightsAction(), startLine: 1, sensitive: [1, 3, 5], insensitive: [1, 2, 3, 4, 5], wholeWord: [1, 5] },
-		];
+		const addSelectionToNext = new AddSelectionToNextFindMatchAction();
+		const addSelectionToPrevious = new AddSelectionToPreviousFindMatchAction();
+		const moveSelectionToNext = new MoveSelectionToNextFindMatchAction();
+		const moveSelectionToPrevious = new MoveSelectionToPreviousFindMatchAction();
+		const selectHighlights = new SelectHighlightsAction();
+
+		function assertSelectedText(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectionMatchCase: boolean, isRevealed: boolean): void {
+			testMulticursor(text, (editor, findController) => {
+				const state = findController.getState();
+				state.change({ searchString: 'FOO.*', isRevealed, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
+				editor.setSelection(new Selection(startLine, 1, startLine, 4));
+
+				runAction(editor);
+
+				assert.deepStrictEqual({
+					selections: editor.getSelections().map(fromRange),
+					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
+				}, {
+					selections: expectedLines.map(line => [line, 1, line, 4]),
+					findOptions: [!selectionMatchCase, true, true],
+				});
+			}, { selectionMatchCase });
+		}
+
+		function assertEmptySelection(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], selectionMatchCase: boolean): void {
+			testMulticursor(text, (editor, findController) => {
+				const state = findController.getState();
+				state.change({ matchCase: false, wholeWord: false, isRegex: true }, false);
+				editor.setSelection(new Selection(startLine, 2, startLine, 2));
+
+				runAction(editor);
+				runAction(editor);
+
+				assert.deepStrictEqual({
+					selections: editor.getSelections().map(fromRange),
+					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
+				}, {
+					selections: expectedLines.map(line => [line, 1, line, 4]),
+					findOptions: [false, false, true],
+				});
+			}, { selectionMatchCase });
+		}
+
+		function assertFindOptionsFeedback(runAction: (editor: ITestCodeEditor) => void, startLine: number, expectedLines: number[], hasTextFocus: boolean): void {
+			let actual: { selections: number[][]; findOptions: boolean[]; highlightCount: number } | undefined;
+			testMulticursor(text, (editor, findController) => {
+				const state = findController.getState();
+				state.change({ searchString: 'foo', isRevealed: !hasTextFocus, matchCase: true, wholeWord: true, isRegex: true }, false);
+				editor.setSelection(new Selection(startLine, 1, startLine, 4));
+				const highlightFindOptions = sinon.spy(findController, 'highlightFindOptions');
+
+				runAction(editor);
+
+				actual = {
+					selections: editor.getSelections().map(fromRange),
+					findOptions: [state.matchCase, state.wholeWord, state.isRegex],
+					highlightCount: highlightFindOptions.callCount,
+				};
+			}, { hasTextFocus, selectionMatchCase: false });
+
+			assert.deepStrictEqual(actual, {
+				selections: expectedLines.map(line => [line, 1, line, 4]),
+				findOptions: [true, true, true],
+				highlightCount: hasTextFocus ? 0 : 1,
+			});
+		}
 
 		test('defaults to case-insensitive and reports live option changes', () => {
 			testMulticursor(text, editor => {
@@ -535,48 +597,125 @@ suite('Multicursor selection', () => {
 			});
 		});
 
-		for (const { action, startLine, sensitive, insensitive, wholeWord } of actions) {
-			for (const selectionMatchCase of [false, true]) {
-				for (const isRevealed of [false, true]) {
-					test(`${action.id}: selected text, match case ${selectionMatchCase}, Find visible ${isRevealed}`, () => {
-						testMulticursor(text, (editor, findController) => {
-							const state = findController.getState();
-							state.change({ searchString: 'FOO.*', isRevealed, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
-							editor.setSelection(new Selection(startLine, 1, startLine, 4));
+		test(`${addSelectionToNext.id}: selected text, match case false, Find visible false`, () => {
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], false, false);
+		});
 
-							action.run(null!, editor);
+		test(`${addSelectionToNext.id}: selected text, match case false, Find visible true`, () => {
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], false, true);
+		});
 
-							assert.deepStrictEqual({
-								selections: editor.getSelections().map(fromRange),
-								findOptions: [state.matchCase, state.wholeWord, state.isRegex],
-							}, {
-								selections: (selectionMatchCase ? sensitive : insensitive).map(line => [line, 1, line, 4]),
-								findOptions: [!selectionMatchCase, true, true],
-							});
-						}, { selectionMatchCase });
-					});
-				}
+		test(`${addSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
+			assertEmptySelection(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], false);
+		});
 
-				test(`${action.id}: empty selection always starts whole-word and case-sensitive, setting ${selectionMatchCase}`, () => {
-					testMulticursor(text, (editor, findController) => {
-						const state = findController.getState();
-						state.change({ matchCase: false, wholeWord: false, isRegex: true }, false);
-						editor.setSelection(new Selection(startLine, 2, startLine, 2));
+		test(`${addSelectionToNext.id}: selected text, match case true, Find visible false`, () => {
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 3], true, false);
+		});
 
-						action.run(null!, editor);
-						action.run(null!, editor);
+		test(`${addSelectionToNext.id}: selected text, match case true, Find visible true`, () => {
+			assertSelectedText(editor => addSelectionToNext.run(null!, editor), 1, [1, 3], true, true);
+		});
 
-						assert.deepStrictEqual({
-							selections: editor.getSelections().map(fromRange),
-							findOptions: [state.matchCase, state.wholeWord, state.isRegex],
-						}, {
-							selections: wholeWord.map(line => [line, 1, line, 4]),
-							findOptions: [false, false, true],
-						});
-					}, { selectionMatchCase });
-				});
-			}
-		}
+		test(`${addSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
+			assertEmptySelection(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], true);
+		});
+
+		test(`${addSelectionToPrevious.id}: selected text, match case false, Find visible false`, () => {
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], false, false);
+		});
+
+		test(`${addSelectionToPrevious.id}: selected text, match case false, Find visible true`, () => {
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], false, true);
+		});
+
+		test(`${addSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
+			assertEmptySelection(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 1], false);
+		});
+
+		test(`${addSelectionToPrevious.id}: selected text, match case true, Find visible false`, () => {
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 3], true, false);
+		});
+
+		test(`${addSelectionToPrevious.id}: selected text, match case true, Find visible true`, () => {
+			assertSelectedText(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 3], true, true);
+		});
+
+		test(`${addSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
+			assertEmptySelection(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 1], true);
+		});
+
+		test(`${moveSelectionToNext.id}: selected text, match case false, Find visible false`, () => {
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [2], false, false);
+		});
+
+		test(`${moveSelectionToNext.id}: selected text, match case false, Find visible true`, () => {
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [2], false, true);
+		});
+
+		test(`${moveSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
+			assertEmptySelection(editor => moveSelectionToNext.run(null!, editor), 1, [5], false);
+		});
+
+		test(`${moveSelectionToNext.id}: selected text, match case true, Find visible false`, () => {
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [3], true, false);
+		});
+
+		test(`${moveSelectionToNext.id}: selected text, match case true, Find visible true`, () => {
+			assertSelectedText(editor => moveSelectionToNext.run(null!, editor), 1, [3], true, true);
+		});
+
+		test(`${moveSelectionToNext.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
+			assertEmptySelection(editor => moveSelectionToNext.run(null!, editor), 1, [5], true);
+		});
+
+		test(`${moveSelectionToPrevious.id}: selected text, match case false, Find visible false`, () => {
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [4], false, false);
+		});
+
+		test(`${moveSelectionToPrevious.id}: selected text, match case false, Find visible true`, () => {
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [4], false, true);
+		});
+
+		test(`${moveSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
+			assertEmptySelection(editor => moveSelectionToPrevious.run(null!, editor), 5, [1], false);
+		});
+
+		test(`${moveSelectionToPrevious.id}: selected text, match case true, Find visible false`, () => {
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [3], true, false);
+		});
+
+		test(`${moveSelectionToPrevious.id}: selected text, match case true, Find visible true`, () => {
+			assertSelectedText(editor => moveSelectionToPrevious.run(null!, editor), 5, [3], true, true);
+		});
+
+		test(`${moveSelectionToPrevious.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
+			assertEmptySelection(editor => moveSelectionToPrevious.run(null!, editor), 5, [1], true);
+		});
+
+		test(`${selectHighlights.id}: selected text, match case false, Find visible false`, () => {
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], false, false);
+		});
+
+		test(`${selectHighlights.id}: selected text, match case false, Find visible true`, () => {
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], false, true);
+		});
+
+		test(`${selectHighlights.id}: empty selection always starts whole-word and case-sensitive, setting false`, () => {
+			assertEmptySelection(editor => selectHighlights.run(null!, editor), 1, [1, 5], false);
+		});
+
+		test(`${selectHighlights.id}: selected text, match case true, Find visible false`, () => {
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 3, 5], true, false);
+		});
+
+		test(`${selectHighlights.id}: selected text, match case true, Find visible true`, () => {
+			assertSelectedText(editor => selectHighlights.run(null!, editor), 1, [1, 3, 5], true, true);
+		});
+
+		test(`${selectHighlights.id}: empty selection always starts whole-word and case-sensitive, setting true`, () => {
+			assertEmptySelection(editor => selectHighlights.run(null!, editor), 1, [1, 5], true);
+		});
 
 		test('issue #18239: replacing selected prefixes preserves differently cased identifiers', () => {
 			testMulticursor([
@@ -590,6 +729,21 @@ suite('Multicursor selection', () => {
 
 				assert.strictEqual(editor.getValue(), 'voucherQryConn *grpc.ClientConn\nvoucherQryClient proto.AccountQueryClient');
 			}, { selectionMatchCase: true });
+		});
+
+		test('select all replaces only selected-text occurrences while regex Find is visible', () => {
+			let actual: string | undefined;
+			testMulticursor(text, (editor, findController) => {
+				findController.getState().change({ searchString: 'FOO.*', isRevealed: true, matchCase: false, wholeWord: true, isRegex: true }, false);
+				editor.setSelection(new Selection(1, 1, 1, 4));
+
+				selectHighlights.run(null!, editor);
+				editor.trigger('test', Handler.Type, { text: 'baz' });
+
+				actual = editor.getValue();
+			}, { selectionMatchCase: true });
+
+			assert.strictEqual(actual, 'baz\nFOObar\nbazbar\nFOO\nbaz');
 		});
 
 		test('select all uses the updated setting after adding mixed-case selections', () => {
@@ -626,19 +780,25 @@ suite('Multicursor selection', () => {
 			}, { selectionMatchCase: false });
 		});
 
-		for (const matchCase of [false, true]) {
-			test(`Find-focused mixed-case initial selections respect Find match case ${matchCase}`, () => {
-				testMulticursor(['foo', 'FOO', 'fooBar'], (editor, findController) => {
-					findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase }, false);
-					editor.setSelections([new Selection(1, 1, 1, 4), new Selection(2, 1, 2, 4)]);
-					new AddSelectionToNextFindMatchAction().run(null!, editor);
+		test('Find-focused mixed-case initial selections respect Find match case false', () => {
+			testMulticursor(['foo', 'FOO', 'fooBar'], (editor, findController) => {
+				findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase: false }, false);
+				editor.setSelections([new Selection(1, 1, 1, 4), new Selection(2, 1, 2, 4)]);
+				new AddSelectionToNextFindMatchAction().run(null!, editor);
 
-					assert.deepStrictEqual(editor.getSelections().map(fromRange), matchCase
-						? [[1, 1, 1, 4], [2, 1, 2, 4]]
-						: [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
-				}, { hasTextFocus: false, selectionMatchCase: !matchCase });
-			});
-		}
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4], [3, 1, 3, 4]]);
+			}, { hasTextFocus: false, selectionMatchCase: true });
+		});
+
+		test('Find-focused mixed-case initial selections respect Find match case true', () => {
+			testMulticursor(['foo', 'FOO', 'fooBar'], (editor, findController) => {
+				findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase: true }, false);
+				editor.setSelections([new Selection(1, 1, 1, 4), new Selection(2, 1, 2, 4)]);
+				new AddSelectionToNextFindMatchAction().run(null!, editor);
+
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
+			}, { hasTextFocus: false, selectionMatchCase: false });
+		});
 
 		test('switching focus transfers matching rules between selection and Find sessions', () => {
 			testMulticursor(['foo', 'FOO', 'fooqux', 'foobar', 'bar', 'BAR', 'barista'], (editor, findController) => {
@@ -675,38 +835,79 @@ suite('Multicursor selection', () => {
 			});
 		});
 
-		for (const selectionMatchCase of [false, true]) {
-			test(`multiline CRLF selections match literal substrings with match case ${selectionMatchCase}`, () => {
-				testMulticursor(['foo.', 'bar', 'FOO.', 'BAR', 'xfoo.', 'bar'], (editor, findController) => {
-					editor.getModel().setEOL(EndOfLineSequence.CRLF);
-					findController.getState().change({ searchString: 'unrelated.*', isRevealed: true, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
-					editor.setSelection(new Selection(1, 1, 2, 4));
-					new SelectHighlightsAction().run(null!, editor);
+		test('multiline CRLF selections match literal substrings with match case false', () => {
+			testMulticursor(['foo.', 'bar', 'FOO.', 'BAR', 'xfoo.', 'bar'], (editor, findController) => {
+				editor.getModel().setEOL(EndOfLineSequence.CRLF);
+				findController.getState().change({ searchString: 'unrelated.*', isRevealed: true, matchCase: true, wholeWord: true, isRegex: true }, false);
+				editor.setSelection(new Selection(1, 1, 2, 4));
+				new SelectHighlightsAction().run(null!, editor);
 
-					assert.deepStrictEqual(editor.getSelections().map(fromRange), selectionMatchCase
-						? [[1, 1, 2, 4], [5, 2, 6, 4]]
-						: [[1, 1, 2, 4], [3, 1, 4, 4], [5, 2, 6, 4]]);
-				}, { selectionMatchCase });
-			});
-		}
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 2, 4], [3, 1, 4, 4], [5, 2, 6, 4]]);
+			}, { selectionMatchCase: false });
+		});
 
-		for (const { action, startLine, lines } of [
-			{ action: new AddSelectionToNextFindMatchAction(), startLine: 1, lines: [1, 2] },
-			{ action: new AddSelectionToPreviousFindMatchAction(), startLine: 5, lines: [5, 3] },
-			{ action: new SelectHighlightsAction(), startLine: 1, lines: [2, 3] },
-		]) {
-			test(`${action.id}: Find-focused commands retain Find matching rules`, () => {
-				testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
-					editor.setSelection(new Selection(startLine, 1, startLine, 4));
-					findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
-					editor.updateOptions({ selectionMatchCase: false });
-					editor.updateOptions({ selectionMatchCase: true });
-					action.run(null!, editor);
+		test('multiline CRLF selections match literal substrings with match case true', () => {
+			testMulticursor(['foo.', 'bar', 'FOO.', 'BAR', 'xfoo.', 'bar'], (editor, findController) => {
+				editor.getModel().setEOL(EndOfLineSequence.CRLF);
+				findController.getState().change({ searchString: 'unrelated.*', isRevealed: true, matchCase: false, wholeWord: true, isRegex: true }, false);
+				editor.setSelection(new Selection(1, 1, 2, 4));
+				new SelectHighlightsAction().run(null!, editor);
 
-					assert.deepStrictEqual(editor.getSelections().map(fromRange), lines.map(line => [line, 1, line, 4]));
-				}, { hasTextFocus: false, selectionMatchCase: true });
-			});
-		}
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 2, 4], [5, 2, 6, 4]]);
+			}, { selectionMatchCase: true });
+		});
+
+		test(`${addSelectionToNext.id}: Find-focused commands retain Find matching rules`, () => {
+			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
+				editor.setSelection(new Selection(1, 1, 1, 4));
+				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
+				editor.updateOptions({ selectionMatchCase: false });
+				editor.updateOptions({ selectionMatchCase: true });
+				addSelectionToNext.run(null!, editor);
+
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[1, 1, 1, 4], [2, 1, 2, 4]]);
+			}, { hasTextFocus: false, selectionMatchCase: true });
+		});
+
+		test(`${addSelectionToPrevious.id}: Find-focused commands retain Find matching rules`, () => {
+			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
+				editor.setSelection(new Selection(5, 1, 5, 4));
+				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
+				editor.updateOptions({ selectionMatchCase: false });
+				editor.updateOptions({ selectionMatchCase: true });
+				addSelectionToPrevious.run(null!, editor);
+
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[5, 1, 5, 4], [3, 1, 3, 4]]);
+			}, { hasTextFocus: false, selectionMatchCase: true });
+		});
+
+		test(`${selectHighlights.id}: Find-focused commands retain Find matching rules`, () => {
+			testMulticursor(['foo', 'BAR', 'bar', 'barista', 'foo'], (editor, findController) => {
+				editor.setSelection(new Selection(1, 1, 1, 4));
+				findController.getState().change({ searchString: 'bar', isRevealed: true, matchCase: false, wholeWord: true }, false);
+				editor.updateOptions({ selectionMatchCase: false });
+				editor.updateOptions({ selectionMatchCase: true });
+				selectHighlights.run(null!, editor);
+
+				assert.deepStrictEqual(editor.getSelections().map(fromRange), [[2, 1, 2, 4], [3, 1, 3, 4]]);
+			}, { hasTextFocus: false, selectionMatchCase: true });
+		});
+
+		test('add next occurrence does not highlight unrelated Find options', () => {
+			assertFindOptionsFeedback(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], true);
+		});
+
+		test('add previous occurrence does not highlight unrelated Find options', () => {
+			assertFindOptionsFeedback(editor => addSelectionToPrevious.run(null!, editor), 5, [5, 4], true);
+		});
+
+		test('select all occurrences does not highlight unrelated Find options', () => {
+			assertFindOptionsFeedback(editor => selectHighlights.run(null!, editor), 1, [1, 2, 3, 4, 5], true);
+		});
+
+		test('Find-focused occurrence selection still highlights Find options', () => {
+			assertFindOptionsFeedback(editor => addSelectionToNext.run(null!, editor), 1, [1, 5], false);
+		});
 	});
 
 	suite('Selection highlighting match case', () => {
@@ -720,44 +921,68 @@ suite('Multicursor selection', () => {
 				.map(fromRange);
 		}
 
-		for (const selectionMatchCase of [false, true]) {
-			for (const hasTextFocus of [false, true]) {
-				test(`selection highlighting uses match case ${selectionMatchCase}, editor focused ${hasTextFocus}`, () => {
-					testMulticursor(text, (editor, findController) => {
-						editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
-						findController.getState().change({ searchString: 'f.*', isRevealed: true, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
-						editor.setSelection(new Selection(1, 1, 1, 4));
+		function assertSelectionHighlighting(selectionMatchCase: boolean, hasTextFocus: boolean, expectedLines: number[]): void {
+			testMulticursor(text, (editor, findController) => {
+				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
+				findController.getState().change({ searchString: 'f.*', isRevealed: true, matchCase: !selectionMatchCase, wholeWord: true, isRegex: true }, false);
+				editor.setSelection(new Selection(1, 1, 1, 4));
 
-						assert.deepStrictEqual(highlights(editor), (selectionMatchCase ? [3] : [2, 3, 4]).map(line => [line, 1, line, 4]));
-					}, { selectionMatchCase, hasTextFocus });
-				});
-			}
-
-			test(`mixed-case selection highlighting compares selections using match case ${selectionMatchCase}`, () => {
-				testMulticursor(text, (editor, findController) => {
-					editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
-					findController.getState().change({ matchCase: !selectionMatchCase }, false);
-					editor.setSelections([new Selection(1, 1, 1, 4), new Selection(2, 1, 2, 4)]);
-
-					assert.deepStrictEqual(highlights(editor), (selectionMatchCase ? [] : [3, 4]).map(line => [line, 1, line, 4]));
-				}, { selectionMatchCase });
-			});
-
-			test(`only suppress duplicate Find highlights with the same matching rules, match case ${selectionMatchCase}`, () => {
-				testMulticursor(text, (editor, findController) => {
-					editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
-					editor.setSelection(new Selection(1, 1, 1, 4));
-					findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase: selectionMatchCase, wholeWord: false }, false);
-					const sameOptions = highlights(editor);
-
-					findController.getState().change({ matchCase: !selectionMatchCase }, false);
-					assert.deepStrictEqual({ sameOptions, differentCase: highlights(editor) }, {
-						sameOptions: [],
-						differentCase: (selectionMatchCase ? [3] : [2, 3, 4]).map(line => [line, 1, line, 4]),
-					});
-				}, { selectionMatchCase });
-			});
+				assert.deepStrictEqual(highlights(editor), expectedLines.map(line => [line, 1, line, 4]));
+			}, { selectionMatchCase, hasTextFocus });
 		}
+
+		function assertDuplicateFindHighlights(selectionMatchCase: boolean, expectedDifferentCaseLines: number[]): void {
+			testMulticursor(text, (editor, findController) => {
+				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
+				editor.setSelection(new Selection(1, 1, 1, 4));
+				findController.getState().change({ searchString: 'foo', isRevealed: true, matchCase: selectionMatchCase, wholeWord: false }, false);
+				const sameOptions = highlights(editor);
+
+				findController.getState().change({ matchCase: !selectionMatchCase }, false);
+				assert.deepStrictEqual({ sameOptions, differentCase: highlights(editor) }, {
+					sameOptions: [],
+					differentCase: expectedDifferentCaseLines.map(line => [line, 1, line, 4]),
+				});
+			}, { selectionMatchCase });
+		}
+
+		test('selection highlighting uses match case false, editor focused true', () => {
+			assertSelectionHighlighting(false, true, [2, 3, 4]);
+		});
+
+		test('only suppress duplicate Find highlights with the same matching rules, match case false', () => {
+			assertDuplicateFindHighlights(false, [2, 3, 4]);
+		});
+
+		test('selection highlighting uses match case true, editor focused true', () => {
+			assertSelectionHighlighting(true, true, [3]);
+		});
+
+		test('only suppress duplicate Find highlights with the same matching rules, match case true', () => {
+			assertDuplicateFindHighlights(true, [3]);
+		});
+
+		test('selection highlighting refreshes on case-only configuration changes without cursor movement', () => {
+			const clock = sinon.useFakeTimers();
+			const actual: number[][][] = [];
+			testMulticursor(text, editor => {
+				editor.registerAndInstantiateContribution(SelectionHighlighter.ID, SelectionHighlighter);
+				editor.setSelection(new Selection(1, 1, 1, 4));
+				// Drain the initial scheduled update so it cannot mask missing configuration invalidation.
+				clock.runAll();
+				actual.push(highlights(editor));
+
+				editor.updateOptions({ selectionMatchCase: true });
+				clock.runAll();
+				actual.push(highlights(editor));
+
+				editor.updateOptions({ selectionMatchCase: false });
+				clock.runAll();
+				actual.push(highlights(editor));
+			});
+
+			assert.deepStrictEqual(actual, [[2, 3, 4], [3], [2, 3, 4]].map(lines => lines.map(line => [line, 1, line, 4])));
+		});
 
 		test('highlights keep the original search text across live changes with mixed-case cursors', () => {
 			testMulticursor(['foo', 'FOO', 'fooBar', 'FOOBar', 'fooBaz', 'FOOBaz'], editor => {

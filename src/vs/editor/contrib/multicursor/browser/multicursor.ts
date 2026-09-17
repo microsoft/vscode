@@ -384,7 +384,10 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
+		if (!this.isSelectionDriven) {
+			this.findController.highlightFindOptions();
+		}
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -435,7 +438,10 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
+		if (!this.isSelectionDriven) {
+			this.findController.highlightFindOptions();
+		}
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -452,7 +458,10 @@ export class MultiCursorSession {
 			return [];
 		}
 
-		this.findController.highlightFindOptions();
+		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
+		if (!this.isSelectionDriven) {
+			this.findController.highlightFindOptions();
+		}
 
 		const editorModel = this._editor.getModel();
 		if (searchScope) {
@@ -514,7 +523,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				this._endSession();
 			}));
 			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
-				// Preserve caret-started whole-word matching; changing Find options must not make "foo" start matching "FOObar".
+				// Preserve caret-started selection whole-word matching; changing Find options must not make "foo" start matching "FOObar".
 				if (!session.isSelectionDriven && (e.matchCase || e.wholeWord)) {
 					this._endSession();
 				}
@@ -622,7 +631,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		if (isFindWidgetSearch(this._editor, findController) && findState.isRegex) {
 			const editorModel = this._editor.getModel();
 			if (findState.searchScope) {
 				matches = editorModel.findMatches(findState.searchString, findState.searchScope, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
@@ -870,6 +879,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 			this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
 			this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
+			if (e.hasChanged(EditorOption.selectionMatchCase)) {
+				this.updateSoon.schedule(0);
+			}
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
