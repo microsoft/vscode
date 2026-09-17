@@ -22,7 +22,7 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ActionType, isChatAction, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, TurnState, type ChatState, type ComponentToState, type RootState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, TurnState, type ChatState, type ComponentToState, type RootState } from '../../common/state/sessionState.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostRemoteAgentsContribution, IAgentHostRemoteAgentsService } from '../../node/agentHostRemoteAgentsService.js';
@@ -787,12 +787,20 @@ suite('RemoteAgent', () => {
 				toolCallId: 'shared-tool-call',
 				toolName: 'shared_tool',
 				displayName: 'Shared Tool',
+				contributor: {
+					kind: ToolCallContributorKind.Client,
+					clientId: connection.clientId,
+				},
 			});
 			connection.sendServerAction(remoteChat, {
 				type: ActionType.ChatToolCallReady,
 				turnId: remoteTurnId,
 				toolCallId: 'shared-tool-call',
 				invocationMessage: 'Run the shared tool',
+				contributor: {
+					kind: ToolCallContributorKind.Client,
+					clientId: connection.clientId,
+				},
 			});
 			connection.sendServerAction(remoteChat, {
 				type: ActionType.ChatInputRequested,
@@ -909,6 +917,7 @@ suite('RemoteAgent', () => {
 				.map(entry => ({
 					resource: entry.resource,
 					toolCallId: entry.action.type === ActionType.ChatToolCallReady ? entry.action.toolCallId : undefined,
+					contributor: entry.action.type === ActionType.ChatToolCallReady ? entry.action.contributor : undefined,
 				})),
 			interactionDispatches,
 			firstLocalToolCompletion: firstLocalToolCompletion?.action.type === ActionType.ChatToolCallComplete ? {
@@ -928,9 +937,11 @@ suite('RemoteAgent', () => {
 			readyActions: [{
 				resource: firstChat.toString(),
 				toolCallId: firstLocalToolCallId,
+				contributor: undefined,
 			}, {
 				resource: secondChat.toString(),
 				toolCallId: secondLocalToolCallId,
+				contributor: undefined,
 			}],
 			interactionDispatches: [{
 				channel: firstRemoteChat.toString(),

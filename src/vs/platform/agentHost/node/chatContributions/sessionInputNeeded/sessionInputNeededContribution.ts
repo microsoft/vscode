@@ -50,6 +50,13 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 
 	private _syncSessionInputNeededForChatAction(chatUri: ProtocolURI, action: ChatAction): void {
 		switch (action.type) {
+			case ActionType.ChatResponsePart:
+				if (action.part.kind === ResponsePartKind.ToolCall) {
+					this._syncToolInputNeeded(chatUri, action.turnId, action.part.toolCall.toolCallId);
+				} else if (action.part.kind === ResponsePartKind.InputRequest) {
+					this._syncChatInputNeeded(chatUri, action.part.request.id);
+				}
+				break;
 			case ActionType.ChatInputRequested:
 				this._syncChatInputNeeded(chatUri, action.request.id);
 				break;
@@ -79,13 +86,12 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 
 	private _syncChatInputNeeded(chatUri: ProtocolURI, requestId: string): void {
 		const state = this._stateManager.getSessionState(chatUri);
-		const part = state?.activeTurn?.responseParts.find(part =>
+		const part = state?.activeTurn?.responseParts.findLast(part =>
 			part.kind === ResponsePartKind.InputRequest
-			&& part.response === undefined
 			&& part.request.id === requestId
 		);
 		const id = this._chatInputNeededId(chatUri, requestId);
-		if (!part || part.kind !== ResponsePartKind.InputRequest) {
+		if (!part || part.kind !== ResponsePartKind.InputRequest || part.response !== undefined) {
 			this._removeSessionInputNeeded(chatUri, id);
 			return;
 		}
@@ -154,7 +160,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 	private _findToolCall(chatUri: ProtocolURI, turnId: string, toolCallId: string): ToolCallState | undefined {
 		const state = this._stateManager.getSessionState(chatUri);
 		const turn = state?.activeTurn?.id === turnId ? state.activeTurn : state?.turns.find(t => t.id === turnId);
-		const part = turn?.responseParts.find(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === toolCallId);
+		const part = turn?.responseParts.findLast(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === toolCallId);
 		return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 	}
 

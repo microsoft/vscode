@@ -6893,6 +6893,90 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(sessionInputNeeded(), []);
 		});
 
+		test('tool confirmation is reconstructed from a snapshot response part', () => {
+			setupSession();
+			startTurn('turn-snapshot');
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'turn-snapshot',
+				part: {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Streaming,
+						toolCallId: 'tc-snapshot',
+						toolName: 'write',
+						displayName: 'Write',
+					},
+				},
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'turn-snapshot',
+				part: {
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'tc-snapshot',
+						toolName: 'write',
+						displayName: 'Write',
+						invocationMessage: 'Write snapshot file',
+						confirmationTitle: 'Write snapshot file',
+					},
+				},
+			});
+
+			assert.deepStrictEqual(
+				sessionInputNeeded().map(request => ({
+					kind: request.kind,
+					chat: request.chat,
+					toolCallId: request.kind === SessionInputRequestKind.ToolConfirmation ? request.toolCall.toolCallId : undefined,
+				})),
+				[{ kind: SessionInputRequestKind.ToolConfirmation, chat: defaultChatUri, toolCallId: 'tc-snapshot' }],
+			);
+		});
+
+		test('chat input is reconstructed from a snapshot response part', () => {
+			setupSession();
+			startTurn('turn-snapshot');
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'turn-snapshot',
+				part: {
+					kind: ResponsePartKind.InputRequest,
+					request: {
+						id: 'req-snapshot',
+						questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-snapshot', message: 'Which value?' }],
+					},
+				},
+			});
+
+			assert.deepStrictEqual(
+				sessionInputNeeded().map(request => ({
+					kind: request.kind,
+					chat: request.chat,
+					requestId: request.kind === SessionInputRequestKind.ChatInput ? request.request.id : undefined,
+				})),
+				[{ kind: SessionInputRequestKind.ChatInput, chat: defaultChatUri, requestId: 'req-snapshot' }],
+			);
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatResponsePart,
+				turnId: 'turn-snapshot',
+				part: {
+					kind: ResponsePartKind.InputRequest,
+					request: {
+						id: 'req-snapshot',
+						questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-snapshot', message: 'Which value?' }],
+					},
+					response: ChatInputResponseKind.Accept,
+				},
+			});
+
+			assert.deepStrictEqual(sessionInputNeeded(), []);
+		});
+
 		test('client tool execution is produced while running and removed once complete', () => {
 			setupSession();
 			startTurn('turn-1');

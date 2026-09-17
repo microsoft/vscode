@@ -24,7 +24,7 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/er
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ActionType, isChatAction, type ChatAction, type ChatInputCompletedAction, type ChatToolCallConfirmedAction, type ChatToolCallResultConfirmedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, MessageKind, ResponsePartKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ActiveTurn, type AgentSelection, type ChatInputAnswer, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallResult, type ToolDefinition, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatInputResponseKind, isDefaultChatUri, MessageKind, ResponsePartKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, TurnState, type ActiveTurn, type AgentSelection, type ChatInputAnswer, type ChatState, type ClientPluginCustomization, type Customization, type MessageAttachment, type ModelSelection, type ResponsePart, type ToolCallResult, type ToolDefinition, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AgentInfo, ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 
@@ -1323,9 +1323,7 @@ export class RemoteAgent extends Disposable implements IAgent {
 				const turnId = this._toLocalTurnId(action.turnId);
 				return turnId ? { ...action, turnId, part: this._translateResponsePart(binding, action.turnId, action.part) } : undefined;
 			}
-			case ActionType.ChatToolCallStart:
 			case ActionType.ChatToolCallDelta:
-			case ActionType.ChatToolCallReady:
 			case ActionType.ChatToolCallComplete:
 			case ActionType.ChatToolCallContentChanged: {
 				const turnId = this._toLocalTurnId(action.turnId);
@@ -1333,6 +1331,16 @@ export class RemoteAgent extends Disposable implements IAgent {
 					...action,
 					turnId,
 					toolCallId: this._toLocalToolCallId(binding, action.turnId, action.toolCallId),
+				} : undefined;
+			}
+			case ActionType.ChatToolCallStart:
+			case ActionType.ChatToolCallReady: {
+				const turnId = this._toLocalTurnId(action.turnId);
+				return turnId ? {
+					...action,
+					turnId,
+					toolCallId: this._toLocalToolCallId(binding, action.turnId, action.toolCallId),
+					contributor: action.contributor?.kind === ToolCallContributorKind.Client ? undefined : action.contributor,
 				} : undefined;
 			}
 			case ActionType.ChatTurnComplete:
@@ -1383,8 +1391,20 @@ export class RemoteAgent extends Disposable implements IAgent {
 			case ResponsePartKind.Markdown:
 			case ResponsePartKind.Reasoning:
 				return { ...part, id: this._toLocalPartId(part.id) };
-			case ResponsePartKind.ToolCall:
-				return { ...part, toolCall: { ...part.toolCall, toolCallId: this._toLocalToolCallId(binding, remoteTurnId, part.toolCall.toolCallId) } };
+			case ResponsePartKind.ToolCall: {
+				const toolCallId = this._toLocalToolCallId(binding, remoteTurnId, part.toolCall.toolCallId);
+				if (part.toolCall.status === ToolCallStatus.AuthRequired) {
+					return { ...part, toolCall: { ...part.toolCall, toolCallId } };
+				}
+				return {
+					...part,
+					toolCall: {
+						...part.toolCall,
+						toolCallId,
+						contributor: part.toolCall.contributor?.kind === ToolCallContributorKind.Client ? undefined : part.toolCall.contributor,
+					},
+				};
+			}
 			case ResponsePartKind.InputRequest:
 				return { ...part, request: { ...part.request, id: this._toLocalInputRequestId(binding, remoteTurnId, part.request.id) } };
 			case ResponsePartKind.ContentRef:

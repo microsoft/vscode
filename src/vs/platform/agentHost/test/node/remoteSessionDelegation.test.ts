@@ -2147,6 +2147,7 @@ suite('RemoteSessionDelegation', () => {
 				turnId: confirmation.turnId,
 				toolCallIdIsNamespaced: confirmation.toolCall.toolCallId !== 'create-remote-session-call',
 				status: confirmation.toolCall.status,
+				contributor: confirmation.toolCall.contributor,
 			},
 			beforeApproval,
 			resultReplay: hostB.receivedClientToolResults.every(candidate => equals(candidate, hostB.receivedClientToolResults[0])),
@@ -2175,6 +2176,7 @@ suite('RemoteSessionDelegation', () => {
 				turnId: 'source-turn',
 				toolCallIdIsNamespaced: true,
 				status: ToolCallStatus.PendingConfirmation,
+				contributor: undefined,
 			},
 			beforeApproval: {
 				hostBResults: 0,
