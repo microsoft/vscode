@@ -16,6 +16,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +69,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 			'Activate a subagent pill in the chat transcript to open the subagent beside the current chat. With the keyboard, focus a pill and press Enter or Space; Alt+Enter also opens it to the side. You can also drag a pill to a chat group\'s edge to choose where it opens.',
 		);
 	});
+
+	for (const { configuredValue, expectedConversation, expectedListAction } of [
+		{ configuredValue: undefined, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'without a tab row', expectedListAction: 'show a chat as the session view' },
+	]) {
+		test(`describes sessions list chat presentation when the setting is ${configuredValue ?? 'default'}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService(configuredValue === undefined ? undefined : { [SESSIONS_CHAT_TABS_SETTING]: configuredValue });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+			const content = provider.provideContent().split('\n');
+
+			assert.deepStrictEqual({
+				conversationDescription: content.some(line => line.includes(expectedConversation)),
+				sessionListAction: content.some(line => line.includes(expectedListAction)),
+			}, {
+				conversationDescription: true,
+				sessionListAction: true,
+			});
+		});
+	}
 
 	for (const { wording, action, dismiss } of [
 		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion' },
