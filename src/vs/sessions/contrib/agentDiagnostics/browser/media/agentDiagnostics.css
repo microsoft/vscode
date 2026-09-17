@@ -505,7 +505,7 @@
 
 .agent-diagnostics-span {
 	display: grid;
-	grid-template-columns: minmax(200px, 1fr) minmax(160px, 2fr) auto;
+	grid-template-columns: minmax(200px, 1fr) minmax(160px, 2fr);
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }

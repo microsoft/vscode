@@ -23,7 +23,6 @@ import { ISessionDiagnosticsTurn, SessionDiagnosticsModel } from './sessionDiagn
 interface ITraceNode {
 	readonly element: HTMLElement;
 	readonly button: Button;
-	readonly troubleshootButton: Button;
 	readonly detail: HTMLElement;
 	readonly store: DisposableStore;
 	readonly detailStore: DisposableStore;
@@ -141,13 +140,13 @@ export class SessionInsightsView extends Disposable {
 	private renderOverview(turns: number, tokens: number, duration: number): void {
 		this.overviewDisposables.clear();
 		DOM.clearNode(this.overview);
-		this.renderStat(this.overview, localize('agentDiagnostics.overview.turns', "Turns"), String(turns));
-		this.renderStat(this.overview, localize('agentDiagnostics.overview.tokens', "Tokens"), tokens.toLocaleString());
-		this.renderStat(this.overview, localize('agentDiagnostics.overview.duration', "Duration"), formatDuration(duration));
 		const button = this.overviewDisposables.add(new Button(this.overview, { ...defaultButtonStyles, secondary: true }));
 		button.element.classList.add('agent-diagnostics-troubleshoot-button', 'agent-diagnostics-overview-troubleshoot');
 		button.label = localize('agentDiagnostics.troubleshootSession', "Troubleshoot Session");
 		this.overviewDisposables.add(button.onDidClick(() => this.requestSessionTroubleshoot()));
+		this.renderStat(this.overview, localize('agentDiagnostics.overview.turns', "Turns"), String(turns));
+		this.renderStat(this.overview, localize('agentDiagnostics.overview.tokens', "Tokens"), tokens.toLocaleString());
+		this.renderStat(this.overview, localize('agentDiagnostics.overview.duration', "Duration"), formatDuration(duration));
 	}
 
 	private renderStat(parent: HTMLElement, label: string, value: string): void {
@@ -230,10 +229,6 @@ export class SessionInsightsView extends Disposable {
 			const context = DOM.append(node.model, DOM.$('.agent-diagnostics-model'));
 			context.textContent = localize('agentDiagnostics.context', "Context: {0}", formatContext(turn.context));
 		}
-		const troubleshoot = node.renderStore.add(new Button(node.model, { ...defaultButtonStyles, secondary: true }));
-		troubleshoot.element.classList.add('agent-diagnostics-troubleshoot-button');
-		troubleshoot.label = localize('agentDiagnostics.troubleshootTurn', "Troubleshoot Turn");
-		node.renderStore.add(troubleshoot.onDidClick(() => this.requestTurnTroubleshoot(turn)));
 		node.model.toggleAttribute('hidden', node.model.childElementCount === 0);
 
 		this.renderTraceNodes(node, turn);
@@ -311,14 +306,10 @@ export class SessionInsightsView extends Disposable {
 		const header = DOM.append(element, DOM.$('.agent-diagnostics-trace-header'));
 		const button = store.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		button.element.classList.add('agent-diagnostics-trace-button');
-		const troubleshootButton = store.add(new Button(header, { ...defaultButtonStyles, secondary: true }));
-		troubleshootButton.element.classList.add('agent-diagnostics-troubleshoot-button');
-		troubleshootButton.label = localize('agentDiagnostics.troubleshootTrace', "Troubleshoot");
 		const detail = DOM.append(element, DOM.$('.agent-diagnostics-trace-detail'));
 		const detailStore = store.add(new DisposableStore());
 		store.add(button.onDidClick(() => this.model.toggleTraceExpanded(traceId)));
-		store.add(troubleshootButton.onDidClick(() => this.requestTraceTroubleshoot(traceId)));
-		return { element, button, troubleshootButton, detail, store, detailStore };
+		return { element, button, detail, store, detailStore };
 	}
 
 	private updateTraceNode(node: ITraceNode, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace): void {
@@ -389,12 +380,6 @@ export class SessionInsightsView extends Disposable {
 			this.updateTraceNode(traceNode, turn, trace);
 			this.scrollable.scanDomNode();
 		}));
-		if (message.role === 'tool' && message.toolName) {
-			const troubleshoot = traceNode.detailStore.add(new Button(header, { ...defaultButtonStyles, secondary: true }));
-			troubleshoot.element.classList.add('agent-diagnostics-troubleshoot-button');
-			troubleshoot.label = localize('agentDiagnostics.troubleshootTool', "Troubleshoot");
-			traceNode.detailStore.add(troubleshoot.onDidClick(() => this.requestToolTroubleshoot(turn, trace, message)));
-		}
 		if (expanded) {
 			if (message.role === 'tool' && message.toolName) {
 				this.renderToolMessageContent(row, message);
@@ -458,10 +443,6 @@ export class SessionInsightsView extends Disposable {
 		const traceDuration = Math.max(1, trace.duration);
 		bar.style.left = `${Math.max(0, (span.startTime - trace.startTime) / traceDuration * 100)}%`;
 		bar.style.width = `${Math.max(1, span.duration / traceDuration * 100)}%`;
-		const troubleshoot = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
-		troubleshoot.element.classList.add('agent-diagnostics-troubleshoot-button');
-		troubleshoot.label = localize('agentDiagnostics.troubleshootSpan', "Troubleshoot");
-		traceNode.detailStore.add(troubleshoot.onDidClick(() => this.requestSpanTroubleshoot(trace, span)));
 		traceNode.detailStore.add(button.onDidClick(() => {
 			if (this.expandedSpanIds.has(span.spanId)) {
 				this.expandedSpanIds.delete(span.spanId);
@@ -514,83 +495,6 @@ export class SessionInsightsView extends Disposable {
 					traceIds: turn.otelTraces.map(trace => trace.traceId),
 					debugEventIds: turn.debugEvents.map(event => event.id).filter(id => !!id),
 				})),
-			}, undefined, 2),
-		});
-	}
-
-	private requestTurnTroubleshoot(turn: ISessionDiagnosticsTurn): void {
-		const state = this.model.state;
-		if (!state) {
-			return;
-		}
-		this._onDidRequestTroubleshoot.fire({
-			id: `turn:${state.chatResource.toString()}:${turn.id}`,
-			label: localize('agentDiagnostics.context.turn', "Turn Diagnostics"),
-			query: localize('agentDiagnostics.query.turn', "Troubleshoot the attached agent turn. Correlate its OpenTelemetry traces and Agent Debug events, identify any failure or slowdown, and recommend the next step."),
-			sessionResource: state.sessionResource,
-			sourceChatResource: state.chatResource,
-			content: JSON.stringify({
-				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
-				chatUri: state.chatResource.toString(),
-				turn: {
-					id: turn.id,
-					prompt: turn.prompt,
-					model: turn.resolvedModel,
-					thinkingLevel: turn.thinkingLevel,
-					context: turn.context,
-					traceIds: turn.otelTraces.map(trace => trace.traceId),
-					debugEventIds: turn.debugEvents.map(event => event.id).filter(id => !!id),
-				},
-			}, undefined, 2),
-		});
-	}
-
-	private requestTraceTroubleshoot(traceId: string): void {
-		const state = this.model.state;
-		const details = this.model.getTraceDetails(traceId);
-		if (!state || !details) {
-			return;
-		}
-		this._onDidRequestTroubleshoot.fire({
-			id: `trace:${traceId}`,
-			label: localize('agentDiagnostics.context.trace', "Trace Diagnostics"),
-			query: localize('agentDiagnostics.query.trace', "Troubleshoot the attached trace. Explain its critical path, failures, bottlenecks, and suspicious spans."),
-			sessionResource: state.sessionResource,
-			sourceChatResource: state.chatResource,
-			content: JSON.stringify(details, undefined, 2),
-		});
-	}
-
-	private requestSpanTroubleshoot(trace: IOTelDiagnosticsTrace, span: IOTelDiagnosticsSpan): void {
-		const state = this.model.state;
-		if (!state) {
-			return;
-		}
-		this._onDidRequestTroubleshoot.fire({
-			id: `span:${trace.traceId}:${span.spanId}`,
-			label: localize('agentDiagnostics.context.span', "Span Diagnostics"),
-			query: localize('agentDiagnostics.query.span', "Troubleshoot the attached span in its trace context. Explain what it did, whether it failed or was slow, and what to inspect next."),
-			sessionResource: state.sessionResource,
-			sourceChatResource: state.chatResource,
-			content: JSON.stringify({ trace, span }, undefined, 2),
-		});
-	}
-
-	private requestToolTroubleshoot(turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace, message: IOTelDiagnosticsMessage): void {
-		const state = this.model.state;
-		if (!state) {
-			return;
-		}
-		this._onDidRequestTroubleshoot.fire({
-			id: `tool:${message.toolCallId ?? message.id}`,
-			label: localize('agentDiagnostics.context.tool', "Tool Call Diagnostics"),
-			query: localize('agentDiagnostics.query.tool', "Troubleshoot the attached tool call. Analyze its input, output, status, duration, and surrounding trace context."),
-			sessionResource: state.sessionResource,
-			sourceChatResource: state.chatResource,
-			content: JSON.stringify({
-				turnId: turn.id,
-				traceId: trace.traceId,
-				tool: message,
 			}, undefined, 2),
 		});
 	}
