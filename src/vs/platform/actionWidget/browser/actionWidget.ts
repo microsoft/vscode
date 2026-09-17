@@ -262,7 +262,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 					return;
 				}
 				this.hide(true);
-			}, 0);
+			}, 75);
 		}));
 
 		return renderDisposables;

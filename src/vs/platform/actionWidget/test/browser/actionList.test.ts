@@ -1552,6 +1552,37 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('submenu rows do not duplicate labels as descriptions', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('chat'),
+				submenuActions: [
+					toAction({ id: 'local', label: 'Local', run: () => { } }),
+					toAction({ id: 'remote', label: 'Test Remote B', run: () => { } }),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const rows = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => ({
+			label: row.querySelector<HTMLElement>('.title')?.textContent,
+			description: row.querySelector<HTMLElement>('.description')?.textContent?.trim() || undefined,
+		}));
+
+		assert.deepStrictEqual(rows, [
+			{ label: 'Local', description: undefined },
+			{ label: 'Test Remote B', description: undefined },
+		]);
+	});
+
 	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

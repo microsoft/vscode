@@ -224,6 +224,7 @@ suite('ActionWidgetService', () => {
 	test('keeps a nested submenu open when removing a remote row refreshes parent items', async () => {
 		const { service } = setup();
 		let hides = 0;
+		let selected = 0;
 		const keep = toAction({ id: 'keep', label: 'Keep', run: () => { } });
 		const makeParent = (children: readonly IAction[]): IActionListItem<{ id: string }> => ({
 			kind: ActionListItemKind.Action,
@@ -233,11 +234,15 @@ suite('ActionWidgetService', () => {
 		});
 		const removable = Object.assign(toAction({ id: 'remove', label: 'Remove Me', run: () => { } }), {
 			onRemove: async () => {
+				await timeout(0);
 				service.updateItems([makeParent([keep])], undefined, { preserveHover: true });
 			},
 		});
 		service.show('remote', false, [makeParent([removable, keep])], {
-			onSelect: () => { },
+			onSelect: () => {
+				selected++;
+				service.hide();
+			},
 			onHide: () => { hides++; },
 		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
 			showFilter: true,
@@ -254,15 +259,18 @@ suite('ActionWidgetService', () => {
 		assert.ok(removeButton);
 		removeButton.click();
 		await timeout(0);
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			visible: service.isVisible,
 			hides,
+			selected,
 			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
 				.map(row => row.querySelector<HTMLElement>('.title')?.textContent),
 		}, {
 			visible: true,
 			hides: 0,
+			selected: 0,
 			rows: ['Keep'],
 		});
 		service.hide();
