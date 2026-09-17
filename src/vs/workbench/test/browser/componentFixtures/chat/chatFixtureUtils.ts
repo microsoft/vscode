@@ -39,7 +39,10 @@ import { INotebookDocumentService } from '../../../../services/notebook/common/n
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
 import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -363,6 +366,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// render and nothing crashes.
 	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
 		override readonly onAgentHostStart = Event.None;
+		override readonly onAgentHostExit = Event.None;
+		override readonly onDidNotification = Event.None;
 		override readonly rootState: IAgentSubscription<RootState> = {
 			value: undefined,
 			verifiedValue: undefined,
@@ -370,6 +375,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
+		override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+			return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+		}
 		override getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
 			return {
 				object: {
@@ -389,6 +397,8 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 			return options.agentHostSessionConfig ?? { schema: { type: 'object', properties: {} }, values: {} };
 		}
 	}());
+	reg.defineInstance(IRemoteAgentHostService, new NullRemoteAgentHostService());
+	reg.define(IAgentHostConnectionsService, AgentHostConnectionsService);
 	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 		override readonly onDidChange = Event.None;
 		override get() { return undefined; }

@@ -1372,7 +1372,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1615,7 +1615,9 @@ export class AgentSideEffects extends Disposable {
 				const sessionUri = URI.parse(channel);
 				const sessionId = AgentSession.id(channel);
 				const worktreeOp = action.isArchived
-					? this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
+					? automaticArchive
+						? this._worktree.cleanupWorktree(sessionUri, sessionId)
+						: this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
 					: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
 				const agent = this._options.getAgent(channel);

@@ -151,6 +151,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			const session = this._sessionObs.read(reader);
 			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
 				&& (session?.isCreated.read(reader) ?? false)
+				&& !this._groupsView.showChatAsSessionView.read(reader)
 				&& (session?.shouldShowChatTabs.read(reader) ?? false);
 			this._header.setVisible(!tabsReplaceHeader);
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
@@ -292,9 +293,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
 	}
 
-	/** Opens the given chat in a group beside the active one ("open to the side"). */
-	openChatToSide(resource: URI): Promise<void> {
-		return this._groupsView.openChatInNewGroup(resource);
+	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
+	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
+		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);
 	}
 
 	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */

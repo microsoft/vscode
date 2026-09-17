@@ -369,6 +369,36 @@ suite('AgentHostLanguageModelProvider', () => {
 		);
 	});
 
+	test('derives missing input limits from the host window without overriding explicit limits', async () => {
+		const { catalogue: known } = catalogue([
+			{ id: 'total-window', maxInputTokens: 200_000, maxOutputTokens: 8_000 },
+		]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		provider.updateModels([
+			{ ...makeModel('total-window'), provider: 'copilot', maxContextWindow: 108_000 },
+			{ ...makeModel('explicit-limits'), maxContextWindow: 108_000, maxPromptTokens: 50_000, maxOutputTokens: 8_000 },
+			{ ...makeModel('zero-input'), maxContextWindow: 108_000, maxPromptTokens: 0, maxOutputTokens: 8_000 },
+			{ ...makeModel('zero-window'), maxContextWindow: 0 },
+			makeModel('unknown-window'),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => ({
+				id: info.metadata.id,
+				maxInputTokens: info.metadata.maxInputTokens,
+				maxOutputTokens: info.metadata.maxOutputTokens,
+			})),
+			[
+				{ id: 'total-window', maxInputTokens: 100_000, maxOutputTokens: 8_000 },
+				{ id: 'explicit-limits', maxInputTokens: 50_000, maxOutputTokens: 8_000 },
+				{ id: 'zero-input', maxInputTokens: 0, maxOutputTokens: 8_000 },
+				{ id: 'zero-window', maxInputTokens: 0, maxOutputTokens: 0 },
+				{ id: 'unknown-window', maxInputTokens: 0, maxOutputTokens: 0 },
+			]
+		);
+	});
+
 	test('carries model notices and flags row warnings', async () => {
 		const provider = createProvider();
 		provider.updateModels([makeModel('gpt-5', {

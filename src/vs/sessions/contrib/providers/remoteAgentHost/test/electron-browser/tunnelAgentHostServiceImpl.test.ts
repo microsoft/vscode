@@ -4,13 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
+import type { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { ITunnelGatewayInventory } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAuthenticationService, type AuthenticationSession } from '../../../../../../workbench/services/authentication/common/authentication.js';
+import { TestProductService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import {
 	selectDedicatedGatewayFallback,
 	selectEditorGatewayEndpoint,
 	selectGatewayFallbackAfterRejection,
 	shouldNotifyTunnelFailover,
+	TunnelAgentHostService,
 	TunnelFailoverTracker,
 } from '../../electron-browser/tunnelAgentHostServiceImpl.js';
 
@@ -22,6 +40,90 @@ const editorEndpoint = { type: 'editor', pid: 111, instanceId: 'editor-1', quali
 const secondEditorEndpoint = { type: 'editor', pid: 112, instanceId: 'editor-0', endpointKind: 'socket', endpointLabel: '/tmp/editor-0.sock' } as const;
 const standaloneEndpoint = { type: 'standalone', pid: 222, instanceId: 'standalone-2', tunnelName: 'my-tunnel', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9001' } as const;
 const secondStandaloneEndpoint = { type: 'standalone', pid: 333, instanceId: 'standalone-1', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9002' } as const;
+
+suite('TunnelAgentHostService discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(getSessions: (provider: string) => readonly AuthenticationSession[], channel: IChannel = new class extends mock<IChannel>() { }()): TunnelAgentHostService {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
+			override getChannel(): IChannel {
+				return channel;
+			}
+		}());
+		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConnections = Event.None;
+			override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+				return { dispose() { } };
+			}
+		}());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
+				return getSessions(provider);
+			}
+		}());
+		instantiationService.stub(IProductService, {
+			...TestProductService,
+			tunnelApplicationConfig: {
+				authenticationProviders: { github: { scopes: ['tunnel'] }, microsoft: { scopes: ['tunnel'] } },
+				editorWebUrl: '',
+				extension: { extensionId: 'test.remote-tunnels', friendlyName: 'Remote Tunnels' },
+			},
+		});
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() { }());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }());
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		return store.add(instantiationService.createInstance(TunnelAgentHostService));
+	}
+
+	test('rejects silent discovery when authentication is unavailable', async () => {
+		const service = createService(() => []);
+		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+	});
+
+	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {
+		const sessions = new Map<string, AuthenticationSession>();
+		const session = (provider: string): AuthenticationSession => ({
+			id: provider, accessToken: `${provider}-token`, scopes: ['tunnel'], account: { id: provider, label: provider },
+		});
+		sessions.set('microsoft', session('microsoft'));
+		const calls: { command: string; args: readonly string[] }[] = [];
+		const service = createService(provider => sessions.has(provider) ? [sessions.get(provider)!] : [], new class extends mock<IChannel>() {
+			override async call<T>(command: string, args: readonly string[]): Promise<T> {
+				calls.push({ command, args });
+				return [] as T;
+			}
+		}());
+		await service.listTunnels({ silent: true });
+		sessions.set('github', session('github'));
+		await service.listTunnels({ authProvider: 'github' });
+		await service.getAuthProvider();
+		await service.listTunnels({ authProvider: 'microsoft', silent: true });
+		await service.deleteTunnel({ tunnelId: 'test', clusterId: 'cluster', name: 'Test', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+		await service.listTunnels({ authProvider: 'github' });
+
+		assert.deepStrictEqual(calls, [
+			{ command: 'listTunnels', args: ['microsoft-token', 'microsoft', undefined] },
+			{ command: 'listTunnels', args: ['github-token', 'github', undefined] },
+			{ command: 'listTunnels', args: ['microsoft-token', 'microsoft', undefined] },
+			{ command: 'deleteTunnel', args: ['github-token', 'github', 'test', 'cluster'] },
+			{ command: 'listTunnels', args: ['github-token', 'github', undefined] },
+		]);
+	});
+
+	test('does not fall back to another provider when the explicit provider has no session', async () => {
+		const service = createService(provider => provider === 'microsoft'
+			? [{ id: 'microsoft', accessToken: 'token', scopes: ['tunnel'], account: { id: 'account', label: 'Account' } }]
+			: []);
+		await service.getAuthProvider({ silent: true });
+
+		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'github' }), /No authentication is available to enumerate tunnels/);
+	});
+});
 
 suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
