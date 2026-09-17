@@ -22,6 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
@@ -2520,7 +2521,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		switch (event.code) {
 			case VoiceCloseCode.Unauthenticated:
-				return localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
+				return this.configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled)
+					? localize('voice.gptLiveApiKeyRequired', "Set agents.voice.gptLive.apiKey to use Voice Mode with GPT Live.")
+					: localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
 			case VoiceCloseCode.Forbidden:
 				return localize('voice.noAccess', "Your GitHub account doesn't have access to Voice Mode.");
 			case VoiceCloseCode.SessionReplaced:

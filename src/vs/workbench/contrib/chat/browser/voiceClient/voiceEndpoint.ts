@@ -5,14 +5,30 @@
 
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
 
 const VOICE_PATH = '/realtime/voice';
 const TRANSCRIPTION_PATH = '/realtime/transcription';
+const GPT_LIVE_VOICE_WS_URL = 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice';
+
+function isGptLiveEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
+}
+
+function getGptLiveApiKey(configurationService: IConfigurationService): string | undefined {
+	const configured = configurationService.getValue<string>(AgentsVoiceSettingId.GptLiveApiKey);
+	const key = typeof configured === 'string' ? configured.trim() : '';
+	return key || undefined;
+}
+
+function getHostedVoiceWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
+	return isGptLiveEnabled(configurationService) ? GPT_LIVE_VOICE_WS_URL : productService.voiceWsUrl || '';
+}
 
 export function getVoiceWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
 	const configured = configurationService.getValue<string>('agents.voice.backendUrl');
 	const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
-	return configuredUrl || productService.voiceWsUrl || '';
+	return configuredUrl || getHostedVoiceWebSocketUrl(configurationService, productService);
 }
 
 export function getTranscriptionWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
@@ -20,7 +36,7 @@ export function getTranscriptionWebSocketUrl(configurationService: IConfiguratio
 	const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
 	const voiceUrl = configuredUrl && isLoopbackWebSocketUrl(configuredUrl)
 		? configuredUrl
-		: productService.voiceWsUrl || '';
+		: getHostedVoiceWebSocketUrl(configurationService, productService);
 	if (!voiceUrl) {
 		return '';
 	}
@@ -42,6 +58,13 @@ export function addWebSocketAuthToken(url: string, token: string): string {
 	const authenticatedUrl = new URL(url);
 	authenticatedUrl.searchParams.set('token', token);
 	return authenticatedUrl.toString();
+}
+
+export function getVoiceBackendAuthToken(configurationService: IConfigurationService, fallbackToken: string | undefined): string | undefined {
+	if (!isGptLiveEnabled(configurationService)) {
+		return fallbackToken;
+	}
+	return getGptLiveApiKey(configurationService);
 }
 
 function isLoopbackWebSocketUrl(value: string): boolean {

@@ -8,7 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { addWebSocketAuthToken, getTranscriptionWebSocketUrl, getVoiceWebSocketUrl } from '../../../browser/voiceClient/voiceEndpoint.js';
+import { AgentsVoiceSettingId } from '../../../../agentsVoice/common/agentsVoice.js';
+import { addWebSocketAuthToken, getTranscriptionWebSocketUrl, getVoiceBackendAuthToken, getVoiceWebSocketUrl } from '../../../browser/voiceClient/voiceEndpoint.js';
 
 suite('Voice endpoint', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -88,5 +89,36 @@ suite('Voice endpoint', () => {
 		};
 
 		assert.strictEqual(getTranscriptionWebSocketUrl(new TestConfigurationService(), invalidProduct), '');
+	});
+
+	test('uses the GPT Live backend when opted in', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentsVoiceSettingId.GptLiveEnabled]: true,
+		});
+
+		assert.deepStrictEqual({
+			voice: getVoiceWebSocketUrl(configurationService, productService),
+			transcription: getTranscriptionWebSocketUrl(configurationService, productService),
+		}, {
+			voice: 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice',
+			transcription: 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/transcription',
+		});
+	});
+
+	test('uses the GPT Live key for websocket auth when opted in', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentsVoiceSettingId.GptLiveEnabled]: true,
+			[AgentsVoiceSettingId.GptLiveApiKey]: '  gpt-live-key  ',
+		});
+
+		assert.strictEqual(getVoiceBackendAuthToken(configurationService, 'github-token'), 'gpt-live-key');
+	});
+
+	test('keeps GitHub auth token when GPT Live is disabled', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentsVoiceSettingId.GptLiveApiKey]: 'gpt-live-key',
+		});
+
+		assert.strictEqual(getVoiceBackendAuthToken(configurationService, 'github-token'), 'github-token');
 	});
 });

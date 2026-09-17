@@ -29,7 +29,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -38,7 +38,7 @@ import { getMediaCaptureWindow } from '../voiceClient/micCaptureService.js';
 import { resolveDictationLanguage } from './dictationLanguage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IVoiceCodeTranscription, IVoiceCodeTranscriptionClient } from './voiceCodeTranscriptionClient.js';
-import { getTranscriptionWebSocketUrl } from '../voiceClient/voiceEndpoint.js';
+import { getTranscriptionWebSocketUrl, getVoiceBackendAuthToken } from '../voiceClient/voiceEndpoint.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -965,12 +965,15 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private async _startMaiSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		const authToken = await this._getGitHubToken();
+		const backendToken = getVoiceBackendAuthToken(this._configurationService, authToken);
 		if (generation !== this._sessionGeneration) {
 			return;
 		}
-		if (!authToken) {
+		if (!backendToken) {
 			this._sessionErrorCode = this._sessionErrorCode || 'connect.noauth';
-			throw new Error(localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
+			throw new Error(this._configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled)
+				? localize('chatStt.gptLiveApiKeyRequired', "Set agents.voice.gptLive.apiKey to use cloud dictation with GPT Live.")
+				: localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
 		}
 
 		this._maiTurnId = generateUuid();
@@ -987,7 +990,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			this._failMaiSession(localize('chatStt.maiDisconnected', "Cloud dictation was disconnected."));
 		}));
 		this._setPreparingModel(true);
-		await this._transcriptionClient.connect(window, authToken);
+		await this._transcriptionClient.connect(window, backendToken);
 		if (generation !== this._sessionGeneration) {
 			return;
 		}
