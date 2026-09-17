@@ -34,6 +34,7 @@ import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/c
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -69,7 +70,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private currentChatResource: URI | undefined;
 	private diagnosticsModel: SessionDiagnosticsModel | undefined;
 	private sessionInsightsView: SessionInsightsView | undefined;
-	private troubleshootSessionId: string | undefined;
+	private troubleshootChatResource: URI | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -83,6 +84,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
@@ -338,25 +340,30 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	}
 
 	private async openTroubleshootChat(request: ISessionDiagnosticsTroubleshootRequest): Promise<void> {
-		let session = this.troubleshootSessionId
-			? this.sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === this.troubleshootSessionId)
-			: undefined;
-		const isNewChat = !session;
+		const session = this.sessionsService.visibleSessions.get().find(candidate => candidate && isEqual(candidate.resource, request.sessionResource));
 		if (!session) {
-			session = this.sessionsService.openQuickChat({ toSide: true });
-			if (!session) {
-				this.notificationService.error(localize('agentDiagnostics.troubleshootUnavailable', "No workspace-less chat provider is available."));
+			this.notificationService.error(localize('agentDiagnostics.troubleshootSessionUnavailable', "The Diagnostics source session is no longer open."));
+			return;
+		}
+		let chat = this.troubleshootChatResource
+			? session.chats.get().find(candidate => isEqual(candidate.resource, this.troubleshootChatResource))
+			: undefined;
+		const isNewChat = !chat;
+		if (!chat) {
+			chat = await this.sessionsManagementService.createNewChatInSession(session, { forceNew: true });
+			if (!chat) {
+				this.notificationService.error(localize('agentDiagnostics.troubleshootUnavailable', "A Troubleshoot chat could not be created in this session."));
 				return;
 			}
-			this.troubleshootSessionId = session.sessionId;
-			await timeout(0);
+			this.troubleshootChatResource = chat.resource;
 		}
-
 		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
 		if (!sessionView) {
 			this.notificationService.error(localize('agentDiagnostics.troubleshootViewUnavailable', "The Troubleshoot chat could not be opened."));
 			return;
 		}
+		await sessionView.openChatToSide(chat.resource, request.sourceChatResource);
+		await timeout(0);
 		sessionView.attachTextContext(request.label, request.content, request.id);
 		if (this.languageModelToolsService.getToolSet('agentDiagnostics')) {
 			sessionView.attachToolSet('agentDiagnostics');

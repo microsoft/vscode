@@ -11,6 +11,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getReasoningEffortLabel } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { IOTelDiagnosticsMessage, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
@@ -45,6 +46,8 @@ export interface ISessionDiagnosticsTroubleshootRequest {
 	readonly label: string;
 	readonly query: string;
 	readonly content: string;
+	readonly sessionResource: URI;
+	readonly sourceChatResource: URI;
 }
 
 export class SessionInsightsView extends Disposable {
@@ -497,6 +500,8 @@ export class SessionInsightsView extends Disposable {
 			id: `session:${state.sessionResource.toString()}`,
 			label: localize('agentDiagnostics.context.session', "Session Diagnostics"),
 			query: localize('agentDiagnostics.query.session', "Troubleshoot the attached agent session. Explain what it was asked to do, what happened, any failures or bottlenecks, and the best next diagnostic step."),
+			sessionResource: state.sessionResource,
+			sourceChatResource: state.chatResource,
 			content: JSON.stringify({
 				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
 				summary: state.summary,
@@ -522,6 +527,8 @@ export class SessionInsightsView extends Disposable {
 			id: `turn:${state.chatResource.toString()}:${turn.id}`,
 			label: localize('agentDiagnostics.context.turn', "Turn Diagnostics"),
 			query: localize('agentDiagnostics.query.turn', "Troubleshoot the attached agent turn. Correlate its OpenTelemetry traces and Agent Debug events, identify any failure or slowdown, and recommend the next step."),
+			sessionResource: state.sessionResource,
+			sourceChatResource: state.chatResource,
 			content: JSON.stringify({
 				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
 				chatUri: state.chatResource.toString(),
@@ -539,32 +546,47 @@ export class SessionInsightsView extends Disposable {
 	}
 
 	private requestTraceTroubleshoot(traceId: string): void {
+		const state = this.model.state;
 		const details = this.model.getTraceDetails(traceId);
-		if (!details) {
+		if (!state || !details) {
 			return;
 		}
 		this._onDidRequestTroubleshoot.fire({
 			id: `trace:${traceId}`,
 			label: localize('agentDiagnostics.context.trace', "Trace Diagnostics"),
 			query: localize('agentDiagnostics.query.trace', "Troubleshoot the attached trace. Explain its critical path, failures, bottlenecks, and suspicious spans."),
+			sessionResource: state.sessionResource,
+			sourceChatResource: state.chatResource,
 			content: JSON.stringify(details, undefined, 2),
 		});
 	}
 
 	private requestSpanTroubleshoot(trace: IOTelDiagnosticsTrace, span: IOTelDiagnosticsSpan): void {
+		const state = this.model.state;
+		if (!state) {
+			return;
+		}
 		this._onDidRequestTroubleshoot.fire({
 			id: `span:${trace.traceId}:${span.spanId}`,
 			label: localize('agentDiagnostics.context.span', "Span Diagnostics"),
 			query: localize('agentDiagnostics.query.span', "Troubleshoot the attached span in its trace context. Explain what it did, whether it failed or was slow, and what to inspect next."),
+			sessionResource: state.sessionResource,
+			sourceChatResource: state.chatResource,
 			content: JSON.stringify({ trace, span }, undefined, 2),
 		});
 	}
 
 	private requestToolTroubleshoot(turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace, message: IOTelDiagnosticsMessage): void {
+		const state = this.model.state;
+		if (!state) {
+			return;
+		}
 		this._onDidRequestTroubleshoot.fire({
 			id: `tool:${message.toolCallId ?? message.id}`,
 			label: localize('agentDiagnostics.context.tool', "Tool Call Diagnostics"),
 			query: localize('agentDiagnostics.query.tool', "Troubleshoot the attached tool call. Analyze its input, output, status, duration, and surrounding trace context."),
+			sessionResource: state.sessionResource,
+			sourceChatResource: state.chatResource,
 			content: JSON.stringify({
 				turnId: turn.id,
 				traceId: trace.traceId,

@@ -79,11 +79,6 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly toSide?: boolean;
 }
 
-export interface IOpenQuickChatOptions extends ICreateNewSessionOptions {
-	/** Open the workspace-less chat beside the active session. */
-	readonly toSide?: boolean;
-}
-
 /**
  * Result of {@link ISessionsService.openNewSession}. `session` holds the
  * created/restored draft on success. `trustDeclined` is `true` only when a
@@ -277,7 +272,7 @@ export interface ISessionsService {
 	 * active session. Returns the activated session, or `undefined` when no
 	 * provider supports quick chats.
 	 */
-	openQuickChat(options?: IOpenQuickChatOptions): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -1198,17 +1193,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session);
 	}
 
-	openQuickChat(options?: IOpenQuickChatOptions): IActiveSession | undefined {
+	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
 		return this._openQuickChat(options, 'explicit');
 	}
 
-	private _openQuickChat(options: IOpenQuickChatOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
+	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent): IActiveSession | undefined {
 		this._beginNavigation(intent);
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			this._activateOrInsert(session, options?.toSide);
-			return this.activeSession.get();
+			return this._activate(session);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.
