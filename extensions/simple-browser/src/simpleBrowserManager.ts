@@ -23,7 +23,7 @@ export class SimpleBrowserManager {
 		const url = typeof inputUri === 'string' ? inputUri : inputUri.toString(true);
 		if (this._activeView) {
 			this._activeView.show(url, options);
-		} else {
+		} else if (!this._simpleBrowserAlreadyOpen()) {
 			const view = SimpleBrowserView.create(this.extensionUri, url, options);
 			this.registerWebviewListeners(view);
 
@@ -33,9 +33,17 @@ export class SimpleBrowserManager {
 
 	public restore(panel: vscode.WebviewPanel, state: any): void {
 		const url = state?.url ?? '';
+		if (this._activeView) {
+			panel.dispose();
+			return;
+		}
 		const view = SimpleBrowserView.restore(this.extensionUri, url, panel);
 		this.registerWebviewListeners(view);
-		this._activeView ??= view;
+		this._activeView = view;
+	}
+
+	private _simpleBrowserAlreadyOpen(): boolean {
+		return vscode.window.tabGroups.all.some(group => group.tabs.some(tab => tab.label === SimpleBrowserView.title));
 	}
 
 	private registerWebviewListeners(view: SimpleBrowserView) {
