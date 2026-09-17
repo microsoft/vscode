@@ -10968,7 +10968,7 @@ suite('AgentHostChatContribution', () => {
 
 		for (const alreadyExists of [false, true]) {
 			for (const hasDefaultDirectory of [false, true]) {
-				test(`repository session uses schema-selected config and reattaches after a lost response (${alreadyExists}, default directory ${hasDefaultDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				test(`repository session uses standard config and reattaches after a lost response (${alreadyExists}, default directory ${hasDefaultDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 					const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 					const repository = URI.parse('https://example.com/owner/repo');
 					const checkout = URI.file('/host/checkout');
@@ -10984,8 +10984,7 @@ suite('AgentHostChatContribution', () => {
 					agentHostService.repositorySessionConfig = {
 						schema: {
 							type: 'object',
-							properties: { source: { type: 'string', title: 'Repository' } },
-							repository: { urlProperty: 'source' },
+							properties: { repositorySource: { type: 'string', title: 'Repository' } },
 						},
 						values: {},
 					};
@@ -11019,7 +11018,7 @@ suite('AgentHostChatContribution', () => {
 						discoveryDirectories: agentHostService.resolveSessionConfigCalls.map(call => call.workingDirectory),
 						customizations: lastActiveClient?.type === ActionType.SessionActiveClientSet ? lastActiveClient.activeClient.customizations : undefined,
 					}, {
-						config: { source: repository.toString() },
+						config: { repositorySource: repository.toString() },
 						workingDirectories: undefined,
 						discoveryDirectories: [undefined, undefined],
 						customizations,
@@ -11035,7 +11034,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.nextResolvedWorkingDirectory = URI.file('/host/checkout');
 			agentHostService.nextSessionLifecycle = SessionLifecycle.Creating;
 			agentHostService.repositorySessionConfig = {
-				schema: { type: 'object', properties: { source: { type: 'string', title: 'Repository' } }, repository: { urlProperty: 'source' } },
+				schema: { type: 'object', properties: { repositorySource: { type: 'string', title: 'Repository' } } },
 				values: {},
 			};
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -11084,7 +11083,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
 			agentHostService.nextResolvedWorkingDirectory = checkout;
 			agentHostService.repositorySessionConfig = {
-				schema: { type: 'object', properties: { source: { type: 'string', title: 'Repository' } }, repository: { urlProperty: 'source' } },
+				schema: { type: 'object', properties: { repositorySource: { type: 'string', title: 'Repository' } } },
 				values: {},
 			};
 			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {

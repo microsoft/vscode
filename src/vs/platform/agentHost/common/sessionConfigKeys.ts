@@ -7,8 +7,8 @@
  * Well-known keys used in the agent-host configuration value bag.
  *
  * The Agent Host Protocol's config schema is intentionally generic — agents
- * are free to advertise any property names. These constants capture the
- * names that the platform itself consumes (e.g. {@link SessionConfigKey.AutoApprove}
+ * can advertise provider-specific property names alongside standardized inputs.
+ * These constants capture the names that the platform itself consumes (e.g. {@link SessionConfigKey.AutoApprove}
  * drives tool auto-approval) or that clients interpret via convention
  * (e.g. {@link SessionConfigKey.Branch}, {@link SessionConfigKey.Isolation}).
  *
@@ -27,6 +27,10 @@ export const enum SessionConfigKey {
 	Isolation = 'isolation',
 	/** `'branch'` — host-owned base branch to work from. */
 	Branch = 'branch',
+	/** Standard AHP source URI for repository-backed session creation. */
+	RepositorySource = 'repositorySource',
+	/** Standard AHP requested repository revision, separate from the working branch. */
+	RepositoryRevision = 'repositoryRevision',
 	/** `'mode'` — agent execution mode (interactive / plan / autopilot). */
 	Mode = 'mode',
 	/** `'worktreeBranchPrefix'` — host-owned prefix for the worktree branch name. */

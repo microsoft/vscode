@@ -13,7 +13,7 @@ import type { SessionSummary, SessionConfigSchema } from '../channels-session/st
 // Re-export schema types so the legacy `commands.ts` aggregator continues to
 // expose them from the same import path.
 export type { ConfigPropertySchema, ConfigSchema } from '../common/state.js';
-export type { RepositorySessionConfig, SessionConfigPropertySchema, SessionConfigSchema } from '../channels-session/state.js';
+export type { SessionConfigPropertySchema, SessionConfigSchema } from '../channels-session/state.js';
 
 // ─── listSessions ────────────────────────────────────────────────────────────
 
@@ -79,9 +79,12 @@ export interface ListSessionsResult extends PaginatedResult {
  * the full current property set (not a delta). The returned `values` contain
  * server-resolved defaults to pass to `createSession`.
  *
- * Repository-backed creation is advertised by `schema.repository`. Resolving
- * that schema or its values MUST NOT clone or prepare a repository; preparation
- * belongs to `createSession`.
+ * Repository-backed creation is advertised by a valid
+ * `schema.properties.repositorySource`, with optional
+ * `schema.properties.repositoryRevision`; see {@link SessionConfigSchema}.
+ * Values use those fixed keys in `config`. Resolving the schema or its values,
+ * including discovery without a working directory, MUST NOT clone or prepare
+ * a repository; preparation belongs to `createSession`.
  *
  * @category Commands
  * @method resolveSessionConfig
@@ -134,7 +137,13 @@ export interface ResolveSessionConfigParams extends BaseParams {
 	provider?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
-	/** Current user-filled configuration values */
+	/**
+	 * Current user-filled configuration values. Repository intent uses
+	 * `repositorySource` and optional `repositoryRevision` only when advertised
+	 * by the session config schema. Invalid or unsupported repository input MUST
+	 * produce `InvalidParams` (`-32602`), not silently select directory/default
+	 * behavior.
+	 */
 	config?: Record<string, unknown>;
 }
 

@@ -15,19 +15,23 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
+import { SessionConfigPropertySchema, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readRepositorySessionConfig, resolveAgentHostRepositoryConfig, waitForRepositorySessionReady } from '../../../browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
+import { getRepositorySessionSource, resolveAgentHostRepositoryConfig, supportsRepositorySessionConfig, waitForRepositorySessionReady } from '../../../browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
 
 const repository = URI.parse('https://example.com/owner/repo');
 const schema: SessionConfigSchema = {
 	type: 'object',
 	properties: {
-		source: { type: 'string', title: 'Repository' },
-		branch: { type: 'string', title: 'Revision' },
+		repositorySource: { type: 'string', title: 'Repository' },
+		repositoryRevision: { type: 'string', title: 'Revision' },
+		branch: { type: 'string', title: 'Working branch' },
 		mode: { type: 'string', title: 'Mode' },
 	},
-	repository: { urlProperty: 'source', revisionProperty: 'branch' },
+};
+const sourceOnlySchema: SessionConfigSchema = {
+	type: 'object',
+	properties: { repositorySource: { type: 'string', title: 'Repository' } },
 };
 
 suite('AgentHostRepositoryConfig', () => {
@@ -49,22 +53,22 @@ suite('AgentHostRepositoryConfig', () => {
 		return { calls, connection };
 	}
 
-	test('uses advertised field names and preserves selected values and host defaults', async () => {
+	test('uses standard input names and preserves selected values and host defaults', async () => {
 		const h = connectionWithResponses([
 			{ schema, values: { mode: 'interactive' } },
 			{ schema, values: { mode: 'interactive', extra: 'host-default' } },
 		]);
-		const config = await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { branch: 'main', mode: 'plan' }, CancellationToken.None);
+		const config = await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { repositoryRevision: 'main', branch: 'feature', mode: 'plan' }, CancellationToken.None);
 		assert.deepStrictEqual({ calls: h.calls, config }, {
 			calls: [
-				{ provider: 'provider', config: { branch: 'main', mode: 'plan' } },
-				{ provider: 'provider', config: { branch: 'main', mode: 'plan', source: repository.toString() } },
+				{ provider: 'provider', config: { repositoryRevision: 'main', branch: 'feature', mode: 'plan' } },
+				{ provider: 'provider', config: { repositoryRevision: 'main', branch: 'feature', mode: 'plan', repositorySource: repository.toString() } },
 			],
-			config: { mode: 'plan', branch: 'main', source: repository.toString(), extra: 'host-default' },
+			config: { mode: 'plan', repositoryRevision: 'main', branch: 'feature', repositorySource: repository.toString(), extra: 'host-default' },
 		});
 	});
 
-	test('no descriptor preserves legacy host behavior', async () => {
+	test('an unadvertised source input preserves legacy host behavior', async () => {
 		const h = connectionWithResponses([{ schema: { type: 'object', properties: {} }, values: {} }]);
 		assert.strictEqual(await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None), undefined);
 		assert.strictEqual(h.calls.length, 1);
@@ -73,10 +77,30 @@ suite('AgentHostRepositoryConfig', () => {
 	test('repository-dependent defaults replace the initial context defaults', async () => {
 		const h = connectionWithResponses([
 			{ schema, values: { branch: 'previous-context', obsolete: 'old-default' } },
-			{ schema, values: { branch: 'repository-default', source: repository.toString() } },
+			{ schema, values: { branch: 'repository-default', repositorySource: repository.toString() } },
 		]);
 		const config = await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None);
-		assert.deepStrictEqual(config, { branch: 'repository-default', source: repository.toString() });
+		assert.deepStrictEqual(config, { branch: 'repository-default', repositorySource: repository.toString() });
+	});
+
+	test('accepts a source input without optional revision support', async () => {
+		const h = connectionWithResponses([
+			{ schema: sourceOnlySchema, values: {} },
+			{ schema: sourceOnlySchema, values: {} },
+		]);
+		assert.deepStrictEqual(await resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None), {
+			repositorySource: repository.toString(),
+		});
+	});
+
+	test('host-specific field names do not advertise the standard capability', () => {
+		assert.strictEqual(supportsRepositorySessionConfig({
+			type: 'object',
+			properties: {
+				source: { type: 'string', title: 'Source' },
+				repositoryUrl: { type: 'string', title: 'Repository' },
+			},
+		}), false);
 	});
 
 	test('an older host without configuration discovery preserves legacy behavior', async () => {
@@ -90,21 +114,78 @@ suite('AgentHostRepositoryConfig', () => {
 		await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None), error);
 	});
 
-	for (const invalidSchema of [
-		{ ...schema, repository: { urlProperty: 'missing' } },
-		{ ...schema, repository: { urlProperty: 'source', revisionProperty: 'source' } },
-		{ ...schema, properties: { ...schema.properties, source: { type: 'string' as const, title: 'Repository', readOnly: true } } },
-		{ ...schema, properties: { ...schema.properties, source: { type: 'string' as const, title: 'Repository', sessionMutable: true } } },
-		{ ...schema, properties: { ...schema.properties, source: { type: 'boolean' as const, title: 'Repository' } } },
+	for (const property of ['repositorySource', 'repositoryRevision']) {
+		for (const invalidProperty of [
+			{ type: 'string', title: 'Repository input', readOnly: true },
+			{ type: 'string', title: 'Repository input', sessionMutable: true },
+			{ type: 'boolean', title: 'Repository input' },
+		] satisfies SessionConfigPropertySchema[]) {
+			test(`rejects an invalid standard input (${property}, ${JSON.stringify(invalidProperty)})`, () => {
+				assert.throws(() => supportsRepositorySessionConfig({
+					...schema,
+					properties: { ...schema.properties, [property]: invalidProperty },
+				}), /invalid repository configuration/);
+			});
+		}
+	}
+
+	test('rejects revision support without a source input', () => {
+		assert.throws(() => supportsRepositorySessionConfig({
+			type: 'object',
+			properties: { repositoryRevision: { type: 'string', title: 'Revision' } },
+		}), /invalid repository configuration/);
+	});
+
+	for (const config of [
+		{ repositorySource: repository.toString() },
+		{ repositoryRevision: 'main' },
 	]) {
-		test(`rejects an invalid advertised descriptor (${JSON.stringify(invalidSchema.repository)} ${JSON.stringify(invalidSchema.properties.source)})`, () => {
-			assert.throws(() => readRepositorySessionConfig(invalidSchema), /invalid repository configuration/);
+		test(`does not discard explicit inputs on an unsupported host (${JSON.stringify(config)})`, async () => {
+			const h = connectionWithResponses([{ schema: { type: 'object', properties: {} }, values: {} }]);
+			await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, config, CancellationToken.None), /does not advertise/);
+		});
+
+		test(`does not discard explicit inputs when discovery is unsupported (${JSON.stringify(config)})`, async () => {
+			const error = new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Unsupported');
+			const h = connectionWithResponses([error]);
+			await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, config, CancellationToken.None), error);
+		});
+	}
+
+	test('rejects a requested revision that the host does not advertise', async () => {
+		const h = connectionWithResponses([{ schema: sourceOnlySchema, values: {} }]);
+		await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { repositoryRevision: 'main' }, CancellationToken.None), /does not advertise repository revision/);
+		assert.strictEqual(h.calls.length, 1);
+	});
+
+	test('fails if source support disappears during resolution', async () => {
+		const h = connectionWithResponses([
+			{ schema, values: {} },
+			{ schema: { type: 'object', properties: {} }, values: {} },
+		]);
+		await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, undefined, CancellationToken.None), /changed its repository configuration/);
+	});
+
+	test('fails if support for a requested revision disappears during resolution', async () => {
+		const h = connectionWithResponses([
+			{ schema, values: {} },
+			{ schema: sourceOnlySchema, values: {} },
+		]);
+		await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { repositoryRevision: 'main' }, CancellationToken.None), /does not advertise repository revision/);
+	});
+
+	for (const revision of [null, 17, '', '   ']) {
+		test(`rejects an invalid explicit revision (${JSON.stringify(revision)})`, async () => {
+			const h = connectionWithResponses([{ schema, values: {} }]);
+			await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { repositoryRevision: revision }, CancellationToken.None), /nonempty string/);
+			assert.strictEqual(h.calls.length, 1);
 		});
 	}
 
 	test('does not silently replace an explicitly configured repository', async () => {
-		const h = connectionWithResponses([{ schema, values: {} }]);
-		await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { source: 'https://example.com/another/repo' }, CancellationToken.None), /conflicts/);
+		const h = connectionWithResponses([]);
+		await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', repository, { repositorySource: 'https://example.com/another/repo' }, CancellationToken.None), /conflicts/);
+		assert.deepStrictEqual(h.calls, []);
 	});
 
 	test('does not send credential-bearing repository URLs', async () => {
@@ -119,11 +200,28 @@ suite('AgentHostRepositoryConfig', () => {
 		assert.deepStrictEqual(h.calls, []);
 	});
 
+	for (const source of [null, 17, '', '   ']) {
+		test(`rejects an invalid source in session state (${JSON.stringify(source)})`, () => {
+			assert.throws(() => getRepositorySessionSource({ schema, values: { repositorySource: source } }), /invalid repository selection/);
+		});
+	}
+
+	test('rejects a revision without a source in session state', () => {
+		assert.throws(() => getRepositorySessionSource({ schema, values: { repositoryRevision: 'main' } }), /invalid repository selection/);
+	});
+
+	test('rejects unadvertised repository state rather than treating it as a directory session', () => {
+		assert.throws(() => getRepositorySessionSource({
+			schema: { type: 'object', properties: {} },
+			values: { repositorySource: repository.toString() },
+		}), /invalid repository selection/);
+	});
+
 	function session(lifecycle: SessionLifecycle, withRepository = true): SessionState {
 		return upcastPartial<SessionState>({
 			lifecycle,
 			workingDirectories: lifecycle === SessionLifecycle.Ready ? ['file:///checkout/repo'] : undefined,
-			config: withRepository ? { schema, values: { source: repository.toString() } } : undefined,
+			config: withRepository ? { schema, values: { repositorySource: repository.toString() } } : undefined,
 		});
 	}
 
@@ -197,13 +295,30 @@ suite('AgentHostRepositoryConfig', () => {
 	});
 
 	test('lost-response recovery must match the originally requested repository', async () => {
-		const h = subscription({ ...session(SessionLifecycle.Ready), config: { schema, values: { source: 'https://example.com/another/repo' } } });
+		const h = subscription({ ...session(SessionLifecycle.Ready), config: { schema, values: { repositorySource: 'https://example.com/another/repo' } } });
 		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, repository), /did not report a ready checkout/);
 	});
 
 	test('lost-response recovery must also preserve an explicitly requested revision', async () => {
-		const h = subscription({ ...session(SessionLifecycle.Ready), config: { schema, values: { source: repository.toString(), branch: 'other' } } });
-		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, repository, { branch: 'main' }), /did not report a ready checkout/);
+		const h = subscription({ ...session(SessionLifecycle.Ready), config: { schema, values: { repositorySource: repository.toString(), repositoryRevision: 'other' } } });
+		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, repository, { repositoryRevision: 'main' }), /did not report a ready checkout/);
+	});
+
+	test('lost-response recovery does not forget a requested revision when its schema entry disappears', async () => {
+		const h = subscription({ ...session(SessionLifecycle.Ready), config: { schema: sourceOnlySchema, values: { repositorySource: repository.toString() } } });
+		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, repository, { repositoryRevision: 'main' }), /did not report a ready checkout/);
+	});
+
+	test('one repository can resolve to multiple working directories', async () => {
+		const state = { ...session(SessionLifecycle.Ready), workingDirectories: ['file:///checkout/repo/packages/api', 'file:///checkout/repo/packages/web'] };
+		const h = subscription(state);
+		assert.strictEqual(await waitForRepositorySessionReady(h.sub, CancellationToken.None, repository), state);
+	});
+
+	test('advertising repository inputs without selecting a source preserves directory session behavior', async () => {
+		const state = { ...session(SessionLifecycle.Creating), config: { schema, values: { mode: 'interactive' } } };
+		const h = subscription(state);
+		assert.strictEqual(await waitForRepositorySessionReady(h.sub, CancellationToken.None), state);
 	});
 
 	test('keeps the existing lifecycle behavior for non-repository sessions', async () => {
