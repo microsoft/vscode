@@ -6,7 +6,6 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { pauseCSSAnimationsWhenHidden, synchronizeCSSAnimations } from '../../../../../base/browser/animationSync.js';
-import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -846,7 +845,6 @@ function renderInlineRenameInput(
 		if (commit && !title) {
 			if (restoreListFocus) {
 				input.validate();
-				alert(localize('inlineRename.emptyAnnouncement', "Title cannot be empty"));
 				input.focus();
 				return;
 			}
