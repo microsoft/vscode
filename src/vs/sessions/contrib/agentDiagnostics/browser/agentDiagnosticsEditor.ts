@@ -5,6 +5,7 @@
 
 import './media/agentDiagnostics.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -16,7 +17,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -70,6 +72,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private currentChatResource: URI | undefined;
 	private diagnosticsModel: SessionDiagnosticsModel | undefined;
 	private sessionInsightsView: SessionInsightsView | undefined;
+	private diagnosticsConfigurationButton: Button | undefined;
+	private diagnosticsConfigurationInProgress = false;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -91,6 +95,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
@@ -117,6 +122,10 @@ export class AgentDiagnosticsEditor extends EditorPane {
 
 		this.createTab(tabList, DiagnosticsTab.SessionInsights, localize('agentDiagnostics.sessionInsights', "Session Insights"), 'agent-diagnostics-session-insights');
 		this.createTab(tabList, DiagnosticsTab.AgentDebug, localize('agentDiagnostics.agentDebug', "Agent Debug"), 'agent-diagnostics-agent-debug');
+		this.diagnosticsConfigurationButton = this._register(new Button(tabList, { ...defaultButtonStyles, secondary: true }));
+		this.diagnosticsConfigurationButton.element.classList.add('agent-diagnostics-configure-button');
+		this._register(this.diagnosticsConfigurationButton.onDidClick(() => this.configureDiagnostics()));
+		this.updateDiagnosticsConfigurationButton();
 
 		const content = DOM.append(this.root, DOM.$('.agent-diagnostics-content'));
 		const insightsPanel = this.createPanel(
@@ -168,16 +177,70 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
-				|| event.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
+				|| event.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
+				|| event.affectsConfiguration(AgentHostAhpJsonlLoggingSettingId)
+				|| event.affectsConfiguration(AgentHostOTelEnabledSettingId)
+				|| event.affectsConfiguration(AgentHostOTelDbSpanExporterEnabledSettingId)
+				|| event.affectsConfiguration(AgentHostOTelCaptureContentSettingId)) {
 				if (this.currentChatResource) {
 					void this.chatDebugService.invokeProviders(this.currentChatResource);
 				}
 				this.updateDebugView();
+				this.updateDiagnosticsConfigurationButton();
 			}
 		}));
 
 		this._register(DOM.addDisposableListener(tabList, DOM.EventType.KEY_DOWN, event => this.handleTabKeyDown(event)));
 		this.selectTab(this.selectedTab, false);
+	}
+
+	private async configureDiagnostics(): Promise<void> {
+		if (this.diagnosticsConfigurationInProgress) {
+			return;
+		}
+		this.diagnosticsConfigurationInProgress = true;
+		this.updateDiagnosticsConfigurationButton();
+		try {
+			const settings = [
+				AgentHostOTelEnabledSettingId,
+				AgentHostOTelDbSpanExporterEnabledSettingId,
+				AgentHostOTelCaptureContentSettingId,
+				AgentHostAgentDebugLogEnabledSettingId,
+				AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING,
+				AgentHostAhpJsonlLoggingSettingId,
+			];
+			await Promise.all(settings.map(setting => this.configurationService.updateValue(setting, true, ConfigurationTarget.USER)));
+			const blockedSettings = settings.filter(setting => !this.configurationService.getValue<boolean>(setting));
+			if (blockedSettings.length > 0) {
+				throw new Error(localize('agentDiagnostics.configurationBlocked', "These settings are disabled by effective configuration: {0}", blockedSettings.join(', ')));
+			}
+			await this.agentHostService.restartAgentHost();
+			const message = localize('agentDiagnostics.configurationComplete', "Full diagnostics are enabled. Start a new agent turn to capture Session Insights and Agent Debug logs.");
+			status(message);
+		} catch (error) {
+			this.notificationService.error(localize('agentDiagnostics.configurationError', "Failed to configure Diagnostics: {0}", toErrorMessage(error)));
+		} finally {
+			this.diagnosticsConfigurationInProgress = false;
+			this.updateDiagnosticsConfigurationButton();
+		}
+	}
+
+	private updateDiagnosticsConfigurationButton(): void {
+		if (!this.diagnosticsConfigurationButton) {
+			return;
+		}
+		const configured = this.configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId)
+			&& this.configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId)
+			&& this.configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId)
+			&& this.configurationService.getValue<boolean>(AgentHostAgentDebugLogEnabledSettingId)
+			&& this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
+			&& this.configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		this.diagnosticsConfigurationButton.label = this.diagnosticsConfigurationInProgress
+			? localize('agentDiagnostics.configuring', "Configuring Diagnostics...")
+			: configured
+				? localize('agentDiagnostics.configured', "Diagnostics Configured")
+				: localize('agentDiagnostics.configure', "Configure Diagnostics");
+		this.diagnosticsConfigurationButton.enabled = !this.diagnosticsConfigurationInProgress && !configured;
 	}
 
 	private createTab(parent: HTMLElement, tab: DiagnosticsTab, label: string, panelId: string): void {

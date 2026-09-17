@@ -48,6 +48,14 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+.agent-diagnostics-tabs .agent-diagnostics-configure-button.monaco-button {
+	width: auto;
+	margin-left: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+}
+
 .agent-diagnostics-content {
 	display: flex;
 	flex: 1;
