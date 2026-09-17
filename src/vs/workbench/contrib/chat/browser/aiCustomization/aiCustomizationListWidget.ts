@@ -1140,8 +1140,11 @@ export class AICustomizationListWidget extends Disposable {
 		this.currentSectionSubscription.value = autorun(reader => {
 			const items = observable.read(reader);
 			this.allItems = items;
-			this.filterItems();
+			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(items.length);
+			if (!this.sectionLoading) {
+				this.announceItemCount(matchCount);
+			}
 		});
 		this.updateAddButton();
 		await this.itemsModel.whenSectionLoaded(modelSection);
@@ -1460,8 +1463,8 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Announces the current number of items (after search filtering) to
 	 * screen readers via an aria status message. Called when the section
-	 * is loaded and after the search filter changes so assistive technology
-	 * users hear the count, including "no results".
+	 * is loaded, its items change, and after the search filter changes so
+	 * assistive technology users hear the count, including "no results".
 	 */
 	private announceItemCount(count: number): void {
 		const isFiltering = this.searchQuery.trim().length > 0;
