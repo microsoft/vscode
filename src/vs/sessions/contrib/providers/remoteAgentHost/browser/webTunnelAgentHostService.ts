@@ -106,6 +106,10 @@ class WebTunnelConnectionFactory extends Disposable implements IRemoteAgentHostC
 		return this._createConnection(entry, connectOptions);
 	}
 
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
+	}
+
 	private _entryForTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'clusterId' | 'name'>, authProvider?: 'github' | 'microsoft'): IRemoteAgentHostEntry {
 		return {
 			name: tunnel.name,

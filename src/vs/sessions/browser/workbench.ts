@@ -435,6 +435,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
 	private readonly mobileNavStack = this._register(new MobileNavigationStack());
 	private mobileTopBarElement: HTMLElement | undefined;
+	private focusMobileTopBar: (() => void) | undefined;
 	private readonly mobileTopBarDisposables = this._register(new DisposableStore());
 
 	private _editorMaximized = false;
@@ -963,6 +964,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.mobileTopBarDisposables.clear();
 		const mobileTitlebar = this.mobileTopBarDisposables.add(this.instantiationService.createInstance(MobileTitlebarPart, this.mainContainer));
 		this.mobileTopBarElement = mobileTitlebar.element;
+		this.focusMobileTopBar = () => mobileTitlebar.focus();
+		this.mobileTopBarDisposables.add(toDisposable(() => this.focusMobileTopBar = undefined));
 
 		// Hamburger: toggle sidebar drawer overlay
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickHamburger(() => {
@@ -2008,7 +2011,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	hasFocus(part: Parts): boolean {
-		const container = this.getContainer(mainWindow, part);
+		const container = part === Parts.TITLEBAR_PART && this.mobileTopBarElement ? this.mobileTopBarElement : this.getContainer(mainWindow, part);
 		if (!container) {
 			return false;
 		}
@@ -2024,6 +2027,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
 	focusPart(part: SINGLE_WINDOW_PARTS): void;
 	focusPart(part: Parts, targetWindow: Window = mainWindow): void {
+		if (part === Parts.TITLEBAR_PART && this.focusMobileTopBar && targetWindow === mainWindow) {
+			this.focusMobileTopBar();
+			return;
+		}
 		switch (part) {
 			case Parts.EDITOR_PART:
 				this.editorGroupService.activeGroup.focus();
