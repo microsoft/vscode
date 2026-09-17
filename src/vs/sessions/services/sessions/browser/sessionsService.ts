@@ -538,7 +538,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// to the active session.
 		this._register(this.sessionsPartService.onDidFocusSession(sessionId => {
 			const session = this.visibleSessions.get().find(s => s?.sessionId === sessionId);
-			if (session) {
+			if (sessionId === undefined || session) {
 				this.setActive(session);
 			}
 		}));

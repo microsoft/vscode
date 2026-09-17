@@ -6,33 +6,19 @@
 import assert from 'assert';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { URI } from '../../../base/common/uri.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
-import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
-import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { Event } from '../../../base/common/event.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,7 +53,7 @@ suite('Sessions - Session View', () => {
 		const currentView = { value: undefined as AbstractChatView | undefined };
 		const group: ChatGroupView = Object.assign(Object.create(ChatGroupView.prototype), { _currentView: currentView });
 		const groups: ChatGroupsView = Object.assign(Object.create(ChatGroupsView.prototype), { _activeGroup: { view: group } });
-		const standalone = { value: undefined as AbstractChatView | undefined };
+		const standalone = observableValue<AbstractChatView | undefined>('standalone', undefined);
 		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _standaloneView: standalone, _groupsView: groups });
 		const results = [sessionView.selectWorkspace(folder, options)];
 		currentView.value = missingPicker;
@@ -75,7 +61,7 @@ suite('Sessions - Session View', () => {
 		currentView.value = target;
 		results.push(sessionView.selectWorkspace(folder, options));
 		currentView.value = missingPicker;
-		standalone.value = target;
+		standalone.set(target, undefined);
 		results.push(sessionView.selectWorkspace(folder, options));
 		assert.deepStrictEqual({ results, calls }, {
 			results: ['notReady', 'notReady', 'preserved', 'preserved'],
@@ -89,9 +75,10 @@ suite('Sessions - Session View', () => {
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_isPartVisible: true,
 			_isLeafVisible: true,
+			_isVisibleObs: observableValue('visible', true),
 			_lastLayout: undefined,
 			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
-			_standaloneView: { value: undefined },
+			_standaloneView: { get: () => undefined },
 		});
 
 		// A sibling session is maximized, hiding this leaf.
@@ -114,7 +101,7 @@ suite('Sessions - Session View', () => {
 			element,
 			themeService: { getColorTheme: () => ({ getColor: () => undefined }) },
 			_groupsView: { setSessionActive: () => { } },
-			_standaloneView: { value: undefined },
+			_standaloneView: { get: () => undefined },
 		});
 
 		view.setActive(false);
@@ -141,7 +128,7 @@ suite('Sessions - Session View', () => {
 			_centeredContentContainer: centeredContentContainer,
 			_header: { visible: true, height: 35 },
 			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
-			_standaloneView: { value: undefined },
+			_standaloneView: { get: () => undefined },
 		});
 
 		view.layout(1200, 800, 10, 20);
@@ -167,7 +154,7 @@ suite('Sessions - Session View', () => {
 		const session = new class extends mock<IActiveSession>() {
 			override readonly isCreated = isCreated;
 		}();
-		const standaloneView = disposables.add(new MutableDisposable<AbstractChatView>());
+		const standaloneView = disposables.add(disposableObservableValue<AbstractChatView | undefined>('standalone', undefined));
 		const openSessionDisposables = disposables.add(new DisposableStore());
 		const scopedInstantiationService = new class extends mock<IInstantiationService>() { }();
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
@@ -224,76 +211,8 @@ suite('Sessions - Session View', () => {
 
 	test('updates header replacement when chat tab presentation changes', async () => {
 		const store = disposables.add(new DisposableStore());
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
-		const contextKeyService = store.add(new ContextKeyService(configurationService));
-		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-			override readonly onDidChangeEditorPartOptions = Event.None;
-			override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
-		}());
-		instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
-			override createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-				return new TestNewSessionView(isNewChatInSession ? 'newChatInSession' : 'newSession');
-			}
-			override createChatView(): AbstractChatView {
-				return new TestNewSessionView('chat');
-			}
-		}());
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-		}());
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override readonly onDidChangeSessions = Event.None;
-		}());
-		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
-			override readonly onDidChangeProviders = Event.None;
-			override getProvider() { return undefined; }
-		}());
-		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-			override readonly onDidChange = Event.None;
-			override isSessionPinned(): boolean { return false; }
-			override getStatusIcon(): ThemeIcon { return ThemeIcon.fromId('circle'); }
-		}());
-		instantiationService.stub(ISessionChangesStatsCache, new class extends mock<ISessionChangesStatsCache>() {
-			override get() { return undefined; }
-			override set(): void { }
-		}());
-
-		const chat = new class extends mock<IChat>() {
-			override readonly resource = URI.parse('test-chat://main');
-			override readonly title = constObservable('Main Chat');
-			override readonly status = constObservable(SessionStatus.Completed);
-			override readonly isRead = constObservable(true);
-			override readonly interactivity = constObservable(ChatInteractivity.Full);
-			override readonly capabilities = constObservable({ canRename: true, canDelete: false });
-		}();
-		const session = new class extends mock<IActiveSession>() {
-			override readonly sessionId = 'session';
-			override readonly resource = URI.parse('test-session://session');
-			override readonly providerId = 'test';
-			override readonly title = constObservable('Session');
-			override readonly status = constObservable(SessionStatus.Completed);
-			override readonly isRead = constObservable(true);
-			override readonly isArchived = constObservable(false);
-			override readonly isCreated = constObservable(true);
-			override readonly sticky = constObservable(false);
-			override readonly workspace = constObservable(undefined);
-			override readonly changesets = constObservable(undefined);
-			override readonly changes = constObservable([]);
-			override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
-			override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
-			override readonly openChats: IObservable<readonly IChat[]> = constObservable([chat]);
-			override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-			override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([chat]);
-			override readonly activeChat: IObservable<IChat> = constObservable(chat);
-			override readonly mainChat: IObservable<IChat> = constObservable(chat);
-			override readonly shouldShowChatTabs = constObservable(true);
-			override readonly isNewSessionRequestInProgress = constObservable(false);
-			override readonly loading = constObservable(false);
-		}();
+		const { instantiationService, configurationService } = createSessionViewTestServices(store);
+		const session = createTestActiveSession('session');
 
 		const view = store.add(instantiationService.createInstance(SessionView));
 		mainWindow.document.body.appendChild(view.element);
