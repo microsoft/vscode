@@ -514,7 +514,7 @@ suite('Sessions - Actions', () => {
 		instantiationService.stub(ICommandService, new TestCommandService());
 		const command = CommandsRegistry.getCommand(NEW_SESSION_FOR_WORKSPACE_ACTION_ID);
 		assert.ok(command);
-		const request = command.handler(instantiationService, upcastPartial<ISessionSection>({ sessions: [session] }));
+		const request = command.handler(instantiationService, upcastPartial<ISessionSection>({ rootSessions: [session], sessions: [session] }));
 		const beforeOpening = { userSelections: composerService.userWorkspaceSelectionVersion.get(), selections: selections.length };
 		await opening.complete({ session: undefined, trustDeclined: false });
 		await request;

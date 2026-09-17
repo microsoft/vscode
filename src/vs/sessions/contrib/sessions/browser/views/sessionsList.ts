@@ -159,6 +159,9 @@ const SORT_FALLBACK_STEP_MS = 60_000;
 export interface ISessionSection {
 	readonly id: string;
 	readonly label: string;
+	/** Sessions directly under the section, excluding nested descendants. */
+	readonly rootSessions: readonly ISession[];
+	/** All full-session members, including nested descendants. */
 	readonly sessions: ISession[];
 }
 
@@ -4683,7 +4686,7 @@ export function isAutomationSession(session: ISession): boolean {
 }
 
 function createSessionSection(id: string, label: string, sessions: ISession[]): ISessionSection {
-	return { id, label, sessions };
+	return { id, label, rootSessions: sessions, sessions };
 }
 
 export function groupSessionsForList(

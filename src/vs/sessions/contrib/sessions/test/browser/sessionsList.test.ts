@@ -152,7 +152,7 @@ suite('Sessions - SessionsList', () => {
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
 			disposables.add(template.disposables);
-			const section: ISessionSection = { id: 'workspace:test', label: 'Test', sessions: [] };
+			const section: ISessionSection = { id: 'workspace:test', label: 'Test', rootSessions: [], sessions: [] };
 			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
 				element: section,
 				collapsible: true,
@@ -211,7 +211,7 @@ suite('Sessions - SessionsList', () => {
 			disposables.add(template.disposables);
 
 			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'automations', label: 'Automations', sessions: [] },
+				element: { id: 'automations', label: 'Automations', rootSessions: [], sessions: [] },
 				collapsible: false,
 				collapsed: false,
 			}), 0, template);
@@ -271,7 +271,7 @@ suite('Sessions - SessionsList', () => {
 			disposables.add(template.disposables);
 
 			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'automations', label: 'Automations', sessions: [] },
+				element: { id: 'automations', label: 'Automations', rootSessions: [], sessions: [] },
 				collapsible: false,
 				collapsed: false,
 			}), 0, template);
@@ -299,7 +299,7 @@ suite('Sessions - SessionsList', () => {
 			const dismissed = getPresentationSnapshot();
 
 			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Test', sessions: [] },
+				element: { id: 'workspace:test', label: 'Test', rootSessions: [], sessions: [] },
 				collapsible: true,
 				collapsed: false,
 			}), 0, template);
