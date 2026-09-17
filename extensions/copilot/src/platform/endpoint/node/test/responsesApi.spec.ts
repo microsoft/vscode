@@ -418,18 +418,21 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
-	it('drops untagged thinking regardless of ID prefix', () => {
+	it('preserves the legacy ID-prefix behavior when the API type is unset', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const messages = [
 			createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' }),
 			createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' }),
+			createThinkingAssistantMessage({ id: 'rs_summary', text: 'summary only' }),
 		];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
-		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([]);
+		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([
+			{ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' },
+		]);
 
 		accessor.dispose();
 		services.dispose();

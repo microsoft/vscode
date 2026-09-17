@@ -657,8 +657,11 @@ function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.R
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const envelope = rawPartAsThinkingEnvelope(part);
-			// Require explicit Responses provenance; provider-specific ID formats do not identify the API.
-			if (envelope?.originApi === 'responses' && envelope.thinking.encrypted) {
+			// Preserve legacy replay behavior for history and extensions that do not supply an API type.
+			const isResponsesReasoning = envelope?.originApi === undefined
+				? typeof envelope?.thinking.id === 'string' && envelope.thinking.id.startsWith('rs')
+				: envelope.originApi === 'responses';
+			if (isResponsesReasoning && envelope?.thinking.encrypted) {
 				return {
 					type: 'reasoning',
 					id: envelope.thinking.id,
