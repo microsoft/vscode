@@ -21,8 +21,8 @@ class AutomationTryoutContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._register(registerOnboardingTryout<IGuidedTryoutPayload>({
 			id: 'automations.create',
-			title: localize('automations.tryout.title', "Try Creating an Automation"),
-			description: localize('automations.tryout.description', "Open the New automation dialog in the Agents window. Nothing is saved until you choose Create."),
+			title: localize('automations.tryout.title', "Create an automation"),
+			description: localize('automations.tryout.description', "Open the automations dialog in the Agents window. "),
 			isAI: true,
 			targetWindow: 'agents',
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
@@ -54,8 +54,8 @@ class AutomationTryoutContribution extends Disposable implements IWorkbenchContr
 							payload: {
 								id: 'templates',
 								targetId: AutomationOnboardingTarget.BuiltInTemplates,
-								title: localize('automations.tryout.templates.title', "Start with a Built-in Template"),
-								description: localize('automations.tryout.templates.description', "Choose a starting point for catching up on changes, triaging issues, or finding bugs, then customize it before creating."),
+								title: localize('automations.tryout.templates.title', "Optionally, start with a built-in template"),
+								description: localize('automations.tryout.templates.description', "Choose a starting point for catching up on changes, triaging issues, or finding bugs."),
 								openTarget: true,
 								allowTargetInteraction: true,
 								missingTarget: { kind: 'wait', timeoutMs: 10_000 },

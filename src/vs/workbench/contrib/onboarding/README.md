@@ -249,7 +249,7 @@ Release notes use standard conditional comments and command links:
 %ENDIF % -->
 ```
 
-Only the stable ID belongs in Markdown. Use **Developer: Copy Feature Example Link** to produce the encoded link and **Developer: Try Feature Example** to run a registered example directly.
+Only the stable ID belongs in Markdown. Use **Developer: Copy Feature Example Link** to produce the encoded link. For manual validation, add the link to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
 
 ## Choosing the interaction level
 

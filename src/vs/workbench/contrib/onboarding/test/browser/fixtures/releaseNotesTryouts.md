@@ -62,6 +62,16 @@ The action replaces the Agents chat background for the current color theme with 
 [Try the Codicons Chat Background](command:workbench.action.onboarding.tryFeature?%5B%22chat.codicons-background%22%5D)
 %ENDIF % -->
 
+## Guide me: Share an Integrated Browser page
+
+Use this pattern when a privacy-sensitive control should remain an explicit user action.
+
+The action opens the Visual Studio Code website in the Integrated Browser and highlights **Share with Agent**. The page remains private unless you select the control and confirm sharing.
+
+<!-- %IF TRYOUTS %
+[Explore Share with Agent](command:workbench.action.onboarding.tryFeature?%5B%22browser.share-with-agent%22%5D)
+%ENDIF % -->
+
 ## Explain safely: unavailable example
 
 Use this fallback when the installed product does not register the referenced experience.

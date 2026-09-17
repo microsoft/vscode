@@ -51,6 +51,19 @@ export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemot
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
 
+export const BROWSER_SHARING_AVAILABLE_CONTEXT = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
+	ContextKeyExpr.or(
+		IsSessionsWindowContext.negate(),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals('sessionType', localChatSessionType),
+			ContextKeyExpr.equals('sessions.isAgentHostSession', true),
+		),
+	),
+)!;
+
 /**
  * Where new integrated browser tabs are opened.
  * - `activeGroup`: the currently active editor group (default).
@@ -91,20 +104,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _onDidChangeBrowserViews = this._register(new Emitter<void>());
 	readonly onDidChangeBrowserViews: Event<void> = this._onDidChangeBrowserViews.event;
-
-	private static readonly _sharingAvailableContext = ContextKeyExpr.and(
-		ChatContextKeys.enabled,
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
-		ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
-		// If we're in Sessions Window, we require some additional conditions.
-		ContextKeyExpr.or(
-			IsSessionsWindowContext.negate(),
-			ContextKeyExpr.or(
-				ContextKeyExpr.equals('sessionType', localChatSessionType),
-				ContextKeyExpr.equals('sessions.isAgentHostSession', true),
-			),
-		),
-	)!;
 
 	private _isSharingAvailable: boolean = false;
 
@@ -167,12 +166,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}));
 
 		// Track sharing availability from context keys
-		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
-		const sharingKeys = new Set(BrowserViewWorkbenchService._sharingAvailableContext.keys());
+		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BROWSER_SHARING_AVAILABLE_CONTEXT);
+		const sharingKeys = new Set(BROWSER_SHARING_AVAILABLE_CONTEXT.keys());
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(sharingKeys)) {
 				const was = this._isSharingAvailable;
-				this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
+				this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BROWSER_SHARING_AVAILABLE_CONTEXT);
 				if (was !== this._isSharingAvailable) {
 					this._onDidChangeSharingAvailable.fire(this._isSharingAvailable);
 				}

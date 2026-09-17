@@ -15,7 +15,7 @@ import { APPLY_CODICONS_CHAT_BACKGROUND_TRYOUT_COMMAND_ID, CODICONS_CHAT_BACKGRO
 export function createCodiconsChatBackgroundTryout(): IOnboardingTryout<ICommandTryoutPayload> {
 	return {
 		id: CODICONS_CHAT_BACKGROUND_TRYOUT_ID,
-		title: localize('chat.tryout.codiconsBackground.title', "Try the Codicons Chat Background"),
+		title: localize('chat.tryout.codiconsBackground.title', "Change the chat background"),
 		description: localize('chat.tryout.codiconsBackground.description', "Set the Agents chat background for the current color theme to the built-in, theme-aware Codicons pattern. Use Set Background to change or remove it later."),
 		isAI: true,
 		targetWindow: 'agents',

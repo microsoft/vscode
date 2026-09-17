@@ -89,25 +89,6 @@ async function pickTryout(accessor: ServicesAccessor): Promise<string | undefine
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'developer.onboarding.tryFeature',
-			title: localize2('onboarding.tryout.preview', "Try Feature Example"),
-			category: Categories.Developer,
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const id = await pickTryout(accessor);
-		if (id) {
-			await commandService.executeCommand(RUN_ONBOARDING_TRYOUT_COMMAND_ID, id);
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
 			id: 'developer.onboarding.copyTryoutLink',
 			title: localize2('onboarding.tryout.copyLink', "Copy Feature Example Link"),
 			category: Categories.Developer,

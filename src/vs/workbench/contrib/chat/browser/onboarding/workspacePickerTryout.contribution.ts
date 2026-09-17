@@ -50,7 +50,7 @@ export function createUnifiedWorkspacePickerTryout(): IOnboardingTryout<IGuidedT
 						id: 'workspacePicker',
 						targetId: WORKSPACE_PICKER_ONBOARDING_TARGET_ID,
 						title: localize('chat.tryout.unifiedWorkspacePicker.step.title', "Choose a Workspace or Repository"),
-						description: localize('chat.tryout.unifiedWorkspacePicker.step.description', "Use Workspace to search local folders, GitHub repositories, Cloud repositories, and remote targets. This example opens the list but does not choose a workspace or send a prompt."),
+						description: localize('chat.tryout.unifiedWorkspacePicker.step.description', "Use Workspace to search local folders, GitHub repositories, Cloud repositories, and remote targets."),
 						placement: 'above',
 						openTarget: true,
 						allowTargetInteraction: true,
