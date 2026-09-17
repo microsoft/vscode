@@ -19,6 +19,7 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildDefaultChatUri, CustomizationType, parseChatUri, readUsageInfoMeta, ResponsePartKind, StateComponents, ToolCallStatus, type ActiveTurn, type ChatState, type ChildCustomization, type Customization, type Turn, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IOTelDiagnosticsService } from '../../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -115,6 +116,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
+		@IOTelDiagnosticsService private readonly _otelDiagnosticsService: IOTelDiagnosticsService,
 	) {
 		super();
 
@@ -377,7 +379,14 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		const sourceChatResource = this._chatDebugService.resolveSessionResource(sessionResource);
 		const parsedSourceChat = parseChatUri(sourceChatResource);
 		const sourceSessionResource = parsedSourceChat ? URI.parse(parsedSourceChat.session) : sourceChatResource;
-		const eventsUri = this._resolveEventsUri(sourceSessionResource);
+		const sessionIdentity = await this._otelDiagnosticsService.resolveSessionUri(sourceSessionResource.toString());
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const eventsSessionResource = sessionIdentity
+			? sourceSessionResource.with({ path: `/${sessionIdentity.conversationId}` })
+			: sourceSessionResource;
+		const eventsUri = this._resolveEventsUri(eventsSessionResource);
 		if (!eventsUri) {
 			return undefined; // not an Agent Host Copilot CLI session
 		}
