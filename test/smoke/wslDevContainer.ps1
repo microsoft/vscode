@@ -122,7 +122,10 @@ printf '[user]\ndefault=vscode-smoke\n' > /etc/wsl.conf
 if ($LASTEXITCODE -ne 0) {
 	throw 'Failed to restart the owned distribution to apply its non-root default user.'
 }
+# The inbox WSL2 kernel lacks the nftables matches needed by Docker's bridge.
 Invoke-Wsl @"
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 start-stop-daemon --start --background --make-pidfile --pidfile /run/vscode-smoke-docker.pid --startas /bin/sh -- -c 'exec /usr/bin/dockerd > /var/log/docker.log 2>&1'
 for attempt in `$(seq 1 60); do
 	if docker info > /dev/null 2>&1; then break; fi
