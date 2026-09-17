@@ -221,14 +221,14 @@ function getSessionListChats(session: ISession, reader?: IReader): readonly ICha
 	);
 }
 
-/** Returns in-progress when hidden chat activity should be summarized, then the main-chat status for trees with chat rows. */
+/** Preserves active main-chat states; otherwise summarizes hidden child progress before returning the main-chat status. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, includeVisibleChildProgress = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
 	}
 	const mainChatStatus = session.mainChat.read(reader).status.read(reader);
-	if (mainChatStatus === SessionStatus.InProgress) {
+	if (mainChatStatus === SessionStatus.InProgress || mainChatStatus === SessionStatus.NeedsInput) {
 		return mainChatStatus;
 	}
 	const visibleChildChats = includeVisibleChildProgress ? undefined : getSessionListChats(session, reader);
