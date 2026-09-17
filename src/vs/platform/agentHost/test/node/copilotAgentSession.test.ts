@@ -4387,7 +4387,7 @@ suite('CopilotAgentSession', () => {
 	});
 
 	test('completes an idle subagent even when its confirmation is superseded or fails', async () => {
-		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
 			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'PR timings', agentDescription: 'Review PR timings',
@@ -4396,19 +4396,24 @@ suite('CopilotAgentSession', () => {
 			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Review PR timings',
 			status: 'idle', agentType: 'research', prompt: 'Review PR timings', startedAt: new Date(0).toISOString(),
 		}];
+		const firstLookGate = new DeferredPromise<void>();
+		const staleGate = new DeferredPromise<void>();
+		mockSession.backgroundTaskListGates.push(firstLookGate.p, staleGate.p);
 		mockSession.fire('session.background_tasks_changed', {});
-		await timeout(0);
+		while (mockSession.backgroundTaskListCalls < 1) {
+			await timeout(0);
+		}
 		const afterFirstLook = signals.filter(signal => signal.kind === 'subagent_completed').length;
 		// The confirming read fails, then a superseded read is answered only after a newer refresh was requested.
 		mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
-		await timeout(30);
+		await firstLookGate.complete();
+		while (mockSession.backgroundTaskListCalls < 3) {
+			await timeout(0);
+		}
 		const afterFailedConfirmation = signals.filter(signal => signal.kind === 'subagent_completed').length;
-		const staleGate = new DeferredPromise<void>();
-		mockSession.backgroundTaskListGates.push(staleGate.p);
-		await timeout(30);
 		mockSession.fire('session.background_tasks_changed', {});
 		await staleGate.complete();
-		await timeout(60);
+		await waitForSignal(signal => signal.kind === 'subagent_completed');
 
 		assert.deepStrictEqual({
 			afterFirstLook,
