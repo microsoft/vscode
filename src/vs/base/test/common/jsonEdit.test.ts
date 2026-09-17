@@ -121,6 +121,24 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '{\n  "x": "y"\n}');
 	});
 
+	test('remove property preserves preceding comments', () => {
+		// Only property preceded by a comment — comment must not be deleted
+		let content = '{\n  // comment\n  "x": "y"\n}';
+		let edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{\n  // comment\n}');
+
+		// Non-first property preceded by a comment
+		content = '{\n  "a": 1,\n  // comment\n  "x": "y"\n}';
+		edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{\n  "a": 1,\n  // comment\n}');
+
+		// Middle property preceded by a comment — comment must not be deleted,
+		// and the surrounding properties should remain valid JSON
+		content = '{\n  "a": 1,\n  // comment\n  "x": "y",\n  "b": 2\n}';
+		edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{\n  "a": 1,\n  // comment\n  "b": 2\n}');
+	});
+
 	test('insert item at 0', () => {
 		const content = '[\n  2,\n  3\n]';
 		const edits = setProperty(content, [0], 1, formatterOptions);
