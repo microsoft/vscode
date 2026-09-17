@@ -752,6 +752,57 @@ suite('HoverService', () => {
 		}));
 	});
 
+	suite('getStickyHover', () => {
+		test('returns only a visible sticky hover for the requested target', () => {
+			const target = createTarget();
+			const otherTarget = createTarget();
+			const beforeShow = hoverService.getStickyHover(target);
+			const hover = showHover('Test', target, { persistence: { sticky: true } });
+			const whileVisible = hoverService.getStickyHover(target);
+			const forOtherTarget = hoverService.getStickyHover(otherTarget);
+			hover.dispose();
+
+			assert.deepStrictEqual({
+				beforeShow,
+				matchesVisibleHover: whileVisible === hover,
+				forOtherTarget,
+				afterDispose: hoverService.getStickyHover(target),
+			}, {
+				beforeShow: undefined,
+				matchesVisibleHover: true,
+				forOtherTarget: undefined,
+				afterDispose: undefined,
+			});
+		});
+
+		test('ignores passive previews even when temporarily locked', () => {
+			const target = createTarget();
+			const hover = store.add(showHover('Test', target));
+			asHoverWidget(hover).isLocked = true;
+
+			assert.strictEqual(hoverService.getStickyHover(target), undefined);
+		});
+
+		test('matches each element of a structured hover target', () => {
+			const firstTarget = createTarget();
+			const secondTarget = createTarget();
+			const hover = showHover('Test', undefined, {
+				target: { targetElements: [firstTarget, secondTarget] },
+				persistence: { sticky: true },
+			});
+			const matches = [firstTarget, secondTarget].map(target => hoverService.getStickyHover(target) === hover);
+			hoverService.hideHover(true);
+
+			assert.deepStrictEqual({
+				matches,
+				afterHide: [firstTarget, secondTarget].map(target => hoverService.getStickyHover(target)),
+			}, {
+				matches: [true, true],
+				afterHide: [undefined, undefined],
+			});
+		});
+	});
+
 	suite('setupManagedHover', () => {
 		test('should use native title attribute when showNativeHover is true', () => {
 			const target = createTarget();

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { retry, timeout } from '../../../../../../base/common/async.js';
+import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -72,29 +72,37 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}));
 	}
 
+	function unsubscribeSessionAndChats(sessionUri: string, additionalChats: readonly string[]): void {
+		for (const chat of additionalChats) {
+			context.client.notify('unsubscribe', { channel: chat });
+		}
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		context.client.notify('unsubscribe', { channel: sessionUri });
+	}
+
 	async function releaseAndRestoreSession(sessionUri: string, additionalChats: readonly string[] = []): Promise<void> {
 		const before = await fetchSessionWithChat(context.client, sessionUri);
 		const beforeResponsePartIds = responsePartIds(before.turns);
 		const beforeTurns = durableTurnContent(before.turns);
 		assert.ok(beforeResponsePartIds.length > 0);
-		const chatUri = buildDefaultChatUri(sessionUri);
-		for (const chat of additionalChats) {
-			context.client.notify('unsubscribe', { channel: chat });
-		}
-		context.client.notify('unsubscribe', { channel: chatUri });
-		context.client.notify('unsubscribe', { channel: sessionUri });
-		await timeout(50);
+		unsubscribeSessionAndChats(sessionUri, additionalChats);
 
 		await retry(async () => {
-			const restored = await fetchSessionWithChat(context.client, sessionUri);
-			const restoredResponsePartIds = responsePartIds(restored.turns);
-			const restoredTurns = durableTurnContent(restored.turns);
-			assert.deepStrictEqual(restoredTurns, beforeTurns);
-			assert.strictEqual(restoredResponsePartIds.length, beforeResponsePartIds.length);
-			if (restoredResponsePartIds.every((id, index) => id === beforeResponsePartIds[index])) {
-				context.client.notify('unsubscribe', { channel: chatUri });
-				context.client.notify('unsubscribe', { channel: sessionUri });
-				throw new Error('Session has not been reconstructed with complete durable provider state');
+			try {
+				const restored = await fetchSessionWithChat(context.client, sessionUri);
+				const restoredResponsePartIds = responsePartIds(restored.turns);
+				const restoredTurns = durableTurnContent(restored.turns);
+				assert.deepStrictEqual(restoredTurns, beforeTurns);
+				assert.strictEqual(restoredResponsePartIds.length, beforeResponsePartIds.length);
+				if (restoredResponsePartIds.every((id, index) => id === beforeResponsePartIds[index])) {
+					throw new Error('Session has not been reconstructed with complete durable provider state');
+				}
+				for (const chat of additionalChats) {
+					await context.client.call<SubscribeResult>('subscribe', { channel: chat });
+				}
+			} catch (error) {
+				unsubscribeSessionAndChats(sessionUri, additionalChats);
+				throw error;
 			}
 		}, 50, 20);
 	}

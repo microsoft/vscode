@@ -105,7 +105,7 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 		additionalServices: reg => {
 			reg.defineInstance(IConnectionDiagnosticsService, new class extends mock<IConnectionDiagnosticsService>() {
 				override readonly onDidChangeHostManagement = Event.None;
-				override getSnapshot(): IConnectionDiagnosticsSnapshot { return snapshot; }
+				override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return snapshot; }
 				override getHostManagementState() {
 					return {
 						hosts: [{
