@@ -21,7 +21,7 @@ import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -270,6 +270,60 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('preserves configured attempt ordinals after a partial launch failure', async () => {
+		const { service, sessionsManagementService, chatService, telemetryService } = createServices();
+		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
+		const thirdStatus = observableValue('thirdStatus', SessionStatus.InProgress);
+		sessionsManagementService.enqueue(stubSession('attempt-one', firstStatus));
+		sessionsManagementService.enqueueError(new Error('provider unavailable'));
+		sessionsManagementService.enqueue(stubSession('attempt-three', thirdStatus));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		chatService.setUsage(URI.parse('test-chat:/attempt-one'), [{ kind: 'usage', promptTokens: 1, completionTokens: 1 }], 10);
+		chatService.setUsage(URI.parse('test-chat:/attempt-three'), [{ kind: 'usage', promptTokens: 1, completionTokens: 1 }], 30);
+		const options = startOptions();
+
+		const comparison = await service.startComparison({
+			...options,
+			attempts: [
+				options.attempts[0],
+				options.attempts[1],
+				{
+					id: 'attempt-three',
+					harness: { providerId: 'provider-three', sessionTypeId: 'type-three', label: 'Three', modelId: 'model-three' },
+				},
+			],
+		});
+		firstStatus.set(SessionStatus.Completed, undefined);
+		thirdStatus.set(SessionStatus.Completed, undefined);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict('attempt-three', ['attempt-one', 'attempt-three']));
+
+		assert.deepStrictEqual({
+			launchMetadata: sessionsManagementService.createCalls.slice(0, 3).map(call => call.createOptions?.metadata?.['agentHost/sessionComparison']),
+			completionEvents: telemetryService.events
+				.filter(event => event.name === 'agents/sessionComparisonAttemptCompleted')
+				.map(event => ({ attemptIndex: event.data.attemptIndex, elapsedMs: event.data.elapsedMs })),
+			outcomeEvents: telemetryService.events
+				.filter(event => event.name === 'agents/sessionComparisonModelOutcome')
+				.map(event => ({ attemptIndex: event.data.attemptIndex, attemptCount: event.data.attemptCount, recommended: event.data.recommended })),
+		}, {
+			launchMetadata: [
+				{ id: hashSessionIdForTelemetry(comparison.id), role: 'attempt', attemptIndex: 0, attemptCount: 3 },
+				{ id: hashSessionIdForTelemetry(comparison.id), role: 'attempt', attemptIndex: 1, attemptCount: 3 },
+				{ id: hashSessionIdForTelemetry(comparison.id), role: 'attempt', attemptIndex: 2, attemptCount: 3 },
+			],
+			completionEvents: [
+				{ attemptIndex: 0, elapsedMs: 10 },
+				{ attemptIndex: 2, elapsedMs: 30 },
+			],
+			outcomeEvents: [
+				{ attemptIndex: 0, attemptCount: 3, recommended: false },
+				{ attemptIndex: 2, attemptCount: 3, recommended: true },
+			],
+		});
+	});
+
 	test('passes provider-local models to their harnesses', async () => {
 		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
@@ -390,7 +444,7 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
-	test('freezes attached context for attempts, Judge, synthesis, and reload', async () => {
+	test('freezes attached context references for attempts, Judge, synthesis, and reload', async () => {
 		const { service, sessionsManagementService, storageService } = createServices();
 		const firstStatus = observableValue('firstStatus', SessionStatus.InProgress);
 		const secondStatus = observableValue('secondStatus', SessionStatus.InProgress);
@@ -406,6 +460,7 @@ suite('SessionComparisonService', () => {
 		};
 
 		const comparison = await service.startComparison({ ...startOptions(), attachedContext: [attachment] });
+		attachment.value = URI.file('/workspace/changed.md');
 		firstStatus.set(SessionStatus.Completed, undefined);
 		secondStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
@@ -671,7 +726,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nSolution: Implements the requested behavior.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
 				selections: [
 					{ sectionId: 'error-handling', participantId: attempts[0].id },
@@ -936,10 +991,10 @@ function verdict(recommendedParticipantId: string, participantIds: readonly stri
 			participantId,
 			summary: 'Summary',
 			validation: {
-				tests: SessionComparisonValidationState.Passed,
-				build: SessionComparisonValidationState.Passed,
-				lint: SessionComparisonValidationState.Passed,
-				diagnostics: SessionComparisonValidationState.Passed,
+				tests: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+				build: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+				lint: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+				diagnostics: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
 			},
 			unresolvedIssues: [],
 			notableDifferences: [],

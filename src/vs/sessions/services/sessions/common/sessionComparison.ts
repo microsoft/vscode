@@ -33,6 +33,20 @@ export const enum SessionComparisonValidationSource {
 	Unavailable = 'unavailable',
 }
 
+export type SessionComparisonValidationEvidence =
+	| {
+		readonly state: SessionComparisonValidationState.Passed | SessionComparisonValidationState.Failed;
+		readonly source: SessionComparisonValidationSource.AttemptReport | SessionComparisonValidationSource.JudgeRun;
+	}
+	| {
+		readonly state: SessionComparisonValidationState.NotRun | SessionComparisonValidationState.Unknown;
+		readonly source: SessionComparisonValidationSource.AttemptReport | SessionComparisonValidationSource.JudgeRun | SessionComparisonValidationSource.Unavailable;
+	}
+	| {
+		readonly state: SessionComparisonValidationState.NotApplicable;
+		readonly source: SessionComparisonValidationSource.NotApplicable;
+	};
+
 export interface ISessionComparisonHarness {
 	readonly providerId: string;
 	readonly sessionTypeId: string;
@@ -65,16 +79,10 @@ export interface ISessionComparisonAttemptVerdict {
 	readonly participantId: string;
 	readonly summary: string;
 	readonly validation: {
-		readonly tests: SessionComparisonValidationState;
-		readonly build: SessionComparisonValidationState;
-		readonly lint: SessionComparisonValidationState;
-		readonly diagnostics: SessionComparisonValidationState;
-	};
-	readonly validationSource?: {
-		readonly tests: SessionComparisonValidationSource;
-		readonly build: SessionComparisonValidationSource;
-		readonly lint: SessionComparisonValidationSource;
-		readonly diagnostics: SessionComparisonValidationSource;
+		readonly tests: SessionComparisonValidationEvidence;
+		readonly build: SessionComparisonValidationEvidence;
+		readonly lint: SessionComparisonValidationEvidence;
+		readonly diagnostics: SessionComparisonValidationEvidence;
 	};
 	readonly unresolvedIssues: readonly string[];
 	readonly notableDifferences: readonly string[];
@@ -126,6 +134,7 @@ export interface ISessionComparisonSynthesisSelection {
 }
 
 export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
+export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
 
 export interface ISessionComparisonSynthesisPlan {
 	readonly selections: readonly ISessionComparisonSynthesisSelection[];

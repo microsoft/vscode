@@ -26,7 +26,7 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { AccessibilityCommandId } from '../../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, SessionComparisonResult, SessionComparisonResultFocused } from '../../browser/sessionComparisonResult.js';
 
 suite('Sessions - Comparison Result', () => {
@@ -74,13 +74,23 @@ suite('Sessions - Comparison Result', () => {
 				attempts: [{
 					participantId: 'attempt-1',
 					summary: 'Added the core implementation.',
-					validation: { tests: SessionComparisonValidationState.Passed, build: SessionComparisonValidationState.Unknown, lint: SessionComparisonValidationState.Unknown, diagnostics: SessionComparisonValidationState.Unknown },
+					validation: {
+						tests: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+						build: { state: SessionComparisonValidationState.Unknown, source: SessionComparisonValidationSource.Unavailable },
+						lint: { state: SessionComparisonValidationState.Unknown, source: SessionComparisonValidationSource.Unavailable },
+						diagnostics: { state: SessionComparisonValidationState.Unknown, source: SessionComparisonValidationSource.Unavailable },
+					},
 					unresolvedIssues: [],
 					notableDifferences: ['Clearer `naming`'],
 				}, {
 					participantId: 'attempt-2',
 					summary: 'Handled the edge case.',
-					validation: { tests: SessionComparisonValidationState.Passed, build: SessionComparisonValidationState.Passed, lint: SessionComparisonValidationState.Passed, diagnostics: SessionComparisonValidationState.Passed },
+					validation: {
+						tests: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+						build: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+						lint: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+						diagnostics: { state: SessionComparisonValidationState.Passed, source: SessionComparisonValidationSource.JudgeRun },
+					},
 					unresolvedIssues: [],
 					notableDifferences: [],
 				}],
@@ -487,9 +497,9 @@ suite('Sessions - Comparison Result', () => {
 				'',
 				'Why it won',
 				'Comparison: Resolved the failure that the other attempt left open.',
-				'Solution: Handled the edge case with typed diagnostics.',
 				'Validation: Passed focused tests, build, lint, and diagnostics.',
 				'Code quality: Kept the change small and aligned with existing types.',
+				'Solution: Handled the edge case with typed diagnostics.',
 				'',
 				'Strong points from other attempts',
 				'Attempt 1 (Claude): Clearer naming',
@@ -560,12 +570,12 @@ suite('Sessions - Comparison Result', () => {
 				columnHeaders: ['Decision', 'Attempt 1 (Claude)', 'Attempt 2 (Codex)', 'Synthesizer'],
 				rowHeaderScope: 'row',
 				rationaleSections: ['primary', 'supporting'],
-				rationaleCategories: ['Comparison', 'Solution', 'Validation', 'Code quality'],
+				rationaleCategories: ['Comparison', 'Validation', 'Code quality', 'Solution'],
 				rationaleItems: [
 					'Resolved the failure that the other attempt left open.',
-					'Handled the edge case with typed diagnostics.',
 					'Passed focused tests, build, lint, and diagnostics.',
 					'Kept the change small and aligned with existing types.',
+					'Handled the edge case with typed diagnostics.',
 				],
 				metricsCollapsed: true,
 				metricsTableLabelledBy: metricsDetails?.querySelector('summary')?.id,
@@ -585,9 +595,9 @@ suite('Sessions - Comparison Result', () => {
 			metricsExpanded: true,
 			renderedMarkdown: [
 				'Resolved the failure that the other attempt left open.',
-				'Handled the `edge case` with typed diagnostics.',
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
+				'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 				'`Error` handling',
 				'Choose how `parse` failures are represented.',
@@ -598,9 +608,9 @@ suite('Sessions - Comparison Result', () => {
 				'Run parser tests.',
 				'Run parser and integration tests.',
 				'Resolved the failure that the other attempt left open.',
-				'Handled the `edge case` with typed diagnostics.',
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
+				'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 				'`Error` handling',
 				'Choose how `parse` failures are represented.',

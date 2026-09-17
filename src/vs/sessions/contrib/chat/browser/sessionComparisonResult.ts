@@ -332,11 +332,11 @@ export class SessionComparisonResult extends Disposable {
 		}
 		const primaryEntries = [
 			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: verdict.rationale.comparison },
-			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: verdict.rationale.solution },
+			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
 		];
 		const supportingEntries = [
-			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
 			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: verdict.rationale.codeQuality },
+			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: verdict.rationale.solution },
 		];
 		const rationale = dom.append(this.domNode, dom.$('.session-comparison-result-rationale'));
 		this.renderRationaleEntries(rationale, primaryEntries, true);
@@ -651,9 +651,9 @@ export function buildSessionComparisonAccessibleContent(comparison: ISessionComp
 	if (verdict.rationale) {
 		lines.push(
 			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.comparison', "Comparison"), toPlainText(verdict.rationale.comparison)),
-			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.solution', "Solution"), toPlainText(verdict.rationale.solution)),
 			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.validation', "Validation"), toPlainText(verdict.rationale.validation)),
 			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), toPlainText(verdict.rationale.codeQuality)),
+			formatAccessibleLabelValue(localize('sessionComparisonResult.rationale.solution', "Solution"), toPlainText(verdict.rationale.solution)),
 		);
 	} else {
 		lines.push(toPlainText(verdict.explanation));
