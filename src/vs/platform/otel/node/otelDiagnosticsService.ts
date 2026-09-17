@@ -208,6 +208,16 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		return logs.sort((a, b) => a.timestamp - b.timestamp);
 	}
 
+	async getSessionHookSpans(sessionUri: string): Promise<readonly IOTelDiagnosticsSpan[]> {
+		const identity = await this.resolveSessionUri(sessionUri);
+		if (!identity) {
+			return [];
+		}
+		return this.getSessionSpans(identity)
+			.filter(span => span.operation_name === 'execute_hook')
+			.map(span => this.createSpan(span));
+	}
+
 	async getTraceDetails(traceId: string): Promise<IOTelDiagnosticsTraceDetails | undefined> {
 		const rows = this.store.getSpansByTraceId(traceId);
 		const trace = this.createTraceSummaries(rows)[0];

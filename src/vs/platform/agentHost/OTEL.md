@@ -105,6 +105,12 @@ When content capture is enabled, the agent host emits a zero-duration `vscode.ag
 
 Title text is user-derived content, so these spans are emitted only when `chat.agentHost.otel.captureContent` is enabled. Host-produced title spans copy `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` so collectors group them with the SDK telemetry. They are persisted in DB mode and use the configured OTLP, file, or console forwarder. Synthetic OTLP forwarding currently uses OTLP/HTTP JSON; when `http/protobuf` or gRPC is configured, title spans remain available in DB mode but are not sent to that external endpoint.
 
+## Configured Hook Executions
+
+Agent Host emits one host-owned `execute_hook` span for each configured hook command it runs. The span carries the provider conversation ID, session URI, invocation ID, hook type, result, duration, and error status. When content capture is enabled it also includes the hook source URI, effective command, serialized input, output, and error message. These spans let native Diagnostics correlate a hook invocation with its Session Insights turn and project the same invocation into Agent Debug without parsing provider log files.
+
+Hook spans use the retained session trace context and follow the same DB-mode persistence and compatible external-forwarding behavior as other host-produced spans. Hook command content and filesystem paths remain omitted unless `chat.agentHost.otel.captureContent` is enabled.
+
 
 ## VS Code Settings
 

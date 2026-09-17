@@ -17,6 +17,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { AgentHostHookCommandAttribute, AgentHostHookInputAttribute, AgentHostHookInvocationIdAttribute, AgentHostHookOutputAttribute, AgentHostHookResultAttribute, AgentHostHookSourceAttribute, AgentHostHookTypeAttribute } from '../../../../../platform/agentHost/common/otel/agentHostOTelService.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildDefaultChatUri, CustomizationType, parseChatUri, readUsageInfoMeta, ResponsePartKind, StateComponents, ToolCallStatus, type ActiveTurn, type ChatState, type ChildCustomization, type Customization, type Turn, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IOTelDiagnosticsMcpLifecycleEvent, IOTelDiagnosticsService, parseOTelMcpLifecycleEvent } from '../../../../../platform/otel/common/otelDiagnosticsService.js';
@@ -281,7 +282,6 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		// The set of loaded customizations (skills/hooks/agents/MCP) is sourced
 		// from live session state, not events.jsonl, so re-read when it changes.
 		store.add(this._customizationService.onDidChangeCustomizations(() => scheduler.schedule()));
-
 		this._liveRefresh.value = store; // disposes any previously-watched session
 	}
 
@@ -408,6 +408,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 				return undefined; // session has no events.jsonl or live chat state
 			}
 			const converted = convertAgentHostChatStateToDebugEvents(chat, sessionResource);
+			await this._appendOTelHookEvents(sourceSessionResource, sessionResource, converted.events, converted.resolved, token);
 			await this._appendOTelMcpLifecycleEvents(sourceSessionResource, sessionResource, converted.events, converted.resolved, token);
 			this.mergeResolvedDetails(converted.resolved);
 			return converted.events;
@@ -445,9 +446,62 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		}
 
 		const { events, resolved } = convertAgentHostEventsToDebugEvents(records, sessionResource, liveUsageTotals, usageRecords, customizations);
+		await this._appendOTelHookEvents(sourceSessionResource, sessionResource, events, resolved, token);
 		await this._appendOTelMcpLifecycleEvents(sourceSessionResource, sessionResource, events, resolved, token);
 		this.mergeResolvedDetails(resolved);
 		return events;
+	}
+
+	private async _appendOTelHookEvents(
+		sourceSessionResource: URI,
+		sessionResource: URI,
+		events: IChatDebugEvent[],
+		resolved: Map<string, IChatDebugResolvedEventContent>,
+		token: CancellationToken,
+	): Promise<void> {
+		const spans = await this._otelDiagnosticsService.getSessionHookSpans(sourceSessionResource.toString());
+		if (token.isCancellationRequested) {
+			return;
+		}
+		for (const span of spans) {
+			const hookType = span.attributes[AgentHostHookTypeAttribute];
+			if (!hookType || events.some(event =>
+				event.kind === 'generic'
+				&& event.category === 'hook'
+				&& Math.abs(event.created.getTime() - span.startTime) < 10
+			)) {
+				continue;
+			}
+			const eventId = `agentHostHook:${span.attributes[AgentHostHookInvocationIdAttribute] ?? span.spanId}`;
+			const parent = events.findLast(event => event.kind === 'userMessage' && event.created.getTime() <= span.startTime);
+			const failed = span.attributes[AgentHostHookResultAttribute] === 'error' || span.statusCode === 2;
+			events.push({
+				kind: 'generic',
+				id: eventId,
+				sessionResource,
+				created: new Date(span.startTime),
+				parentEventId: parent?.id,
+				name: failed
+					? localize('agentHost.debug.hookFailed', "Hook Failed: {0}", hookType)
+					: localize('agentHost.debug.hookRan', "Hook: {0}", hookType),
+				details: failed ? span.statusMessage : undefined,
+				level: failed ? ChatDebugLogLevel.Error : ChatDebugLogLevel.Info,
+				category: 'hook',
+			});
+			const source = span.attributes[AgentHostHookSourceAttribute];
+			resolved.set(eventId, {
+				kind: 'hook',
+				hookType,
+				sourceUri: source ? URI.parse(source) : undefined,
+				command: span.attributes[AgentHostHookCommandAttribute],
+				result: failed ? ChatDebugHookResult.Error : ChatDebugHookResult.Success,
+				durationInMillis: span.duration,
+				input: span.attributes[AgentHostHookInputAttribute],
+				output: span.attributes[AgentHostHookOutputAttribute],
+				errorMessage: failed ? span.statusMessage : undefined,
+			});
+		}
+		events.sort((a, b) => a.created.getTime() - b.created.getTime());
 	}
 
 	private async _appendOTelMcpLifecycleEvents(

@@ -5,7 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionIdentity, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../common/otelDiagnosticsService.js';
+import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionIdentity, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../common/otelDiagnosticsService.js';
 
 class NullOTelDiagnosticsService implements IOTelDiagnosticsService {
 	declare readonly _serviceBrand: undefined;
@@ -28,6 +28,10 @@ class NullOTelDiagnosticsService implements IOTelDiagnosticsService {
 	}
 
 	async getSessionLogs(_sessionUri: string): Promise<readonly IOTelDiagnosticsLog[]> {
+		return [];
+	}
+
+	async getSessionHookSpans(_sessionUri: string): Promise<readonly IOTelDiagnosticsSpan[]> {
 		return [];
 	}
 

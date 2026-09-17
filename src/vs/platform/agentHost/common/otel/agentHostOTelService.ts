@@ -28,7 +28,25 @@ export const AgentHostSessionTitleSpanName = 'vscode.agent_host.session.title_ch
 
 export const AgentHostSessionTitleAttribute = 'vscode.agent_host.session.title';
 export const AgentHostSessionUriAttribute = 'vscode.agent_host.session.uri';
+export const AgentHostHookInvocationIdAttribute = 'vscode.agent_host.hook.invocation_id';
 export const AgentHostHookTypeAttribute = 'vscode.agent_host.hook.type';
+export const AgentHostHookResultAttribute = 'vscode.agent_host.hook.result';
+export const AgentHostHookSourceAttribute = 'vscode.agent_host.hook.source';
+export const AgentHostHookCommandAttribute = 'vscode.agent_host.hook.command';
+export const AgentHostHookInputAttribute = 'vscode.agent_host.hook.input';
+export const AgentHostHookOutputAttribute = 'vscode.agent_host.hook.output';
+
+export interface IAgentHostHookExecution {
+	readonly invocationId: string;
+	readonly hookType: string;
+	readonly sourceUri: string | undefined;
+	readonly command: string | undefined;
+	readonly input: string;
+	readonly output: string | undefined;
+	readonly error: string | undefined;
+	readonly startTime: number;
+	readonly endTime: number;
+}
 
 export interface IAgentHostTraceContext {
 	readonly traceId: string;
@@ -87,6 +105,9 @@ export interface IAgentHostOTelService {
 	 * telemetry or content capture is disabled.
 	 */
 	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void;
+
+	/** Emit one completed configured-hook command invocation. */
+	emitHookExecution?(conversationId: string, sessionUri: string, execution: IAgentHostHookExecution): void;
 
 	/**
 	 * Drain any in-flight outbound forwarding. Safe to call concurrently with

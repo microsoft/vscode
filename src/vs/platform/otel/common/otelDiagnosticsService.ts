@@ -146,6 +146,7 @@ export interface IOTelDiagnosticsService {
 	getSessionMessages(sessionUri: string): Promise<readonly IOTelDiagnosticsMessage[]>;
 	getSessionTraces(sessionUri: string): Promise<readonly IOTelDiagnosticsTrace[]>;
 	getSessionLogs(sessionUri: string): Promise<readonly IOTelDiagnosticsLog[]>;
+	getSessionHookSpans(sessionUri: string): Promise<readonly IOTelDiagnosticsSpan[]>;
 	getTraceDetails(traceId: string): Promise<IOTelDiagnosticsTraceDetails | undefined>;
 }
 

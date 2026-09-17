@@ -9,6 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
@@ -23,6 +24,24 @@ type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserP
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
+
+export interface IConfiguredHookExecution {
+	readonly invocationId: string;
+	readonly hookType: string;
+	readonly sourceUri: string | undefined;
+	readonly command: string | undefined;
+	readonly input: string;
+	readonly output: string | undefined;
+	readonly error: string | undefined;
+	readonly startTime: number;
+	readonly endTime: number;
+}
+
+interface IHookCommandRegistration {
+	readonly hookType: string;
+	readonly sourceUri: URI;
+	readonly command: IParsedHookCommand;
+}
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -361,14 +380,14 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
  * or `undefined` if no command produces parseable JSON output.
  * Command failures are swallowed — hooks are non-fatal.
  */
-async function runHookCommands(commands: readonly IParsedHookCommand[] | undefined, input: unknown): Promise<object | undefined> {
+async function runHookCommands(commands: readonly IHookCommandRegistration[] | undefined, input: unknown, onDidExecute?: (execution: IConfiguredHookExecution) => void): Promise<object | undefined> {
 	if (!commands) {
 		return undefined;
 	}
 	const stdin = JSON.stringify(input);
-	for (const cmd of commands) {
+	for (const command of commands) {
 		try {
-			const output = await executeHookCommand(cmd, stdin);
+			const output = await executeConfiguredHook(command, stdin, onDidExecute);
 			if (output.trim()) {
 				try {
 					const parsed = JSON.parse(output);
@@ -384,6 +403,39 @@ async function runHookCommands(commands: readonly IParsedHookCommand[] | undefin
 		}
 	}
 	return undefined;
+}
+
+async function executeConfiguredHook(command: IHookCommandRegistration, input: string, onDidExecute?: (execution: IConfiguredHookExecution) => void): Promise<string> {
+	const invocationId = generateUuid();
+	const startTime = Date.now();
+	try {
+		const output = await executeHookCommand(command.command, input);
+		onDidExecute?.({
+			invocationId,
+			hookType: command.hookType,
+			sourceUri: command.sourceUri.toString(),
+			command: resolveEffectiveCommand(command.command, OS),
+			input,
+			output,
+			error: undefined,
+			startTime,
+			endTime: Date.now(),
+		});
+		return output;
+	} catch (error) {
+		onDidExecute?.({
+			invocationId,
+			hookType: command.hookType,
+			sourceUri: command.sourceUri.toString(),
+			command: resolveEffectiveCommand(command.command, OS),
+			input,
+			output: undefined,
+			error: error instanceof Error ? error.message : String(error),
+			startTime,
+			endTime: Date.now(),
+		});
+		throw error;
+	}
 }
 
 /**
@@ -414,16 +466,17 @@ export function toSdkHooks(
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
+	onDidExecute?: (execution: IConfiguredHookExecution) => void,
 ): SessionHooks {
 	// Group all commands by SDK handler key
-	const commandsByKey = new Map<keyof SessionHooks, IParsedHookCommand[]>();
+	const commandsByKey = new Map<keyof SessionHooks, IHookCommandRegistration[]>();
 	for (const group of hookGroups) {
 		const sdkKey = HOOK_TYPE_TO_SDK_KEY[group.type];
 		if (!sdkKey) {
 			continue;
 		}
 		const existing = commandsByKey.get(sdkKey) ?? [];
-		existing.push(...group.commands);
+		existing.push(...group.commands.map(command => ({ hookType: group.type, sourceUri: group.uri, command })));
 		commandsByKey.set(sdkKey, existing);
 	}
 
@@ -437,7 +490,7 @@ export function toSdkHooks(
 			if (internalResult !== undefined) {
 				return internalResult;
 			}
-			return runHookCommands(preToolCommands, input);
+			return runHookCommands(preToolCommands, input, onDidExecute);
 		};
 	}
 
@@ -446,7 +499,7 @@ export function toSdkHooks(
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
 			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			return runHookCommands(postToolCommands, input, onDidExecute);
 		};
 	}
 
@@ -455,9 +508,9 @@ export function toSdkHooks(
 	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
 		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of promptCommands ?? []) {
+			for (const command of promptCommands ?? []) {
 				try {
-					await executeHookCommand(cmd, stdin);
+					await executeConfiguredHook(command, stdin, onDidExecute);
 				} catch {
 					// Hook failures are non-fatal
 				}
@@ -471,9 +524,9 @@ export function toSdkHooks(
 	if (startCommands?.length) {
 		hooks.onSessionStart = async (input: SessionStartHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of startCommands) {
+			for (const command of startCommands) {
 				try {
-					await executeHookCommand(cmd, stdin);
+					await executeConfiguredHook(command, stdin, onDidExecute);
 				} catch {
 					// Hook failures are non-fatal
 				}
@@ -486,9 +539,9 @@ export function toSdkHooks(
 	if (endCommands?.length) {
 		hooks.onSessionEnd = async (input: SessionEndHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of endCommands) {
+			for (const command of endCommands) {
 				try {
-					await executeHookCommand(cmd, stdin);
+					await executeConfiguredHook(command, stdin, onDidExecute);
 				} catch {
 					// Hook failures are non-fatal
 				}
@@ -501,9 +554,9 @@ export function toSdkHooks(
 	if (errorCommands?.length) {
 		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of errorCommands) {
+			for (const command of errorCommands) {
 				try {
-					await executeHookCommand(cmd, stdin);
+					await executeConfiguredHook(command, stdin, onDidExecute);
 				} catch {
 					// Hook failures are non-fatal
 				}

@@ -1012,6 +1012,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
+			}, execution => {
+				this._otelService.emitHookExecution?.(
+					plan.sessionId,
+					AgentSession.uri('copilotcli', plan.sessionId).toString(),
+					execution
+				);
 			}),
 			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
