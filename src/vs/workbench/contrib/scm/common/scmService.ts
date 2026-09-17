@@ -451,7 +451,7 @@ export class SCMService implements ISCMService {
 
 			const path = this.uriIdentityService.extUri.relativePath(root, idOrResource);
 
-			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
+			if (path !== undefined && !/^\.\./.test(path) && path.length < bestMatchLength) {
 				bestRepository = repository;
 				bestMatchLength = path.length;
 			}
