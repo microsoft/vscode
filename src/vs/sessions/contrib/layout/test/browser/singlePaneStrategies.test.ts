@@ -527,6 +527,29 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
+	test('Quick Chat keeps the side pane open when an auxiliary editor closes', () => {
+		const ctx = setup();
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const auxiliaryEditor = store.add(new TestStubEditorInput(URI.parse('browser://auxiliary')));
+		createDraftStrategy(ctx);
+		activate(quickChat);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.onDidCloseEditor.fire({ editor: auxiliaryEditor, groupId: 2 });
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: true,
+			visibilityChanges: [],
+		});
+	});
+
 	test('No workspace shows Files in the visible Auxiliary Bar without revealing Editor', async () => {
 		const ctx = setup();
 		const editor = store.add(new TestStubEditorInput(URI.parse('search-editor://outgoing')));
