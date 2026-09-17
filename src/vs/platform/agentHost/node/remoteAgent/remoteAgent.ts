@@ -221,15 +221,15 @@ class RemoteAgentChatBinding extends Disposable {
 		const index = this._pendingInteractionResponses.findIndex(response => response.dispatchedConnection === connection
 			&& (action.type === ActionType.ChatToolCallConfirmed
 				? response.action.type === ActionType.ChatToolCallConfirmed
-					&& response.action.turnId === action.turnId
-					&& response.action.toolCallId === action.toolCallId
+				&& response.action.turnId === action.turnId
+				&& response.action.toolCallId === action.toolCallId
 				: action.type === ActionType.ChatToolCallResultConfirmed
 					? response.action.type === ActionType.ChatToolCallResultConfirmed
-						&& response.action.turnId === action.turnId
-						&& response.action.toolCallId === action.toolCallId
+					&& response.action.turnId === action.turnId
+					&& response.action.toolCallId === action.toolCallId
 					: action.type === ActionType.ChatInputCompleted
-						&& response.action.type === ActionType.ChatInputCompleted
-						&& response.action.requestId === action.requestId));
+					&& response.action.type === ActionType.ChatInputCompleted
+					&& response.action.requestId === action.requestId));
 		if (index !== -1) {
 			return this._pendingInteractionResponses.splice(index, 1)[0];
 		}
