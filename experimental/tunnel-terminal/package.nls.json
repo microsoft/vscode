@@ -1,0 +1,9 @@
+{
+	"displayName": "Experimental Tunnel Terminal",
+	"description": "Open a fresh remote shell from a local terminal through a connected VS Code window.",
+	"category": "Tunnel Terminal (Experimental)",
+	"command.start": "Start Bridge",
+	"command.copyUrl": "Copy Connection URL",
+	"command.copyToken": "Copy Connection Token",
+	"command.stop": "Stop Bridge"
+}
