@@ -5,6 +5,7 @@
 
 import './media/connectionDiagnostics.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -60,6 +61,10 @@ export class ConnectionDiagnosticsReport extends Disposable {
 			vertical: ScrollbarVisibility.Auto,
 			consumeMouseWheelIfScrollbarIsNeeded: true,
 		}));
+		// Keep native touch/keyboard scrolling while retaining the workbench scrollbar and wheel handling.
+		this.content.style.overflow = '';
+		this._register(Gesture.ignoreTarget(this.content));
+		this._register(dom.addDisposableListener(this.content, dom.EventType.SCROLL, () => this.scrollable.scanDomNode()));
 		dom.append(container, this.scrollable.getDomNode());
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ConnectionDiagnosticsReport.scrollable', () => this.scrollable.scanDomNode()));
 		this._register(resizeObserver.observe(this.scrollable.getDomNode()));
