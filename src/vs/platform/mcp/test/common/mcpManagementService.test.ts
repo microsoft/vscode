@@ -898,9 +898,10 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					}]
 				};
 
-				assert.throws(() => service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE), {
-					message: 'Variable \'environment\' has conflicting definitions.'
-				});
+				assert.throws(
+					() => service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE),
+					/Variable 'environment' has conflicting definitions\./
+				);
 			});
 		}
 
@@ -921,9 +922,10 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			assert.throws(() => service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE), {
-				message: 'Variable \'tenant\' has conflicting definitions.'
-			});
+			assert.throws(
+				() => service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE),
+				/Variable 'tenant' has conflicting definitions\./
+			);
 		});
 
 		test('remote headers without values should create input variables', () => {
