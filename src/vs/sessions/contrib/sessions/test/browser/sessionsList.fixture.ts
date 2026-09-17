@@ -8,12 +8,14 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IAutomationService, type AutomationCatalogueState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { type ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { NESTED_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatInteractivity, ChatOriginKind, type IChat, type ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -84,7 +86,9 @@ function renderNestedSessions(ctx: ComponentFixtureContext, width: number): void
 	};
 	const unrelated = createFixtureSession('Unrelated documentation cleanup', { resourceId: 'unrelated', workspaceLabel: 'Repo D' });
 	const sessions = [parent, child, grandchild, unrelated];
-	const { store, instantiationService } = createListHarness(ctx.disposableStore, sessions);
+	const { store, instantiationService } = createListHarness(ctx.disposableStore, sessions, {}, new TestConfigurationService({
+		[NESTED_SESSIONS_SETTING]: true,
+	}));
 	instantiationService.stub(IThemeService, new TestThemeService(ctx.theme, ctx.fileIconTheme));
 	instantiationService.stub(ISessionsManagementService, 'getSession', (resource: URI) => sessions.find(session => isEqual(session.resource, resource)));
 	instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);

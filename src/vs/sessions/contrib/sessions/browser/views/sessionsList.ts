@@ -64,6 +64,7 @@ import { IPreferencesService } from '../../../../../workbench/services/preferenc
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../../../browser/sessionActionViewItem.js';
 import { IsPhoneLayoutContext, SessionHasPullRequestContext, SessionIsArchivedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { NESTED_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -218,6 +219,11 @@ interface ISessionHierarchy {
 	/** If B and C are directly under A, A.sessionId maps to [B, C] in display order. Sessions without child sessions have no entry. */
 	readonly childrenByParentSessionId: ReadonlyMap<ISession['sessionId'], readonly ISession[]>;
 }
+
+const EMPTY_SESSION_HIERARCHY: ISessionHierarchy = {
+	parentByChildSessionId: new Map(),
+	childrenByParentSessionId: new Map(),
+};
 
 function withSessionDescendants(sessions: readonly ISession[], hierarchy: ISessionHierarchy): ISession[] {
 	const result: ISession[] = [];
@@ -2627,10 +2633,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
-	private readonly hierarchy = observableValue<ISessionHierarchy>(this, {
-		parentByChildSessionId: new Map(),
-		childrenByParentSessionId: new Map(),
-	});
+	private readonly hierarchy = observableValue<ISessionHierarchy>(this, EMPTY_SESSION_HIERARCHY);
 	private listedSessionIds = new Set<string>();
 	private revealedSession: ISession | undefined;
 	private readonly sessionStructureObservers = this._register(new MutableDisposable<DisposableStore>());
@@ -2816,7 +2819,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.update();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING)
+				|| e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)
+				|| e.affectsConfiguration(NESTED_SESSIONS_SETTING)) {
 				this.update();
 			}
 		}));
@@ -3375,6 +3380,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private buildSessionHierarchy(sessions: readonly ISession[]): ISessionHierarchy {
+		if (this.configurationService.getValue<boolean>(NESTED_SESSIONS_SETTING) !== true) {
+			return EMPTY_SESSION_HIERARCHY;
+		}
 		const byResource = new ResourceMap<ISession>(sessions.map(session => [session.resource, session] as const), resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 		const parentByChildSessionId = new Map<ISession['sessionId'], ISession>();
 		const isEligible = (session: ISession) => !session.isArchived.get() && !this.isSessionPinned(session) && !isQuickChatSession(session);
@@ -4031,6 +4039,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private canReorderAfterGroupChange(dragged: ISession[], target: ISession, _groupId: string | undefined): boolean {
+		if (this.configurationService.getValue<boolean>(NESTED_SESSIONS_SETTING) !== true) {
+			return true;
+		}
 		return !target.createdBySession?.get() && dragged.every(session => !session.createdBySession?.get());
 	}
 

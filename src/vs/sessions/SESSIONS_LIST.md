@@ -43,8 +43,9 @@ Archived
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
-- A regular session with a `createdBySession` reference appears beneath its
-  creator when both sessions are unpinned, unarchived, and have the same
+- When experimental nested-session rendering is enabled, a regular session
+  with a `createdBySession` reference appears beneath its creator when both
+  sessions are unpinned, unarchived, and have the same
   custom-group placement (including neither having a group). This nesting is
   recursive and may cross workspaces or providers in the visible catalog.
   Pinned sessions and quick chats remain independent roots.
@@ -52,6 +53,10 @@ Archived
   ungrouped preference, it inherits the creator's custom group when one becomes
   available. Existing membership and ordering state remains authoritative;
   nesting does not migrate or rewrite it.
+
+When nested-session rendering is disabled, full sessions remain independent
+rows under their own sections. Existing peer-chat nesting is unaffected, and
+creator provenance and saved placement state are retained for later use.
 
 A branch is assigned to its root's workspace or date section. Every represented
 session, including descendants, contributes once to its section's membership,

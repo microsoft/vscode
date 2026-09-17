@@ -14,6 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { NESTED_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 
@@ -39,7 +40,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 	test('distinguishes independent child sessions and explains tree navigation', () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService();
+		const configuration = new TestConfigurationService({ [NESTED_SESSIONS_SETTING]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
@@ -51,6 +52,24 @@ suite('SessionsChatAccessibilityHelp', () => {
 			provider.provideContent().split('\n').find(line => line.startsWith('Independent sessions')),
 			'Independent sessions created by an agent appear beneath their creator when their pin and group placement allows it, including sessions in other repositories. These are full sessions, not chats or subagents. Use the right and left arrow keys to expand or collapse a branch, the up and down arrow keys to navigate, and Enter to open a session. Actions on a session do not automatically apply to its children. When archiving or marking a parent as done, the confirmation offers an unchecked option to include nested sessions, including collapsed descendants.',
 		);
+	});
+
+	test('omits nested-session help by default while keeping peer-chat and creator help', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const content = provider.provideContent();
+
+		assert.deepStrictEqual({
+			nested: content.includes('Independent sessions created by an agent'),
+			peerChats: content.includes('Sessions with multiple user-facing chats'),
+			creator: content.includes('Created by link'),
+		}, { nested: false, peerChats: true, creator: true });
 	});
 
 	test('describes forking to the side and the keyboard-only alternative', () => {
