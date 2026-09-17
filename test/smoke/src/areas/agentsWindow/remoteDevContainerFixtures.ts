@@ -854,6 +854,10 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	if (!/^[0-9.]+$/.test(hostAddress)) {
 		throw new Error(`Cannot determine the Windows host address from WSL: ${hostAddress}`);
 	}
+	const containerConfig: { runArgs: string[] } = JSON.parse(fs.readFileSync(path.join(options.workspacePath, '.devcontainer', 'devcontainer.json'), 'utf8'));
+	containerConfig.runArgs = containerConfig.runArgs.map(arg => arg === '--add-host=vscode-smoke.test:host-gateway' ? `--add-host=vscode-smoke.test:${hostAddress}` : arg);
+	fs.writeFileSync(path.join(resources.root, 'devcontainer.json'), JSON.stringify(containerConfig, null, 2));
+	await run(`cp ${shellQuote(`${windowsRoot}/devcontainer.json`)} ${shellQuote(`${workspacePath}/.devcontainer/devcontainer.json`)}`);
 	const mockServerUrl = new URL(options.mockServerUrl);
 	mockServerUrl.hostname = hostAddress;
 	const environment: Record<string, string> = {

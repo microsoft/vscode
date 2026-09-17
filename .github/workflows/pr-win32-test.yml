@@ -38,120 +38,12 @@ jobs:
         with:
           lfs: true
 
-      # TEMPORARY: verify the pool can boot WSL2 before provisioning Docker.
-      - name: Probe WSL2 capability
-        id: wsl2-probe
+      - name: Prepare WSL Dev Container smoke tests
+        id: wsl-dev-container
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        timeout-minutes: 10
+        timeout-minutes: 15
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $PSNativeCommandUseErrorActionPreference = $false
-          Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber | Format-List
-          Get-CimInstance Win32_Processor | Select-Object Name, VirtualizationFirmwareEnabled, VMMonitorModeExtensions, SecondLevelAddressTranslationExtensions | Format-List
-          Get-CimInstance Win32_ComputerSystem | Select-Object Manufacturer, Model, HypervisorPresent | Format-List
-          foreach ($feature in @('Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform')) {
-            try {
-              Get-WindowsOptionalFeature -Online -FeatureName $feature | Select-Object FeatureName, State | Format-List
-            } catch {
-              Write-Warning "Cannot inspect ${feature}: $_"
-            }
-          }
-          $wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
-          if (-not (Test-Path -LiteralPath $wsl)) {
-            throw 'WSL2 probe failed: wsl.exe is unavailable. No feature changes or reboot will be attempted.'
-          }
-          & $wsl --version
-          Write-Host "WSL version exit code: $LASTEXITCODE"
-          & $wsl --status
-          Write-Host "WSL status exit code: $LASTEXITCODE"
-          & $wsl --list --verbose
-          Write-Host "WSL list exit code: $LASTEXITCODE"
-
-          $distro = "vscode-wsl2-probe-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$([guid]::NewGuid().ToString('N'))"
-          $root = Join-Path $env:GITHUB_WORKSPACE ".build\$distro"
-          New-Item -ItemType Directory -Path $root | Out-Null
-          "root=$root" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          $kernelPackage = Join-Path $root 'wsl_update_x64.msi'
-          curl.exe --fail --location --retry 2 --connect-timeout 30 --max-time 180 --output $kernelPackage 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi'
-          if ($LASTEXITCODE -ne 0) {
-            throw "WSL2 kernel download failed with exit code $LASTEXITCODE."
-          }
-          $signature = Get-AuthenticodeSignature -LiteralPath $kernelPackage
-          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation,') {
-            throw 'WSL2 kernel package does not have a valid Microsoft signature.'
-          }
-          $installer = Start-Process msiexec.exe -ArgumentList @('/i', "`"$kernelPackage`"", '/qn', '/norestart') -Wait -PassThru
-          if ($installer.ExitCode -ne 0) {
-            throw "WSL2 kernel installation failed or requires a reboot (exit code $($installer.ExitCode)). No reboot will be attempted."
-          }
-          & $wsl --status
-          Write-Host "WSL status after kernel installation: $LASTEXITCODE"
-          $archive = Join-Path $root 'ubuntu-rootfs.tar.gz'
-          $install = Join-Path $root 'distro'
-          $url = 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz'
-          $expectedHash = '1483cc5c1dce13064f774834cbffdff226559fd522a67a381a8ea77d63fb4109'
-          curl.exe --fail --location --retry 2 --connect-timeout 30 --max-time 180 --output $archive $url
-          if ($LASTEXITCODE -ne 0) {
-            throw "WSL2 rootfs download failed with exit code $LASTEXITCODE."
-          }
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expectedHash) {
-            throw 'WSL2 rootfs SHA256 mismatch.'
-          }
-          New-Item -ItemType Directory -Path $install | Out-Null
-          "distro=$distro" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          & $wsl --import $distro $install $archive --version 2
-          if ($LASTEXITCODE -ne 0) {
-            throw "Explicit WSL2 import failed with exit code $LASTEXITCODE. No WSL1 fallback, feature changes, or reboot will be attempted."
-          }
-          & $wsl --distribution $distro --user root --exec /bin/sh -ec 'uname -a; cat /etc/os-release; echo WSL2_PROBE_BOOT_OK'
-          if ($LASTEXITCODE -ne 0) {
-            throw "WSL2 distribution failed to boot with exit code $LASTEXITCODE."
-          }
-          $listing = & $wsl --list --verbose
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Cannot verify the imported WSL distribution version.'
-          }
-          $listingText = ($listing -join "`n") -replace "`0", ''
-          Write-Host $listingText
-          if ($listingText -notmatch ('(?m)^\s*\*?\s*' + [regex]::Escape($distro) + '\s+.+\s+2\s*$')) {
-            throw "$distro is not reported as WSL version 2."
-          }
-          Write-Host 'WSL2 capability probe passed: explicit version-2 import and Linux boot succeeded.'
-
-      - name: Clean up WSL2 capability probe
-        if: ${{ always() && inputs.electron_tests && inputs.smoke_tests && steps.wsl2-probe.outputs.root != '' }}
-        timeout-minutes: 3
-        shell: pwsh
-        env:
-          PROBE_DISTRO: ${{ steps.wsl2-probe.outputs.distro }}
-          PROBE_ROOT: ${{ steps.wsl2-probe.outputs.root }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $PSNativeCommandUseErrorActionPreference = $false
-          if ($env:PROBE_DISTRO) {
-            if ($env:PROBE_DISTRO -notmatch '^vscode-wsl2-probe-\d+-\d+-[0-9a-f]{32}$') {
-              throw 'Refusing cleanup of an unexpected distribution name.'
-            }
-            $registered = & wsl.exe --list --quiet
-            $listExitCode = $LASTEXITCODE
-            $names = @($registered | ForEach-Object { ($_ -replace "`0", '').Trim() })
-            if ($listExitCode -ne 0 -or $names -contains $env:PROBE_DISTRO) {
-              & wsl.exe --terminate $env:PROBE_DISTRO
-              & wsl.exe --unregister $env:PROBE_DISTRO
-              if ($LASTEXITCODE -ne 0) {
-                throw "Failed to unregister $env:PROBE_DISTRO. Leaving its files intact."
-              }
-            }
-          }
-          $root = [IO.Path]::GetFullPath($env:PROBE_ROOT)
-          if ([IO.Path]::GetDirectoryName($root) -ne [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '.build')) -or [IO.Path]::GetFileName($root) -notmatch '^vscode-wsl2-probe-\d+-\d+-[0-9a-f]{32}$') {
-            throw 'Refusing cleanup of an unexpected probe directory.'
-          }
-          if (Test-Path -LiteralPath $root) {
-            Remove-Item -LiteralPath $root -Recurse -Force
-          }
-          exit 0
+        run: .\test\smoke\wslDevContainer.ps1
 
       - name: Detect Agent Host E2E changes
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
@@ -374,6 +266,17 @@ jobs:
         run: npm run smoketest-no-compile -- --tracing
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
+          VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
+
+      - name: Clean up WSL Dev Container smoke tests
+        if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          WSL_SMOKE_ROOT: ${{ steps.wsl-dev-container.outputs.root }}
+        run: .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}
