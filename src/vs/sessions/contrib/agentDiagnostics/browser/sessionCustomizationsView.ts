@@ -16,7 +16,7 @@ import { CustomizationType } from '../../../../platform/agentHost/common/state/s
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { type ISessionCustomizationGroup, type ISessionCustomizationItem, type ISessionCustomizationMetadata, SessionCustomizationMetadataKind, SessionCustomizationSection, type SessionCustomizationStatus, SessionCustomizationsModel } from './sessionCustomizationsModel.js';
+import { type ISessionCustomizationGroup, type ISessionCustomizationItem, type ISessionCustomizationLifecycleEntry, type ISessionCustomizationMetadata, type ISessionMcpLifecycleAttempt, SessionCustomizationMetadataKind, SessionCustomizationSection, type SessionCustomizationStatus, SessionCustomizationsModel, summarizeMcpLifecycle } from './sessionCustomizationsModel.js';
 
 export class SessionCustomizationsView extends Disposable {
 
@@ -26,6 +26,8 @@ export class SessionCustomizationsView extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly expandedSections = new Set<SessionCustomizationSection>();
 	private readonly expandedItems = new Set<string>();
+	private readonly expandedLifecycleAttempts = new Set<string>();
+	private readonly expandedLifecycleEntries = new Set<string>();
 
 	constructor(
 		parent: HTMLElement,
@@ -70,9 +72,15 @@ export class SessionCustomizationsView extends Disposable {
 			lines.push(localize('agentDiagnostics.customizations.accessibleSection', "{0}: {1}", sectionLabel(group.section), group.items.length));
 			for (const item of group.items) {
 				lines.push(localize('agentDiagnostics.customizations.accessibleItem', "{0}: {1}; source {2}", item.name, statusLabel(item.status), item.uri));
+				for (const lifecycle of item.lifecycle) {
+					lines.push(localize('agentDiagnostics.customizations.accessibleLifecycle', "{0}: {1}", new Date(lifecycle.timestamp).toLocaleTimeString(), lifecycleLabel(lifecycle)));
+				}
 				for (const evidence of item.evidence) {
 					lines.push(localize('agentDiagnostics.customizations.accessibleEvidence', "{0}: {1}, turn {2}", evidenceLabel(evidence.kind), evidence.chatTitle, evidence.turnId));
 				}
+			}
+			for (const lifecycle of group.lifecycle) {
+				lines.push(localize('agentDiagnostics.customizations.accessibleLifecycle', "{0}: {1}", new Date(lifecycle.timestamp).toLocaleTimeString(), lifecycleLabel(lifecycle)));
 			}
 		}
 		return lines.join('\n');
@@ -114,7 +122,8 @@ export class SessionCustomizationsView extends Disposable {
 	private renderGroup(group: ISessionCustomizationGroup): void {
 		const section = DOM.append(this.content, DOM.$('section.agent-diagnostics-customization-section'));
 		const expanded = this.expandedSections.has(group.section);
-		const failedCount = group.items.filter(item => item.status === 'failed').length;
+		const failedCount = group.items.filter(item => item.status === 'failed').length
+			+ group.lifecycle.filter(entry => entry.kind === 'hookFailed').length;
 		const header = this.renderDisposables.add(new Button(section, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		header.element.classList.add('agent-diagnostics-customization-section-header');
 		const label = localize('agentDiagnostics.customizations.section', "{0} ({1})", sectionLabel(group.section), group.items.length);
@@ -145,6 +154,9 @@ export class SessionCustomizationsView extends Disposable {
 		}
 		body.setAttribute('role', 'list');
 		body.setAttribute('aria-label', sectionLabel(group.section));
+		if (group.lifecycle.length > 0) {
+			this.renderHookLifecycle(body, group.lifecycle);
+		}
 		for (const item of group.items) {
 			this.renderItem(body, item);
 		}
@@ -225,6 +237,17 @@ export class SessionCustomizationsView extends Disposable {
 			const detail = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-detail'));
 			detail.textContent = item.detail;
 		}
+		if (item.lifecycle.length > 0) {
+			if (item.type === CustomizationType.McpServer) {
+				this.renderMcpLifecycle(detailContainer, item);
+			} else {
+				this.renderLifecycle(
+					detailContainer,
+					localize('agentDiagnostics.customizations.lifecycle', "Lifecycle"),
+					item.lifecycle
+				);
+			}
+		}
 		if (item.evidence.length > 0) {
 			const evidenceHeading = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-evidence-heading'));
 			evidenceHeading.textContent = localize('agentDiagnostics.customizations.evidenceHeading', "Use Evidence");
@@ -237,6 +260,209 @@ export class SessionCustomizationsView extends Disposable {
 			}
 		}
 		row.setAttribute('aria-label', localize('agentDiagnostics.customizations.itemAriaLabel', "{0}, {1}", item.name, statusLabel(item.status)));
+	}
+
+	private renderLifecycle(parent: HTMLElement, title: string, entries: readonly ISessionCustomizationLifecycleEntry[]): void {
+		const container = DOM.append(parent, DOM.$('.agent-diagnostics-customization-lifecycle'));
+		const heading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-lifecycle-heading'));
+		heading.textContent = title;
+		const list = DOM.append(container, DOM.$('.agent-diagnostics-customization-lifecycle-list'));
+		list.setAttribute('role', 'list');
+		list.setAttribute('aria-label', title);
+		this.renderLifecycleEntries(list, entries);
+	}
+
+	private renderMcpLifecycle(parent: HTMLElement, item: ISessionCustomizationItem): void {
+		const summary = summarizeMcpLifecycle(item.lifecycle);
+		const container = DOM.append(parent, DOM.$('.agent-diagnostics-customization-lifecycle'));
+		const heading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-lifecycle-heading'));
+		heading.textContent = localize('agentDiagnostics.customizations.connectionHealth', "Connection Health");
+		const health = DOM.append(container, DOM.$('.agent-diagnostics-customization-health'));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.currentState', "Current"), lifecycleKindLabel(summary.currentState));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.attempts', "Attempts"), String(summary.attempts.length));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.successfulAttempts', "Successful"), String(summary.successfulAttempts));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.failedAttempts', "Failed"), String(summary.failedAttempts));
+		if (summary.lastStartupDuration !== undefined) {
+			this.renderHealthFact(health, localize('agentDiagnostics.customizations.lastStartup', "Last Startup"), formatDuration(summary.lastStartupDuration));
+		}
+		if (summary.readySince !== undefined) {
+			this.renderHealthFact(health, localize('agentDiagnostics.customizations.readyFor', "Ready For"), formatDuration(Date.now() - summary.readySince));
+		}
+		if (summary.currentProblem) {
+			const problem = DOM.append(container, DOM.$(`.agent-diagnostics-customization-health-problem.${lifecycleSeverity(summary.currentProblem)}`));
+			const problemTitle = DOM.append(problem, DOM.$('.agent-diagnostics-customization-health-problem-title'));
+			problemTitle.textContent = lifecycleKindLabel(summary.currentProblem.kind);
+			if (summary.currentProblem.detail) {
+				const problemDetail = DOM.append(problem, DOM.$('.agent-diagnostics-customization-health-problem-detail'));
+				problemDetail.textContent = summary.currentProblem.detail;
+			}
+			if (summary.currentProblem.resource) {
+				const resource = DOM.append(problem, DOM.$('.agent-diagnostics-customization-health-problem-detail'));
+				resource.textContent = localize('agentDiagnostics.customizations.authResource', "Resource: {0}", summary.currentProblem.resource);
+			}
+			if (summary.currentProblem.scopes.length > 0) {
+				const scopes = DOM.append(problem, DOM.$('.agent-diagnostics-customization-health-problem-detail'));
+				scopes.textContent = localize('agentDiagnostics.customizations.authScopes', "Required scopes: {0}", summary.currentProblem.scopes.join(', '));
+			}
+		}
+
+		const attemptsHeading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-attempts-heading'));
+		attemptsHeading.textContent = localize('agentDiagnostics.customizations.connectionAttempts', "Connection Attempts");
+		const attempts = DOM.append(container, DOM.$('.agent-diagnostics-customization-attempts'));
+		for (const [index, attempt] of summary.attempts.entries()) {
+			this.renderMcpAttempt(attempts, item.id, attempt, index + 1);
+		}
+	}
+
+	private renderHookLifecycle(parent: HTMLElement, entries: readonly ISessionCustomizationLifecycleEntry[]): void {
+		const container = DOM.append(parent, DOM.$('.agent-diagnostics-customization-lifecycle'));
+		const heading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-lifecycle-heading'));
+		heading.textContent = localize('agentDiagnostics.customizations.hookHealth', "Hook Health");
+		const health = DOM.append(container, DOM.$('.agent-diagnostics-customization-health'));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.executions', "Executions"), String(entries.length));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.succeeded', "Succeeded"), String(entries.filter(entry => entry.kind === 'hookSucceeded').length));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.warnings', "Warnings"), String(entries.filter(entry => entry.kind === 'hookWarning').length));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.failed', "Failed"), String(entries.filter(entry => entry.kind === 'hookFailed').length));
+		const durations = entries.flatMap(entry => entry.duration === undefined ? [] : [entry.duration]);
+		if (durations.length > 0) {
+			this.renderHealthFact(
+				health,
+				localize('agentDiagnostics.customizations.averageDuration', "Average Duration"),
+				formatDuration(durations.reduce((total, duration) => total + duration, 0) / durations.length)
+			);
+		}
+		const activityHeading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-attempts-heading'));
+		activityHeading.textContent = localize('agentDiagnostics.customizations.hookActivity', "Recent Hook Activity");
+		const list = DOM.append(container, DOM.$('.agent-diagnostics-customization-lifecycle-list'));
+		list.setAttribute('role', 'list');
+		list.setAttribute('aria-label', localize('agentDiagnostics.customizations.hookActivity', "Recent Hook Activity"));
+		this.renderLifecycleEntries(list, entries);
+	}
+
+	private renderHealthFact(parent: HTMLElement, label: string, value: string): void {
+		const fact = DOM.append(parent, DOM.$('.agent-diagnostics-customization-health-fact'));
+		const factLabel = DOM.append(fact, DOM.$('.agent-diagnostics-customization-health-label'));
+		factLabel.textContent = label;
+		const factValue = DOM.append(fact, DOM.$('.agent-diagnostics-customization-health-value'));
+		factValue.textContent = value;
+	}
+
+	private renderMcpAttempt(parent: HTMLElement, customizationId: string, attempt: ISessionMcpLifecycleAttempt, attemptNumber: number): void {
+		const lastEvent = attempt.events.at(-1);
+		const attemptElement = DOM.append(parent, DOM.$(`.agent-diagnostics-customization-attempt.${lastEvent ? lifecycleSeverity(lastEvent) : 'neutral'}`));
+		const key = `${customizationId}:${attempt.id}`;
+		const expanded = this.expandedLifecycleAttempts.has(key);
+		const header = this.renderDisposables.add(new Button(attemptElement, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		header.element.classList.add('agent-diagnostics-customization-attempt-header');
+		const duration = attempt.duration === undefined ? '' : localize('agentDiagnostics.customizations.attemptDuration', " · {0}", formatDuration(attempt.duration));
+		const label = localize('agentDiagnostics.customizations.attemptLabel', "Attempt {0} · {1}{2}", attemptNumber, lifecycleKindLabel(attempt.state), duration);
+		header.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${label}`;
+		header.setAriaLabel(label);
+		header.element.setAttribute('aria-expanded', String(expanded));
+		this.renderDisposables.add(header.onDidClick(() => {
+			if (expanded) {
+				this.expandedLifecycleAttempts.delete(key);
+			} else {
+				this.expandedLifecycleAttempts.add(key);
+			}
+			this.render();
+		}));
+		if (attempt.problem?.detail) {
+			const problem = DOM.append(attemptElement, DOM.$('.agent-diagnostics-customization-attempt-problem'));
+			problem.textContent = attempt.problem.detail;
+		}
+		const events = DOM.append(attemptElement, DOM.$('.agent-diagnostics-customization-attempt-events'));
+		events.toggleAttribute('hidden', !expanded);
+		if (expanded) {
+			events.setAttribute('role', 'list');
+			events.setAttribute('aria-label', localize('agentDiagnostics.customizations.rawEvents', "Raw lifecycle events"));
+			this.renderLifecycleEntries(events, attempt.events);
+		}
+	}
+
+	private renderLifecycleEntries(parent: HTMLElement, entries: readonly ISessionCustomizationLifecycleEntry[]): void {
+		for (const entry of entries.slice(-30)) {
+			const row = DOM.append(parent, DOM.$(`.agent-diagnostics-customization-lifecycle-entry.${lifecycleSeverity(entry)}`));
+			row.setAttribute('role', 'listitem');
+			const header = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-header'));
+			const time = DOM.append(header, DOM.$<HTMLTimeElement>('time.agent-diagnostics-customization-lifecycle-time'));
+			time.dateTime = new Date(entry.timestamp).toISOString();
+			time.textContent = new Date(entry.timestamp).toLocaleTimeString();
+			const state = DOM.append(header, DOM.$('.agent-diagnostics-customization-lifecycle-state'));
+			state.textContent = lifecycleKindLabel(entry.kind);
+			if (entry.title) {
+				const entryTitle = DOM.append(header, DOM.$('.agent-diagnostics-customization-lifecycle-title'));
+				entryTitle.textContent = entry.title;
+			}
+			const hasDetails = entry.duration !== undefined
+				|| entry.exitCode !== undefined
+				|| entry.resource !== undefined
+				|| entry.scopes.length > 0
+				|| entry.command !== undefined
+				|| entry.detail !== undefined
+				|| entry.input !== undefined
+				|| entry.output !== undefined;
+			const expanded = this.expandedLifecycleEntries.has(entry.id);
+			if (hasDetails) {
+				const details = this.renderDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+				details.element.classList.add('agent-diagnostics-customization-lifecycle-details');
+				details.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${localize('agentDiagnostics.customizations.lifecycleDetails', "Details")}`;
+				details.element.setAttribute('aria-expanded', String(expanded));
+				this.renderDisposables.add(details.onDidClick(() => {
+					if (expanded) {
+						this.expandedLifecycleEntries.delete(entry.id);
+					} else {
+						this.expandedLifecycleEntries.add(entry.id);
+					}
+					this.render();
+				}));
+			}
+			if (!expanded) {
+				row.setAttribute('aria-label', lifecycleLabel(entry));
+				continue;
+			}
+			if (entry.duration !== undefined || entry.exitCode !== undefined) {
+				const facts = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-facts'));
+				if (entry.duration !== undefined) {
+					const duration = DOM.append(facts, DOM.$('span'));
+					duration.textContent = localize('agentDiagnostics.customizations.duration', "{0}ms", Math.round(entry.duration));
+				}
+				if (entry.exitCode !== undefined) {
+					const exitCode = DOM.append(facts, DOM.$('span'));
+					exitCode.textContent = localize('agentDiagnostics.customizations.exitCode', "Exit code {0}", entry.exitCode);
+				}
+			}
+			if (entry.resource) {
+				const resource = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-detail'));
+				resource.textContent = localize('agentDiagnostics.customizations.authResource', "Resource: {0}", entry.resource);
+			}
+			if (entry.scopes.length > 0) {
+				const scopes = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-detail'));
+				scopes.textContent = localize('agentDiagnostics.customizations.authScopes', "Required scopes: {0}", entry.scopes.join(', '));
+			}
+			if (entry.command) {
+				const command = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-detail'));
+				command.textContent = localize('agentDiagnostics.customizations.hookCommand', "Command: {0}", entry.command);
+			}
+			if (entry.detail) {
+				const detail = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-detail'));
+				detail.textContent = entry.detail;
+			}
+			this.renderLifecyclePayload(row, localize('agentDiagnostics.customizations.hookInput', "Input"), entry.input);
+			this.renderLifecyclePayload(row, localize('agentDiagnostics.customizations.hookOutput', "Output"), entry.output);
+			row.setAttribute('aria-label', lifecycleLabel(entry));
+		}
+	}
+
+	private renderLifecyclePayload(parent: HTMLElement, label: string, value: string | undefined): void {
+		if (!value) {
+			return;
+		}
+		const field = DOM.append(parent, DOM.$('.agent-diagnostics-customization-lifecycle-field'));
+		const heading = DOM.append(field, DOM.$('.agent-diagnostics-customization-lifecycle-field-label'));
+		heading.textContent = label;
+		const content = DOM.append(field, DOM.$('pre.agent-diagnostics-customization-lifecycle-field-value'));
+		content.textContent = value;
 	}
 }
 
@@ -267,6 +493,8 @@ function statusLabel(status: SessionCustomizationStatus): string {
 			return localize('agentDiagnostics.customizations.status.disabled', "Disabled");
 		case 'loading':
 			return localize('agentDiagnostics.customizations.status.loading', "Loading");
+		case 'authenticationRequired':
+			return localize('agentDiagnostics.customizations.status.authenticationRequired', "Authentication Required");
 		case 'degraded':
 			return localize('agentDiagnostics.customizations.status.degraded', "Degraded");
 		case 'failed':
@@ -334,4 +562,69 @@ function metadataValue(metadata: ISessionCustomizationMetadata): string {
 			: localize('agentDiagnostics.customizations.metadata.disabled', "Disabled");
 	}
 	return typeof metadata.value === 'string' ? metadata.value : metadata.value.join(', ');
+}
+
+function lifecycleKindLabel(kind: ISessionCustomizationLifecycleEntry['kind']): string {
+	switch (kind) {
+		case 'loaded':
+			return localize('agentDiagnostics.customizations.lifecycle.loaded', "Loaded");
+		case 'startRequested':
+			return localize('agentDiagnostics.customizations.lifecycle.startRequested', "Start Requested");
+		case 'starting':
+			return localize('agentDiagnostics.customizations.lifecycle.starting', "Starting");
+		case 'ready':
+			return localize('agentDiagnostics.customizations.lifecycle.ready', "Ready");
+		case 'authRequired':
+			return localize('agentDiagnostics.customizations.lifecycle.authRequired', "Authentication Required");
+		case 'failed':
+			return localize('agentDiagnostics.customizations.lifecycle.failed', "Failed");
+		case 'stopRequested':
+			return localize('agentDiagnostics.customizations.lifecycle.stopRequested', "Stop Requested");
+		case 'stopped':
+			return localize('agentDiagnostics.customizations.lifecycle.stopped', "Stopped");
+		case 'hookRunning':
+			return localize('agentDiagnostics.customizations.lifecycle.hookRunning', "Running");
+		case 'hookSucceeded':
+			return localize('agentDiagnostics.customizations.lifecycle.hookSucceeded', "Succeeded");
+		case 'hookWarning':
+			return localize('agentDiagnostics.customizations.lifecycle.hookWarning', "Completed with Warning");
+		case 'hookFailed':
+			return localize('agentDiagnostics.customizations.lifecycle.hookFailed', "Failed");
+	}
+}
+
+function lifecycleSeverity(entry: ISessionCustomizationLifecycleEntry): 'neutral' | 'pending' | 'success' | 'warning' | 'error' {
+	switch (entry.kind) {
+		case 'startRequested':
+		case 'starting':
+		case 'authRequired':
+		case 'hookRunning':
+			return 'pending';
+		case 'ready':
+		case 'hookSucceeded':
+			return 'success';
+		case 'stopRequested':
+		case 'stopped':
+		case 'hookWarning':
+			return 'warning';
+		case 'failed':
+		case 'hookFailed':
+			return 'error';
+		case 'loaded':
+			return 'neutral';
+	}
+}
+
+function lifecycleLabel(entry: ISessionCustomizationLifecycleEntry): string {
+	const kind = lifecycleKindLabel(entry.kind);
+	return entry.title
+		? localize('agentDiagnostics.customizations.lifecycleAriaLabelWithTitle', "{0}: {1}", kind, entry.title)
+		: kind;
+}
+
+function formatDuration(duration: number): string {
+	if (duration < 1000) {
+		return localize('agentDiagnostics.customizations.durationMilliseconds', "{0}ms", Math.round(duration));
+	}
+	return localize('agentDiagnostics.customizations.durationSeconds', "{0}s", (duration / 1000).toFixed(1));
 }

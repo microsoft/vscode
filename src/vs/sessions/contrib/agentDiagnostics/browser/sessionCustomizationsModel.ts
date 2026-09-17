@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -10,8 +11,12 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { isCustomizationEnabled } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { McpServerStatus, type McpServerState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationLoadStatus, CustomizationType, DEFAULT_CHAT_ID, getSessionChatResource, ResponsePartKind, StateComponents, ToolCallContributorKind, type ChatState, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type ResponsePart, type SessionState, type StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ChatDebugHookResult, type IChatDebugEvent, type IChatDebugEventHookContent, IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 import { isAgentHostProvider, type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { type ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -25,13 +30,60 @@ export const enum SessionCustomizationSection {
 	McpServers = 'mcpServers',
 }
 
-export type SessionCustomizationStatus = 'used' | 'loaded' | 'disabled' | 'loading' | 'degraded' | 'failed';
+export type SessionCustomizationStatus = 'used' | 'loaded' | 'disabled' | 'loading' | 'authenticationRequired' | 'degraded' | 'failed';
 
 export interface ISessionCustomizationEvidence {
 	readonly chatResource: URI;
 	readonly chatTitle: string;
 	readonly turnId: string;
 	readonly kind: 'agent' | 'skill' | 'mcp';
+}
+
+export type SessionCustomizationLifecycleKind =
+	| 'loaded'
+	| 'startRequested'
+	| 'starting'
+	| 'ready'
+	| 'authRequired'
+	| 'failed'
+	| 'stopRequested'
+	| 'stopped'
+	| 'hookRunning'
+	| 'hookSucceeded'
+	| 'hookWarning'
+	| 'hookFailed';
+
+export interface ISessionCustomizationLifecycleEntry {
+	readonly id: string;
+	readonly timestamp: number;
+	readonly kind: SessionCustomizationLifecycleKind;
+	readonly title: string | undefined;
+	readonly detail: string | undefined;
+	readonly duration: number | undefined;
+	readonly command: string | undefined;
+	readonly exitCode: number | undefined;
+	readonly input: string | undefined;
+	readonly output: string | undefined;
+	readonly scopes: readonly string[];
+	readonly resource: string | undefined;
+}
+
+export interface ISessionMcpLifecycleAttempt {
+	readonly id: string;
+	readonly events: readonly ISessionCustomizationLifecycleEntry[];
+	readonly state: SessionCustomizationLifecycleKind;
+	readonly duration: number | undefined;
+	readonly problem: ISessionCustomizationLifecycleEntry | undefined;
+}
+
+export interface ISessionMcpLifecycleSummary {
+	readonly currentState: SessionCustomizationLifecycleKind;
+	readonly attempts: readonly ISessionMcpLifecycleAttempt[];
+	readonly successfulAttempts: number;
+	readonly failedAttempts: number;
+	readonly lastStartupDuration: number | undefined;
+	readonly readySince: number | undefined;
+	readonly currentProblem: ISessionCustomizationLifecycleEntry | undefined;
 }
 
 export const enum SessionCustomizationMetadataKind {
@@ -64,11 +116,13 @@ export interface ISessionCustomizationItem {
 	readonly detail: string | undefined;
 	readonly evidence: readonly ISessionCustomizationEvidence[];
 	readonly metadata: readonly ISessionCustomizationMetadata[];
+	readonly lifecycle: readonly ISessionCustomizationLifecycleEntry[];
 }
 
 export interface ISessionCustomizationGroup {
 	readonly section: SessionCustomizationSection;
 	readonly items: readonly ISessionCustomizationItem[];
+	readonly lifecycle: readonly ISessionCustomizationLifecycleEntry[];
 }
 
 export interface ISessionCustomizationsState {
@@ -91,10 +145,15 @@ export class SessionCustomizationsModel extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => this.refresh(), 100));
 	private readonly providerListener = this._register(new MutableDisposable());
 	private readonly sessionSubscription = this._register(new MutableDisposable<DisposableStore>());
 	private readonly focusedChatSubscription = this._register(new MutableDisposable<DisposableStore>());
 	private readonly usageBySession = new Map<string, Map<string, ISessionCustomizationEvidence[]>>();
+	private readonly lifecycleBySession = new Map<string, Map<string, ISessionCustomizationLifecycleEntry[]>>();
+	private readonly hookLifecycleBySession = new Map<string, ISessionCustomizationLifecycleEntry[]>();
+	private readonly resolvingHookEvents = new Set<string>();
+	private readonly hookResolutionSequencer = new Sequencer();
 	private session: ISession | undefined;
 	private provider: IAgentHostSessionsProvider | undefined;
 	private focusedChatResource: URI | undefined;
@@ -112,8 +171,15 @@ export class SessionCustomizationsModel extends Disposable {
 
 	constructor(
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this._register(this.chatDebugService.onDidAddEvent(event => {
+			if (this.active && isEqual(event.sessionResource, this.focusedChatResource)) {
+				this.captureHookEvent(event);
+			}
+		}));
 	}
 
 	setActive(active: boolean): void {
@@ -124,6 +190,7 @@ export class SessionCustomizationsModel extends Disposable {
 		if (active) {
 			this.updateSessionSubscription();
 			this.updateFocusedChatSubscription();
+			this.captureExistingHookEvents();
 		} else {
 			this.clearSessionSubscription();
 		}
@@ -147,7 +214,6 @@ export class SessionCustomizationsModel extends Disposable {
 			this._onDidChange.fire();
 			return;
 		}
-
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			this._state = {
@@ -165,7 +231,7 @@ export class SessionCustomizationsModel extends Disposable {
 				this.updateSessionSubscription();
 				this.updateFocusedChatSubscription();
 			}
-			this.refresh();
+			this.scheduleRefresh();
 		});
 		if (this.active) {
 			this.updateSessionSubscription();
@@ -191,12 +257,15 @@ export class SessionCustomizationsModel extends Disposable {
 		this.clearSessionSubscription();
 		const store = new DisposableStore();
 		const reference = store.add(connection.getSubscription(StateComponents.Session, backendSessionResource, 'SessionCustomizationsModel.session'));
+		store.add(reference.object.onDidApplyAction(envelope => {
+			this.captureMcpLifecycleAction(session.sessionId, envelope.serverSeq, envelope.action);
+		}));
 		store.add(reference.object.onDidChange(() => {
 			this.updateFocusedChatSubscription();
-			this.refresh();
+			this.scheduleRefresh();
 		}));
 		if (reference.object.onDidError) {
-			store.add(reference.object.onDidError(() => this.refresh()));
+			store.add(reference.object.onDidError(() => this.scheduleRefresh()));
 		}
 		this.backendSessionResource = backendSessionResource;
 		this.sessionConnection = connection;
@@ -222,9 +291,9 @@ export class SessionCustomizationsModel extends Disposable {
 		this.clearFocusedChatSubscription();
 		const store = new DisposableStore();
 		const reference = store.add(connection.getSubscription(StateComponents.Chat, resource, 'SessionCustomizationsModel.focusedChat'));
-		store.add(reference.object.onDidChange(() => this.refresh()));
+		store.add(reference.object.onDidChange(() => this.scheduleRefresh()));
 		if (reference.object.onDidError) {
-			store.add(reference.object.onDidError(() => this.refresh()));
+			store.add(reference.object.onDidError(() => this.scheduleRefresh()));
 		}
 		this.focusedBackendChatResource = resource;
 		this.focusedChatSubscriptionValue = reference.object;
@@ -245,6 +314,12 @@ export class SessionCustomizationsModel extends Disposable {
 		this.focusedChatSubscriptionValue = undefined;
 	}
 
+	private scheduleRefresh(): void {
+		if (!this.refreshScheduler.isScheduled()) {
+			this.refreshScheduler.schedule();
+		}
+	}
+
 	private refresh(): void {
 		const session = this.session;
 		const provider = this.provider;
@@ -258,10 +333,12 @@ export class SessionCustomizationsModel extends Disposable {
 		const observedUsage = collectUsage(customizations, this.getChatStates());
 		const usage = mergeUsage(this.usageBySession.get(session.sessionId), observedUsage);
 		this.usageBySession.set(session.sessionId, usage);
+		this.captureCurrentLifecycle(session.sessionId, customizations);
+		const lifecycle = this.lifecycleBySession.get(session.sessionId) ?? new Map();
 		this._state = {
 			sessionResource: session.resource,
 			supported: true,
-			groups: groupCustomizations(customizations, usage),
+			groups: groupCustomizations(customizations, usage, lifecycle, this.hookLifecycleBySession.get(session.sessionId) ?? []),
 		};
 		this._onDidChange.fire();
 	}
@@ -270,6 +347,217 @@ export class SessionCustomizationsModel extends Disposable {
 		const state = this.focusedChatSubscriptionValue?.value;
 		return state && !(state instanceof Error) ? [state] : [];
 	}
+
+	private captureCurrentLifecycle(sessionId: string, customizations: readonly Customization[]): void {
+		for (const customization of customizations) {
+			if (customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory) {
+				for (const child of customization.children ?? []) {
+					if (child.type === CustomizationType.McpServer) {
+						this.recordCustomizationLifecycle(sessionId, child.id, lifecycleEntry(`loaded:${child.id}`, 'loaded'));
+						this.recordMcpState(sessionId, child.id, child.state, `snapshot:${child.id}:${child.state.kind}:${Date.now()}`);
+					} else if (child.type === CustomizationType.Hook) {
+						this.recordCustomizationLifecycle(sessionId, child.id, lifecycleEntry(`loaded:${child.id}`, 'loaded'));
+					}
+				}
+			} else {
+				this.recordCustomizationLifecycle(sessionId, customization.id, lifecycleEntry(`loaded:${customization.id}`, 'loaded'));
+				this.recordMcpState(sessionId, customization.id, customization.state, `snapshot:${customization.id}:${customization.state.kind}:${Date.now()}`);
+			}
+		}
+	}
+
+	private captureMcpLifecycleAction(sessionId: string, serverSequence: number, action: StateAction): void {
+		switch (action.type) {
+			case ActionType.SessionMcpServerStartRequested:
+				this.recordCustomizationLifecycle(sessionId, action.id, lifecycleEntry(`action:${serverSequence}`, 'startRequested'));
+				this.scheduleRefresh();
+				break;
+			case ActionType.SessionMcpServerStopRequested:
+				this.recordCustomizationLifecycle(sessionId, action.id, lifecycleEntry(`action:${serverSequence}`, 'stopRequested'));
+				this.scheduleRefresh();
+				break;
+			case ActionType.SessionMcpServerStateChanged:
+				this.recordMcpState(sessionId, action.id, action.state, `action:${serverSequence}`);
+				this.scheduleRefresh();
+				break;
+		}
+	}
+
+	private recordMcpState(sessionId: string, customizationId: string, state: McpServerState, id: string): void {
+		const lifecycle = mcpLifecycleEntry(id, state);
+		const current = this.lifecycleBySession.get(sessionId)?.get(customizationId);
+		const last = current?.at(-1);
+		if (id.startsWith('snapshot:') && last && last.kind === lifecycle.kind && last.detail === lifecycle.detail) {
+			return;
+		}
+		this.recordCustomizationLifecycle(sessionId, customizationId, lifecycle);
+	}
+
+	private recordCustomizationLifecycle(sessionId: string, customizationId: string, entry: ISessionCustomizationLifecycleEntry): void {
+		let lifecycleByCustomization = this.lifecycleBySession.get(sessionId);
+		if (!lifecycleByCustomization) {
+			lifecycleByCustomization = new Map();
+			this.lifecycleBySession.set(sessionId, lifecycleByCustomization);
+		}
+		const lifecycle = lifecycleByCustomization.get(customizationId) ?? [];
+		if (!lifecycle.some(candidate => candidate.id === entry.id)) {
+			lifecycle.push(entry);
+			lifecycleByCustomization.set(customizationId, lifecycle);
+		}
+	}
+
+	private captureExistingHookEvents(): void {
+		const focusedChatResource = this.focusedChatResource;
+		if (!focusedChatResource) {
+			return;
+		}
+		for (const event of this.chatDebugService.getEvents(focusedChatResource)
+			.filter(event => event.kind === 'generic' && event.category === 'hook')
+			.slice(-30)) {
+			this.captureHookEvent(event);
+		}
+	}
+
+	private captureHookEvent(event: IChatDebugEvent): void {
+		const session = this.session;
+		const eventId = event.id;
+		if (!session || event.kind !== 'generic' || event.category !== 'hook' || !eventId) {
+			return;
+		}
+		const key = `${event.sessionResource.toString()}:${eventId}`;
+		const lifecycle = this.hookLifecycleBySession.get(session.sessionId) ?? [];
+		if (this.resolvingHookEvents.has(key) || lifecycle.some(candidate => candidate.id === key)) {
+			return;
+		}
+		this.resolvingHookEvents.add(key);
+		void this.hookResolutionSequencer.queue(() => this.chatDebugService.resolveEvent(eventId)).then(content => {
+			if (content?.kind !== 'hook') {
+				return;
+			}
+			lifecycle.push(hookLifecycleEntry(key, event.created.getTime(), content));
+			this.hookLifecycleBySession.set(session.sessionId, lifecycle);
+			if (this.session?.sessionId === session.sessionId) {
+				this.scheduleRefresh();
+			}
+		}).catch(error => {
+			this.logService.error('[SessionCustomizationsModel] Failed to resolve hook lifecycle event', error);
+		}).finally(() => {
+			this.resolvingHookEvents.delete(key);
+		});
+	}
+}
+
+function lifecycleEntry(
+	id: string,
+	kind: SessionCustomizationLifecycleKind,
+	options?: Partial<Omit<ISessionCustomizationLifecycleEntry, 'id' | 'kind' | 'timestamp'>>,
+): ISessionCustomizationLifecycleEntry {
+	return {
+		id,
+		timestamp: Date.now(),
+		kind,
+		title: options?.title,
+		detail: options?.detail,
+		duration: options?.duration,
+		command: options?.command,
+		exitCode: options?.exitCode,
+		input: options?.input,
+		output: options?.output,
+		scopes: options?.scopes ?? [],
+		resource: options?.resource,
+	};
+}
+
+function mcpLifecycleEntry(id: string, state: McpServerState): ISessionCustomizationLifecycleEntry {
+	switch (state.kind) {
+		case McpServerStatus.Starting:
+			return lifecycleEntry(id, 'starting');
+		case McpServerStatus.Ready:
+			return lifecycleEntry(id, 'ready');
+		case McpServerStatus.AuthRequired:
+			return lifecycleEntry(id, 'authRequired', {
+				detail: state.description,
+				scopes: state.requiredScopes ?? [],
+				resource: state.resource.resource,
+			});
+		case McpServerStatus.Error:
+			return lifecycleEntry(id, 'failed', { detail: state.error.message });
+		case McpServerStatus.Stopped:
+			return lifecycleEntry(id, 'stopped');
+	}
+}
+
+function hookLifecycleEntry(id: string, timestamp: number, content: IChatDebugEventHookContent): ISessionCustomizationLifecycleEntry {
+	const entry = lifecycleEntry(id, hookLifecycleKind(content.result), {
+		title: content.hookType,
+		detail: content.errorMessage,
+		duration: content.durationInMillis,
+		command: content.command,
+		exitCode: content.exitCode,
+		input: content.input,
+		output: content.output,
+	});
+	return { ...entry, timestamp };
+}
+
+function hookLifecycleKind(result: ChatDebugHookResult | undefined): SessionCustomizationLifecycleKind {
+	switch (result) {
+		case ChatDebugHookResult.Success:
+			return 'hookSucceeded';
+		case ChatDebugHookResult.NonBlockingError:
+			return 'hookWarning';
+		case ChatDebugHookResult.Error:
+			return 'hookFailed';
+		case undefined:
+			return 'hookRunning';
+		default:
+			return 'hookRunning';
+	}
+}
+
+export function summarizeMcpLifecycle(entries: readonly ISessionCustomizationLifecycleEntry[]): ISessionMcpLifecycleSummary {
+	const attempts: { id: string; events: ISessionCustomizationLifecycleEntry[] }[] = [];
+	let current: { id: string; events: ISessionCustomizationLifecycleEntry[] } | undefined;
+	for (const entry of entries) {
+		const previousState = current?.events.at(-1)?.kind;
+		const startsAttempt = entry.kind === 'startRequested'
+			? !current || (previousState !== 'loaded' && previousState !== 'startRequested' && previousState !== 'starting' && previousState !== 'authRequired')
+			: entry.kind === 'starting'
+				? !current || previousState === 'ready' || previousState === 'failed' || previousState === 'stopped'
+				: !current;
+		if (startsAttempt) {
+			current = { id: entry.id, events: [] };
+			attempts.push(current);
+		}
+		current?.events.push(entry);
+	}
+	const summarizedAttempts = attempts.map((attempt): ISessionMcpLifecycleAttempt => {
+		const state = attempt.events.at(-1)?.kind ?? 'loaded';
+		const startedAt = attempt.events.find(entry => entry.kind === 'starting' || entry.kind === 'startRequested' || entry.kind === 'loaded')?.timestamp;
+		const completedAt = attempt.events.find(entry =>
+			entry.kind === 'ready' || entry.kind === 'authRequired' || entry.kind === 'failed' || entry.kind === 'stopped'
+		)?.timestamp;
+		return {
+			id: attempt.id,
+			events: attempt.events,
+			state,
+			duration: startedAt !== undefined && completedAt !== undefined ? Math.max(0, completedAt - startedAt) : undefined,
+			problem: [...attempt.events].reverse().find(entry => entry.kind === 'failed' || entry.kind === 'authRequired'),
+		};
+	});
+	const currentAttempt = summarizedAttempts.at(-1);
+	const currentState = currentAttempt?.state ?? 'loaded';
+	return {
+		currentState,
+		attempts: summarizedAttempts,
+		successfulAttempts: summarizedAttempts.filter(attempt => attempt.events.some(entry => entry.kind === 'ready')).length,
+		failedAttempts: summarizedAttempts.filter(attempt => attempt.events.some(entry => entry.kind === 'failed')).length,
+		lastStartupDuration: [...summarizedAttempts].reverse().find(attempt => attempt.duration !== undefined)?.duration,
+		readySince: currentState === 'ready'
+			? [...(currentAttempt?.events ?? [])].reverse().find(entry => entry.kind === 'ready')?.timestamp
+			: undefined,
+		currentProblem: currentState === 'failed' || currentState === 'authRequired' ? currentAttempt?.problem : undefined,
+	};
 }
 
 function mergeUsage(
@@ -293,35 +581,41 @@ function mergeUsage(
 }
 
 function createEmptyGroups(): ISessionCustomizationGroup[] {
-	return sectionOrder.map(section => ({ section, items: [] }));
+	return sectionOrder.map(section => ({ section, items: [], lifecycle: [] }));
 }
 
-function groupCustomizations(customizations: readonly Customization[], usage: ReadonlyMap<string, readonly ISessionCustomizationEvidence[]>): ISessionCustomizationGroup[] {
+function groupCustomizations(
+	customizations: readonly Customization[],
+	usage: ReadonlyMap<string, readonly ISessionCustomizationEvidence[]>,
+	lifecycle: ReadonlyMap<string, readonly ISessionCustomizationLifecycleEntry[]>,
+	hookLifecycle: readonly ISessionCustomizationLifecycleEntry[],
+): ISessionCustomizationGroup[] {
 	const groups = new Map<SessionCustomizationSection, ISessionCustomizationItem[]>(
 		sectionOrder.map(section => [section, []])
 	);
 	for (const customization of customizations) {
 		if (customization.type === CustomizationType.Plugin) {
 			const childEvidence = (customization.children ?? []).flatMap(child => usage.get(child.id) ?? []);
-			groups.get(SessionCustomizationSection.Plugins)?.push(toPluginItem(customization, childEvidence));
+			groups.get(SessionCustomizationSection.Plugins)?.push(toPluginItem(customization, childEvidence, lifecycle.get(customization.id) ?? []));
 			for (const child of customization.children ?? []) {
-				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? []));
+				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? [], lifecycle.get(child.id) ?? []));
 			}
 		} else if (customization.type === CustomizationType.Directory) {
 			for (const child of customization.children ?? []) {
-				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? []));
+				groups.get(sectionForChild(child))?.push(toChildItem(child, customization, usage.get(child.id) ?? [], lifecycle.get(child.id) ?? []));
 			}
 		} else {
-			groups.get(SessionCustomizationSection.McpServers)?.push(toMcpServerItem(customization, usage.get(customization.id) ?? []));
+			groups.get(SessionCustomizationSection.McpServers)?.push(toMcpServerItem(customization, usage.get(customization.id) ?? [], lifecycle.get(customization.id) ?? []));
 		}
 	}
 	return sectionOrder.map(section => ({
 		section,
 		items: groups.get(section)?.sort((a, b) => a.name.localeCompare(b.name) || a.uri.localeCompare(b.uri)) ?? [],
+		lifecycle: section === SessionCustomizationSection.Hooks ? hookLifecycle : [],
 	}));
 }
 
-function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCustomizationEvidence[]): ISessionCustomizationItem {
+function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCustomizationEvidence[], lifecycle: readonly ISessionCustomizationLifecycleEntry[]): ISessionCustomizationItem {
 	const loadStatus = containerLoadStatus(plugin);
 	return {
 		id: plugin.id,
@@ -337,10 +631,11 @@ function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCu
 		detail: loadStatus.detail,
 		evidence,
 		metadata: customizationMetadata(plugin),
+		lifecycle,
 	};
 }
 
-function toChildItem(child: ChildCustomization, parent: PluginCustomization | DirectoryCustomization, evidence: readonly ISessionCustomizationEvidence[]): ISessionCustomizationItem {
+function toChildItem(child: ChildCustomization, parent: PluginCustomization | DirectoryCustomization, evidence: readonly ISessionCustomizationEvidence[], lifecycle: readonly ISessionCustomizationLifecycleEntry[]): ISessionCustomizationItem {
 	const parentEnabled = parent.type === CustomizationType.Plugin ? isCustomizationEnabled(parent) : parent.enabled;
 	const childEnabled = child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled !== false;
 	const loadStatus = containerLoadStatus(parent);
@@ -360,10 +655,11 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 		detail,
 		evidence,
 		metadata: customizationMetadata(child),
+		lifecycle,
 	};
 }
 
-function toMcpServerItem(server: McpServerCustomization, evidence: readonly ISessionCustomizationEvidence[]): ISessionCustomizationItem {
+function toMcpServerItem(server: McpServerCustomization, evidence: readonly ISessionCustomizationEvidence[], lifecycle: readonly ISessionCustomizationLifecycleEntry[]): ISessionCustomizationItem {
 	return {
 		id: server.id,
 		section: SessionCustomizationSection.McpServers,
@@ -378,6 +674,7 @@ function toMcpServerItem(server: McpServerCustomization, evidence: readonly ISes
 		detail: mcpServerDetail(server),
 		evidence,
 		metadata: customizationMetadata(server),
+		lifecycle,
 	};
 }
 
@@ -418,6 +715,8 @@ function mcpServerStatus(server: McpServerCustomization): SessionCustomizationSt
 	switch (server.state.kind) {
 		case 'starting':
 			return 'loading';
+		case 'authRequired':
+			return 'authenticationRequired';
 		case 'error':
 			return 'failed';
 		case 'stopped':

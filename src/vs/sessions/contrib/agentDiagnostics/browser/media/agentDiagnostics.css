@@ -299,6 +299,12 @@
 	background: var(--vscode-editor-background);
 }
 
+.agent-diagnostics-customization-status.authenticationRequired {
+	color: var(--vscode-inputValidation-infoForeground);
+	background: var(--vscode-inputValidation-infoBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-infoBorder);
+}
+
 .agent-diagnostics-customization-status.degraded {
 	color: var(--vscode-inputValidation-warningForeground);
 	background: var(--vscode-inputValidation-warningBackground);
@@ -416,6 +422,254 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size40);
+}
+
+.agent-diagnostics-customization-lifecycle {
+	margin-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size100);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.agent-diagnostics-customization-section-body > .agent-diagnostics-customization-lifecycle {
+	margin: 0;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.agent-diagnostics-customization-lifecycle-heading {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-health {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.agent-diagnostics-customization-health-fact {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	background: var(--vscode-editor-background);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-health-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-diagnostics-customization-health-value {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-health-problem {
+	margin-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	background: var(--vscode-editor-background);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.agent-diagnostics-customization-health-problem.error {
+	border-left-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.agent-diagnostics-customization-health-problem-title {
+	color: var(--vscode-inputValidation-warningForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-health-problem.error .agent-diagnostics-customization-health-problem-title {
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.agent-diagnostics-customization-health-problem-detail {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.agent-diagnostics-customization-attempts-heading {
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-attempts {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.agent-diagnostics-customization-attempt {
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.agent-diagnostics-customization-attempt.pending {
+	border-left-color: var(--vscode-progressBar-background);
+}
+
+.agent-diagnostics-customization-attempt.success {
+	border-left-color: var(--vscode-testing-iconPassed);
+}
+
+.agent-diagnostics-customization-attempt.warning {
+	border-left-color: var(--vscode-inputValidation-warningBorder);
+}
+
+.agent-diagnostics-customization-attempt.error {
+	border-left-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.agent-diagnostics-customization-attempt-header.monaco-button {
+	justify-content: flex-start;
+	width: 100%;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	font-size: var(--vscode-fontSize-body2);
+	text-align: left;
+}
+
+.agent-diagnostics-customization-attempt-header.monaco-button:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-diagnostics-customization-attempt-problem {
+	padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.agent-diagnostics-customization-attempt-events[hidden] {
+	display: none;
+}
+
+.agent-diagnostics-customization-attempt-events {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.agent-diagnostics-customization-lifecycle-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+}
+
+.agent-diagnostics-customization-lifecycle-entry {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	background: var(--vscode-editor-background);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.agent-diagnostics-customization-lifecycle-entry.pending {
+	border-left-color: var(--vscode-progressBar-background);
+}
+
+.agent-diagnostics-customization-lifecycle-entry.success {
+	border-left-color: var(--vscode-testing-iconPassed);
+}
+
+.agent-diagnostics-customization-lifecycle-entry.warning {
+	border-left-color: var(--vscode-inputValidation-warningBorder);
+}
+
+.agent-diagnostics-customization-lifecycle-entry.error {
+	border-left-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.agent-diagnostics-customization-lifecycle-header,
+.agent-diagnostics-customization-lifecycle-facts {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.agent-diagnostics-customization-lifecycle-time {
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-lifecycle-state {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-lifecycle-title {
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-lifecycle-details.monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	margin-left: auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	border: 0;
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-lifecycle-details.monaco-button:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-diagnostics-customization-lifecycle-facts,
+.agent-diagnostics-customization-lifecycle-detail {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.agent-diagnostics-customization-lifecycle-field {
+	margin-top: var(--vscode-spacing-size60);
+}
+
+.agent-diagnostics-customization-lifecycle-field-label {
+	margin-bottom: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-lifecycle-field-value {
+	max-height: 200px;
+	margin: 0;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	overflow: auto;
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+	white-space: pre-wrap;
+	word-break: break-word;
 }
 
 .agent-diagnostics-customization-empty {
