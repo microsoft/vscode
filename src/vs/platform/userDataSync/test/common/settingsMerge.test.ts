@@ -40,6 +40,135 @@ suite('SettingsMerge - Merge', () => {
 		assert.ok(!actual.hasConflicts);
 	});
 
+	test('merge preserves ignored settings inside platform overrides', async () => {
+		const baseContent = stringify({
+			'windows': { 'ignored': 'base', 'shared': 'base' }
+		});
+		const localContent = stringify({
+			'windows': { 'ignored': 'local', 'shared': 'base' },
+			'local': true
+		});
+		const remoteContent = stringify({
+			'windows': { 'ignored': 'remote', 'shared': 'remote' }
+		});
+
+		const actual = merge(localContent, remoteContent, baseContent, ['ignored'], [], formattingOptions);
+
+		assert.deepStrictEqual(JSON.parse(actual.localContent!), {
+			'windows': { 'ignored': 'local', 'shared': 'remote' },
+			'local': true
+		});
+		assert.deepStrictEqual(JSON.parse(actual.remoteContent!), {
+			'windows': { 'ignored': 'remote', 'shared': 'remote' },
+			'local': true
+		});
+		assert.deepStrictEqual(actual.conflictsSettings, []);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge preserves empty platform overrides', async () => {
+		for (const ignoredSettings of [[], ['unrelated']]) {
+			const actual = merge(
+				stringify({ 'anchor': 0, 'windows': {} }),
+				stringify({ 'anchor': 1 }),
+				stringify({ 'anchor': 0 }),
+				ignoredSettings,
+				[],
+				formattingOptions
+			);
+
+			assert.deepStrictEqual(JSON.parse(actual.localContent!), { 'anchor': 1, 'windows': {} });
+			assert.deepStrictEqual(JSON.parse(actual.remoteContent!), { 'anchor': 1, 'windows': {} });
+			assert.deepStrictEqual(actual.conflictsSettings, []);
+			assert.ok(!actual.hasConflicts);
+		}
+	});
+
+	test('merge treats an ignored-only platform override as an existing empty override', async () => {
+		const actual = merge(
+			stringify({ 'windows': {} }),
+			stringify({ 'windows': { 'ignored': 1 } }),
+			stringify({}),
+			['ignored'],
+			[],
+			formattingOptions
+		);
+
+		assert.strictEqual(actual.localContent, null);
+		assert.strictEqual(actual.remoteContent, null);
+		assert.deepStrictEqual(actual.conflictsSettings, []);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge adds a platform setting to an ignored-only override', async () => {
+		const actual = merge(
+			stringify({ 'windows': { 'shared': true } }),
+			stringify({ 'windows': { 'ignored': 'remote' } }),
+			stringify({}),
+			['ignored'],
+			[],
+			formattingOptions
+		);
+
+		assert.strictEqual(actual.localContent, null);
+		assert.deepStrictEqual(JSON.parse(actual.remoteContent!), {
+			'windows': { 'ignored': 'remote', 'shared': true }
+		});
+		assert.deepStrictEqual(actual.conflictsSettings, []);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge removes a platform override', async () => {
+		const baseContent = stringify({ 'windows': { 'shared': 'base' } });
+		const actual = merge(
+			stringify({}),
+			stringify({ 'windows': { 'shared': 'base' } }),
+			baseContent,
+			[],
+			[],
+			formattingOptions
+		);
+
+		assert.strictEqual(actual.localContent, null);
+		assert.deepStrictEqual(JSON.parse(actual.remoteContent!), {});
+		assert.deepStrictEqual(actual.conflictsSettings, []);
+		assert.ok(!actual.hasConflicts);
+	});
+
+	test('merge preserves language overrides nested inside platform overrides', async () => {
+		const baseContent = stringify({
+			'windows': {
+				'shared': 'base',
+				'[typescript]': { 'editor.defaultFormatter': 'base' }
+			}
+		});
+		const localContent = stringify({
+			'windows': {
+				'shared': 'local',
+				'[typescript]': { 'editor.defaultFormatter': 'base' }
+			}
+		});
+		const remoteContent = stringify({
+			'windows': {
+				'shared': 'base',
+				'[typescript]': { 'editor.defaultFormatter': 'remote' }
+			}
+		});
+
+		const actual = merge(localContent, remoteContent, baseContent, [], [], formattingOptions);
+
+		const expected = {
+			'windows': {
+				'shared': 'local',
+				'[typescript]': { 'editor.defaultFormatter': 'remote' }
+			}
+		};
+		assert.deepStrictEqual(JSON.parse(actual.localContent!), expected);
+		assert.deepStrictEqual(JSON.parse(actual.remoteContent!), expected);
+		assert.deepStrictEqual(actual.conflictsSettings, []);
+		assert.ok(!actual.hasConflicts);
+	});
+
 	test('merge when local and remote are same with multiple entries in different order', async () => {
 		const localContent = stringify({
 			'b': 2,
@@ -806,6 +935,32 @@ suite('SettingsMerge - Compute Remote Content', () => {
 		assert.strictEqual(actual, expected);
 	});
 
+	test('ignored settings inside platform overrides are not updated from remote content', async () => {
+		const localContent = stringify({
+			'windows': { 'a': 1, 'b': 2 },
+			'linux': { 'a': 1 },
+		});
+		const remoteContent = stringify({
+			'windows': { 'a': 3 },
+		});
+
+		const actual = updateIgnoredSettings(localContent, remoteContent, ['a'], formattingOptions);
+
+		assert.deepStrictEqual(JSON.parse(actual), {
+			'windows': { 'a': 3, 'b': 2 },
+		});
+	});
+
+	test('ignored settings are removed from platform overrides', async () => {
+		const actual = updateIgnoredSettings(
+			stringify({ 'windows': { 'ignored': 'local' } }),
+			stringify({}),
+			['ignored'],
+			formattingOptions
+		);
+
+		assert.deepStrictEqual(JSON.parse(actual), {});
+	});
 });
 
 suite('SettingsMerge - Add Setting', () => {

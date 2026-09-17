@@ -5,6 +5,7 @@
 import assert from 'assert';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { join } from '../../../../base/common/path.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from '../../common/configurationModels.js';
@@ -1035,6 +1036,7 @@ export class TestConfiguration extends Configuration {
 		applicationConfiguration: ConfigurationModel,
 		localUserConfiguration: ConfigurationModel,
 		remoteUserConfiguration?: ConfigurationModel,
+		os?: OperatingSystem,
 	) {
 		super(
 			defaultConfiguration,
@@ -1046,7 +1048,8 @@ export class TestConfiguration extends Configuration {
 			new ResourceMap<ConfigurationModel>(),
 			ConfigurationModel.createEmptyModel(new NullLogService()),
 			new ResourceMap<ConfigurationModel>(),
-			new NullLogService()
+			new NullLogService(),
+			os
 		);
 	}
 
@@ -1065,6 +1068,83 @@ suite('Configuration', () => {
 		const { overrideIdentifiers } = testObject.inspect('a', {}, undefined);
 
 		assert.deepStrictEqual(overrideIdentifiers, ['l1', 'l3', 'l4']);
+	});
+
+	test('resolves settings for the current platform', () => {
+		const userConfigurationModel = parseConfigurationModel({
+			'a': 'common',
+			'windows': { 'a': 'windows', '[typescript]': { 'a': 'windows typescript' } },
+			'osx': { 'a': 'osx', '[javascript][typescript]': { 'a': 'osx language' } },
+			'linux': { 'a': 'linux', '[typescript]': { 'a': 'linux typescript' } },
+			'[typescript]': { 'a': 'typescript' }
+		});
+		const empty = ConfigurationModel.createEmptyModel(new NullLogService());
+		const windowsConfiguration = new TestConfiguration(empty, empty, empty, userConfigurationModel, undefined, OperatingSystem.Windows);
+		const macConfiguration = new TestConfiguration(empty, empty, empty, userConfigurationModel, undefined, OperatingSystem.Macintosh);
+		const linuxConfiguration = new TestConfiguration(empty, empty, empty, userConfigurationModel, undefined, OperatingSystem.Linux);
+
+		assert.deepStrictEqual({
+			windows: windowsConfiguration.getValue('a', {}, undefined),
+			mac: macConfiguration.getValue('a', {}, undefined),
+			linux: linuxConfiguration.getValue('a', {}, undefined),
+			typescript: macConfiguration.getValue('a', { overrideIdentifier: 'typescript' }, undefined),
+			javascript: macConfiguration.getValue('a', { overrideIdentifier: 'javascript' }, undefined),
+			overrideIdentifiers: macConfiguration.inspect('a', {}, undefined).overrideIdentifiers,
+			userValue: macConfiguration.inspect<string>('a', {}, undefined).userValue
+		}, {
+			windows: 'windows',
+			mac: 'osx',
+			linux: 'linux',
+			typescript: 'osx language',
+			javascript: 'osx language',
+			overrideIdentifiers: ['typescript', 'javascript'],
+			userValue: 'osx'
+		});
+
+		windowsConfiguration.updateWorkspaceConfiguration(parseConfigurationModel({
+			'a': 'workspace',
+			'windows': { 'a': 'workspace windows' }
+		}));
+		assert.strictEqual(windowsConfiguration.getValue('a', {}, undefined), 'workspace windows');
+
+		windowsConfiguration.updateWorkspaceConfiguration(parseConfigurationModel({ 'a': 'workspace' }));
+		assert.strictEqual(windowsConfiguration.getValue('a', {}, undefined), 'workspace');
+	});
+
+	test('distinguishes platform properties from language override identifiers', () => {
+		const userConfigurationModel = parseConfigurationModel({
+			'a': 'common',
+			'windows': { 'a': 'platform' },
+			'[windows]': { 'a': 'language' }
+		});
+		const empty = ConfigurationModel.createEmptyModel(new NullLogService());
+		const windowsConfiguration = new TestConfiguration(empty, empty, empty, userConfigurationModel, undefined, OperatingSystem.Windows);
+		const linuxConfiguration = new TestConfiguration(empty, empty, empty, userConfigurationModel, undefined, OperatingSystem.Linux);
+
+		assert.deepStrictEqual({
+			windows: windowsConfiguration.getValue('a', {}, undefined),
+			windowsLanguage: windowsConfiguration.getValue('a', { overrideIdentifier: 'windows' }, undefined),
+			linux: linuxConfiguration.getValue('a', {}, undefined),
+			linuxLanguage: linuxConfiguration.getValue('a', { overrideIdentifier: 'windows' }, undefined),
+			overrideIdentifiers: windowsConfiguration.inspect('a', {}, undefined).overrideIdentifiers
+		}, {
+			windows: 'platform',
+			windowsLanguage: 'language',
+			linux: 'common',
+			linuxLanguage: 'language',
+			overrideIdentifiers: ['windows']
+		});
+	});
+
+	test('reports configuration changes for every platform', () => {
+		const empty = ConfigurationModel.createEmptyModel(new NullLogService());
+		const from = parseConfigurationModel({ 'windows': { 'a': 1 } });
+		const to = parseConfigurationModel({ 'windows': { 'a': 2 } });
+		const windowsConfiguration = new TestConfiguration(empty, empty, empty, from, undefined, OperatingSystem.Windows);
+		const linuxConfiguration = new TestConfiguration(empty, empty, empty, from, undefined, OperatingSystem.Linux);
+
+		assert.deepStrictEqual(windowsConfiguration.compareAndUpdateLocalUserConfiguration(to), { keys: ['a'], overrides: [] });
+		assert.deepStrictEqual(linuxConfiguration.compareAndUpdateLocalUserConfiguration(to), { keys: ['a'], overrides: [] });
 	});
 
 	test('Test update value', () => {
