@@ -8,13 +8,17 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { AgentSession } from '../../agentHost/common/agent.js';
 import { AgentHostOTelSpansDbSubPath } from '../../agentHost/common/agentService.js';
 import { AgentHostSessionUriAttribute } from '../../agentHost/common/otel/agentHostOTelService.js';
+import { CHAT_BACKING_METADATA_KEY, SESSION_DB_FILENAME } from '../../agentHost/common/sessionDataService.js';
+import { DEFAULT_CHAT_ID, parseChatUri } from '../../agentHost/common/state/sessionState.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { join } from '../../../base/common/path.js';
+import { ILogService } from '../../log/common/log.js';
 import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionIdentity, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../common/otelDiagnosticsService.js';
-import { OTelSqliteStore, SpanRow } from './sqlite/otelSqliteStore.js';
+import { loadSqlite, OTelSqliteStore, SpanRow } from './sqlite/otelSqliteStore.js';
 
 interface IRawMessagePart {
 	readonly id?: string;
@@ -52,20 +56,24 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly store: OTelSqliteStore;
+	private readonly sessionDataHome: URI;
+	private readonly chatBackingIdentityRequests = new Map<string, Promise<IOTelDiagnosticsSessionIdentity | undefined>>();
 
 	constructor(
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@IFileService fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		const dbPath = join(environmentService.userDataPath, AgentHostOTelSpansDbSubPath);
 		this.store = new OTelSqliteStore(dbPath);
+		this.sessionDataHome = URI.file(join(environmentService.userDataPath, 'agentSessionData'));
 		this._register(toDisposable(() => this.store.close()));
 
 		const dbResource = URI.file(dbPath);
 		const walResource = URI.file(`${dbPath}-wal`);
 		const scheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 250));
-		const watcher = this._register(fileService.createWatcher(dirname(dbResource), { recursive: false, excludes: [] }));
+		const watcher = this._register(this.fileService.createWatcher(dirname(dbResource), { recursive: false, excludes: [] }));
 		this._register(watcher.onDidChange(event => {
 			if (event.affects(dbResource) || event.affects(walResource)) {
 				scheduler.schedule();
@@ -74,15 +82,69 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 	}
 
 	async resolveSessionUri(sessionUri: string): Promise<IOTelDiagnosticsSessionIdentity | undefined> {
-		const normalizedSessionUri = URI.parse(sessionUri).with({ fragment: '' }).toString();
+		const resource = URI.parse(sessionUri);
+		const chatBackingIdentity = await this.resolveChatBackingIdentity(resource);
+		if (chatBackingIdentity) {
+			return chatBackingIdentity;
+		}
+		const parsedChat = parseChatUri(resource);
+		const normalizedSessionUri = parsedChat
+			? URI.parse(parsedChat.session).toString()
+			: resource.with({ fragment: '' }).toString();
 		const exact = this.store.getSpansByAttribute(AgentHostSessionUriAttribute, normalizedSessionUri);
 		const anchorSpans = exact.length > 0
 			? exact
 			: this.store.getSpansByAttributeSuffix(AgentHostSessionUriAttribute, normalizedSessionUri.slice(normalizedSessionUri.indexOf(':') + 1));
-		const anchor = anchorSpans.findLast(span => !!span.conversation_id);
+		const expectedConversationId = AgentSession.id(URI.parse(normalizedSessionUri));
+		const anchor = anchorSpans.findLast(span => span.conversation_id === expectedConversationId)
+			?? anchorSpans.findLast(span => !!span.conversation_id);
 		return anchor?.conversation_id
 			? { sessionUri: normalizedSessionUri, conversationId: anchor.conversation_id }
 			: undefined;
+	}
+
+	private resolveChatBackingIdentity(chatResource: URI): Promise<IOTelDiagnosticsSessionIdentity | undefined> {
+		const parsedChat = parseChatUri(chatResource);
+		if (!parsedChat || parsedChat.chatId === DEFAULT_CHAT_ID) {
+			return Promise.resolve(undefined);
+		}
+		const key = chatResource.toString();
+		let request = this.chatBackingIdentityRequests.get(key);
+		if (!request) {
+			request = Promise.resolve(this.findChatBackingIdentity(chatResource, parsedChat.session));
+			this.chatBackingIdentityRequests.set(key, request);
+			void request.then(identity => {
+				if (!identity) {
+					this.chatBackingIdentityRequests.delete(key);
+				}
+			});
+		}
+		return request;
+	}
+
+	private findChatBackingIdentity(chatResource: URI, owningSessionUri: string): IOTelDiagnosticsSessionIdentity | undefined {
+		const sessions = this.store.getSessions().sort((a, b) => b.ended_at - a.ended_at);
+		for (const session of sessions) {
+			try {
+				const sessionDataId = session.session_id.replace(/[^a-zA-Z0-9_.-]/g, '-');
+				const database = new (loadSqlite().DatabaseSync)(URI.joinPath(this.sessionDataHome, sessionDataId, SESSION_DB_FILENAME).fsPath, { readOnly: true });
+				try {
+					const row = database.prepare('SELECT value FROM session_metadata WHERE key = ?').get(CHAT_BACKING_METADATA_KEY) as { value?: string } | undefined;
+					if (row?.value !== chatResource.toString()) {
+						continue;
+					}
+					return {
+						sessionUri: URI.parse(owningSessionUri).with({ path: `/${session.session_id}`, query: '', fragment: '' }).toString(),
+						conversationId: session.session_id,
+					};
+				} finally {
+					database.close();
+				}
+			} catch (error) {
+				this.logService.trace(`[OTelDiagnosticsService] Failed to inspect Agent Host session data for ${session.session_id}`, error);
+			}
+		}
+		return undefined;
 	}
 
 	async getSessionSummary(sessionUri: string): Promise<IOTelDiagnosticsSessionSummary | undefined> {

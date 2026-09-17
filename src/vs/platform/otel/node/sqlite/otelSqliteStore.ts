@@ -19,7 +19,7 @@ import type { ICompletedSpanData } from '../../common/spanData.js';
 // load synchronously on startup). Use createRequire so the binding is
 // only resolved when the store is actually opened.
 const nodeRequire = createRequire(import.meta.url);
-function loadSqlite(): typeof import('node:sqlite') {
+export function loadSqlite(): typeof import('node:sqlite') {
 	return nodeRequire('node:sqlite') as typeof import('node:sqlite');
 }
 

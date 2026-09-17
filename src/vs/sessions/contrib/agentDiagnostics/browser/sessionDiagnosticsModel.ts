@@ -153,7 +153,10 @@ export class SessionDiagnosticsModel extends Disposable {
 	}
 
 	private async load(sessionResource: URI, chatResource: URI, generation: number): Promise<void> {
-		const queryResource = chatResource.with({ fragment: '' }).toString();
+		const resolvedChatResource = this.chatDebugService.resolveSessionResource(chatResource);
+		const queryResource = isEqual(resolvedChatResource, chatResource)
+			? chatResource.with({ fragment: '' }).toString()
+			: resolvedChatResource.toString();
 		const [summary, messages, traces, sessionActivity] = await Promise.all([
 			this.otelDiagnosticsService.getSessionSummary(queryResource),
 			this.otelDiagnosticsService.getSessionMessages(queryResource),

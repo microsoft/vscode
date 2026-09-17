@@ -388,7 +388,11 @@ export class SessionCustomizationsModel extends Disposable {
 		if (events.length === 0) {
 			return;
 		}
-		const traces = await this.otelDiagnosticsService.getSessionTraces(focusedChatResource.with({ fragment: '' }).toString());
+		const resolvedChatResource = this.chatDebugService.resolveSessionResource(focusedChatResource);
+		const queryResource = isEqual(resolvedChatResource, focusedChatResource)
+			? focusedChatResource.with({ fragment: '' }).toString()
+			: resolvedChatResource.toString();
+		const traces = await this.otelDiagnosticsService.getSessionTraces(queryResource);
 		const traceDetails = await Promise.all(traces.map(trace => this.otelDiagnosticsService.getTraceDetails(trace.traceId)));
 		const allSpans = traceDetails.flatMap(details => details?.spans ?? []);
 		const skillSpans = allSpans
@@ -465,7 +469,11 @@ export class SessionCustomizationsModel extends Disposable {
 			return;
 		}
 		this.refreshingMcpLifecycle = true;
-		void this.otelDiagnosticsService.getSessionLogs(session.resource.toString()).then(logs => {
+		const resolvedChatResource = this.chatDebugService.resolveSessionResource(focusedChatResource);
+		const queryResource = isEqual(resolvedChatResource, focusedChatResource)
+			? focusedChatResource.with({ fragment: '' }).toString()
+			: resolvedChatResource.toString();
+		void this.otelDiagnosticsService.getSessionLogs(queryResource).then(logs => {
 			if (this.session?.sessionId !== session.sessionId || !isEqual(this.focusedChatResource, focusedChatResource)) {
 				return;
 			}

@@ -15,6 +15,9 @@ export const ISessionDataService = createDecorator<ISessionDataService>('session
 /** Filename of the per-session SQLite database. */
 export const SESSION_DB_FILENAME = 'session.db';
 
+/** Metadata key linking an SDK-level backing session to its owning Agent Host chat. */
+export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
+
 /**
  * Subdirectory under a session's data directory that holds snapshotted
  * user-message attachments (e.g. pasted content, fetched file references).

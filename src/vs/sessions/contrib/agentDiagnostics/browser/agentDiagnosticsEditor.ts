@@ -106,7 +106,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
 			const activeSession = this.sessionsService.activeSession.get();
-			if (!activeSession || !isEqual(activeSession.activeChat.get().resource, sessionResource)) {
+			if (!activeSession?.chats.get().some(chat => isEqual(chat.resource, sessionResource))) {
 				return undefined;
 			}
 			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);

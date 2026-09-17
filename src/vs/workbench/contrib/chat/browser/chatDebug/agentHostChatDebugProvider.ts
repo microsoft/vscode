@@ -379,12 +379,12 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		const sourceChatResource = this._chatDebugService.resolveSessionResource(sessionResource);
 		const parsedSourceChat = parseChatUri(sourceChatResource);
 		const sourceSessionResource = parsedSourceChat ? URI.parse(parsedSourceChat.session) : sourceChatResource;
-		const sessionIdentity = await this._otelDiagnosticsService.resolveSessionUri(sourceSessionResource.toString());
+		const sessionIdentity = await this._otelDiagnosticsService.resolveSessionUri(sourceChatResource.toString());
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 		const eventsSessionResource = sessionIdentity
-			? sourceSessionResource.with({ path: `/${sessionIdentity.conversationId}` })
+			? URI.parse(sessionIdentity.sessionUri)
 			: sourceSessionResource;
 		const eventsUri = this._resolveEventsUri(eventsSessionResource);
 		if (!eventsUri) {

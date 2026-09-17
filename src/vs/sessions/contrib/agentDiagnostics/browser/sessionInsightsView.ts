@@ -607,7 +607,7 @@ export class SessionInsightsView extends Disposable {
 			sessionResource: state.sessionResource,
 			sourceChatResource: state.chatResource,
 			content: JSON.stringify({
-				sessionUri: state.chatResource.with({ fragment: '' }).toString(),
+				sessionUri: state.summary?.sessionUri ?? state.chatResource.with({ fragment: '' }).toString(),
 				agentHostLog: {
 					path: agentHostLog.fsPath,
 					uri: agentHostLog.toString(),
