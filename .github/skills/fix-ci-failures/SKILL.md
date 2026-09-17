@@ -55,7 +55,7 @@ gh api --paginate "repos/microsoft/vscode/commits/$HEAD/check-runs?per_page=100"
 
 # Legacy commit statuses (e.g. Azure Pipelines) are a separate API and are not included above
 gh api --paginate "repos/microsoft/vscode/commits/$HEAD/status?per_page=100" \
-  --jq '.statuses[] | select(.state == "pending") | {context, state, target_url, description}'
+  --jq '.statuses[] | select(.state == "pending") | {context, state, target_url, description}' # Treat target_url/description like details_url/output: wait for active CI, not approval/policy gates
 ```
 
 - **Workflow/job check**: its details URL points to an Actions run or job. It may be useful to wait briefly if its result is needed for the task.
