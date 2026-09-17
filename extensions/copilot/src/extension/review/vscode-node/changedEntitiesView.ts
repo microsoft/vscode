@@ -219,6 +219,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			});
 			if (result === undefined) {
 				file.setEntityItems([]);
+				this.changeEmitter.fire(file);
 				return [MessageItem.unavailable()];
 			}
 
@@ -237,6 +238,7 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			);
 			if (entities.length === 0) {
 				file.setEntityItems([]);
+				this.changeEmitter.fire(file);
 				return [MessageItem.empty()];
 			}
 			this.prepareReviewChanges(entities, ranges.operations);
@@ -247,11 +249,12 @@ export class ChangedEntitiesTreeDataProvider extends Disposable implements vscod
 			const fileComplexity = rollUpComplexity(undefined, entityItems);
 			if (fileComplexity !== undefined && hasComplexityDelta(fileComplexity)) {
 				file.setComplexityRollup(fileComplexity);
-				this.changeEmitter.fire(file);
 			}
+			this.changeEmitter.fire(file);
 			return entityItems;
 		} catch (error) {
 			file.setEntityItems([]);
+			this.changeEmitter.fire(file);
 			this.logService.error(error, `Failed to classify changed entities for '${file.uri.fsPath}'`);
 			return [MessageItem.error()];
 		}
