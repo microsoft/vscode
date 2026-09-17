@@ -63,6 +63,12 @@ tampered with. The merged bag is then projected onto the declared schema (see be
 Client-side merging still happens *within* a channel's value (e.g. `enabledPlugins`,
 `extraKnownMarketplaces`).
 
+**Sandbox routing exception:** `sandbox.enabled` follows the runtime's `force-on-wins`
+contract: `true` from any managed channel wins over `false` from another channel.
+The shared resolver supplies this result to harness selection, permissions UI, and
+Policy Diagnostics; runtime enforcement remains authoritative. Other keys retain
+their existing delivery-channel precedence.
+
 ## Schema source of truth
 
 When the developer has `copilot-agent-runtime` checked out side-by-side, reference
