@@ -91,6 +91,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		version: info.version,
 		env: environment,
 	});
+	disposables.push(git);
 	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
 	const cloneManager = new CloneManager(model, telemetryReporter, model.repositoryCache);
