@@ -19,7 +19,7 @@ suite('Remote resource response', () => {
 			webEndpoint: getHeaders(allowedWebEndpointOrigin)['Access-Control-Allow-Origin'],
 			webview: getHeaders('vscode-webview://01234567-89ab-cdef-0123-456789abcdef')['Access-Control-Allow-Origin'],
 			untrusted: getHeaders('https://example.com')['Access-Control-Allow-Origin'],
-			vary: getHeaders(undefined)['Vary'],
+			vary: getHeaders(undefined).Vary,
 		}, {
 			nativeWorkbench: 'vscode-file://vscode-app',
 			webEndpoint: allowedWebEndpointOrigin,
