@@ -204,6 +204,16 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 
 				const cmd = cp.spawn('/usr/bin/open', openArgs, { env });
 				setupSpawnErrorHandling(cmd, resolve, reject, terminalApp);
+			} else if (terminalApp === 'Kitty.app' || terminalApp === 'kitty.app') {
+				// Kitty can be launched via open and configured through CLI args, similar to Ghostty.
+				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+				const openArgs = ['-na', 'Kitty.app', '--args'];
+				openArgs.push('--directory=' + dir);
+				openArgs.push('--hold');
+				openArgs.push('-e', ...args);
+
+				const cmd = cp.spawn('/usr/bin/open', openArgs, { env });
+				setupSpawnErrorHandling(cmd, resolve, reject, terminalApp);
 			} else {
 				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
