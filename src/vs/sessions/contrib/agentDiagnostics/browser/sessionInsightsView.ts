@@ -14,6 +14,7 @@ import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getReasoningEffortLabel } from '../../../../platform/agentHost/common/reasoningEffort.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOTelDiagnosticsMessage, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getEventCreatedText, getEventDetailsText, getEventNameText } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEventList.js';
@@ -69,6 +70,7 @@ export class SessionInsightsView extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		private readonly model: SessionDiagnosticsModel,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		const scrollContent = DOM.$('.agent-diagnostics-insights-scroll');
@@ -433,16 +435,29 @@ export class SessionInsightsView extends Disposable {
 
 	private renderSpan(traceNode: ITraceNode, parent: HTMLElement, trace: IOTelDiagnosticsTrace, span: IOTelDiagnosticsSpan): void {
 		const row = DOM.append(parent, DOM.$('.agent-diagnostics-span'));
-		const button = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
+		const button = traceNode.detailStore.add(new Button(row, {
+			...defaultButtonStyles,
+			secondary: true,
+			buttonSecondaryBackground: 'transparent',
+			buttonSecondaryBorder: 'transparent',
+			buttonSecondaryForeground: 'var(--vscode-foreground)',
+			buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',
+		}));
 		button.element.classList.add('agent-diagnostics-span-button');
-		button.label = localize('agentDiagnostics.spanLabel', "{0} · {1}", span.name, formatDuration(span.duration));
+		const label = localize('agentDiagnostics.spanLabel', "{0} · {1}", span.name, formatDuration(span.duration));
+		button.label = label;
+		button.setAriaLabel(label);
+		traceNode.detailStore.add(this.hoverService.setupDelayedHover(button.element, { content: label }));
 		const expanded = this.expandedSpanIds.has(span.spanId);
 		button.element.setAttribute('aria-expanded', String(expanded));
 		const track = DOM.append(row, DOM.$('.agent-diagnostics-span-track'));
+		track.setAttribute('aria-hidden', 'true');
 		const bar = DOM.append(track, DOM.$('.agent-diagnostics-span-bar'));
 		const traceDuration = Math.max(1, trace.duration);
-		bar.style.left = `${Math.max(0, (span.startTime - trace.startTime) / traceDuration * 100)}%`;
-		bar.style.width = `${Math.max(1, span.duration / traceDuration * 100)}%`;
+		const startRatio = Math.min(1, Math.max(0, (span.startTime - trace.startTime) / traceDuration));
+		const durationRatio = Math.min(1 - startRatio, Math.max(0, span.duration / traceDuration));
+		bar.style.left = `${startRatio * 100}%`;
+		bar.style.width = `${durationRatio * 100}%`;
 		traceNode.detailStore.add(button.onDidClick(() => {
 			if (this.expandedSpanIds.has(span.spanId)) {
 				this.expandedSpanIds.delete(span.spanId);

@@ -1020,21 +1020,25 @@
 
 .agent-diagnostics-span {
 	display: grid;
-	grid-template-columns: minmax(200px, 1fr) minmax(160px, 2fr);
+	grid-template-columns: minmax(0, 2fr) minmax(160px, 3fr);
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
 .agent-diagnostics-span-button.monaco-button {
-	justify-content: flex-start;
+	display: block;
+	min-width: 0;
 	width: 100%;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	overflow: hidden;
 	color: var(--vscode-foreground);
 	background: transparent;
 	border: 0;
 	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-body2);
 	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .agent-diagnostics-span-button.monaco-button:hover {
@@ -1053,6 +1057,7 @@
 	position: absolute;
 	top: 0;
 	bottom: 0;
+	min-width: var(--vscode-spacing-size20);
 	background: var(--vscode-charts-blue);
 	border-radius: var(--vscode-cornerRadius-small);
 }

@@ -144,7 +144,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		);
 		insightsPanel.emptyState.remove();
 		this.diagnosticsModel = this._register(this.instantiationService.createInstance(SessionDiagnosticsModel));
-		this.sessionInsightsView = this._register(new SessionInsightsView(insightsPanel.panel, this.diagnosticsModel));
+		this.sessionInsightsView = this._register(this.instantiationService.createInstance(SessionInsightsView, insightsPanel.panel, this.diagnosticsModel));
 		this._register(this.sessionInsightsView.onDidRequestTroubleshoot(request => {
 			void this.openTroubleshootChat(request).catch(error => {
 				this.notificationService.error(localize('agentDiagnostics.troubleshootError', "Failed to open Troubleshoot chat: {0}", toErrorMessage(error)));
