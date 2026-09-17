@@ -1656,13 +1656,11 @@ suite('ActionListWidget', () => {
 		const viewportHeight = parseFloat(viewport.style.height);
 		assert.deepStrictEqual({
 			listHeight,
-			topFitsOuterChromeFilterAndList: top === 300 - 260 - 10 - 30 - listHeight - 8,
-			panelBottom: 260 + top + 10 + 30 + listHeight,
+			panelFitsViewport: 260 + top + 10 + 30 + listHeight <= 300 - 8,
 			viewportHeight,
 		}, {
 			listHeight: 240,
-			topFitsOuterChromeFilterAndList: true,
-			panelBottom: 292,
+			panelFitsViewport: true,
 			viewportHeight: 270,
 		});
 	}));
