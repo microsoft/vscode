@@ -120,9 +120,6 @@ export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
  */
 export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvider, IViewLineHitTestProvider {
 
-	/** Guard against pathological documents while this is a proof of concept. */
-	private static readonly MAX_LINES = 20_000;
-
 	public readonly canvas: FastDomNode<HTMLCanvasElement>;
 
 	private _editorView: EditorView | undefined;
@@ -132,7 +129,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * Renderer-free and unit-tested; this ViewPart only handles renderer readiness
 	 * and executes the plan it produces.
 	 */
-	private readonly _sync = new EditorViewModelSync(EditorViewGpu.MAX_LINES);
+	private readonly _sync = new EditorViewModelSync();
 	private readonly _decorationResolver: EditorViewDecorationResolver;
 	private _decorationsDirty = true;
 	private _foldingControlsHovered = false;
@@ -514,7 +511,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	private _gatherLines(): LineInput[] {
-		const lineCount = Math.min(this._context.viewModel.getLineCount(), EditorViewGpu.MAX_LINES);
+		const lineCount = this._context.viewModel.getLineCount();
 		const ctx = this._tokenColorContext();
 		const lines: LineInput[] = new Array(lineCount);
 		for (let i = 0; i < lineCount; i++) {
@@ -719,7 +716,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		if (!guideOptions.indentation) {
 			return;
 		}
-		const lineCount = Math.min(this._context.viewModel.getLineCount(), EditorViewGpu.MAX_LINES);
+		const lineCount = this._context.viewModel.getLineCount();
 		if (lineCount === 0) {
 			return;
 		}
@@ -797,7 +794,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			return;
 		}
 
-		const lineCount = Math.min(this._context.viewModel.getLineCount(), EditorViewGpu.MAX_LINES);
+		const lineCount = this._context.viewModel.getLineCount();
 		if (lineCount === 0) {
 			this._applyDelta({ type: 'setFoldingControls', controls: [] });
 			this._applyDelta({ type: 'setDecorations', decorations: [] });
@@ -906,7 +903,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	 * is 0-based (matching the cursor/selection conversions elsewhere here).
 	 */
 	public getColumnOffset(lineNumber: number, column: number): number | undefined {
-		if (!this._editorView || lineNumber < 1 || lineNumber > Math.min(this._context.viewModel.getLineCount(), EditorViewGpu.MAX_LINES)) {
+		if (!this._editorView || lineNumber < 1 || lineNumber > this._context.viewModel.getLineCount()) {
 			return undefined;
 		}
 		this._syncModel();
@@ -923,7 +920,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	}
 
 	public getPositionAtCoordinate(lineNumber: number, mouseContentHorizontalOffset: number): Position | undefined {
-		if (!this._editorView || lineNumber < 1 || lineNumber > Math.min(this._context.viewModel.getLineCount(), EditorViewGpu.MAX_LINES)) {
+		if (!this._editorView || lineNumber < 1 || lineNumber > this._context.viewModel.getLineCount()) {
 			return undefined;
 		}
 		this._syncModel();
@@ -998,17 +995,17 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		return true;
 	}
 	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		this._recordEdit(sync => sync.onLinesChanged(e.fromLineNumber, e.count, this._context.viewModel.getLineCount()));
+		this._recordEdit(sync => sync.onLinesChanged(e.fromLineNumber, e.count));
 		this._decorationsDirty = true;
 		return true;
 	}
 	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		this._recordEdit(sync => sync.onLinesDeleted(e.fromLineNumber, e.toLineNumber, this._context.viewModel.getLineCount()));
+		this._recordEdit(sync => sync.onLinesDeleted(e.fromLineNumber, e.toLineNumber));
 		this._decorationsDirty = true;
 		return true;
 	}
 	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		this._recordEdit(sync => sync.onLinesInserted(e.fromLineNumber, e.toLineNumber, this._context.viewModel.getLineCount()));
+		this._recordEdit(sync => sync.onLinesInserted(e.fromLineNumber, e.toLineNumber));
 		this._decorationsDirty = true;
 		return true;
 	}

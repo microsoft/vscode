@@ -51,12 +51,6 @@ export class EditorViewModelSync {
 	/** Structural splices recorded in emission order (inserts carry placeholders). */
 	private _structural: ModelDeltaInput[] = [];
 
-	/**
-	 * @param _maxLines Documents larger than this escalate to a full reload rather
-	 * than tracking incrementally (matching the mirror's own line cap).
-	 */
-	constructor(private readonly _maxLines: number) { }
-
 	/** Whether a full rebuild is currently queued for the next {@link takePlan}. */
 	public get pendingFullReload(): boolean {
 		return this._fullReload;
@@ -80,8 +74,8 @@ export class EditorViewModelSync {
 	}
 
 	/** Content of `count` existing view lines changed (no line-count change). */
-	public onLinesChanged(fromLineNumber: number, count: number, lineCount: number): void {
-		if (!this._canApplyIncrementally(lineCount)) {
+	public onLinesChanged(fromLineNumber: number, count: number): void {
+		if (this._fullReload) {
 			return;
 		}
 		const to = fromLineNumber + count - 1;
@@ -91,8 +85,8 @@ export class EditorViewModelSync {
 	}
 
 	/** `[fromLineNumber..toLineNumber]` view lines were inserted. */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineCount: number): void {
-		if (!this._canApplyIncrementally(lineCount)) {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		if (this._fullReload) {
 			return;
 		}
 		const count = toLineNumber - fromLineNumber + 1;
@@ -104,8 +98,8 @@ export class EditorViewModelSync {
 	}
 
 	/** `[fromLineNumber..toLineNumber]` view lines were deleted. */
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, lineCount: number): void {
-		if (!this._canApplyIncrementally(lineCount)) {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		if (this._fullReload) {
 			return;
 		}
 		const count = toLineNumber - fromLineNumber + 1;
@@ -115,7 +109,7 @@ export class EditorViewModelSync {
 
 	/** Tokens changed for the given (1-based, inclusive) view line ranges. */
 	public onTokensChanged(ranges: readonly { readonly fromLineNumber: number; readonly toLineNumber: number }[], lineCount: number): void {
-		if (!this._canApplyIncrementally(lineCount)) {
+		if (this._fullReload) {
 			return;
 		}
 		for (const range of ranges) {
@@ -146,19 +140,6 @@ export class EditorViewModelSync {
 		this._tokenDirty.clear();
 		this._structural = [];
 		return plan;
-	}
-
-	private _canApplyIncrementally(lineCount: number): boolean {
-		if (this._fullReload) {
-			// A full reload is already queued; it will capture the final state.
-			return false;
-		}
-		if (lineCount > this._maxLines) {
-			// Larger than the mirrored cap — degrade to a single (capped) rebuild.
-			this.scheduleFullReload();
-			return false;
-		}
-		return true;
 	}
 
 	/**

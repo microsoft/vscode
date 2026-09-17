@@ -15,7 +15,7 @@ import { EditorViewModelSync } from '../../../../browser/viewParts/editorViewGpu
  * are updated **only** by executing the plan the planner produces — inserting
  * placeholders for structural inserts and reading final content for dirty lines,
  * exactly as `EditorViewGpu` does at present time. After each `sync()` the mirror
- * must equal the reference (capped at `maxLines`).
+ * must equal the complete reference document.
  */
 class Sim {
 
@@ -31,8 +31,8 @@ class Sim {
 
 	private _sigCounter = 0;
 
-	constructor(initial: string[], private readonly _maxLines = 1_000_000) {
-		this._sync = new EditorViewModelSync(this._maxLines);
+	constructor(initial: string[]) {
+		this._sync = new EditorViewModelSync();
 		this._refText = initial.slice();
 		this._refSig = initial.map(() => this._nextSig());
 	}
@@ -57,7 +57,7 @@ class Sim {
 			this._refText[line - 1] = `changed(${this._nextSig()})`;
 			this._refSig[line - 1] = this._nextSig(); // a content change re-tokenizes
 		}
-		this._sync.onLinesChanged(fromLineNumber, count, this._refText.length);
+		this._sync.onLinesChanged(fromLineNumber, count);
 	}
 
 	public insert(fromLineNumber: number, count: number): void {
@@ -69,13 +69,13 @@ class Sim {
 		}
 		this._refText.splice(fromLineNumber - 1, 0, ...newText);
 		this._refSig.splice(fromLineNumber - 1, 0, ...newSig);
-		this._sync.onLinesInserted(fromLineNumber, fromLineNumber + count - 1, this._refText.length);
+		this._sync.onLinesInserted(fromLineNumber, fromLineNumber + count - 1);
 	}
 
 	public delete(fromLineNumber: number, count: number): void {
 		this._refText.splice(fromLineNumber - 1, count);
 		this._refSig.splice(fromLineNumber - 1, count);
-		this._sync.onLinesDeleted(fromLineNumber, fromLineNumber + count - 1, this._refText.length);
+		this._sync.onLinesDeleted(fromLineNumber, fromLineNumber + count - 1);
 	}
 
 	public tokens(fromLineNumber: number, toLineNumber: number): void {
@@ -94,8 +94,8 @@ class Sim {
 	public sync(): void {
 		const plan = this._sync.takePlan();
 		if (plan.fullReload) {
-			this._mirText = this._refText.slice(0, this._maxLines);
-			this._mirSig = this._refSig.slice(0, this._maxLines);
+			this._mirText = this._refText.slice();
+			this._mirSig = this._refSig.slice();
 			return;
 		}
 		for (const delta of plan.structural) {
@@ -123,10 +123,8 @@ class Sim {
 	}
 
 	public assertSynced(message?: string): void {
-		const cappedText = this._refText.slice(0, this._maxLines);
-		const cappedSig = this._refSig.slice(0, this._maxLines);
-		assert.deepStrictEqual(this._mirText, cappedText, `text mismatch${message ? ': ' + message : ''}`);
-		assert.deepStrictEqual(this._mirSig, cappedSig, `token mismatch${message ? ': ' + message : ''}`);
+		assert.deepStrictEqual(this._mirText, this._refText, `text mismatch${message ? ': ' + message : ''}`);
+		assert.deepStrictEqual(this._mirSig, this._refSig, `token mismatch${message ? ': ' + message : ''}`);
 	}
 }
 
@@ -135,7 +133,7 @@ suite('EditorViewModelSync', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('initial state schedules a full reload, then a clean incremental state', () => {
-		const sync = new EditorViewModelSync(1000);
+		const sync = new EditorViewModelSync();
 		assert.strictEqual(sync.pendingFullReload, true);
 		const plan = sync.takePlan();
 		assert.strictEqual(plan.fullReload, true);
@@ -241,12 +239,52 @@ suite('EditorViewModelSync', () => {
 		sim.assertSynced();
 	});
 
-	test('exceeding the line cap escalates to a full reload', () => {
-		const sim = new Sim(['a', 'b'], /* maxLines */ 3);
+	test('crossing 20,000 lines keeps the complete mirror incremental', () => {
+		const sim = new Sim(Array.from({ length: 19_999 }, (_, i) => `line ${i}`));
 		sim.sync();
-		sim.insert(3, 5); // now 7 lines > cap of 3
-		const plan = sim.planner().takePlan();
-		assert.strictEqual(plan.fullReload, true, 'over-cap edits force a rebuild');
+		sim.insert(20_000, 3);
+		sim.change(20_001, 2);
+		sim.tokens(20_000, 20_002);
+		assert.strictEqual(sim.planner().pendingFullReload, false);
+		sim.sync();
+		sim.assertSynced('after crossing former cap');
+
+		sim.delete(19_999, 4);
+		sim.sync();
+		sim.assertSynced('after deleting across former cap');
+	});
+
+	test('edits and token updates deep in a large document remain incremental', () => {
+		const sync = new EditorViewModelSync();
+		sync.takePlan();
+		sync.onLinesChanged(100_001, 1);
+		sync.onLinesInserted(100_002, 100_002);
+		sync.onLinesDeleted(100_004, 100_004);
+		sync.onTokensChanged([{ fromLineNumber: 100_001, toLineNumber: 100_003 }], 100_010);
+		assert.deepStrictEqual(sync.takePlan(), {
+			fullReload: false,
+			structural: [
+				{ type: 'replaceLines', start: 100_001, deleteCount: 0, insert: [{ text: '', tokens: [] }] },
+				{ type: 'replaceLines', start: 100_003, deleteCount: 1, insert: [] },
+			],
+			contentLines: [100_001, 100_002],
+			tokenLines: [100_003],
+		});
+	});
+
+	test('large document rebuilds and coalesced edits preserve every line', () => {
+		const sim = new Sim(Array.from({ length: 100_010 }, (_, i) => `line ${i}`));
+		sim.sync();
+		sim.assertSynced('initial full document');
+		sim.change(100_005, 2);
+		sim.insert(19_999, 3);
+		sim.delete(50_000, 2);
+		sim.tokens(100_003, 100_011);
+		sim.sync();
+		sim.assertSynced('deep edits and shifted tokens');
+		sim.flush();
+		sim.sync();
+		sim.assertSynced('full remap');
 	});
 
 	test('scheduleFullReload discards pending incremental work', () => {
@@ -270,7 +308,7 @@ suite('EditorViewModelSync', () => {
 	});
 
 	test('hasPendingChanges tracks whether takePlan would do work', () => {
-		const sync = new EditorViewModelSync(1000);
+		const sync = new EditorViewModelSync();
 		// Starts dirty (initial full reload).
 		assert.strictEqual(sync.hasPendingChanges, true);
 		sync.takePlan();

@@ -44,6 +44,16 @@ For local development, install the package without saving it to the source
 manifest/lockfile, or hot-link a local build. The same startup detection applies.
 Ordinary `npm install`/`npm ci` may remove such an undeclared local installation.
 
+## Document size
+
+The adapter mirrors the complete view model; there is no renderer-specific
+line-count cap. Text, tokens, decorations, folding controls, and coordinate
+queries use the same full document range, including soft-wrapped view lines.
+Ordinary edits remain incremental regardless of document length. Initial loads
+and complete view remaps still transfer the full document; indentation guides
+and paint are restricted to the viewport. Large documents remain subject to
+normal editor and available-memory limits, not silent truncation.
+
 ## Validation
 
 Run the detector tests in both Node and the Electron unit runner: Electron loads
@@ -63,3 +73,9 @@ type the availability singleton and keep implementation classes `@internal`.
 After intentional API changes, regenerate with `npm run gulp monacodts`.
 The distro build also tree-shakes class members. GPU hit-test implementations
 must explicitly implement `IViewLineHitTestProvider` so its methods are retained.
+
+`editorViewModelSync.test.ts` covers complete mirrors and incremental edits
+past 20,000 and 100,000 lines. The package's DOM-vs-GPU compare suite additionally
+checks visible text, EOL measurements, pointer hit testing, insert/delete and
+undo/redo across the old boundary, and 12,000 model lines wrapping to 60,000
+view lines (`npm run test:compare` in the package).
