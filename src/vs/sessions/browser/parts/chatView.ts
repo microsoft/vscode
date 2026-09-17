@@ -130,6 +130,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve(false);
 	}
 
+	get submitButtonElement(): HTMLElement | undefined {
+		return undefined;
+	}
+
 	/**
 	 * Attach the given resources as context to this view's chat input. The
 	 * default implementation is a no-op; subclasses that host a chat widget

@@ -198,8 +198,9 @@ export class SessionsPart extends Part {
 
 		const slot = this._slots.find(slot => slot.boundSessionId === sessionId)
 			?? (isNewSession ? this._slots.find(slot => slot.boundSessionId === undefined) : undefined);
-		if (slot) {
-			triggerConfettiAnimation(slot.view.element, { bounce: false });
+		const submitButton = slot?.view.submitButtonElement;
+		if (submitButton) {
+			triggerConfettiAnimation(submitButton, { bounce: false });
 		}
 	}
 

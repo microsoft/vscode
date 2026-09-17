@@ -329,6 +329,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._standaloneView.value?.submitInput() ?? this._groupsView.submitInput();
 	}
 
+	get submitButtonElement(): HTMLElement | undefined {
+		return this._standaloneView.value?.submitButtonElement ?? this._groupsView.submitButtonElement;
+	}
+
 	/**
 	 * Attaches the given resources as context to the active chat group's input.
 	 */

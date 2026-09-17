@@ -454,6 +454,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return !this.hasInput && (this.options.canApplyWorkspaceDefault?.() ?? false);
 	}
 
+	get submitButtonElement(): HTMLElement | undefined {
+		return this._sendButton?.element;
+	}
+
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 

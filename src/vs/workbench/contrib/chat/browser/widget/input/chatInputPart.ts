@@ -540,6 +540,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.inputContainer;
 	}
 
+	get submitButtonElement(): HTMLElement | undefined {
+		if (!this.executeToolbar) {
+			return undefined;
+		}
+		for (let index = 0; ; index++) {
+			const action = this.executeToolbar.getItemAction(index);
+			if (!action) {
+				return undefined;
+			}
+			if (action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) {
+				return this.executeToolbar.getItemElement(index);
+			}
+		}
+	}
+
 	get inputRowHeight(): number {
 		return this.inputAndSideToolbar.offsetHeight;
 	}

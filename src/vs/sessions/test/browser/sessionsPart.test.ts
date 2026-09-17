@@ -58,6 +58,7 @@ class TestSessionView implements IDisposable {
 	readonly element = document.createElement('div');
 	readonly minimumWidth = 200;
 	readonly partVisibility: boolean[] = [];
+	submitButtonElement: HTMLElement | undefined;
 
 	setPartVisible(visible: boolean): void {
 		this.partVisibility.push(visible);
@@ -175,6 +176,20 @@ suite('Sessions - Sessions Part', () => {
 		const workbench = document.createElement('div');
 		workbench.className = 'monaco-workbench';
 		const sessionView = new TestSessionView();
+		const submitButton = document.createElement('button');
+		submitButton.getBoundingClientRect = () => ({
+			x: 900,
+			y: 700,
+			top: 700,
+			right: 932,
+			bottom: 732,
+			left: 900,
+			width: 32,
+			height: 32,
+			toJSON() { },
+		});
+		sessionView.submitButtonElement = submitButton;
+		sessionView.element.appendChild(submitButton);
 		workbench.appendChild(sessionView.element);
 		document.body.appendChild(workbench);
 		const overlaysBefore = document.querySelectorAll('.animation-overlay').length;
@@ -208,10 +223,22 @@ suite('Sessions - Sessions Part', () => {
 		assert.deepStrictEqual({
 			overlayCount: overlays.length,
 			particleCount: overlays[0]?.querySelectorAll('.animation-confetti-particle').length,
-			targetAnimations: sessionView.element.getAnimations().length,
+			overlayBounds: overlays[0] ? {
+				left: overlays[0].style.left,
+				top: overlays[0].style.top,
+				width: overlays[0].style.width,
+				height: overlays[0].style.height,
+			} : undefined,
+			targetAnimations: submitButton.getAnimations().length,
 		}, {
 			overlayCount: 1,
 			particleCount: 24,
+			overlayBounds: {
+				left: '900px',
+				top: '700px',
+				width: '32px',
+				height: '32px',
+			},
 			targetAnimations: 0,
 		});
 	});
