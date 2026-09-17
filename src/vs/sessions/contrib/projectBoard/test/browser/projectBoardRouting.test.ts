@@ -185,6 +185,7 @@ suite('Project Board Agents routing', () => {
 			settingActions: [
 				'projectBoard.settings.openChatInSidePanel',
 				'projectBoard.settings.autoIncludeSessions',
+				'projectBoard.settings.sessionList',
 				'projectBoard.settings.stateDuration',
 				'projectBoard.settings.credits',
 				'projectBoard.settings.lastPrompt',
