@@ -122,13 +122,9 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
 	private readonly perSectionPending = new Map<ItemsModelSection, Promise<void>>();
-	private readonly enabledRemotePluginNames = observableValue<readonly string[]>('aiCustomizationEnabledRemotePluginNames', []);
-	private readonly pluginCount = derived(reader => {
+	private readonly enabledRemotePluginNames = observableValue<readonly string[]>(this, []);
+	private readonly pluginCount = derived(this, reader => {
 		const installed = this.agentPluginService.plugins.read(reader);
-		// Match PluginListWidget's installed-name derivation
-		// (see installedPluginToItem in pluginListWidget.ts) so the model and
-		// editor widget agree on what counts as a duplicate when a plugin's
-		// `label` is empty/undefined.
 		const installedNames = new Set(installed.map(p => (p.label || basename(p.uri)).toLowerCase()));
 		const enabledInstalledCount = installed.filter(plugin => isContributionEnabled(plugin.enablement.read(reader))).length;
 		const remoteNames = this.enabledRemotePluginNames.read(reader);

@@ -759,10 +759,6 @@ suite('AICustomizationItemsModel', () => {
 		});
 
 		test('getPluginCount dedups against URI basename when local plugin label is empty', async () => {
-			// Mirrors PluginListWidget: when an installed plugin has no label
-			// (`label === ''`), the editor renders it under `basename(plugin.uri)`
-			// and dedups remote rows against that. The model must use the same
-			// fallback or the sidebar count drifts above the editor count.
 			providerItems = [harnessPluginRow('basename-match')];
 			const labelless: IAgentPlugin = {
 				...localPlugin('basename-match'),

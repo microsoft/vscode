@@ -1082,12 +1082,13 @@ export class PluginListWidget extends Disposable {
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 
-		// Compute the sidebar badge from the enabled rows.
+		// Compute sidebar badge directly from the data array (same source as group headers)
 		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	/**
-	 * Gets the enabled item count from the underlying data array.
+	 * Gets the total item count from the underlying data array
+	 * (the same source used to build group headers).
 	 */
 	get itemCount(): number {
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
@@ -1098,10 +1099,9 @@ export class PluginListWidget extends Disposable {
 			if (item.name && installedNames.has(item.name.toLowerCase())) {
 				return false;
 			}
-			return item.enabled !== false;
+			return true;
 		});
-		const enabledInstalledCount = this.installedItems.filter(item => isContributionEnabled(item.plugin.enablement.get())).length;
-		return uniqueRemote.length + enabledInstalledCount;
+		return uniqueRemote.length + this.installedItems.length;
 	}
 
 	/**
