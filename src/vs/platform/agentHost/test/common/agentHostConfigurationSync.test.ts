@@ -13,7 +13,7 @@ import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValue
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey } from '../../common/agentHostSchema.js';
 import { ArtifactToolsCompactPromptsSettingId, ArtifactToolsSettingId } from '../../common/agentService.js';
-import '../../common/agentHostStarter.config.contribution.js';
+import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
@@ -44,6 +44,7 @@ suite('AgentHostConfigurationSync', () => {
 		id: 'testAgentHostSync',
 		type: 'object' as const,
 		properties: {
+			...artifactToolsConfigurationProperties,
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,

@@ -34,15 +34,11 @@ import {
 	AgentHostOTelResourceAttributesSettingId,
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
-	ArtifactToolsCompactPromptsSettingId,
-	ArtifactToolsSettingId,
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
-	AgentHostArtifactToolsCompactPromptsConfigKey,
-	AgentHostArtifactToolsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
@@ -52,6 +48,7 @@ import {
 	AgentHostSystemProxyEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
+import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -194,24 +191,7 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
 		},
-		[ArtifactToolsSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.artifactTools.enabled', "When enabled, agents can record artifacts — pull requests, issues, commits, websites, files and other resources — which are surfaced above the chat input."),
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostArtifactToolsConfigKey },
-		},
-		[ArtifactToolsCompactPromptsSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.artifactTools.compactPrompts', "Uses compact artifact tool guidance instead of the original wording. Does not change tool availability or deferral. Start a new chat to compare prompt formats."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostArtifactToolsCompactPromptsConfigKey },
-		},
+		...artifactToolsConfigurationProperties,
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.autoAttachPullRequests', "Controls whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded by the agent as artifacts or explicitly selected or created through session actions are considered."),
