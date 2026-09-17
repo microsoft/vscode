@@ -141,7 +141,10 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
-		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
+		// Record which API and model produced this round so the request builders can tell
+		// replayable reasoning from foreign state without guessing from the payload's id.
+		const roundOrigin = round.originApi && roundModelId ? { api: round.originApi, modelId: roundModelId } : undefined;
+		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} origin={roundOrigin} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
 		children.push(

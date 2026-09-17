@@ -32,7 +32,7 @@ import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../commo
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex, MISSING_STATEFUL_TOOL_RESULT } from '../common/statefulMarkerContainer';
-import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { rawPartAsThinkingEnvelope, type IThinkingEnvelope } from '../common/thinkingDataContainer';
 import { createResponsesStreamDumper } from './responsesApiDebugDump';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
@@ -421,7 +421,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
 					input.push(...extractCompactionData(message.content));
-					input.push(...extractThinkingData(message.content));
+					input.push(...extractThinkingData(message.content, modelId));
 					const asstContent = message.content.map(rawContentToResponsesAssistantContent).filter(isDefined);
 					if (asstContent.length) {
 						const assistantMessage: ResponseInputAssistantMessageWithPhase = {
@@ -654,31 +654,41 @@ function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionCont
 }
 
 /**
- * The Responses API rejects the entire request with
+ * Encrypted reasoning is opaque provider state, so it may only be replayed to the API and
+ * model that issued it. Replaying a foreign payload fails the entire request with
  * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
- * when a reasoning item is round-tripped with an id it did not issue. Reasoning items
- * produced by the Responses API always carry an id beginning with `rs`. Thinking blocks
- * that originated from a different API (e.g. the Anthropic Messages API, whose accumulator
- * generates `thinking_<index>` ids) can leak into a Responses request — most notably via the
- * `vscode.lm` access path, which has no model gate — and their `encrypted_content` is not a
- * valid Responses reasoning blob anyway. Such foreign reasoning items must be dropped, not sent.
+ *
+ * Provenance is recorded on the thinking envelope when a round is created, so the check is
+ * on where the payload came from rather than what its id looks like. An id-prefix test is not
+ * a usable substitute: CAPI's production `/responses` endpoint issues reasoning ids that do
+ * not begin with `rs`, so testing the prefix silently drops valid reasoning between tool
+ * calls — the model then re-derives work it had already done.
+ *
+ * The model check is what keeps foreign thinking (e.g. Anthropic `thinking_<index>` blocks)
+ * out of a Responses request, including over the `vscode.lm` path which has no model gate of
+ * its own.
+ *
+ * Rounds persisted before provenance tracking carry no origin. Those fall back to the
+ * historical `rs` prefix test, which preserves the previous behavior for existing history.
  */
-function isResponsesReasoningId(id: string | undefined): boolean {
-	return typeof id === 'string' && id.startsWith('rs');
+function canReplayAsResponsesReasoning(envelope: IThinkingEnvelope, destinationModelId: string): boolean {
+	const { thinking, origin } = envelope;
+	if (origin) {
+		return origin.api === 'responses' && origin.modelId === destinationModelId;
+	}
+	return typeof thinking.id === 'string' && thinking.id.startsWith('rs');
 }
 
-function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
+function extractThinkingData(content: Raw.ChatCompletionContentPart[], destinationModelId: string): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
-			const thinkingData = rawPartAsThinkingData(part);
-			// Only round-trip genuine Responses API reasoning items. A foreign id (or a thinking
-			// block with no encrypted payload) would otherwise 400 the whole request.
-			if (thinkingData && thinkingData.encrypted && isResponsesReasoningId(thinkingData.id)) {
+			const envelope = rawPartAsThinkingEnvelope(part);
+			if (envelope?.thinking.encrypted && canReplayAsResponsesReasoning(envelope, destinationModelId)) {
 				return {
 					type: 'reasoning',
-					id: thinkingData.id,
+					id: envelope.thinking.id,
 					summary: [],
-					encrypted_content: thinkingData.encrypted,
+					encrypted_content: envelope.thinking.encrypted,
 				} satisfies OpenAI.Responses.ResponseReasoningItem;
 			}
 		}

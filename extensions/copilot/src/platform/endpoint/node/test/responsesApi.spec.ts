@@ -20,7 +20,7 @@ import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
-import type { ThinkingData } from '../../../thinking/common/thinking';
+import type { ThinkingData, ThinkingOrigin } from '../../../thinking/common/thinking';
 import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { MISSING_STATEFUL_TOOL_RESULT } from '../../common/statefulMarkerContainer';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
@@ -101,12 +101,12 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 	}]
 });
 
-const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
+const createThinkingAssistantMessage = (thinking: ThinkingData, origin?: ThinkingOrigin): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
 			type: Raw.ChatCompletionContentPartKind.Opaque,
-			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking },
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking, origin },
 		},
 		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
 	],
@@ -379,29 +379,92 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
-	it('round-trips a genuine Responses reasoning item (id begins with "rs")', () => {
+	it('round-trips reasoning whose id has no "rs" prefix when it came from this model over the Responses API', () => {
+		// Regression: CAPI's production /responses endpoint issues reasoning ids that are long
+		// opaque blobs with no `rs` prefix. Gating the round-trip on the id silently dropped that
+		// reasoning between tool calls, so the model re-derived work it had already done.
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const messages = [createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' })];
+		const id = 'CzDhIBSZ31VSyW6rYILnFerwKDkArecaC';
+		const messages = [createThinkingAssistantMessage(
+			{ id, text: 'reasoning', encrypted: 'enc_blob' },
+			{ api: 'responses', modelId: testEndpoint.model },
+		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
-		expect(body.input).toContainEqual({ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' });
+		expect(body.input).toContainEqual({ type: 'reasoning', id, summary: [], encrypted_content: 'enc_blob' });
 
 		accessor.dispose();
 		services.dispose();
 	});
 
-	it('drops foreign thinking (Messages API "thinking_N" id) so it cannot 400 the Responses request', () => {
-		// Reproduces "400 invalid_request_body: Invalid 'input[N].id': 'thinking_0'. Expected an
-		// ID that begins with 'rs'." Anthropic Messages-API thinking leaks into a Responses
-		// request (e.g. via the vscode.lm path); its id and encrypted payload are foreign and
-		// must not be round-tripped.
+	it('drops Messages API thinking even when its id looks like a Responses reasoning id', () => {
+		// Provenance decides, not the id: an Anthropic signature is not a valid Responses
+		// reasoning blob regardless of what the id happens to look like.
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const messages = [createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' })];
+		const messages = [createThinkingAssistantMessage(
+			{ id: 'rs_looks_legit', text: '', encrypted: 'sig_from_anthropic' },
+			{ api: 'messages', modelId: testEndpoint.model },
+		)];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops Responses reasoning issued by a different model', () => {
+		// Encrypted reasoning is model-scoped opaque state. This is the gate the `vscode.lm`
+		// path never had of its own.
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage(
+			{ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' },
+			{ api: 'responses', modelId: 'some-other-model' },
+		)];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('falls back to the "rs" id test for history persisted before provenance was tracked', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [
+			createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' }),
+			createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' }),
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([
+			{ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' },
+		]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops thinking that carries no encrypted payload', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage(
+			{ id: 'rs_abc123', text: 'summary only' },
+			{ api: 'responses', modelId: testEndpoint.model },
+		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 

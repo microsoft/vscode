@@ -82,3 +82,48 @@ export interface ThinkingData {
 	 */
 	redacted?: boolean;
 }
+
+/** The wire protocol that produced a thinking payload. Mirrors `IChatEndpoint.apiType`. */
+export type ThinkingOriginApi = 'responses' | 'messages' | 'chatCompletions';
+
+/**
+ * Identifies the request that produced a thinking payload.
+ *
+ * Encrypted reasoning is opaque provider state, so it may only be replayed to the API and
+ * model that issued it. The id is not a usable substitute for provenance: id formats are
+ * provider conventions, not protocol guarantees.
+ */
+export interface ThinkingOrigin {
+	readonly api: ThinkingOriginApi;
+	readonly modelId: string;
+}
+
+const thinkingOriginApis: readonly string[] = ['responses', 'messages', 'chatCompletions'];
+
+/**
+ * Narrows an untrusted value — an endpoint's loosely typed `apiType`, or metadata that
+ * crossed the `vscode.lm` boundary — to a known origin API.
+ */
+export function asThinkingOriginApi(value: unknown): ThinkingOriginApi | undefined {
+	return typeof value === 'string' && thinkingOriginApis.includes(value) ? value as ThinkingOriginApi : undefined;
+}
+
+/**
+ * `vscode.lm` transports thinking as flat parts with no envelope, so provenance has to ride
+ * per-part metadata and be collapsed back into an envelope on the way in.
+ */
+export const thinkingOriginApiMetadataKey = 'vscode_thinking_origin_api';
+export const thinkingOriginModelMetadataKey = 'vscode_thinking_origin_model';
+
+export function thinkingOriginToMetadata(origin: ThinkingOrigin): { [key: string]: string } {
+	return {
+		[thinkingOriginApiMetadataKey]: origin.api,
+		[thinkingOriginModelMetadataKey]: origin.modelId,
+	};
+}
+
+export function thinkingOriginFromMetadata(metadata: { readonly [key: string]: any } | undefined): ThinkingOrigin | undefined {
+	const api = asThinkingOriginApi(metadata?.[thinkingOriginApiMetadataKey]);
+	const modelId = metadata?.[thinkingOriginModelMetadataKey];
+	return api && typeof modelId === 'string' && modelId ? { api, modelId } : undefined;
+}
