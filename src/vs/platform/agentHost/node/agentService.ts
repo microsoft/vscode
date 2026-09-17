@@ -1634,22 +1634,31 @@ export class AgentService extends Disposable implements IAgentService {
 		})();
 	}
 
-	/** Records a session's provisional state durably and in the mirror listing reads. */
-	private async _setSessionProvisional(session: URI, provisional: boolean): Promise<void> {
-		await this._sessionRegistry.setProvisional(session, provisional);
-		if (provisional) {
-			this._provisionalSessionKeys.add(session.toString());
-		} else {
-			this._provisionalSessionKeys.delete(session.toString());
-		}
+	/**
+	 * Clears a session's provisional marker durably and in the mirror listing
+	 * reads. Setting it happens in the registration transaction instead, so a
+	 * crash cannot separate a registration from its marker.
+	 */
+	private async _clearSessionProvisional(session: URI): Promise<void> {
+		await this._sessionRegistry.setProvisional(session, false);
+		this._provisionalSessionKeys.delete(session.toString());
 	}
 
 	/**
 	 * Drops sessions that are still marked provisional and whose provider cannot
 	 * describe them: their registration points at a backing that was never
-	 * created, so no later run can resolve them (#321269). Both conditions are
-	 * required — a provisional session the provider vouches for did materialize
-	 * (its marker simply never cleared) and keeps its real content visible.
+	 * created, so no later run can resolve them (#321269).
+	 *
+	 * Three conditions are required, and each guards a way real content could
+	 * otherwise be hidden: the marker must still be set; the provider's catalog
+	 * must be known readable this run, since a provider that cannot yet answer
+	 * returns `undefined` without throwing and that is not evidence of absence;
+	 * and the provider must then decline to describe the session. A materialized
+	 * session whose marker-clear never landed is kept visible by the third
+	 * condition, and one whose provider is merely unavailable by the second.
+	 *
+	 * Erring towards a visible junk row is deliberate: under-suppressing costs a
+	 * row the user can delete, over-suppressing costs their work.
 	 */
 	private async _withoutUnmaterializedProvisionalSessions(sessions: readonly IAgentSessionMetadata[], registered: readonly IRegisteredSession[]): Promise<readonly IAgentSessionMetadata[]> {
 		if (sessions.length === 0 || this._provisionalSessionKeys.size === 0) {
@@ -1664,7 +1673,10 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			const agent = this._providerService.getProvider(entry.provider);
-			if (!agent) {
+			// Read synchronously: this runs inside the listing, whose phase ordering
+			// drives provider catalog migration, so awaiting a readability signal
+			// here would change when those passes run.
+			if (!agent || !this._readableProviderCatalogs.has(entry.provider)) {
 				return;
 			}
 			try {
@@ -3917,20 +3929,20 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			try {
 				const registeredAt = Date.now();
+				// The provider deferred this session's backing, so nothing exists on
+				// its side until the first send. That fact is recorded durably in the
+				// same transaction as the registration: the in-memory
+				// `isIdleProvisionalSession` guard reports `false` for a session it no
+				// longer tracks, so after a crash it stops hiding this registration and
+				// the session surfaces as a row that can never be described (#321269).
+				// Writing the marker separately would leave a window where a crash
+				// produces exactly the unmarked orphan this marker exists to catch.
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
+					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false, provisional: isIdleProvisional }),
 					`registration for ${session.toString()}`,
 				);
-				// The provider deferred this session's backing, so nothing exists on
-				// its side until the first send. Record that durably: the in-memory
-				// `isIdleProvisionalSession` guard reports `false` for an untracked
-				// session, so after a crash it stops hiding this registration and the
-				// session surfaces as a row that can never be described (#321269).
 				if (isIdleProvisional) {
-					await this._retryRegistryMutation(
-						() => this._setSessionProvisional(session, true),
-						`provisional marking for ${session.toString()}`,
-					);
+					this._provisionalSessionKeys.add(session.toString());
 				} else {
 					this._invalidateSessionList();
 				}
@@ -4966,7 +4978,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// requires that the provider cannot describe the session — a materialized
 		// session it can describe is never hidden by a stale marker.
 		void this._retryRegistryMutation(
-			() => this._setSessionProvisional(session, false),
+			() => this._clearSessionProvisional(session),
 			`provisional clearing for ${sessionKey}`,
 		).catch(err => this._logService.error(err, `[AgentService] Failed to clear the provisional marker for ${sessionKey}`));
 		// `markSessionPersisted` writes the summary into state and fires
@@ -6780,11 +6792,13 @@ export class AgentService extends Disposable implements IAgentService {
 			const knownToRegistry = sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr);
 			if (!meta) {
 				// A session still marked provisional never materialized, so its
-				// provider never created a backing for it to describe. That absence
-				// is authoritative however the catalog fared: unlike a provider that
-				// is merely unavailable, waiting cannot make this session resolvable.
+				// provider never created a backing for it to describe — but only a
+				// readable catalog makes that miss authoritative. An unreadable one
+				// returns `undefined` without throwing, which says nothing about
+				// whether the session exists, and a materialized session whose
+				// marker-clear never landed would otherwise be reported as absent.
 				await this._whenProvisionalSessionKeysLoaded();
-				if (this._provisionalSessionKeys.has(sessionStr)) {
+				if (catalogReadable && this._provisionalSessionKeys.has(sessionStr)) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was never created on the backend: ${sessionStr}`);
 				}
 				// Authoritative absence only when the catalog was readable this run and

@@ -39,6 +39,12 @@ export interface IAgentHostDatabaseSessionOptions {
 
 export interface IAgentHostDatabaseRegisterOptions {
 	readonly checkTombstone: boolean;
+	/**
+	 * Marks the session registered-but-not-yet-materialized in the same
+	 * transaction as the registration, so a crash cannot leave a durable row
+	 * without its marker — the very state this marker exists to recognise.
+	 */
+	readonly provisional?: boolean;
 }
 
 export interface IAgentHostDatabaseExternalUpdate {
@@ -835,6 +841,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				}
 				if (!registerOptions.checkTombstone) {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+				}
+				if (registerOptions.provisional) {
+					await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [provisionalSessionKey(session)]);
 				}
 				await exec(database, 'COMMIT');
 				return changes > 0;

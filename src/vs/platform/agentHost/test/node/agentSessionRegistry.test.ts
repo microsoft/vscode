@@ -186,7 +186,11 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
-		return this.registerSessionV2(session, sessionOptions, registerOptions);
+		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
+		if (registerOptions.provisional) {
+			this.provisionalSessions.add(session);
+		}
+		return registered;
 	}
 
 	unregisterRuntimeSession(session: string): Promise<void> {

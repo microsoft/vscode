@@ -568,6 +568,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
 		}
+		if (registerOptions.provisional) {
+			this._provisionalSessions.add(session);
+		}
 		return true;
 	}
 
@@ -954,6 +957,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
 		if (registered) {
 			this._sessions.set(session, this._sessionV2Registrations.get(session)!);
+		}
+		if (registerOptions.provisional) {
+			this._provisionalSessions.add(session);
 		}
 		return registered;
 	}
@@ -5222,19 +5228,28 @@ suite('AgentService (node dispatcher)', () => {
 			 * Rebuilds the durable state a crash leaves behind: the session is
 			 * registered and has a catalog row written from creation state, but its
 			 * provider never created a backing and no in-memory state survives.
+			 *
+			 * The provider is marked already-backfilled, as it is on any restart
+			 * after the first, so its catalog reads as readable this run. Suppression
+			 * deliberately requires that, and a fixture that skipped it would exercise
+			 * the fail-open path instead of the one under test.
 			 */
-			async function seedCrashedProvisional(provisional: boolean): Promise<{ orchestratorDatabase: CentralCatalogDatabase; session: URI }> {
-				const orchestratorDatabase = new CentralCatalogDatabase();
-				const session = AgentSession.uri('copilot', `crashed-${provisional ? 'provisional' : 'materialized'}`);
-				await orchestratorDatabase.registerSessionV2(session.toString(), {
+			async function seedCrashedProvisional(provisional: boolean, orchestratorDatabase: CentralCatalogDatabase = new CentralCatalogDatabase(), id = `crashed-${provisional ? 'provisional' : 'materialized'}`, catalogReadable = true): Promise<{ orchestratorDatabase: CentralCatalogDatabase; session: URI }> {
+				const session = AgentSession.uri('copilot', id);
+				await orchestratorDatabase.registerRuntimeSession(session.toString(), {
 					provider: 'copilot',
 					startTime: 10,
 					modifiedTime: 10,
 					source: 'explicit',
-				}, { checkTombstone: false });
-				orchestratorDatabase.setCatalog(session, centralData(10, 'Session'));
-				if (provisional) {
-					await orchestratorDatabase.setSessionProvisional(session.toString(), true);
+				}, { checkTombstone: false, provisional });
+				const data = centralData(10, 'Session');
+				orchestratorDatabase.setCatalog(session, data);
+				await orchestratorDatabase.upsertSessionV2(catalogEnvelope(session, data), undefined);
+				if (catalogReadable) {
+					// A receipt and a backfill marker, so the import finds nothing left
+					// to carry over and reports the provider's catalog readable — the
+					// shape any restart after the first produces.
+					await orchestratorDatabase.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 				}
 				return { orchestratorDatabase, session };
 			}
@@ -5321,7 +5336,6 @@ suite('AgentService (node dispatcher)', () => {
 				// A real marker read hits SQLite, so an early listing can be computed
 				// and cached before any marker is known. The in-memory double always
 				// wins that race, so the delay is what makes this test meaningful.
-				const { session } = await seedCrashedProvisional(true);
 				let markerReadStarted: () => void = () => { };
 				const markerReadHasStarted = new Promise<void>(resolve => { markerReadStarted = resolve; });
 				class SlowMarkerReadDatabase extends CentralCatalogDatabase {
@@ -5331,15 +5345,7 @@ suite('AgentService (node dispatcher)', () => {
 						return super.listProvisionalSessions();
 					}
 				}
-				const slowDatabase = new SlowMarkerReadDatabase();
-				await slowDatabase.registerSessionV2(session.toString(), {
-					provider: 'copilot',
-					startTime: 10,
-					modifiedTime: 10,
-					source: 'explicit',
-				}, { checkTombstone: false });
-				slowDatabase.setCatalog(session, centralData(10, 'Session'));
-				await slowDatabase.setSessionProvisional(session.toString(), true);
+				const { orchestratorDatabase: slowDatabase, session } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-read');
 				const svc = createCentralCatalogService(createSessionDataService(), slowDatabase);
 				const agent = disposables.add(new DeferredBackingAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
@@ -5360,6 +5366,37 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					listedDuringRead: [session.toString()],
 					listedAfterRead: [],
+				});
+			});
+
+			test('keeps a materialized session whose provider catalog is not readable yet', async () => {
+				// The failure CCR identified: marker-clearing is best-effort, so a
+				// materialized session can still carry one. If its provider cannot
+				// answer yet it returns `undefined` *without throwing*, which is not
+				// evidence of absence — suppressing on that would hide real work and
+				// report it as never created. Mirrors Claude before its SDK is
+				// downloaded (#331648), which defers rather than failing.
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new CentralCatalogDatabase(), 'crashed-unreadable-catalog', false);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				class DeferredCatalogAgent extends DeferredBackingAgent {
+					override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+						return AgentChatMigrationDeferred;
+					}
+				}
+				const agent = disposables.add(new DeferredCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+
+				const listed = await svc.listSessions();
+				const restoreError = await svc.restoreSession(session).then(() => undefined, err => err);
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
+				}, {
+					listed: [session.toString()],
+					restoreCode: JSON_RPC_INTERNAL_ERROR,
 				});
 			});
 		});
