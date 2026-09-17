@@ -472,8 +472,8 @@ suite('Sessions - Comparison Result', () => {
 			],
 			hiddenOutsideJudge: true,
 			singleDecisionCustomSynthesis: {
-				action: false,
-				panel: false,
+				action: true,
+				panel: true,
 				recommended: true,
 			},
 			comparisonLayout: {
@@ -602,6 +602,10 @@ suite('Sessions - Comparison Result', () => {
 				'Passed `focused tests`, build, lint, and diagnostics.',
 				'Kept the change small and aligned with existing types.',
 				'Clearer `naming`',
+				'`Error` handling',
+				'Choose how `parse` failures are represented.',
+				'Throw `structured` errors.',
+				'Return typed `diagnostics`.',
 			],
 		});
 	});

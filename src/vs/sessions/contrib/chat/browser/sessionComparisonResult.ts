@@ -239,7 +239,7 @@ export class SessionComparisonResult extends Disposable {
 			synthesize.label = localize('sessionComparisonResult.synthesize', "Synthesize Attempts");
 			synthesize.dropdownButton.setAriaLabel(localize('sessionComparisonResult.synthesisOptionsAriaLabel', "More synthesis options"));
 			this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, createRecommendedSynthesisPlan(instructions.getValue()))));
-			if (decisionCount > 1) {
+			if (decisionCount > 0) {
 				this.renderSynthesisPlan(comparison, attempts, actions, instructions.getValue);
 			}
 		}
