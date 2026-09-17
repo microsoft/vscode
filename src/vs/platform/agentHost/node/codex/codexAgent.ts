@@ -3127,7 +3127,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					input: [{ type: 'text', text, text_elements: [] }],
 				}, this._traceContext(session));
 				// The RPC response may arrive before the turn/started notification.
-				session.asyncQuestions?.turnStarted(result.turn.id);
+				return result.turn.id;
 			},
 			finish: completion => {
 				for (const action of this._handleTurnCompletedNotification(session, completion)) {

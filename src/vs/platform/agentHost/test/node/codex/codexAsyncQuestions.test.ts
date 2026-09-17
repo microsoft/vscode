@@ -13,7 +13,7 @@ import type { TurnCompletedNotification } from '../../../node/codex/protocol/gen
 suite('CodexAsyncQuestions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(send?: (text: string) => Promise<void>) {
+	function setup(send?: (text: string) => Promise<string | void>) {
 		const shown: ChatInputRequest[] = [];
 		const sent: string[] = [];
 		const finished: TurnCompletedNotification[] = [];
@@ -22,7 +22,7 @@ suite('CodexAsyncQuestions', () => {
 		const controller = new CodexAsyncQuestions({
 			show: request => shown.push(request),
 			cancel: id => cancelled.push(id),
-			send: async text => { sent.push(text); await send?.(text); },
+			send: async text => { sent.push(text); return await send?.(text) ?? 'native-1'; },
 			finish: completion => finished.push(completion),
 			reportError: error => errors.push(error),
 		});
@@ -70,7 +70,7 @@ suite('CodexAsyncQuestions', () => {
 	});
 
 	test('late answer starts continuation without completing the host turn', async () => {
-		const h = setup(async () => h.controller.turnStarted('native-2'));
+		const h = setup(async () => { h.controller.turnStarted('native-2'); return 'native-2'; });
 		h.controller.ask('item', questions);
 		h.controller.holdCompletion(completed());
 		h.controller.respond(h.shown[0].id, ChatInputResponseKind.Accept, answers);
@@ -154,6 +154,21 @@ suite('CodexAsyncQuestions', () => {
 		assert.deepStrictEqual(h.finished, []);
 		h.controller.respond(h.shown[1].id, ChatInputResponseKind.Cancel);
 		assert.deepStrictEqual(h.finished, [completed()]);
+	});
+
+
+	test('stale answer acknowledgement cannot clear replacement question completion', async () => {
+		const gate = new DeferredPromise<string>();
+		const h = setup(() => gate.p);
+		h.controller.ask('old', questions);
+		h.controller.respond(h.shown[0].id, ChatInputResponseKind.Accept, answers);
+		h.controller.clear();
+		h.controller.ask('replacement', questions);
+		h.controller.holdCompletion(completed('replacement-turn'));
+		await gate.complete('old-turn');
+		await h.controller.whenIdle();
+		h.controller.respond(h.shown[1].id, ChatInputResponseKind.Cancel);
+		assert.deepStrictEqual(h.finished, [completed('replacement-turn')]);
 	});
 
 });

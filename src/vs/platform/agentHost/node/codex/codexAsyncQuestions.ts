@@ -12,7 +12,7 @@ import type { TurnCompletedNotification } from './protocol/generated/v2/TurnComp
 interface IAsyncQuestionsHost {
 	show(request: ChatInputRequest): void;
 	cancel(requestId: string): void;
-	send(text: string): Promise<void>;
+	send(text: string): Promise<string>;
 	finish(completion: TurnCompletedNotification): void;
 	reportError(error: unknown): void;
 }
@@ -93,7 +93,10 @@ export class CodexAsyncQuestions {
 		const generation = this.generation;
 		this.sending++;
 		try {
-			await this.host.send(text);
+			const turnId = await this.host.send(text);
+			if (generation === this.generation) {
+				this.turnStarted(turnId);
+			}
 		} catch (error) {
 			if (generation === this.generation) {
 				this.host.reportError(error);
