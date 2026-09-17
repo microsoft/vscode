@@ -43,6 +43,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
+import type { IAICustomizationOverviewSourceItem } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -1110,6 +1111,37 @@ export class PluginListWidget extends Disposable {
 	 */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	async getOverviewSearchItems(): Promise<readonly IAICustomizationOverviewSourceItem[]> {
+		const installedItems = this.agentPluginService.plugins.get().map(plugin => installedPluginToItem(plugin, this.labelService));
+		const installedNames = new Set(installedItems.map(item => item.name.toLowerCase()));
+		const remoteItems = (await this.getRemotePluginItems('')).filter(item =>
+			item.groupKey !== 'remote-client' &&
+			(!item.name || !installedNames.has(item.name.toLowerCase()))
+		);
+
+		return [
+			...installedItems.map(item => ({
+				id: `installed:${item.plugin.uri.toString()}`,
+				name: formatDisplayName(item.name),
+				description: item.description,
+				disabled: !isContributionEnabled(item.plugin.enablement.get()),
+			})),
+			...remoteItems.map(item => ({
+				id: `remote:${item.itemKey ?? item.uri.toString()}`,
+				name: formatDisplayName(item.name),
+				description: item.description,
+				disabled: item.enabled === false,
+			})),
+		];
+	}
+
+	setSearchQuery(query: string): void {
+		if (this.browseMode) {
+			this.exitBrowseMode();
+		}
+		this.searchInput.value = query;
 	}
 
 	private toggleGroup(entry: IPluginGroupHeaderEntry): void {

@@ -171,6 +171,128 @@
 	padding: 0 4px;
 }
 
+.ai-customization-management-editor .welcome-prompts-explore {
+	display: flex;
+	flex-direction: column;
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size100);
+}
+
+.ai-customization-management-editor .welcome-prompts-explore-heading {
+	margin: 0 0 var(--vscode-spacing-size40);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-agents-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .welcome-prompts-explore-description {
+	margin: 0 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 1.4;
+}
+
+.ai-customization-management-editor .welcome-prompts-explore-search {
+	width: 100%;
+}
+
+.ai-customization-management-editor .overview-search-results {
+	height: 360px;
+	margin-top: var(--vscode-spacing-size100);
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .overview-search-list {
+	height: 100%;
+}
+
+.ai-customization-management-editor .overview-search-empty {
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .overview-search-group {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size80) var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .overview-search-group-label,
+.ai-customization-management-editor .overview-search-group-count {
+	line-height: normal;
+}
+
+.ai-customization-management-editor .overview-search-group-count {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+.ai-customization-management-editor .overview-search-result {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .overview-search-result-icon {
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.ai-customization-management-editor .overview-search-result-details {
+	flex: 1;
+	min-width: 0;
+	line-height: normal;
+}
+
+.ai-customization-management-editor .overview-search-result-title {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .overview-search-result-name,
+.ai-customization-management-editor .overview-search-result-description {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.ai-customization-management-editor .overview-search-result-name {
+	min-width: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+}
+
+.ai-customization-management-editor .overview-search-result-type {
+	flex-shrink: 0;
+	max-width: 40%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2);
+}
+
+.ai-customization-management-editor .overview-search-result-description {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
 .ai-customization-management-editor .welcome-prompts-cards {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

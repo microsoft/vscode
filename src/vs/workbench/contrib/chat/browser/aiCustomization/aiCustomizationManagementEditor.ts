@@ -40,7 +40,7 @@ import { basename, dirname, isEqual } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
-import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
+import { AICustomizationListWidget, formatDisplayName } from './aiCustomizationListWidget.js';
 import type { IAICustomizationItemSource } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
@@ -109,6 +109,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
+import type { IAICustomizationOverviewSearchItem, IAICustomizationOverviewSourceItem } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -825,14 +826,79 @@ export class AICustomizationManagementEditor extends EditorPane {
 						onUnexpectedError(err);
 					}
 				},
+				searchCustomizations: () => this.getOverviewSearchItems(),
+				openSearchResult: (item, query) => this.openOverviewSearchResult(item, query),
 			},
 			this.commandService,
 			this.workspaceService,
 			this.hoverService,
 			this.getActiveHarnessLabel(),
+			this.instantiationService,
+			this.contextViewService,
 		));
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 		this.welcomePage.setMigrationCategories(this.getMigrationCategorySummaries());
+	}
+
+	private async getOverviewSearchItems(): Promise<readonly IAICustomizationOverviewSearchItem[]> {
+		const visibleSections = new Set(this.sections.map(section => section.id));
+		const promptSections = ITEMS_MODEL_SECTIONS.filter(section => visibleSections.has(section));
+		await Promise.all(promptSections.map(section => this.itemsModel.whenSectionLoaded(section)));
+
+		const items: IAICustomizationOverviewSearchItem[] = [];
+		for (const section of promptSections) {
+			const sourceItems = this.itemsModel.getItems(section).get().map(item => ({
+				id: item.id,
+				name: item.displayName ?? formatDisplayName(item.name),
+				description: item.description,
+				disabled: item.disabled,
+				keywords: [item.filename, item.badge ?? ''],
+			}));
+			this.appendOverviewSearchItems(items, section, sourceItems);
+		}
+
+		if (visibleSections.has(AICustomizationManagementSection.McpServers) && this.mcpListWidget) {
+			this.appendOverviewSearchItems(items, AICustomizationManagementSection.McpServers, this.mcpListWidget.getOverviewSearchItems());
+		}
+		if (visibleSections.has(AICustomizationManagementSection.Plugins) && this.pluginListWidget) {
+			this.appendOverviewSearchItems(items, AICustomizationManagementSection.Plugins, await this.pluginListWidget.getOverviewSearchItems());
+		}
+		if (visibleSections.has(AICustomizationManagementSection.Tools) && this.toolsListWidget) {
+			this.appendOverviewSearchItems(items, AICustomizationManagementSection.Tools, this.toolsListWidget.getOverviewSearchItems());
+		}
+		return items;
+	}
+
+	private appendOverviewSearchItems(target: IAICustomizationOverviewSearchItem[], sectionId: AICustomizationManagementSection, sourceItems: readonly IAICustomizationOverviewSourceItem[]): void {
+		const section = this.sections.find(candidate => candidate.id === sectionId);
+		if (!section) {
+			return;
+		}
+		for (const item of sourceItems) {
+			target.push({
+				...item,
+				section: sectionId,
+				sectionLabel: section.label,
+				sectionIcon: section.icon,
+			});
+		}
+	}
+
+	private openOverviewSearchResult(item: IAICustomizationOverviewSearchItem, query: string): void {
+		this.selectSection(item.section);
+		switch (item.section) {
+			case AICustomizationManagementSection.McpServers:
+				this.mcpListWidget?.setSearchQuery(query);
+				break;
+			case AICustomizationManagementSection.Plugins:
+				this.pluginListWidget?.setSearchQuery(query);
+				break;
+			case AICustomizationManagementSection.Tools:
+				this.toolsListWidget?.setSearchQuery(query);
+				break;
+			default:
+				this.listWidget.setSearchQuery(query);
+		}
 	}
 
 	private createBackArrowButton(onClick?: () => void): HTMLButtonElement {
@@ -2370,6 +2436,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	public refreshList(): void {
 		this.listWidget.refresh();
+	}
+
+	public async setOverviewSearchQuery(query: string): Promise<void> {
+		this.showWelcomePage();
+		await this.welcomePage?.setSearchQuery(query);
 	}
 
 	/**

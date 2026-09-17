@@ -50,6 +50,7 @@ import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } fr
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
+import type { IAICustomizationOverviewSourceItem } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -1585,6 +1586,55 @@ export class McpListWidget extends Disposable {
 	 */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.itemCount);
+	}
+
+	getOverviewSearchItems(): readonly IAICustomizationOverviewSourceItem[] {
+		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
+		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
+		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
+		const items: IAICustomizationOverviewSourceItem[] = [];
+
+		for (const server of this.mcpWorkbenchService.local) {
+			const activeSessionServer = activeSessionMatcher.take(getWorkbenchServerMatchKeys(server));
+			const localServer = localServerMatcher.find(getWorkbenchServerMatchKeys(server));
+			items.push({
+				id: `workbench:${server.id}`,
+				name: formatDisplayName(server.label),
+				description: server.description,
+				disabled: activeSessionServer ? !activeSessionServer.enabled : !!localServer && isContributionDisabled(localServer.enablement.get()),
+			});
+		}
+
+		const localIds = new Set(this.mcpWorkbenchService.local.map(server => server.id));
+		const hiddenCollectionIds = this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds;
+		for (const server of this.mcpService.servers.get()) {
+			if (localIds.has(server.definition.id) || !isMcpServerCollectionVisible(server.collection.id, hiddenCollectionIds)) {
+				continue;
+			}
+			const activeSessionServer = activeSessionMatcher.take(getRuntimeServerMatchKeys(server));
+			items.push({
+				id: `runtime:${server.collection.id}:${server.definition.id}`,
+				name: formatDisplayName(server.definition.label),
+				disabled: activeSessionServer ? !activeSessionServer.enabled : isContributionDisabled(server.enablement.get()),
+			});
+		}
+
+		for (const server of activeSessionMatcher.unmatched('')) {
+			items.push({
+				id: `session:${server.id}`,
+				name: formatDisplayName(server.name),
+				disabled: !server.enabled,
+			});
+		}
+
+		return items;
+	}
+
+	setSearchQuery(query: string): void {
+		if (this.browseMode) {
+			this.exitBrowseMode();
+		}
+		this.searchInput.value = query;
 	}
 
 	/**

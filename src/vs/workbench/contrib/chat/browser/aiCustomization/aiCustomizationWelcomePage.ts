@@ -11,6 +11,9 @@ import { CustomizationMigrationCategoryId } from './customizationMigrationCatego
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import type { IAICustomizationOverviewSearchItem } from './aiCustomizationOverviewSearch.js';
 
 const $ = DOM.$;
 
@@ -39,6 +42,8 @@ export interface IWelcomePageCallbacks {
 	 * reusing the active one.
 	 */
 	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
+	searchCustomizations?(): Promise<readonly IAICustomizationOverviewSearchItem[]>;
+	openSearchResult?(item: IAICustomizationOverviewSearchItem, query: string): void;
 }
 
 export interface IAICustomizationWelcomePageImplementation extends IDisposable {
@@ -49,6 +54,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	focus(): void;
 	/** Called when the welcome page becomes visible after navigation — clears any transient state. */
 	reset?(): void;
+	setSearchQuery?(query: string): Promise<void>;
 }
 
 /**
@@ -68,13 +74,15 @@ export class AICustomizationWelcomePage extends Disposable {
 		workspaceService: IAICustomizationWorkspaceService,
 		hoverService: IHoverService,
 		harnessLabel: string,
+		instantiationService?: IInstantiationService,
+		contextViewService?: IContextViewService,
 	) {
 		super();
 
 		this.container = DOM.append(parent, $('.welcome-page-host'));
 		this.container.style.height = '100%';
 		this.container.style.overflow = 'hidden';
-		this.implementation = this._register(new PromptLaunchersAICustomizationWelcomePage(this.container, welcomePageFeatures, callbacks, commandService, workspaceService, hoverService, harnessLabel));
+		this.implementation = this._register(new PromptLaunchersAICustomizationWelcomePage(this.container, welcomePageFeatures, callbacks, commandService, workspaceService, hoverService, harnessLabel, instantiationService, contextViewService));
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -95,5 +103,9 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	reset(): void {
 		this.implementation.reset?.();
+	}
+
+	async setSearchQuery(query: string): Promise<void> {
+		await this.implementation.setSearchQuery?.(query);
 	}
 }

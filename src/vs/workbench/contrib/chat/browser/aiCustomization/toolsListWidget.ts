@@ -38,6 +38,7 @@ import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../.
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import type { IAICustomizationOverviewSourceItem } from './aiCustomizationOverviewSearch.js';
 import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
@@ -357,13 +358,8 @@ export class ToolsListWidget extends Disposable {
 		if (ts.deprecated) {
 			return undefined;
 		}
-		// Hide extension-provided sets whose extension is gone or being removed.
-		if (ts.source.type === 'extension') {
-			const extensionId = ts.source.extensionId;
-			const installed = this._extensionsWorkbenchService.local.find(e => ExtensionIdentifier.equals(e.identifier.id, extensionId));
-			if (!installed || installed.state === ExtensionState.Uninstalling || installed.state === ExtensionState.Uninstalled) {
-				return undefined;
-			}
+		if (!this._isToolSetAvailable(ts)) {
+			return undefined;
 		}
 		const memberTools = Array.from(ts.getTools(reader));
 		if (memberTools.length === 0) {
@@ -536,6 +532,43 @@ export class ToolsListWidget extends Disposable {
 	/** Re-emit the current item count. Called once at startup to seed the section badge. */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this._lastCount === -1 ? 0 : this._lastCount);
+	}
+
+	getOverviewSearchItems(): readonly IAICustomizationOverviewSourceItem[] {
+		const state = this._enablementService.getState(this._sessionType);
+		const items: IAICustomizationOverviewSourceItem[] = [];
+		for (const toolSet of [...this._toolsService.toolSets.get(), ...this._staticReadOnlySets]) {
+			if (toolSet.deprecated || !this._isToolSetAvailable(toolSet)) {
+				continue;
+			}
+			const toolSetName = toolSet.description ?? toolSet.referenceName;
+			for (const tool of toolSet.getTools()) {
+				items.push({
+					id: `${toolSet.id}:${tool.id}`,
+					name: tool.displayName ?? tool.id,
+					description: tool.userDescription ?? tool.modelDescription,
+					disabled: !isToolEnabledInSet(state, toolSet.id, tool.id),
+					keywords: [toolSetName, toolSet.referenceName],
+				});
+			}
+		}
+		return items;
+	}
+
+	setSearchQuery(query: string): void {
+		if (this._browseMode) {
+			this._setBrowseMode(false);
+		}
+		this._searchInput.value = query;
+	}
+
+	private _isToolSetAvailable(toolSet: IToolSet): boolean {
+		const source = toolSet.source;
+		if (source.type !== 'extension') {
+			return true;
+		}
+		const extension = this._extensionsWorkbenchService.local.find(candidate => ExtensionIdentifier.equals(candidate.identifier.id, source.extensionId));
+		return !!extension && extension.state !== ExtensionState.Uninstalling && extension.state !== ExtensionState.Uninstalled;
 	}
 
 	private _render(model: readonly IToolSetViewModel[]): void {

@@ -611,6 +611,7 @@ interface IRenderEditorOptions {
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
+	readonly overviewSearchQuery?: string;
 	readonly scrollToBottom?: boolean;
 	readonly width?: number;
 	readonly height?: number;
@@ -972,6 +973,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
+	}
+
+	if (options.overviewSearchQuery) {
+		await editor.setOverviewSearchQuery(options.overviewSearchQuery);
 	}
 
 	if (options.scrollToBottom) {
@@ -1462,6 +1467,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource }),
+	}),
+
+	OverviewSearch: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, overviewSearchQuery: 'search' }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
