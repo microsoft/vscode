@@ -970,7 +970,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ available: provider.isDevContainerAvailable(draft.sessionId), enabled: provider.isDevContainerEnabled(draft.sessionId) }, { available: true, enabled: true });
 	});
 
-	for (const [address, useWorktree] of [['ssh:test-host', true], ['ssh:test-host', false], ['tunnel:test-host', true], ['tunnel:test-host', false]] as const) {
+	for (const [address, useWorktree] of [['ssh:test-host', true], ['ssh:test-host', false], ['tunnel:test-host', true], ['tunnel:test-host', false], ['wsl:Ubuntu', true], ['wsl:Ubuntu', false]] as const) {
 		test(`prepares a Dev Container ${useWorktree ? 'worktree' : 'folder'} on ${address} and carries its draft into the container`, async () => {
 			const events: string[] = [];
 			const handle = '00000000-0000-4000-8000-000000000001';
@@ -1107,7 +1107,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(connects, 0);
 	});
 
-	for (const address of ['ssh:test-host', 'tunnel:test-host']) {
+	for (const address of ['ssh:test-host', 'tunnel:test-host', 'wsl:Ubuntu']) {
 		test(`waits for preferred Dev Container availability before preparing a request on ${address}`, async () => {
 			const availability = new DeferredPromise<boolean>();
 			const events: string[] = [];

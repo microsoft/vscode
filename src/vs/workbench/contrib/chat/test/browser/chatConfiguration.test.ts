@@ -16,10 +16,11 @@ const configurationProperties = Registry.as<IConfigurationRegistry>(Configuratio
 const registeredAgentSessionsSettings = [
 	ChatConfiguration.UnifiedWorkspacePicker,
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
-	ChatConfiguration.AutoDeleteArchivedMergedSessionsAfterDays,
+	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
-const legacyAutoArchiveMigration = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations
-	.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
+const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
+const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
+const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
 const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
 
 suite('Chat configuration', () => {
@@ -79,6 +80,25 @@ suite('Chat configuration', () => {
 	test('does not overwrite the auto mark as done setting during migration', async () => {
 		assert.deepStrictEqual(await legacyAutoArchiveMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoArchiveMergedSessionsAfterDays', { value: undefined }],
+		]);
+	});
+
+	test('migrates the auto delete archived setting to auto delete marked as done', async () => {
+		assert.deepStrictEqual({
+			includeApplication: legacyAutoDeleteArchivedMigration?.includeApplication,
+			result: await legacyAutoDeleteArchivedMigration?.migrateFn(15, () => undefined),
+		}, {
+			includeApplication: true,
+			result: [
+				['chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays', { value: undefined }],
+				[ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays, { value: 15 }],
+			],
+		});
+	});
+
+	test('does not overwrite the auto delete marked as done setting during migration', async () => {
+		assert.deepStrictEqual(await legacyAutoDeleteArchivedMigration?.migrateFn(15, () => 30), [
+			['chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays', { value: undefined }],
 		]);
 	});
 });

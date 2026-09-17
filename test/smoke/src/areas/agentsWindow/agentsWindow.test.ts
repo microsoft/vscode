@@ -262,18 +262,26 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	});
 
-	for (const transport of ['ssh', 'tunnel'] as const) {
-		const label = transport === 'ssh' ? 'SSH' : 'Tunnel';
+	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
+		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
-		const supportedPlatform = process.platform !== 'win32' && (!isCI || process.platform === 'linux');
-		const tunnelRequested = transport === 'ssh' || !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN;
-		const enabled = runDevContainerSuite && supportedPlatform && tunnelRequested;
+		const required = transport === 'wsl' && process.env.VSCODE_SMOKE_TEST_WSL_REQUIRED === '1';
+		const supportedPlatform = transport === 'wsl' ? process.platform === 'win32' : process.platform !== 'win32' && (!isCI || process.platform === 'linux');
+		const requested = transport === 'ssh' || (transport === 'wsl' ? !!process.env.VSCODE_SMOKE_TEST_WSL_DISTRO : !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN);
+		const enabled = runDevContainerSuite && (required || (supportedPlatform && requested));
 		if (!enabled) {
-			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
+			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'unsupported platform' : transport === 'wsl' ? 'set VSCODE_SMOKE_TEST_WSL_DISTRO to enable the WSL fixture' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
 		}
 		(enabled ? describe : describe.skip)(`Agents Window (${label} Dev Container AgentHost)`, () => {
-			installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
+			if (transport !== 'wsl') {
+				installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
+			}
 			before(() => {
+				if (required) {
+					assert.ok(supportedPlatform, 'Required WSL smoke tests need Windows.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_DISTRO, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_DISTRO from successful provisioning.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_SERVER_PATH, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_SERVER_PATH from successful provisioning.');
+				}
 				if (transport === 'tunnel') {
 					const availability = getTunnelSmokeTestAvailability();
 					assert.ok(availability.available, availability.reason);
@@ -300,7 +308,7 @@ export function setup(logger: Logger, quality: Quality) {
 				const app = this.app as Application;
 				const fixture = context.remoteFixture;
 				assert.ok(fixture, 'Expected the remote connection fixture');
-				const workspacePath = app.workspacePathOrFolder;
+				const workspacePath = fixture.workspacePath ?? app.workspacePathOrFolder;
 				const workspaceLabel = `${path.basename(workspacePath)} [${fixture.name}]`;
 				const prompt = `start ${label} Dev Container [scenario:${scenario}]`;
 				try {
@@ -308,6 +316,8 @@ export function setup(logger: Logger, quality: Quality) {
 					if (transport === 'ssh') {
 						assert.ok(fixture.ssh);
 						await app.workbench.agentsWindow.connectSSHHost({ ...fixture.ssh, name: fixture.name }, workspacePath);
+					} else if (transport === 'wsl') {
+						await app.workbench.agentsWindow.connectWSLHost(fixture.name, workspacePath);
 					} else {
 						await app.workbench.agentsWindow.connectTunnelHost(fixture.name, workspacePath);
 					}
@@ -319,6 +329,7 @@ export function setup(logger: Logger, quality: Quality) {
 					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');
 					await assertRemoteDevContainerRouting(context.logsPath, transport, workspacePath, reply);
+					await fixture.verifyMockServerRouting?.();
 					await app.workbench.agentsWindow.startNewSession();
 					await app.workbench.agentsWindow.activateSessionByLabel([prompt, reply], reply, 60_000);
 					await app.workbench.agentsWindow.waitForAssistantText(reply);
