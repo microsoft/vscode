@@ -4,6 +4,8 @@
 param(
 	[ValidateSet('Setup', 'Cleanup')]
 	[string] $Operation = 'Setup',
+	[ValidateSet('GitHub', 'AzureDevOps')]
+	[string] $CI = 'GitHub',
 	[string] $Distribution,
 	[string] $Root
 )
@@ -11,6 +13,27 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
+$workspace = if ($CI -eq 'AzureDevOps') { $env:BUILD_SOURCESDIRECTORY } else { $env:GITHUB_WORKSPACE }
+$runId = if ($CI -eq 'AzureDevOps') { $env:BUILD_BUILDID } else { $env:GITHUB_RUN_ID }
+$runAttempt = if ($CI -eq 'AzureDevOps') { $env:SYSTEM_JOBATTEMPT } else { $env:GITHUB_RUN_ATTEMPT }
+if (-not $workspace -or $runId -notmatch '^\d+$' -or $runAttempt -notmatch '^\d+$') {
+	throw "Missing workspace, run ID, or attempt for $CI WSL smoke setup."
+}
+
+function Write-SmokeOutput([string] $Name, [string] $Value) {
+	if ($CI -eq 'AzureDevOps') {
+		$variable = switch ($Name) {
+			'root' { 'WSL_SMOKE_ROOT' }
+			'distro' { 'WSL_SMOKE_DISTRO' }
+			'serverPath' { 'WSL_SMOKE_SERVER_PATH' }
+			default { throw "Unknown WSL smoke output: $Name" }
+		}
+		$escaped = $Value.Replace('%', '%AZP25').Replace("`r", '%0D').Replace("`n", '%0A')
+		Write-Host "##vso[task.setvariable variable=$variable]$escaped"
+	} else {
+		"$Name=$Value" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+	}
+}
 
 function Invoke-Wsl([string] $Command) {
 	$Command = $Command -replace "`r`n", "`n"
@@ -32,7 +55,7 @@ if ($Operation -eq 'Cleanup') {
 		throw 'Refusing cleanup of an unexpected WSL distribution.'
 	}
 	$Root = [IO.Path]::GetFullPath($Root)
-	if ([IO.Path]::GetDirectoryName($Root) -ne [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '.build')) -or [IO.Path]::GetFileName($Root) -ne $Distribution) {
+	if ([IO.Path]::GetDirectoryName($Root) -ne [IO.Path]::GetFullPath((Join-Path $workspace '.build')) -or [IO.Path]::GetFileName($Root) -ne $Distribution) {
 		throw 'Refusing cleanup of an unexpected WSL smoke directory.'
 	}
 	try {
@@ -41,7 +64,7 @@ if ($Operation -eq 'Cleanup') {
 		$listExitCode = $LASTEXITCODE
 		$names = @($registered | ForEach-Object { ($_ -replace "`0", '').Trim() })
 		if ($listExitCode -ne 0 -or $names -contains $Distribution) {
-			$logDirectory = Join-Path $env:GITHUB_WORKSPACE '.build\logs\wsl-dev-container'
+			$logDirectory = Join-Path $workspace '.build\logs\wsl-dev-container'
 			New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 			& $wsl --distribution $Distribution --user root --exec /bin/sh -c 'docker info; cat /var/log/docker.log 2>/dev/null' |
 				Out-File -FilePath (Join-Path $logDirectory 'docker.log') -Encoding utf8
@@ -61,11 +84,11 @@ if ($Operation -eq 'Cleanup') {
 if (-not (Test-Path -LiteralPath $wsl)) {
 	throw 'WSL is unavailable. This job requires WSL and VirtualMachinePlatform enabled without a pending reboot.'
 }
-$Distribution = "vscode-wsl-smoke-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$([guid]::NewGuid().ToString('N'))"
-$Root = Join-Path $env:GITHUB_WORKSPACE ".build\$Distribution"
+$Distribution = "vscode-wsl-smoke-$runId-$runAttempt-$([guid]::NewGuid().ToString('N'))"
+$Root = Join-Path $workspace ".build\$Distribution"
 New-Item -ItemType Directory -Path $Root | Out-Null
-"root=$Root" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-"distro=$Distribution" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+Write-SmokeOutput 'root' $Root
+Write-SmokeOutput 'distro' $Distribution
 
 $kernelPackage = Join-Path $Root 'wsl_update_x64.msi'
 Save-Download 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi' $kernelPackage
@@ -156,5 +179,5 @@ if ($guestAddress -notmatch '^\d+\.\d+\.\d+\.\d+$') {
 	throw "Unexpected WSL guest address: $guestAddress"
 }
 New-NetFirewallRule -Name $Distribution -DisplayName $Distribution -Direction Inbound -Action Allow -Protocol TCP -RemoteAddress $guestAddress | Out-Null
-"serverPath=/opt/vscode-smoke-server" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+Write-SmokeOutput 'serverPath' '/opt/vscode-smoke-server'
 Write-Host "WSL Docker is ready in $Distribution with Linux server $serverCommit."

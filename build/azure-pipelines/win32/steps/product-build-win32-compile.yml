@@ -342,6 +342,7 @@ steps:
     - template: product-build-win32-test.yml@self
       parameters:
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}

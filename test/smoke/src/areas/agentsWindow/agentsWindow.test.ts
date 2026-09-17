@@ -265,9 +265,10 @@ export function setup(logger: Logger, quality: Quality) {
 	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
 		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
+		const required = transport === 'wsl' && process.env.VSCODE_SMOKE_TEST_WSL_REQUIRED === '1';
 		const supportedPlatform = transport === 'wsl' ? process.platform === 'win32' : process.platform !== 'win32' && (!isCI || process.platform === 'linux');
 		const requested = transport === 'ssh' || (transport === 'wsl' ? !!process.env.VSCODE_SMOKE_TEST_WSL_DISTRO : !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN);
-		const enabled = runDevContainerSuite && supportedPlatform && requested;
+		const enabled = required || (runDevContainerSuite && supportedPlatform && requested);
 		if (!enabled) {
 			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'unsupported platform' : transport === 'wsl' ? 'set VSCODE_SMOKE_TEST_WSL_DISTRO to enable the WSL fixture' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
 		}
@@ -276,6 +277,11 @@ export function setup(logger: Logger, quality: Quality) {
 				installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
 			}
 			before(() => {
+				if (required) {
+					assert.ok(runDevContainerSuite && supportedPlatform, 'Required WSL smoke tests need Windows and a non-Exploration build.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_DISTRO, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_DISTRO from successful provisioning.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_SERVER_PATH, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_SERVER_PATH from successful provisioning.');
+				}
 				if (transport === 'tunnel') {
 					const availability = getTunnelSmokeTestAvailability();
 					assert.ok(availability.available, availability.reason);
