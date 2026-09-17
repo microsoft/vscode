@@ -280,6 +280,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 							const suggestions: CompletionItem[] = [];
 							const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
+							// When the debug adapter doesn't provide start/length, use the word at cursor
+							// as the default replacement range so the suggest widget can highlight matching characters (#278109)
+							const defaultWordLength = model.getWordUntilPosition(position).word.length;
 							if (response && response.body && response.body.targets) {
 								response.body.targets.forEach(item => {
 									if (item && item.label) {
@@ -301,7 +304,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 											insertText,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
-											range: computeRange(item.length || 0),
+											range: computeRange(item.length || defaultWordLength),
 											sortText: item.sortText,
 											insertTextRules
 										});
