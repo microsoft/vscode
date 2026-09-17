@@ -1,0 +1,8 @@
+[
+	{
+		"name": "/tests [panel] [typescript] - can consume #file without active editor",
+		"requests": [
+			"cfb502efdeecb40463b2b78afe7e040e6c0d192d61a45466ec094eeb2bd57421"
+		]
+	}
+]

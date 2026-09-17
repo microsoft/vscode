@@ -49,9 +49,13 @@ suite('PromptFileParser', () => {
 			{ range: new Range(7, 140, 7, 155), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108 },
-			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170 }
+			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108, fullLength: 11 },
+			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170, fullLength: 12 }
 		]);
+		const [ref1, ref2] = result.body.variableReferences;
+		assert.equal(content.substring(ref1.offset, ref1.offset + ref1.fullLength), '#tool:tool1');
+		assert.equal(content.substring(ref2.offset, ref2.offset + ref2.fullLength), '#tool:tool-2');
+
 		assert.deepEqual(result.header.description, 'Agent test');
 		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.tools);
@@ -165,6 +169,27 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 
+	test('handoff with whitespace-only label is skipped', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "   "',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Do something"',
+			/* 07 */'  - label: "Valid"',
+			/* 08 */'    agent: Default',
+			/* 09 */'    prompt: "Also do something"',
+			/* 10 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepStrictEqual(result.header.handOffs, [
+			{ agent: 'Default', label: 'Valid', prompt: 'Also do something' }
+		]);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [
@@ -230,7 +255,7 @@ suite('PromptFileParser', () => {
 			{ range: new Range(7, 64, 7, 88), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153 }
+			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153, fullLength: 12 }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.agent, 'agent');
@@ -584,10 +609,10 @@ suite('PromptFileParser', () => {
 
 	});
 
-	test('userInvocable getter falls back to deprecated user-invokable', async () => {
+	test('userInvocable getter reads user-invocable attribute', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 
-		// user-invocable (new spelling) takes precedence
+		// user-invocable works
 		const content1 = [
 			'---',
 			'description: "Test"',
@@ -597,26 +622,15 @@ suite('PromptFileParser', () => {
 		const result1 = new PromptFileParser().parse(uri, content1);
 		assert.strictEqual(result1.header?.userInvocable, true);
 
-		// deprecated user-invokable still works as fallback
+		// user-invocable false
 		const content2 = [
 			'---',
 			'description: "Test"',
-			'user-invokable: false',
+			'user-invocable: false',
 			'---',
 		].join('\n');
 		const result2 = new PromptFileParser().parse(uri, content2);
 		assert.strictEqual(result2.header?.userInvocable, false);
-
-		// user-invocable takes precedence over deprecated user-invokable
-		const content3 = [
-			'---',
-			'description: "Test"',
-			'user-invocable: true',
-			'user-invokable: false',
-			'---',
-		].join('\n');
-		const result3 = new PromptFileParser().parse(uri, content3);
-		assert.strictEqual(result3.header?.userInvocable, true);
 
 		// neither set returns undefined
 		const content4 = [

@@ -38,6 +38,10 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 0), 14);
 		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 1), 15);
 		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 2), 16);
+		assert.deepStrictEqual(
+			[0, 1, 2].map(lineIndex => line1.getViewLineContinuesWithWrappedLine(lineIndex)),
+			[true, true, false]
+		);
 		for (let col = 1; col <= 14; col++) {
 			assert.strictEqual(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
 		}
@@ -94,9 +98,15 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 	});
 
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: ViewModelLinesFromProjectedModel) => void): void {
-		const config = new TestConfiguration({ wrappingStrategy: 'simple' });
+		const config = new TestConfiguration({});
+		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
+		const fontInfo = config.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
+		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
+		const wordBreak = config.options.get(EditorOption.wordBreak);
+		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
+		const useTwoCellFullwidthCharacters = config.options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const model = createTextModel(text);
@@ -106,8 +116,14 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
-			config.options,
-			model.getOptions().tabSize
+			fontInfo,
+			model.getOptions().tabSize,
+			'simple',
+			wrappingInfo.wrappingColumn,
+			wrappingIndent,
+			wordBreak,
+			wrapOnEscapedLineFeeds,
+			useTwoCellFullwidthCharacters
 		);
 
 		callback(model, linesCollection);
@@ -933,11 +949,15 @@ suite('SplitLinesCollection', () => {
 		const configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
-			wrappingIndent: 'indent',
-			wrappingStrategy: 'simple'
+			wrappingIndent: 'indent'
 		});
+		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
+		const fontInfo = configuration.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
+		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
+		const wordBreak = configuration.options.get(EditorOption.wordBreak);
+		const useTwoCellFullwidthCharacters = configuration.options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
@@ -946,8 +966,14 @@ suite('SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
-			configuration.options,
-			model.getOptions().tabSize
+			fontInfo,
+			model.getOptions().tabSize,
+			'simple',
+			wrappingInfo.wrappingColumn,
+			wrappingIndent,
+			wordBreak,
+			wrapOnEscapedLineFeeds,
+			useTwoCellFullwidthCharacters
 		);
 
 		callback(linesCollection);

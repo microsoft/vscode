@@ -33,3 +33,8 @@ export const AICustomizationItemMenuId = new MenuId('aiCustomization.item');
 // Submenu for creating new items
 export const AICustomizationNewMenuId = new MenuId('aiCustomization.new');
 //#endregion
+
+/**
+ * Command ID for the Focus Chat Customizations action.
+ */
+export const FOCUS_AI_CUSTOMIZATION_VIEW_ID = 'aiCustomization.focusView';

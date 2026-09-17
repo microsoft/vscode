@@ -5,22 +5,39 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationValue, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { LanguageModelToolsConfirmationService } from '../../../browser/tools/languageModelToolsConfirmationService.js';
 import { ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../../common/tools/languageModelToolsConfirmationService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { computeCombinationKey, ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+
+class PolicyTestConfigurationService extends TestConfigurationService {
+	policyRestricted = false;
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const result = super.inspect<T>(key, overrides);
+		return key === ChatConfiguration.GlobalAutoApprove
+			? { ...result, policyValue: this.policyRestricted ? false as T : undefined }
+			: result;
+	}
+}
 
 suite('LanguageModelToolsConfirmationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: LanguageModelToolsConfirmationService;
 	let instantiationService: TestInstantiationService;
+	let configurationService: PolicyTestConfigurationService;
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		configurationService = new PolicyTestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
 
 		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
 	});
@@ -41,6 +58,17 @@ suite('LanguageModelToolsConfirmationService', () => {
 				definitionId
 			},
 			parameters
+		};
+	}
+
+	async function createCombinationRef(toolId: string, parameters: unknown, combinationLabel: string, combinationArgs?: string): Promise<ILanguageModelToolConfirmationRef> {
+		return {
+			...createToolRef(toolId, ToolDataSource.Internal, parameters),
+			combination: {
+				label: combinationLabel,
+				key: await computeCombinationKey(toolId, parameters),
+				arguments: combinationArgs,
+			},
 		};
 	}
 
@@ -348,6 +376,86 @@ suite('LanguageModelToolsConfirmationService', () => {
 		assert.strictEqual(result.type, ToolConfirmKind.UserAction);
 	});
 
+	test('policy restriction makes existing default grants dormant until removal', async () => {
+		const preRef = createToolRef('preTool');
+		const postRef = createToolRef('postTool');
+		const combinationRef = await createCombinationRef('combinationTool', { path: 'file.txt' }, 'Allow file.txt');
+		const mcpRef = createMcpToolRef('mcpTool', 'serverId', 'Test Server');
+
+		await service.getPreConfirmActions(preRef).find(action => action.scope === 'workspace')!.select();
+		await service.getPostConfirmActions(postRef).find(action => action.scope === 'profile')!.select();
+		await service.getPreConfirmActions(combinationRef).find(action => action.scope === 'session' && action.label.includes('file.txt'))!.select();
+		await service.getPreConfirmActions(mcpRef).find(action => action.scope === 'profile' && action.label.includes('Test Server'))!.select();
+		await service.getPostConfirmActions(mcpRef).find(action => action.scope === 'workspace' && action.label.includes('Test Server'))!.select();
+
+		configurationService.policyRestricted = true;
+		assert.deepStrictEqual({
+			pre: service.getPreConfirmAction(preRef),
+			post: service.getPostConfirmAction(postRef),
+			combination: service.getPreConfirmAction(combinationRef),
+			mcpPre: service.getPreConfirmAction(mcpRef),
+			mcpPost: service.getPostConfirmAction(mcpRef),
+		}, {
+			pre: undefined,
+			post: undefined,
+			combination: undefined,
+			mcpPre: undefined,
+			mcpPost: undefined,
+		});
+
+		configurationService.policyRestricted = false;
+		assert.deepStrictEqual({
+			pre: service.getPreConfirmAction(preRef),
+			post: service.getPostConfirmAction(postRef),
+			combination: service.getPreConfirmAction(combinationRef),
+			mcpPre: service.getPreConfirmAction(mcpRef),
+			mcpPost: service.getPostConfirmAction(mcpRef),
+		}, {
+			pre: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' },
+			post: { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' },
+			combination: { type: ToolConfirmKind.LmServicePerTool, scope: 'session' },
+			mcpPre: { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' },
+			mcpPost: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' },
+		});
+	});
+
+	test('policy restriction suppresses default actions but preserves contribution decisions and actions', async () => {
+		const customActions: ILanguageModelToolConfirmationActions[] = [{
+			label: 'Custom Pre Action',
+			select: async () => true,
+		}];
+		const contribution: ILanguageModelToolConfirmationContribution = {
+			getPreConfirmAction: () => ({ type: ToolConfirmKind.UserAction }),
+			getPostConfirmAction: () => ({ type: ToolConfirmKind.UserAction }),
+			getPreConfirmActions: () => customActions,
+			getPostConfirmActions: () => [{
+				label: 'Custom Post Action',
+				select: async () => true,
+			}],
+		};
+		store.add(service.registerConfirmationContribution('customTool', contribution));
+		const ref: ILanguageModelToolConfirmationRef = {
+			...createMcpToolRef('customTool', 'serverId', 'Test Server'),
+			combination: {
+				label: 'Allow custom combination',
+				key: await computeCombinationKey('customTool', {}),
+			},
+		};
+
+		configurationService.policyRestricted = true;
+		assert.deepStrictEqual({
+			preDecision: service.getPreConfirmAction(ref),
+			postDecision: service.getPostConfirmAction(ref),
+			preActions: service.getPreConfirmActions(ref).map(action => action.label),
+			postActions: service.getPostConfirmActions(ref).map(action => action.label),
+		}, {
+			preDecision: { type: ToolConfirmKind.UserAction },
+			postDecision: { type: ToolConfirmKind.UserAction },
+			preActions: ['Custom Pre Action'],
+			postActions: ['Custom Post Action'],
+		});
+	});
+
 	test('contribution with canUseDefaultApprovals=false prevents default store checks', () => {
 		const contribution: ILanguageModelToolConfirmationContribution = {
 			canUseDefaultApprovals: false,
@@ -524,5 +632,171 @@ suite('LanguageModelToolsConfirmationService', () => {
 		// Session confirmation should not persist
 		const newResult = newService.getPreConfirmAction(ref);
 		assert.strictEqual(newResult, undefined);
+	});
+
+	test('combination actions are only offered when combinationLabel is set', async () => {
+		const refWithout = createToolRef('testTool', ToolDataSource.Internal, { file: 'foo.txt' });
+		const actionsWithout = service.getPreConfirmActions(refWithout);
+		assert.ok(!actionsWithout.some(a => a.label.includes('foo.txt')));
+
+		const refWith = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+		const actionsWith = service.getPreConfirmActions(refWith);
+		assert.ok(actionsWith.some(a => a.label.includes('Allow reading "foo.txt"')));
+	});
+
+	test('combination actions include session, workspace, and profile scopes', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+		const actions = service.getPreConfirmActions(ref);
+		const combinationActions = actions.filter(a => a.label.includes('Allow reading "foo.txt"'));
+		assert.strictEqual(combinationActions.length, 3);
+		assert.ok(combinationActions.some(a => a.scope === 'session'));
+		assert.ok(combinationActions.some(a => a.scope === 'workspace'));
+		assert.ok(combinationActions.some(a => a.scope === 'profile'));
+	});
+
+	test('selecting a combination session action auto-confirms the same parameters', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+
+		assert.strictEqual(service.getPreConfirmAction(ref), undefined);
+
+		const actions = service.getPreConfirmActions(ref);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+
+		const result = service.getPreConfirmAction(ref);
+		assert.deepStrictEqual(result, { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
+	});
+
+	test('selecting a combination workspace action stores at workspace scope', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+
+		const actions = service.getPreConfirmActions(ref);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'workspace');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+
+		assert.deepStrictEqual(service.getPreConfirmAction(ref), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+	});
+
+	test('combination approval does not apply to different parameters', async () => {
+		const refFoo = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+		const refBar = await createCombinationRef('testTool', { file: 'bar.txt' }, 'Allow reading "bar.txt"');
+
+		const actions = service.getPreConfirmActions(refFoo);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+
+		assert.ok(service.getPreConfirmAction(refFoo));
+		assert.strictEqual(service.getPreConfirmAction(refBar), undefined);
+	});
+
+	test('tool-level approval takes precedence over combination approval', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+
+		const actions = service.getPreConfirmActions(ref);
+		const toolSessionAction = actions.find(a => a.label.includes('Session')
+			&& !a.label.includes('foo.txt') && !a.label.includes('Server'));
+		assert.ok(toolSessionAction);
+		await toolSessionAction.select();
+
+		const result = service.getPreConfirmAction(ref);
+		assert.deepStrictEqual(result, { type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
+	});
+
+	test('combination approvals are cleared on reset', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+
+		const actions = service.getPreConfirmActions(ref);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+		assert.ok(service.getPreConfirmAction(ref));
+
+		service.resetToolAutoConfirmation();
+		assert.strictEqual(service.getPreConfirmAction(ref), undefined);
+	});
+
+	test('combination session approvals do not persist across service instances', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"');
+
+		const actions = service.getPreConfirmActions(ref);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'session');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+		assert.ok(service.getPreConfirmAction(ref));
+
+		const newService = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+		assert.strictEqual(newService.getPreConfirmAction(ref), undefined);
+	});
+
+	test('legacy string[] storage format is read correctly', () => {
+		// Pre-seed storage with the legacy string[] format
+		const storageService = instantiationService.get(IStorageService);
+		storageService.store('chat/autoconfirm', JSON.stringify(['tool1', 'tool2']), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		// Create a new service instance that reads the legacy data
+		const newService = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+
+		const ref1 = createToolRef('tool1');
+		const ref2 = createToolRef('tool2');
+		const ref3 = createToolRef('tool3');
+
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref1), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref2), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+		assert.strictEqual(newService.getPreConfirmAction(ref3), undefined);
+	});
+
+	test('new Record storage format preserves labels', () => {
+		// Pre-seed storage with the new Record<string, string | boolean> format
+		const storageService = instantiationService.get(IStorageService);
+		const data: Record<string, string | boolean> = {
+			'tool1:combination:12345': 'Allow reading foo.txt',
+			'tool2': true,
+		};
+		storageService.store('chat/autoconfirm', JSON.stringify(data), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		const newService = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+
+		// tool2 should be auto-confirmed (boolean true, no label)
+		const ref2 = createToolRef('tool2');
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref2), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+	});
+
+	test('object storage format with arguments round-trips across restart', () => {
+		// Pre-seed storage with the new object format containing arguments
+		const storageService = instantiationService.get(IStorageService);
+		const data: Record<string, string | boolean | { label?: string; arguments?: string }> = {
+			'tool1:combination:12345': { label: 'Allow reading foo.txt', arguments: '["foo.txt"]' },
+			'tool2:combination:67890': { label: 'Allow command with args' },
+		};
+		storageService.store('chat/autoconfirm-combination', JSON.stringify(data), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		const newService = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+
+		// Both combination keys should be auto-confirmed
+		const ref1: ILanguageModelToolConfirmationRef = {
+			...createToolRef('tool1'),
+			combination: { label: 'Allow reading foo.txt', key: 'tool1:combination:12345', arguments: '["foo.txt"]' },
+		};
+		const ref2: ILanguageModelToolConfirmationRef = {
+			...createToolRef('tool2'),
+			combination: { label: 'Allow command with args', key: 'tool2:combination:67890' },
+		};
+
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref1), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+		assert.deepStrictEqual(newService.getPreConfirmAction(ref2), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
+	});
+
+	test('combination approval with arguments persists via workspace scope', async () => {
+		const ref = await createCombinationRef('testTool', { file: 'foo.txt' }, 'Allow reading "foo.txt"', '{"file":"foo.txt"}');
+
+		const actions = service.getPreConfirmActions(ref);
+		const combinationAction = actions.find(a => a.label.includes('Allow reading "foo.txt"') && a.scope === 'workspace');
+		assert.ok(combinationAction);
+		await combinationAction.select();
+
+		assert.deepStrictEqual(service.getPreConfirmAction(ref), { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
 	});
 });

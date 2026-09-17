@@ -72,15 +72,25 @@ suite('Workbench - TerminalColorRegistry', () => {
 			'#0598bc',
 			'#555555',
 			'#666666',
-			'#cd3131',
+			'#f14c4c',
 			'#14ce14',
 			'#b5ba00',
-			'#0451a5',
-			'#bc05bc',
-			'#0598bc',
+			'#3b8eea',
+			'#d670d6',
+			'#29b8db',
 			'#a5a5a5'
 		], 'The light terminal colors should be used when the light theme is active');
 
+	});
+
+	test('light bright colors are lighter than regular colors', () => {
+		const theme = getMockTheme(ColorScheme.LIGHT);
+		const colors = ansiColorIdentifiers.map(colorId => theme.getColor(colorId)!);
+
+		assert.deepStrictEqual(
+			colors.slice(8).map((brightColor, index) => brightColor.isLighterThan(colors[index])),
+			[true, true, true, true, true, true, true, true]
+		);
 	});
 
 	test('dark colors', function () {

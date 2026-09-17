@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, filter } from './lib/gulp/facade.ts';
 import * as path from 'path';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as util from './lib/util.ts';
 import electron from '@vscode/gulp-electron';
 import { config } from './lib/electron.ts';
-import filter from 'gulp-filter';
 import * as deps from './lib/dependencies.ts';
 import { existsSync, readdirSync } from 'fs';
 
@@ -70,7 +69,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		task.series(...tasks)
 	);
 
-	gulp.task(setupSymbolsTask);
+	task.task(setupSymbolsTask);
 });
 
 function getProductionDependencySources() {
@@ -98,7 +97,7 @@ function nodeModules(destinationExe: string, destinationPdb: string, platform: s
 				.pipe(gulp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb) as task.CallbackTask;
+		return task.parallel(exe, pdb) as task.CallbackTask;
 	}
 
 	if (platform === 'linux') {
@@ -108,7 +107,7 @@ function nodeModules(destinationExe: string, destinationPdb: string, platform: s
 				.pipe(gulp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb) as task.CallbackTask;
+		return task.parallel(exe, pdb) as task.CallbackTask;
 	}
 
 	return exe;

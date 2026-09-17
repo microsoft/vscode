@@ -1,0 +1,1103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { FileType, IFileService, IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type ISyncableMcpServer, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+
+class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	private readonly symbolicLinks = new ResourceSet();
+	private readonly statFailures = new ResourceSet();
+	private readonly writeFailures = new ResourceSet();
+	private statDelay = 0;
+	activeStats = 0;
+	maxActiveStats = 0;
+	statCalls = 0;
+	fixedMtime: number | undefined;
+
+	markSymbolicLink(resource: URI): void {
+		this.symbolicLinks.add(resource);
+	}
+
+	delayStats(delay: number): void {
+		this.statDelay = delay;
+	}
+
+	failStat(resource: URI): void {
+		this.statFailures.add(resource);
+	}
+
+	failNextWrite(resource: URI): void {
+		this.writeFailures.add(resource);
+	}
+
+	override async stat(resource: URI): Promise<IStat> {
+		this.statCalls++;
+		this.activeStats++;
+		this.maxActiveStats = Math.max(this.maxActiveStats, this.activeStats);
+		try {
+			if (this.statDelay > 0) {
+				await timeout(this.statDelay);
+			}
+			if (this.statFailures.has(resource)) {
+				throw new Error('Unavailable test resource');
+			}
+			const stat = await super.stat(resource);
+			return {
+				...stat,
+				mtime: this.fixedMtime ?? stat.mtime,
+				type: this.symbolicLinks.has(resource) ? stat.type | FileType.SymbolicLink : stat.type,
+			};
+		} finally {
+			this.activeStats--;
+		}
+	}
+
+	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+		if (this.writeFailures.delete(resource)) {
+			throw new Error('Unavailable test resource');
+		}
+		return super.writeFile(resource, content, options);
+	}
+}
+
+suite('SyncedCustomizationBundler', () => {
+
+	const disposables = new DisposableStore();
+	let fileService: FileService;
+	let memFs: TestInMemoryFileSystemProvider;
+	let syncedFs: TestInMemoryFileSystemProvider;
+	let instantiationService: TestInstantiationService;
+
+	const enabledMcpServer = (name: string, configuration: IMcpServerConfiguration): ISyncableMcpServer => ({
+		name,
+		configuration,
+		enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+	});
+
+	setup(() => {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		memFs = disposables.add(new TestInMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
+
+		// Register the synced-customization scheme via a mock service
+		syncedFs = disposables.add(new TestInMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, syncedFs));
+
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAgentHostFileSystemService, { ensureSyncedCustomizationProvider() { /* already registered above */ } });
+	});
+
+	teardown(() => {
+		sinon.restore();
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createBundler(authority = 'test-agent'): SyncedCustomizationBundler {
+		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority));
+	}
+
+	async function seedFile(path: string, content: string): Promise<URI> {
+		const uri = URI.from({ scheme: Schemas.inMemory, path });
+		await fileService.writeFile(uri, VSBuffer.fromString(content));
+		return uri;
+	}
+
+	async function seedBinaryFile(path: string, content: number[]): Promise<URI> {
+		const uri = URI.from({ scheme: Schemas.inMemory, path });
+		await fileService.writeFile(uri, VSBuffer.fromByteArray(content));
+		return uri;
+	}
+
+	function serializeOrigin(origin: ISyncedCustomizationOrigin | undefined) {
+		return origin && {
+			...origin,
+			uri: origin.uri.toString(),
+			pluginUri: origin.pluginUri?.toString(),
+		};
+	}
+
+	test('returns undefined for empty file list', async () => {
+		const bundler = createBundler();
+		const result = await bundler.bundle([]);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns undefined when all files have unsupported types', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/hooks.json', '{}');
+		// Hooks are not supported by the bundler yet
+		const result = await bundler.bundle([{ uri, type: PromptsType.hook }]);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('bundles instruction files into rules directory', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/my-rules.md', '# My rules\nDo X');
+
+		const result = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result, 'should return a result');
+		assert.ok(result.ref.uri, 'should have a URI');
+		assert.strictEqual(result.ref.name, 'VS Code Synced Data');
+		assert.ok(result.ref.nonce, 'should have a nonce');
+
+		// Verify the file was written to the in-memory FS
+		const destUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/my-rules.md' });
+		const content = await fileService.readFile(destUri);
+		assert.strictEqual(content.value.toString(), '# My rules\nDo X');
+	});
+
+	test('bundles files into correct directories by type', async () => {
+		const bundler = createBundler();
+		const instrUri = await seedFile('/test/rule.md', 'rule content');
+		const promptUri = await seedFile('/test/cmd.prompt.md', 'prompt content');
+		const agentUri = await seedFile('/test/my-agent.md', 'agent content');
+		const skillUri = await seedFile('/test/my-skill.md', 'skill content');
+
+		const result = await bundler.bundle([
+			{ uri: instrUri, type: PromptsType.instructions },
+			{ uri: promptUri, type: PromptsType.prompt },
+			{ uri: agentUri, type: PromptsType.agent },
+			{ uri: skillUri, type: PromptsType.skill },
+		]);
+		assert.ok(result);
+
+		// Verify each file landed in the correct directory
+		const ruleContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' }));
+		assert.strictEqual(ruleContent.value.toString(), 'rule content');
+
+		const cmdContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/commands/cmd.prompt.md' }));
+		assert.strictEqual(cmdContent.value.toString(), 'prompt content');
+
+		const agentContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/agents/my-agent.md' }));
+		assert.strictEqual(agentContent.value.toString(), 'agent content');
+
+		// Non-SKILL.md skill files are written flat
+		const skillContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill.md' }));
+		assert.strictEqual(skillContent.value.toString(), 'skill content');
+	});
+
+	test('bundles SKILL.md files into per-skill subdirectories', async () => {
+		const bundler = createBundler();
+		const skillA = await seedFile('/skills/skill-a/SKILL.md', 'skill A content');
+		const skillB = await seedFile('/skills/skill-b/SKILL.md', 'skill B content');
+		const skillC = await seedFile('/skills/my-cool-skill/SKILL.md', 'skill C content');
+
+		const result = await bundler.bundle([
+			{ uri: skillA, type: PromptsType.skill },
+			{ uri: skillB, type: PromptsType.skill },
+			{ uri: skillC, type: PromptsType.skill },
+		]);
+		assert.ok(result);
+
+		// Each SKILL.md should be in its own subdirectory (named after the parent folder)
+		const contentA = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/skill-a/SKILL.md' }));
+		assert.strictEqual(contentA.value.toString(), 'skill A content');
+
+		const contentB = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/skill-b/SKILL.md' }));
+		assert.strictEqual(contentB.value.toString(), 'skill B content');
+
+		const contentC = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-cool-skill/SKILL.md' }));
+		assert.strictEqual(contentC.value.toString(), 'skill C content');
+	});
+
+	test('bundles complete SKILL.md directories', async () => {
+		const bundler = createBundler();
+		memFs.fixedMtime = 1;
+		const skill = await seedFile('/skills/my-skill/SKILL.md', 'skill content');
+		const referenceSource = await seedFile('/skills/my-skill/references/notes.md', 'reference content');
+		await seedFile('/skills/my-skill/scripts/run.sh', 'script content');
+		await seedFile('/skills/my-skill/assets/templates/default.txt', 'template content');
+		await seedFile('/skills/my-skill/.git/config', 'git metadata');
+		await seedFile('/skills/my-skill/node_modules/dependency/index.js', 'dependency content');
+		await seedFile('/skills/outside.md', 'outside content');
+
+		const before = await fileService.stat(referenceSource);
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.ok(result);
+
+		const referenceUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/references/notes.md' });
+		const reference = await fileService.readFile(referenceUri);
+		const script = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/scripts/run.sh' }));
+		const template = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/assets/templates/default.txt' }));
+		assert.deepStrictEqual({
+			reference: reference.value.toString(),
+			script: script.value.toString(),
+			template: template.value.toString(),
+			gitMetadataExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/.git/config' })),
+			nodeModuleExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/node_modules/dependency/index.js' })),
+			outsideExists: await fileService.exists(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/outside.md' })),
+		}, {
+			reference: 'reference content',
+			script: 'script content',
+			template: 'template content',
+			gitMetadataExists: false,
+			nodeModuleExists: false,
+			outsideExists: false,
+		});
+
+		await fileService.writeFile(referenceSource, VSBuffer.fromString('updated reference'));
+		const after = await fileService.stat(referenceSource);
+		assert.deepStrictEqual({
+			before: { mtime: before.mtime, size: before.size },
+			after: { mtime: after.mtime, size: after.size },
+		}, {
+			before: { mtime: 1, size: 17 },
+			after: { mtime: 1, size: 17 },
+		});
+		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
+		assert.strictEqual((await fileService.readFile(referenceUri)).value.toString(), 'updated reference');
+	});
+
+	test('excludes worktree metadata files from skill directories', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/worktree/SKILL.md', 'skill content');
+		await seedFile('/skills/worktree/.git', 'gitdir: ../../.git/worktrees/worktree');
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.strictEqual(await fileService.exists(URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/worktree/.git',
+		})), false);
+	});
+
+	test('includes a symlinked SKILL.md entrypoint but excludes nested symlinks', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/symlinks/SKILL.md', 'skill content');
+		const nested = await seedFile('/skills/symlinks/references/linked.md', 'linked content');
+		memFs.markSymbolicLink(skill);
+		memFs.markSymbolicLink(nested);
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		const skillDestination = URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/symlinks/SKILL.md',
+		});
+		const nestedDestination = URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/symlinks/references/linked.md',
+		});
+		assert.deepStrictEqual({
+			skill: (await fileService.readFile(skillDestination)).value.toString(),
+			nestedExists: await fileService.exists(nestedDestination),
+		}, {
+			skill: 'skill content',
+			nestedExists: false,
+		});
+	});
+
+	test('rebuilds when nested skill resources are added or removed', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/evolving/SKILL.md', 'skill content');
+		const first = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		const added = await seedFile('/skills/evolving/references/notes.md', 'reference content');
+		const second = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		const destination = URI.from({
+			scheme: SYNCED_CUSTOMIZATION_SCHEME,
+			path: '/test-agent/skills/evolving/references/notes.md',
+		});
+
+		await fileService.del(added);
+		const third = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.deepStrictEqual({
+			addedNonceChanged: second!.ref.nonce !== first!.ref.nonce,
+			removedNonceChanged: third!.ref.nonce !== second!.ref.nonce,
+			destinationExists: await fileService.exists(destination),
+		}, {
+			addedNonceChanged: true,
+			removedNonceChanged: true,
+			destinationExists: false,
+		});
+	});
+
+	test('limits concurrent skill filesystem operations', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/wide/SKILL.md', 'skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/wide/references/${index}.md`, `reference ${index}`);
+		}
+		memFs.delayStats(5);
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.strictEqual(memFs.maxActiveStats, 10);
+	});
+
+	test('cancels while queued skill operations drain after disposal', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/disposed/SKILL.md', 'skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/disposed/references/${index}.md`, `reference ${index}`);
+		}
+		memFs.delayStats(20);
+
+		const bundle = bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		while (memFs.maxActiveStats < 10) {
+			await timeout(0);
+		}
+		const statCallsAtDisposal = memFs.statCalls;
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+		await assert.rejects(bundler.bundle([{ uri: skill, type: PromptsType.skill }]), error => isCancellationError(error));
+		while (memFs.activeStats > 0) {
+			await timeout(0);
+		}
+		assert.strictEqual(memFs.statCalls, statCallsAtDisposal);
+	});
+
+	test('normalizes an in-flight provider failure after disposal to cancellation', async () => {
+		const bundler = createBundler();
+		const resource = await seedFile('/test/unavailable.md', 'content');
+		memFs.delayStats(20);
+		memFs.failStat(resource);
+
+		const bundle = bundler.bundle([{ uri: resource, type: PromptsType.instructions }]);
+		while (memFs.activeStats === 0) {
+			await timeout(0);
+		}
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+	});
+
+	test('serializes replacement bundles for the same authority', async () => {
+		const disposedBundler = createBundler('shared-agent');
+		const replacementBundler = createBundler('shared-agent');
+		const skill = await seedFile('/skills/replaced/SKILL.md', 'old skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/replaced/references/${index}.md`, `reference ${index}`);
+		}
+		const replacement = await seedFile('/replacement.md', 'replacement content');
+		memFs.delayStats(50);
+
+		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		while (memFs.maxActiveStats < 10) {
+			await timeout(0);
+		}
+		disposedBundler.dispose();
+		const replacementBundle = replacementBundler.bundle([{ uri: replacement, type: PromptsType.instructions }]);
+		await timeout(0);
+
+		assert.strictEqual(memFs.activeStats, 10);
+		await assert.rejects(disposedBundle, error => isCancellationError(error));
+		await replacementBundle;
+		assert.strictEqual(
+			(await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/shared-agent/rules/replacement.md' }))).value.toString(),
+			'replacement content'
+		);
+	});
+
+	test('skips unreadable nested skill resources', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/unreadable/SKILL.md', 'skill content');
+		const unavailable = await seedFile('/skills/unreadable/references/unavailable.md', 'unavailable content');
+		await seedFile('/skills/unreadable/references/available.md', 'available content');
+		memFs.failStat(unavailable);
+
+		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+
+		assert.deepStrictEqual({
+			skill: (await fileService.readFile(URI.from({
+				scheme: SYNCED_CUSTOMIZATION_SCHEME,
+				path: '/test-agent/skills/unreadable/SKILL.md',
+			}))).value.toString(),
+			available: (await fileService.readFile(URI.from({
+				scheme: SYNCED_CUSTOMIZATION_SCHEME,
+				path: '/test-agent/skills/unreadable/references/available.md',
+			}))).value.toString(),
+			unavailableExists: await fileService.exists(URI.from({
+				scheme: SYNCED_CUSTOMIZATION_SCHEME,
+				path: '/test-agent/skills/unreadable/references/unavailable.md',
+			})),
+		}, {
+			skill: 'skill content',
+			available: 'available content',
+			unavailableExists: false,
+		});
+	});
+
+	test('bundles binary skill resources and invalidates the nonce when content changes', async () => {
+		const bundler = createBundler();
+		memFs.fixedMtime = 1;
+		const skill = await seedFile('/skills/binary/SKILL.md', 'skill content');
+		const binary = await seedBinaryFile('/skills/binary/assets/data.bin', [0x80]);
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.ok(result);
+
+		const binaryDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/binary/assets/data.bin' });
+		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x80]);
+
+		await fileService.writeFile(binary, VSBuffer.fromByteArray([0x81]));
+		const updatedResult = await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		assert.notStrictEqual(updatedResult!.ref.nonce, result.ref.nonce);
+		assert.deepStrictEqual([...((await fileService.readFile(binaryDest)).value.buffer)], [0x81]);
+	});
+
+	test('writes plugin manifest', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/file.md', 'content');
+
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		const manifestUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' });
+		const manifest = await fileService.readFile(manifestUri);
+		const parsed = JSON.parse(manifest.value.toString());
+		assert.strictEqual(parsed.name, 'VS Code Synced Data');
+	});
+
+	test('nonce is stable when files are unchanged', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'same content');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('nonce changes when file content changes', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/changing.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('nonce changes for same-size edits with unchanged mtimes', async () => {
+		const bundler = createBundler();
+		memFs.fixedMtime = 1;
+		const uri = await seedFile('/test/changing.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.deepStrictEqual({
+			nonceChanged: result2!.ref.nonce !== result1!.ref.nonce,
+			content: (await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/changing.md' }))).value.toString(),
+		}, {
+			nonceChanged: true,
+			content: 'v2',
+		});
+	});
+
+	test('nonce is order-independent', async () => {
+		const bundler = createBundler();
+		const uriA = await seedFile('/test/a.md', 'A');
+		const uriB = await seedFile('/test/b.md', 'B');
+
+		const result1 = await bundler.bundle([
+			{ uri: uriA, type: PromptsType.instructions },
+			{ uri: uriB, type: PromptsType.instructions },
+		]);
+		const result2 = await bundler.bundle([
+			{ uri: uriB, type: PromptsType.instructions },
+			{ uri: uriA, type: PromptsType.instructions },
+		]);
+		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('different authorities do not conflict', async () => {
+		const bundlerA = createBundler('agent-a');
+		const bundlerB = createBundler('agent-b');
+		const uri = await seedFile('/test/shared.md', 'shared content');
+
+		await bundlerA.bundle([{ uri, type: PromptsType.instructions }]);
+		await bundlerB.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// Both should have their own copy
+		const contentA = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/agent-a/rules/shared.md' }));
+		const contentB = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/agent-b/rules/shared.md' }));
+		assert.strictEqual(contentA.value.toString(), 'shared content');
+		assert.strictEqual(contentB.value.toString(), 'shared content');
+	});
+
+	test('lastNonce tracks the most recent bundle', async () => {
+		const bundler = createBundler();
+		assert.strictEqual(bundler.lastNonce, undefined);
+
+		const uri = await seedFile('/test/track.md', 'tracking');
+		const result = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.strictEqual(bundler.lastNonce, result!.ref.nonce);
+	});
+
+	test('SKILL.md files with same basename do not overwrite each other', async () => {
+		const bundler = createBundler();
+		// Both files have the same basename "SKILL.md" — the collision bug
+		// caused all skills to overwrite each other at skills/SKILL.md.
+		const skillA = await seedFile('/skills/alpha/SKILL.md', 'alpha skill');
+		const skillB = await seedFile('/skills/beta/SKILL.md', 'beta skill');
+
+		const result = await bundler.bundle([
+			{ uri: skillA, type: PromptsType.skill },
+			{ uri: skillB, type: PromptsType.skill },
+		]);
+		assert.ok(result);
+
+		// Both should be preserved in separate subdirectories
+		const contentA = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/alpha/SKILL.md' }));
+		const contentB = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/beta/SKILL.md' }));
+		assert.strictEqual(contentA.value.toString(), 'alpha skill');
+		assert.strictEqual(contentB.value.toString(), 'beta skill');
+	});
+
+	test('non-SKILL.md skill files are written flat', async () => {
+		const bundler = createBundler();
+		const skillUri = await seedFile('/test/my-helper.md', 'helper skill');
+
+		const result = await bundler.bundle([{ uri: skillUri, type: PromptsType.skill }]);
+		assert.ok(result);
+
+		// Non-SKILL.md files go directly under skills/ without subdirectory
+		const content = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-helper.md' }));
+		assert.strictEqual(content.value.toString(), 'helper skill');
+	});
+
+	test('mixed SKILL.md and non-SKILL.md skill files coexist', async () => {
+		const bundler = createBundler();
+		const skillDir = await seedFile('/skills/council-plan/SKILL.md', 'council plan');
+		const skillFlat = await seedFile('/test/quick-fix.md', 'quick fix');
+
+		const result = await bundler.bundle([
+			{ uri: skillDir, type: PromptsType.skill },
+			{ uri: skillFlat, type: PromptsType.skill },
+		]);
+		assert.ok(result);
+
+		const contentA = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/council-plan/SKILL.md' }));
+		assert.strictEqual(contentA.value.toString(), 'council plan');
+
+		const contentB = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/quick-fix.md' }));
+		assert.strictEqual(contentB.value.toString(), 'quick fix');
+	});
+
+	test('SKILL.md nonce includes subdirectory path', async () => {
+		const bundler = createBundler();
+		// Two skills with same content but different parent dirs should produce
+		// different nonces because their hash keys include the subdirectory.
+		const skillA = await seedFile('/skills/skill-x/SKILL.md', 'same content');
+		const skillB = await seedFile('/skills/skill-y/SKILL.md', 'same content');
+
+		const resultA = await bundler.bundle([{ uri: skillA, type: PromptsType.skill }]);
+		const resultB = await bundler.bundle([{ uri: skillB, type: PromptsType.skill }]);
+		assert.notStrictEqual(resultA!.ref.nonce, resultB!.ref.nonce);
+	});
+
+	test('rebundle clears previous tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/first.md', 'first version');
+
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// Verify the first file exists
+		const destUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/first.md' });
+		const content = await fileService.readFile(destUri);
+		assert.strictEqual(content.value.toString(), 'first version');
+
+		// Re-bundle with a different file — old file should be gone
+		const uri2 = await seedFile('/test/second.md', 'second version');
+		await bundler.bundle([{ uri: uri2, type: PromptsType.instructions }]);
+
+		let threw = false;
+		try {
+			await fileService.readFile(destUri);
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'old file should have been deleted by rebundle');
+
+		const newContent = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/second.md' }));
+		assert.strictEqual(newContent.value.toString(), 'second version');
+	});
+
+	test('unchanged rebundle reads each source once and reuses the previous result without touching the tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		const readFile = sinon.spy(fileService, 'readFile');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		// Drop a sentinel file into the tree. A destructive rebundle would wipe it;
+		// a skipped rebundle leaves it untouched.
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+		readFile.resetHistory();
+		const writeFile = sinon.spy(fileService, 'writeFile');
+		const del = sinon.spy(fileService, 'del');
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const sourceReads = readFile.callCount;
+
+		assert.deepStrictEqual({
+			reused: result2 === result1,
+			sourceReads,
+			writes: writeFile.callCount,
+			deletes: del.callCount,
+			sentinel: (await fileService.readFile(sentinel)).value.toString(),
+		}, {
+			reused: true,
+			sourceReads: 1,
+			writes: 0,
+			deletes: 0,
+			sentinel: 'keep me',
+		});
+	});
+
+	test('avoids redundant stats for flat files and skill entrypoints on rebundle', async () => {
+		const bundler = createBundler();
+		const flat = await seedFile('/test/rule.md', 'rule content');
+		const skill = await seedFile('/skills/my-skill/SKILL.md', 'skill content');
+		const reference = await seedFile('/skills/my-skill/reference.md', 'reference content');
+		const stat = sinon.spy(memFs, 'stat');
+		const files = [
+			{ uri: flat, type: PromptsType.instructions },
+			{ uri: skill, type: PromptsType.skill },
+		];
+		const countStats = (resource: URI) => stat.getCalls().filter(call => isEqual(call.args[0], resource)).length;
+		const statCounts = () => ({
+			flat: countStats(flat),
+			skill: countStats(skill),
+			reference: countStats(reference),
+		});
+
+		const first = await bundler.bundle(files);
+		const initialStats = statCounts();
+		stat.resetHistory();
+		const second = await bundler.bundle(files);
+
+		assert.deepStrictEqual({
+			initialStats,
+			rebundleStats: statCounts(),
+			reused: second === first,
+		}, {
+			initialStats: { flat: 1, skill: 2, reference: 2 },
+			rebundleStats: { flat: 1, skill: 2, reference: 2 },
+			reused: true,
+		});
+	});
+
+	test('reused bundle refreshes origins when source metadata and content are unchanged', async () => {
+		const bundler = createBundler();
+		memFs.fixedMtime = 1;
+		const first = await seedFile('/old/rule.md', 'same content');
+		const second = await seedFile('/new/rule.md', 'same content');
+		const result1 = await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' }]);
+		const writeFile = sinon.spy(fileService, 'writeFile');
+		const del = sinon.spy(fileService, 'del');
+
+		const result2 = await bundler.bundle([{ uri: second, type: PromptsType.instructions, source: 'plugin' }]);
+		const destination = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+
+		assert.deepStrictEqual({
+			reused: result2 === result1,
+			origin: serializeOrigin(bundler.getOrigin(destination)),
+			writes: writeFile.callCount,
+			deletes: del.callCount,
+		}, {
+			reused: true,
+			origin: { uri: second.toString(), source: 'plugin', extensionId: undefined, pluginUri: undefined },
+			writes: 0,
+			deletes: 0,
+		});
+	});
+
+	test('reused bundle updates child enablement without rewriting unchanged content', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/rule.md', 'same content');
+		const server = enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' });
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }], [server]);
+		const writeFile = sinon.spy(fileService, 'writeFile');
+		const del = sinon.spy(fileService, 'del');
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }], [{
+			...server,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		}]);
+
+		assert.deepStrictEqual({
+			nonceUnchanged: result2!.ref.nonce === result1!.ref.nonce,
+			previousEnablement: result1!.ref.childEnablement,
+			enablement: result2!.ref.childEnablement,
+			bundledMcpServer: bundler.isBundledMcpServer(result2!.ref.uri, 'srv'),
+			writes: writeFile.callCount,
+			deletes: del.callCount,
+		}, {
+			nonceUnchanged: true,
+			previousEnablement: { srv: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+			enablement: { srv: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+			bundledMcpServer: true,
+			writes: 0,
+			deletes: 0,
+		});
+	});
+
+	test('propagates a read failure without invalidating the previous bundle', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const error = new Error('Unavailable test resource');
+		const readFile = sinon.stub(fileService, 'readFile').rejects(error);
+
+		await assert.rejects(bundler.bundle([{ uri, type: PromptsType.instructions }]), error);
+		readFile.restore();
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.deepStrictEqual({
+			reused: result2 === result1,
+			lastNonce: bundler.lastNonce,
+		}, {
+			reused: true,
+			lastNonce: result1!.ref.nonce,
+		});
+	});
+
+	test('normalizes an in-flight read failure on a reused bundle after disposal to cancellation', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const started = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		sinon.stub(fileService, 'readFile').callsFake(async () => {
+			started.complete();
+			await resume.p;
+			throw new Error('Unavailable test resource');
+		});
+
+		const bundle = bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await started.p;
+		bundler.dispose();
+		resume.complete();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+	});
+
+	test('changed rebundle deletes the previous tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/changing.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		// Sentinel that should be removed when the tree is rebuilt.
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('remove me'));
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// A fresh result is produced and the sentinel is gone.
+		assert.notStrictEqual(result2, result1);
+		assert.notStrictEqual(result2!.ref.nonce, result1.ref.nonce);
+		let threw = false;
+		try {
+			await fileService.readFile(sentinel);
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'sentinel should be deleted when content changes');
+	});
+
+	test('unchanged MCP-only rebundle reuses the previous result', async () => {
+		const bundler = createBundler();
+		const server = enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' });
+
+		const result1 = await bundler.bundle([], [server]);
+		assert.ok(result1);
+
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+
+		const result2 = await bundler.bundle([], [server]);
+
+		assert.strictEqual(result2, result1);
+		const survived = await fileService.readFile(sentinel);
+		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('touching a file without changing its content reuses the previous result', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+		await timeout(10);
+		await fileService.writeFile(uri, VSBuffer.fromString('unchanged content'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(result2, result1);
+		assert.strictEqual((await fileService.readFile(sentinel)).value.toString(), 'keep me');
+	});
+
+	test('retries a changed bundle after a write failure', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/retry.md', 'v1');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		syncedFs.failNextWrite(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' }));
+		await assert.rejects(() => bundler.bundle([{ uri, type: PromptsType.instructions }]));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.notStrictEqual(result2!.ref.nonce, result1.ref.nonce);
+		assert.strictEqual((await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/retry.md' }))).value.toString(), 'version 2');
+	});
+
+	test('rewrites a reverted bundle after a write failure', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/revert.md', 'v1');
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		syncedFs.failNextWrite(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.plugin/plugin.json' }));
+		await assert.rejects(() => bundler.bundle([{ uri, type: PromptsType.instructions }]));
+		await fileService.writeFile(uri, VSBuffer.fromString('v1'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(result2!.ref.nonce, result1.ref.nonce);
+		assert.strictEqual((await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/revert.md' }))).value.toString(), 'v1');
+	});
+
+	test('reused rebundle still detects a later content change', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/evolving.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		// Second bundle is identical and should be reused (skip path).
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.strictEqual(result2, result1);
+
+		// A change after a reused rebundle must still trigger a rebuild — the
+		// reuse path must not poison the cached nonce/result.
+		await fileService.writeFile(uri, VSBuffer.fromString('version 2'));
+		const result3 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.notStrictEqual(result3, result1);
+		assert.notStrictEqual(result3!.ref.nonce, result1!.ref.nonce);
+		const written = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/evolving.md' }));
+		assert.strictEqual(written.value.toString(), 'version 2');
+	});
+
+	test('lastNonce is unchanged after a reused rebundle', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(bundler.lastNonce, result1!.ref.nonce);
+	});
+
+	test('removing a file from the set rebuilds the tree', async () => {
+		const bundler = createBundler();
+		const uriA = await seedFile('/test/keep.md', 'A');
+		const uriB = await seedFile('/test/drop.md', 'B');
+
+		await bundler.bundle([
+			{ uri: uriA, type: PromptsType.instructions },
+			{ uri: uriB, type: PromptsType.instructions },
+		]);
+
+		// Re-bundle with only the first file — the dropped file should be gone.
+		await bundler.bundle([{ uri: uriA, type: PromptsType.instructions }]);
+
+		const kept = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/keep.md' }));
+		assert.strictEqual(kept.value.toString(), 'A');
+
+		let threw = false;
+		try {
+			await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/drop.md' }));
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'dropped file should be removed when the file set changes');
+	});
+
+	test('changed MCP-only rebundle rewrites .mcp.json', async () => {
+		const bundler = createBundler();
+		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
+
+		await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v1' })]);
+		await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v2' })]);
+
+		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
+		assert.deepStrictEqual(parsed, {
+			mcpServers: { srv: { type: McpServerType.LOCAL, command: 'v2' } },
+		});
+	});
+
+	test('bundle description includes file count', async () => {
+		const bundler = createBundler();
+		const uriA = await seedFile('/test/a.md', 'A');
+		const uriB = await seedFile('/test/b.md', 'B');
+		const uriC = await seedFile('/test/c.md', 'C');
+
+		const result = await bundler.bundle([
+			{ uri: uriA, type: PromptsType.instructions },
+			{ uri: uriB, type: PromptsType.agent },
+			{ uri: uriC, type: PromptsType.prompt },
+		]);
+		assert.ok(result);
+		assert.ok(result.ref.nonce, 'should produce a nonce reflecting the bundled files');
+	});
+
+	test('writes MCP servers into .mcp.json', async () => {
+		const bundler = createBundler();
+		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
+
+		const result = await bundler.bundle([], [
+			{ ...enabledMcpServer('my-server', { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] }), defaultCwd },
+			enabledMcpServer('session-server', { type: McpServerType.LOCAL, command: 'session-server' }),
+		]);
+		assert.ok(result, 'a bundle with only MCP servers should still produce a result');
+
+		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
+		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
+		assert.deepStrictEqual(parsed, {
+			mcpServers: {
+				'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] },
+				'session-server': { type: McpServerType.LOCAL, command: 'session-server' },
+			},
+		});
+		assert.deepStrictEqual(result.ref._meta, {
+			mcpDefaultCwds: {
+				'my-server': defaultCwd.toString(),
+				'session-server': null,
+			},
+		});
+		assert.deepStrictEqual(result.ref.childEnablement, {
+			'my-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			'session-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+		});
+		assert.deepStrictEqual([
+			bundler.isBundledMcpServer(result.ref.uri, 'my-server'),
+			bundler.isBundledMcpServer(result.ref.uri, 'other-server'),
+			bundler.isBundledMcpServer('vscode-synced-customization:///other-plugin', 'my-server'),
+		], [true, false, false]);
+	});
+
+	test('MCP server bundle nonce is stable and order-independent', async () => {
+		const bundler = createBundler();
+		const a = enabledMcpServer('a', { type: McpServerType.LOCAL, command: 'a' });
+		const b = enabledMcpServer('b', { type: McpServerType.LOCAL, command: 'b' });
+
+		const result1 = await bundler.bundle([], [a, b]);
+		const result2 = await bundler.bundle([], [b, a]);
+		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('MCP server bundle nonce changes when a server changes', async () => {
+		const bundler = createBundler();
+		const result1 = await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v1' })]);
+		const result2 = await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v2' })]);
+		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('MCP server bundle nonce changes when its default cwd changes', async () => {
+		const bundler = createBundler();
+		const server = enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' });
+		const result1 = await bundler.bundle([], [{ ...server, defaultCwd: URI.file('/workspace/one') }]);
+		const result2 = await bundler.bundle([], [{ ...server, defaultCwd: URI.file('/workspace/two') }]);
+		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('getOrigin recovers provenance of flattened files by synced URI', async () => {
+		const bundler = createBundler();
+		const extUri = await seedFile('/ext/rule.md', 'ext rule');
+		const skillMd = await seedFile('/plugins/my-skill/SKILL.md', '# skill');
+		const skillReference = await seedFile('/plugins/my-skill/references/notes.md', '# reference');
+		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' });
+
+		await bundler.bundle([
+			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
+			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri },
+		]);
+
+		const ruleDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.deepStrictEqual(serializeOrigin(bundler.getOrigin(ruleDest)), {
+			uri: extUri.toString(),
+			source: 'extension',
+			extensionId: 'pub.ext',
+			pluginUri: undefined,
+		});
+
+		// Skills preserve their directory: skills/{skillName}/SKILL.md.
+		const skillDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/SKILL.md' });
+		assert.deepStrictEqual(serializeOrigin(bundler.getOrigin(skillDest)), {
+			uri: skillMd.toString(),
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: pluginUri.toString(),
+		});
+
+		const skillReferenceDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/references/notes.md' });
+		assert.deepStrictEqual(serializeOrigin(bundler.getOrigin(skillReferenceDest)), {
+			uri: skillReference.toString(),
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: pluginUri.toString(),
+		});
+
+		assert.strictEqual(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/unknown.md' })), undefined);
+	});
+
+	test('getOrigin has no entry for files without a source', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/rule.md', 'rule');
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const dest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.strictEqual(bundler.getOrigin(dest), undefined);
+	});
+
+	test('getOrigin map refreshes on each bundle', async () => {
+		const bundler = createBundler();
+		const first = await seedFile('/test/first.md', 'first');
+		await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.first' }]);
+		const firstDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/first.md' });
+		assert.ok(bundler.getOrigin(firstDest));
+
+		const second = await seedFile('/test/second.md', 'second');
+		await bundler.bundle([{ uri: second, type: PromptsType.instructions, source: 'plugin' }]);
+		// The previous file is no longer part of the bundle, so its origin is gone.
+		assert.strictEqual(bundler.getOrigin(firstDest), undefined);
+		assert.ok(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/second.md' })));
+	});
+});

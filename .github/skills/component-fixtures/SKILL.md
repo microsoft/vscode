@@ -11,7 +11,7 @@ Use tools `mcp_component-exp_`* to list and screenshot fixtures. If you cannot s
 
 ## Running Fixtures Locally
 
-1. Start the component explorer daemon: run the **Launch Component Explorer** task
+1. Start the component explorer server: run the **Component Explorer Server** task
 2. Use the `mcp_component-exp_list_fixtures` tool to see all available fixtures and their URLs
 3. Use the `mcp_component-exp_screenshot` tool to capture screenshots programmatically
 
@@ -60,6 +60,26 @@ Key points:
 - **`createEditorServices`** provides a `TestInstantiationService` with base editor services pre-registered
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly
+
+### File icon themes
+
+Fixtures use Seti file icons by default. Select another built-in theme, or disable file icons, on the individual fixture:
+
+```typescript
+defineComponentFixture({ fileIconTheme: 'vs-minimal', render: renderMyComponent });
+defineComponentFixture({ fileIconTheme: 'none', render: renderMyComponent });
+```
+
+When the rendered component reads `IThemeService`, pass the selected theme from `ComponentFixtureContext` to `createEditorServices`:
+
+```typescript
+function renderMyComponent({ disposableStore, theme, fileIconTheme }: ComponentFixtureContext): void {
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		fileIconTheme,
+	});
+}
+```
 
 ## Utilities from fixtureUtils.ts
 

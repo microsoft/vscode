@@ -11,7 +11,6 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import {
 	IAgentPlugin,
@@ -20,8 +19,16 @@ import {
 } from '../../../chat/common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
+
+/**
+ * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
+ * MCP collections contributed by agent plugins. The remainder of the id is
+ * the plugin's URI. Consumers can use this to tell plugin-sourced MCP servers
+ * apart from servers configured directly in VS Code.
+ */
+export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
@@ -43,11 +50,17 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 				if (!isContributionEnabled(plugin.enablement.read(reader))) {
 					continue;
 				}
+				const servers = plugin.mcpServerDefinitions.read(reader);
+				if (servers.length === 0) {
+					continue;
+				}
+
 				seen.add(plugin.uri);
 
 				let collectionState = this._collections.get(plugin.uri);
 				if (!collectionState) {
-					collectionState = this.createCollectionState(plugin);
+					// note: all plugin servers are currently defined in the same file
+					collectionState = this.createCollectionState(plugin, servers[0].uri);
 					this._collections.set(plugin.uri, collectionState);
 				}
 			}
@@ -60,10 +73,11 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		}));
 	}
 
-	private createCollectionState(plugin: IAgentPlugin) {
-		const collectionId = `plugin.${plugin.uri}`;
+	private createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
+		const collectionId = `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
+			provenance: McpCollectionProvenance.Plugin,
 			label: `${plugin.label} (Agent Plugin)`,
 			remoteAuthority: plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null,
 			configTarget: ConfigurationTarget.USER,
@@ -71,18 +85,18 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
+			order: McpCollectionSortOrder.Plugin,
 			presentation: {
-				origin: plugin.uri,
-				order: McpCollectionSortOrder.Plugin,
+				origin: manifestURI,
 			},
 		});
 	}
 
 	private _toServerDefinition(
 		collectionId: string,
-		{ name, configuration }: IAgentPluginMcpServerDefinition,
+		{ name, configuration, defaultCwd }: IAgentPluginMcpServerDefinition,
 	): McpServerDefinition | undefined {
-		const launch = this._toLaunch(configuration);
+		const launch = McpServerLaunch.fromServerConfiguration(configuration);
 		if (!launch) {
 			return undefined;
 		}
@@ -91,31 +105,9 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			id: `${collectionId}.${name}`,
 			label: name,
 			launch,
+			defaultCwd,
+			variableReplacement: { target: ConfigurationTarget.USER },
 			cacheNonce: String(hash(launch)),
 		};
-	}
-
-	private _toLaunch(config: IMcpServerConfiguration): McpServerLaunch | undefined {
-		if (config.type === McpServerType.LOCAL) {
-			return {
-				type: McpServerTransportType.Stdio,
-				command: config.command,
-				args: config.args ? [...config.args] : [],
-				env: config.env ? { ...config.env } : {},
-				envFile: config.envFile,
-				cwd: config.cwd,
-				sandbox: undefined,
-			};
-		}
-
-		try {
-			return {
-				type: McpServerTransportType.HTTP,
-				uri: URI.parse(config.url),
-				headers: Object.entries(config.headers ?? {}),
-			};
-		} catch {
-			return undefined;
-		}
 	}
 }

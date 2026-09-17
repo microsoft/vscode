@@ -29,9 +29,9 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PersistentConnectionEventType } from '../../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteConnectionType, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, RemoteConnectionType, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
-import { getRemoteName, parseAuthorityWithPort } from '../../../../platform/remote/common/remoteHosts.js';
+import { getRemoteName, isLoopbackHost, parseAuthorityWithPort } from '../../../../platform/remote/common/remoteHosts.js';
 import { updateProxyConfigurationsScope } from '../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -275,6 +275,17 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
 			const { host, port } = parseAuthorityWithPort(remoteAuthority);
+
+			// A direct `<host>:<port>` authority bypasses resolver extensions and connects
+			// straight to the given server. This form can originate from untrusted sources
+			// (e.g. the `remoteAuthority` of a `.code-workspace` file), so before connecting
+			// to anything that is not the local loopback interface we ask the user to confirm.
+			// This prevents a crafted workspace from silently pointing the window's backend at
+			// an attacker controlled server.
+			if (!isLoopbackHost(host)) {
+				await this._confirmDirectRemoteConnection(host, port);
+			}
+
 			return {
 				authority: {
 					authority: remoteAuthority,
@@ -289,6 +300,22 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		}
 
 		return this._resolveAuthorityOnExtensionHosts(ExtensionHostKind.LocalProcess, remoteAuthority);
+	}
+
+	private async _confirmDirectRemoteConnection(host: string, port: number): Promise<void> {
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: nls.localize('remoteConnectionConfirm', "Allow connecting to the remote server '{0}:{1}'?", host, port),
+			detail: nls.localize('remoteConnectionConfirmDetail', "Code is about to connect to '{0}:{1}' to host a remote extension host. Only continue if you trust this server, as it will be able to run code and access files on your behalf.", host, port),
+			primaryButton: nls.localize('remoteConnectionConfirmButton', "Connect")
+		});
+
+		if (!confirmed) {
+			throw new RemoteAuthorityResolverError(
+				nls.localize('remoteConnectionRejected', "Connection to '{0}:{1}' was not allowed.", host, port),
+				RemoteAuthorityResolverErrorCode.NotAvailable
+			);
+		}
 	}
 
 	private async _getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {

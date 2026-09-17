@@ -131,7 +131,10 @@ function doUrlPartMatch(
 		if (!['/', ':'].includes(urlPart[urlOffset])) {
 			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset));
 		}
-		options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 2));
+		// Only skip *. if we're at the start (bare domain) or at a dot boundary
+		if (urlOffset === 0 || urlPart[urlOffset - 1] === '.') {
+			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 2));
+		}
 	}
 
 	if (globUrlPart[globUrlOffset] === '*') {

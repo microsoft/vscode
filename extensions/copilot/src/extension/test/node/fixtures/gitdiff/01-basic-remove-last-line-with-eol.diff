@@ -1,0 +1,10 @@
+diff --git a/01-basic b/01-basic-remove-last-line-with-eol
+index 30c5fc9cb..b86219bf3 100644
+--- a/01-basic
++++ b/01-basic-remove-last-line-with-eol
+@@ -13,4 +13,3 @@ export function f(args_: string[], flags: any, child: any) {
+ 	}
+ 	child.unref();
+ 	return Promise.resolve();
+-}
+\ No newline at end of file

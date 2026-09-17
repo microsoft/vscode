@@ -6,10 +6,10 @@
 .changes-action-view-item {
 	display: flex;
 	align-items: center;
-	gap: 3px;
+	gap: 4px;
 	cursor: pointer;
 	padding: 0 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .changes-action-view-item:hover {

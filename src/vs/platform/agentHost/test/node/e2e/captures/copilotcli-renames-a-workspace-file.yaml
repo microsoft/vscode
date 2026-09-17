@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "require('fs').renameSync('before.txt','after.txt')"
+            description: Rename before.txt to after.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: powershell
+              input:
+                command: node -e "require('fs').renameSync('before.txt','after.txt')"
+                description: Rename before.txt to after.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 0>'
+    response:
+      content: renamed
+      stopReason: end_turn

@@ -1,0 +1,10 @@
+{
+    "question": "html comments ",
+    "exampleIncludeGlobs": [ "*.html" ],
+    "queryShouldFind": [
+        [ "bar.html", [
+                "<!--",
+                "<!--"
+            ] ]
+    ]
+}

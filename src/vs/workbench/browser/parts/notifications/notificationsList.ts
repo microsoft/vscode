@@ -44,6 +44,21 @@ export class NotificationsList extends Disposable {
 		super();
 	}
 
+	updateNotificationHeights(): void {
+		if (!this.list) {
+			return;
+		}
+
+		const focus = this.list.getFocus();
+		const focusedIndex = focus[0];
+		const focusRelativeTop = typeof focusedIndex === 'number' ? this.list.getRelativeTop(focusedIndex) : null;
+		this.list.splice(0, this.viewModel.length, this.viewModel);
+		if (typeof focusRelativeTop === 'number') {
+			this.list.reveal(focusedIndex, focusRelativeTop);
+		}
+		this.list.setFocus(focus);
+	}
+
 	show(): void {
 		if (this.isVisible) {
 			return; // already visible

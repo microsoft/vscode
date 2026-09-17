@@ -209,13 +209,15 @@ export function untildify(path: string, userHome: string): string {
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
+const urlSchemaRegexp = /^[^:/\\?#]+?:\/\//;
 const home = '~';
-export function shorten(paths: string[], pathSeparator: string = sep): string[] {
+export function shorten(paths: string[], defaultPathSeparator: string = sep): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
 	// for every path
 	let match = false;
 	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
+		let pathSeparator = defaultPathSeparator;
 		const originalPath = paths[pathIndex];
 
 		if (originalPath === '') {
@@ -233,7 +235,11 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		let trimmedPath = originalPath;
-		if (trimmedPath.indexOf(unc) === 0) {
+		if (urlSchemaRegexp.test(trimmedPath)) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf('//') + 2);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf('//') + 2);
+			pathSeparator = '/';
+		} else if (trimmedPath.indexOf(unc) === 0) {
 			prefix = trimmedPath.substr(0, trimmedPath.indexOf(unc) + unc.length);
 			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(unc) + unc.length);
 		} else if (trimmedPath.indexOf(pathSeparator) === 0) {
@@ -296,7 +302,12 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 
 					// add ellipsis at the end if needed
 					if (start + subpathLength < segments.length) {
-						result = result + pathSeparator + ellipsis;
+						// If the last segment is empty, preserve the trailing slash.
+						if (start + subpathLength === segments.length - 1 && segments[segments.length - 1] === '') {
+							result = result + pathSeparator;
+						} else {
+							result = result + pathSeparator + ellipsis;
+						}
 					}
 
 					shortenedPaths[pathIndex] = result;

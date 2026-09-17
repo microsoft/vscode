@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
+import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache.js';
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
 	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, FILE_PROTOCOL, DocumentUri
-} from './languageModes';
-import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
-import { HTMLDocumentRegions } from './embeddedSupport';
+} from './languageModes.js';
+import { MarkupKind } from 'vscode-languageserver';
+import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings.js';
+import { HTMLDocumentRegions } from './embeddedSupport.js';
 
 import * as ts from 'typescript';
-import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens.js';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
-	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
 	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs.js').then(libs => {
@@ -125,18 +126,21 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async doValidation(document: TextDocument, settings = workspace.settings): Promise<Diagnostic[]> {
 			updateHostSettings(settings);
 
-			const jsDocument = jsDocuments.get(document);
-			const languageService = await host.getLanguageService(jsDocument);
-			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
-			const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
-			return syntaxDiagnostics.concat(semanticDiagnostics).filter(d => !ignoredErrors.includes(d.code)).map((diag: ts.Diagnostic): Diagnostic => {
-				return {
-					range: convertRange(jsDocument, diag),
-					severity: DiagnosticSeverity.Error,
-					source: languageId,
-					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
-				};
-			});
+			const diagnostics: Diagnostic[] = [];
+			for (const jsDocument of documentRegions.get(document).getEmbeddedDocuments(languageId)) {
+				const languageService = await host.getLanguageService(jsDocument);
+				const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
+				const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
+				diagnostics.push(...syntaxDiagnostics.concat(semanticDiagnostics).filter(d => !ignoredErrors.includes(d.code)).map((diag: ts.Diagnostic): Diagnostic => {
+					return {
+						range: convertRange(jsDocument, diag),
+						severity: DiagnosticSeverity.Error,
+						source: languageId,
+						message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
+					};
+				}));
+			}
+			return diagnostics;
 		},
 		async doComplete(document: TextDocument, position: Position, _documentContext: DocumentContext): Promise<CompletionList> {
 			const jsDocument = jsDocuments.get(document);
@@ -185,10 +189,26 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (info) {
-				const contents = ts.displayPartsToString(info.displayParts);
+				const signature = ts.displayPartsToString(info.displayParts);
+				const documentation = ts.displayPartsToString(info.documentation);
+				const tags = tagsToMarkdown(info.tags);
+
+				const parts: string[] = [];
+				if (signature) {
+					parts.push(['```typescript', signature, '```'].join('\n'));
+				}
+				if (documentation) {
+					parts.push(documentation);
+				}
+				if (tags) {
+					parts.push(tags);
+				}
 				return {
 					range: convertRange(jsDocument, info.textSpan),
-					contents: ['```typescript', contents, '```'].join('\n')
+					contents: {
+						kind: MarkupKind.Markdown,
+						value: parts.join('\n\n')
+					}
 				};
 			}
 			return null;
@@ -437,7 +457,41 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 }
 
 
+function tagToMarkdown(tag: ts.JSDocTagInfo): string {
+	const text = ts.displayPartsToString(tag.text);
+	switch (tag.name) {
+		case 'param':
+		case 'template':
+		case 'augments':
+		case 'extends': {
+			// Parse out the parameter name, e.g. "name - description" or "name description"
+			const match = text.match(/^(\S+)\s*-?\s*(.*)$/s);
+			if (match) {
+				const param = match[1];
+				const doc = match[2];
+				const label = `*@${tag.name}* \`${param}\``;
+				if (!doc) {
+					return label;
+				}
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` — ${doc}`);
+			}
+			break;
+		}
+	}
 
+	const label = `*@${tag.name}*`;
+	if (!text) {
+		return label;
+	}
+	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
+}
+
+function tagsToMarkdown(tags: ts.JSDocTagInfo[] | undefined): string {
+	if (!tags || tags.length === 0) {
+		return '';
+	}
+	return tags.map(tagToMarkdown).join('  \n\n');
+}
 
 function convertRange(document: TextDocument, span: { start: number | undefined; length: number | undefined }): Range {
 	if (typeof span.start === 'undefined') {

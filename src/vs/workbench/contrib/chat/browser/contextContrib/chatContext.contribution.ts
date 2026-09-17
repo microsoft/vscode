@@ -67,7 +67,7 @@ export class ChatContextContribution extends Disposable implements IWorkbenchCon
 				for (const contribution of ext.value) {
 					const icon = contribution.icon ? ThemeIcon.fromString(contribution.icon) : undefined;
 					if (!icon && contribution.icon) {
-						ext.collector.error(localize('chatContextExtPoint.invalidIcon', "Invalid icon format for chat context contribution '{0}'. Icon must be in the format '$(iconId)' or '$(iconId~spin)', e.g. '$(copilot)'.", contribution.id));
+						ext.collector.error(localize('chatContextExtPoint.invalidIcon', "Invalid icon format for chat context contribution '{0}'. Icon must be in the format '{1}' or '{2}', e.g. '{3}'.", contribution.id, '$(iconId)', '$(iconId~spin)', '$(copilot)'));
 						continue;
 					}
 					if (!icon) {

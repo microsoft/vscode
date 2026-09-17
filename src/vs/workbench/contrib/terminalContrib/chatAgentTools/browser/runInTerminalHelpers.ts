@@ -7,7 +7,7 @@ import { Separator } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { escapeRegExpCharacters, removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { localize } from '../../../../../nls.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import type { ToolConfirmationAction } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -47,8 +47,6 @@ export function isFish(envShell: string, os: OperatingSystem): boolean {
 	return /^fish$/.test(pathPosix.basename(envShell));
 }
 
-// Maximum output length to prevent context overflow
-const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
 export const TRUNCATION_MESSAGE = '\n\n[... PREVIOUS OUTPUT TRUNCATED ...]\n\n';
 
 export function truncateOutputKeepingTail(output: string, maxLength: number): string {
@@ -64,19 +62,6 @@ export function truncateOutputKeepingTail(output: string, maxLength: number): st
 	return TRUNCATION_MESSAGE + endPortion;
 }
 
-export function sanitizeTerminalOutput(output: string): string {
-	let sanitized = removeAnsiEscapeCodes(output)
-		// Trim trailing \r\n characters
-		.trimEnd();
-
-	// Truncate if output is too long to prevent context overflow
-	if (sanitized.length > MAX_OUTPUT_LENGTH) {
-		sanitized = truncateOutputKeepingTail(sanitized, MAX_OUTPUT_LENGTH);
-	}
-
-	return sanitized;
-}
-
 /**
  * Normalizes command text for UI display by removing unnecessary quote and forward slash
  * escaping artifacts (for example: \" \' \/) commonly produced in streamed tool-call JSON.
@@ -85,7 +70,41 @@ export function normalizeTerminalCommandForDisplay(commandLine: string): string 
 	return commandLine.replace(/\\(["'\/])/g, '$1');
 }
 
-export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
+/**
+ * Builds a single-line display string for a terminal command, suitable for UI messages.
+ * Normalizes escape artifacts, collapses newlines to spaces, and truncates to 80 characters.
+ */
+export function buildCommandDisplayText(command: string): string {
+	const normalized = normalizeTerminalCommandForDisplay(command).replace(/\r\n|\r|\n/g, ' ');
+	return normalized.length > 80 ? normalized.substring(0, 77) + '...' : normalized;
+}
+
+/**
+ * Normalizes a terminal command for execution by collapsing newlines to spaces.
+ * This prevents multi-line input from being sent as multiple commands via sendText.
+ */
+export function normalizeCommandForExecution(command: string): string {
+	return command.replace(/\r\n|\r|\n/g, ' ').trim();
+}
+
+/**
+ * Whether a command spans multiple lines (heredoc, multi-statement block, etc.).
+ * Multi-line commands must be sent verbatim through bracketed paste mode so the
+ * shell treats them as a single paste instead of executing each line as it
+ * arrives.
+ *
+ * Bare line continuations (`\` immediately before a newline) are **not**
+ * considered multi-line because the shell joins them into a single logical
+ * line. Only newlines that are *not* preceded by a backslash count.
+ */
+export function isMultilineCommand(command: string): boolean {
+	// Normalize all line-ending variants to \n, then check for a newline
+	// that is not preceded by a backslash (i.e. not a line continuation).
+	const normalized = command.replace(/\r\n|\r/g, '\n');
+	return /(?<!\\)\n/.test(normalized);
+}
+
+export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }, options?: { skipSessionScoped?: boolean }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
@@ -180,17 +199,19 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 				subCommandLabel = `Commands ${subCommandsToSuggest.map(e => `\`${e} \u2026\``).join(', ')}`;
 			}
 
-			actions.push({
-				label: `Allow ${subCommandLabel} in this Session`,
-				data: {
-					type: 'newRule',
-					rule: subCommandsToSuggest.map(key => ({
-						key,
-						value: true,
-						scope: 'session'
-					}))
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+			if (!options?.skipSessionScoped) {
+				actions.push({
+					label: `Allow ${subCommandLabel} in this Session`,
+					data: {
+						type: 'newRule',
+						rule: subCommandsToSuggest.map(key => ({
+							key,
+							value: true,
+							scope: 'session'
+						}))
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 			actions.push({
 				label: `Allow ${subCommandLabel} in this Workspace`,
 				data: {
@@ -227,20 +248,22 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			!commandsWithSubcommands.has(commandLine) &&
 			!commandsWithSubSubCommands.has(commandLine)
 		) {
-			actions.push({
-				label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
-				data: {
-					type: 'newRule',
-					rule: {
-						key: `/^${escapeRegExpCharacters(commandLine)}$/`,
-						value: {
-							approve: true,
-							matchCommandLine: true
-						},
-						scope: 'session'
-					}
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+			if (!options?.skipSessionScoped) {
+				actions.push({
+					label: localize('autoApprove.exactCommand1', 'Allow Exact Command Line in this Session'),
+					data: {
+						type: 'newRule',
+						rule: {
+							key: `/^${escapeRegExpCharacters(commandLine)}$/`,
+							value: {
+								approve: true,
+								matchCommandLine: true
+							},
+							scope: 'session'
+						}
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 			actions.push({
 				label: localize('autoApprove.exactCommand2', 'Allow Exact Command Line in this Workspace'),
 				data: {
@@ -278,15 +301,17 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 
 	// Allow all commands for this session
-	actions.push({
-		label: localize('allowSession', 'Allow All Commands in this Session'),
-		tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
-		data: {
-			type: 'sessionApproval'
-		} satisfies TerminalNewAutoApproveButtonData
-	});
+	if (!options?.skipSessionScoped) {
+		actions.push({
+			label: localize('allowSession', 'Allow All Commands in this Session'),
+			tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
+			data: {
+				type: 'sessionApproval'
+			} satisfies TerminalNewAutoApproveButtonData
+		});
 
-	actions.push(new Separator());
+		actions.push(new Separator());
+	}
 
 	// Always show configure option
 	actions.push({

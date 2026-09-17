@@ -8,7 +8,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
-import { ExtensionData, IThemeExtensionPoint } from './workbenchThemeService.js';
+import { ExtensionData, IThemeExtensionPoint, migrateThemeSettingsId } from './workbenchThemeService.js';
 
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -39,11 +39,11 @@ export function registerColorThemeExtensionPoint() {
 						type: 'string'
 					},
 					uiTheme: {
-						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme, \'hc-light\' is the light high contrast theme.'),
+						markdownDescription: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: `vs` is the light color theme, `vs-dark` is the dark color theme. `hc-black` is the dark high contrast theme, `hc-light` is the light high contrast theme.'),
 						enum: [ThemeTypeSelector.VS, ThemeTypeSelector.VS_DARK, ThemeTypeSelector.HC_BLACK, ThemeTypeSelector.HC_LIGHT]
 					},
 					path: {
-						description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./colorthemes/awesome-color-theme.json\'.'),
+						markdownDescription: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically `./colorthemes/awesome-color-theme.json`.'),
 						type: 'string'
 					}
 				},
@@ -267,13 +267,14 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 	}
 
 	public findThemeBySettingsId(settingsId: string | null, defaultSettingsId?: string): T | undefined {
-		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
+		const migratedId = settingsId ? migrateThemeSettingsId(settingsId) : settingsId;
+		if (this.builtInTheme && this.builtInTheme.settingsId === migratedId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
 		for (const t of allThemes) {
-			if (t.settingsId === settingsId) {
+			if (t.settingsId === migratedId) {
 				return t;
 			}
 			if (t.settingsId === defaultSettingsId) {

@@ -15,8 +15,11 @@ import { testUrlMatchesGlob } from './urlGlob.js';
  * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
 export function isURLDomainTrusted(url: URI, trustedDomains: string[]): boolean {
-	url = URI.parse(normalizeURL(url));
-	trustedDomains = trustedDomains.map(normalizeURL);
+	trustedDomains = trustedDomains.map(domain => normalizeURL(domain.replace(/\\/g, '/')));
+	if (!isURLSafeForTrust(url) && !trustedDomains.includes('*')) {
+		return false;
+	}
+	url = URI.parse(normalizeURL(url.toString(true).replace(/\\/g, '/')));
 
 	if (isLocalhostAuthority(url.authority)) {
 		return true;
@@ -36,6 +39,20 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]): boolean 
 }
 
 /**
+ * Returns whether a URL has an authority that can be safely used for trust decisions.
+ */
+export function isURLSafeForTrust(url: URI): boolean {
+	return url.authority.length > 0 && !hasURLUserInformation(url);
+}
+
+/**
+ * Returns whether a URL authority contains user information.
+ */
+export function hasURLUserInformation(url: URI): boolean {
+	return url.authority.includes('@');
+}
+
+/**
  * Case-normalize some case-insensitive URLs, such as github.
  */
 export function normalizeURL(url: string | URI): string {
@@ -51,9 +68,16 @@ export function normalizeURL(url: string | URI): string {
 }
 
 const rLocalhost = /^(.+\.)?localhost(:\d+)?$/i;
-const r127 = /^127.0.0.1(:\d+)?$/;
-const rIPv6Localhost = /^\[::1\](:\d+)?$/;
+const r127 = /^127\.0\.0\.1(:\d+)?$/;
+const rIPv6Localhost = /^(\[::1\]|\[0:0:0:0:0:0:0:1\])(:\d+)?$/;
 
 export function isLocalhostAuthority(authority: string) {
 	return rLocalhost.test(authority) || r127.test(authority) || rIPv6Localhost.test(authority);
+}
+
+const r0000 = /^0\.0\.0\.0(:\d+)?$/;
+const rIPv6AllInterfaces = /^(\[::\]|\[0:0:0:0:0:0:0:0\])(:\d+)?$/;
+
+export function isAllInterfacesAuthority(authority: string) {
+	return r0000.test(authority) || rIPv6AllInterfaces.test(authority);
 }

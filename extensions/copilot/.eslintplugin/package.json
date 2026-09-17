@@ -1,0 +1,5 @@
+{
+    "name": "vscode-copilot-chat-eslint-plugin",
+    "private": true,
+    "type": "module"
+}

@@ -3,37 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ILanguageModelToolsService, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
-import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
-import { IChatDebugService } from '../../common/chatDebugService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
+import { IGitService } from '../../../git/common/gitService.js';
+import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+
+const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+
+interface IGitHubContextSelection {
+	readonly repoId: string;
+	readonly url: string;
+	readonly label: string;
+}
+
+interface IGitHubRepositoryPick extends IQuickPickItem {
+	readonly repoId?: string;
+	readonly folderUri?: URI;
+}
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -42,6 +65,23 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
  */
 export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
 
+export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>, hasEligibleOpenEditors: boolean): boolean {
+	if (!hasEligibleOpenEditors) {
+		return false;
+	}
+
+	const sessionResource = widget.viewModel?.sessionResource;
+	if (sessionResource && isAgentHostTarget(getChatSessionType(sessionResource))) {
+		return false;
+	}
+
+	if (widget.lockedAgentId && isAgentHostTarget(widget.lockedAgentId)) {
+		return false;
+	}
+
+	return true;
+}
+
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.contextContributions';
@@ -49,36 +89,8 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
-		@IChatDebugService chatDebugService: IChatDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
-
-		// Bind at the global context key service level so the tools service can evaluate it.
-		// Widget-scoped keys are not reliably visible to singleton services during async request processing.
-		const hasDebugToolsKey = ChatContextKeys.chatSessionHasDebugTools.bindTo(contextKeyService);
-		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
-			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasDebugToolsKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
-			languageModelToolsService.flushToolUpdates();
-		}));
-		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
-			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
-				hasDebugToolsKey.set(true);
-				languageModelToolsService.flushToolUpdates();
-			}
-		}));
-
-		// Register a command that extensions can call to enable debug tools
-		// for the current session. This sets the context key AND flushes the
-		// tools service synchronously so the change is visible immediately.
-		this._store.add(CommandsRegistry.registerCommand(EnableChatDebugToolsCommandId, () => {
-			hasDebugToolsKey.set(true);
-			languageModelToolsService.flushToolUpdates();
-		}));
 
 		// ###############################################################################################
 		//
@@ -93,7 +105,130 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(DebugEventsSnapshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
+	}
+}
+
+export class GitHubContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly ordinal = -450;
+
+	private readonly _commandId: string;
+
+	constructor(
+		kind: 'issue' | 'pullRequest',
+		@IGitService private readonly gitService: IGitService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+	) {
+		if (kind === 'issue') {
+			this.label = localize('chatContext.githubIssue', "Issue...");
+			this.icon = Codicon.issues;
+			this._commandId = OPEN_GITHUB_ISSUE_COMMAND;
+		} else {
+			this.label = localize('chatContext.githubPullRequest', "Pull Request...");
+			this.icon = Codicon.gitPullRequest;
+			this._commandId = OPEN_GITHUB_PULL_REQUEST_COMMAND;
+		}
+	}
+
+	isEnabled(): boolean {
+		return true;
+	}
+
+	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+		const repositories = await this.getRepositoryPicks();
+		let repository: IGitHubRepositoryPick | undefined;
+
+		if (repositories.length === 1) {
+			repository = repositories[0];
+		} else if (repositories.length > 1) {
+			repository = await this.pickRepository(repositories);
+		}
+
+		if (repositories.length > 1 && !repository) {
+			return undefined;
+		}
+
+		const repositoryArgument = repository?.repoId ?? this.getRepositoryId(repository?.folderUri) ?? repository?.folderUri;
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repositoryArgument);
+		if (!selection) {
+			return undefined;
+		}
+
+		const resource = URI.parse(selection.url);
+		return {
+			kind: 'generic',
+			id: selection.url,
+			fullName: selection.label,
+			name: selection.label,
+			value: resource,
+			icon: this.icon,
+			references: [{ reference: resource, kind: 'reference' }],
+		};
+	}
+
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
+		return this.quickInputService.pick<IGitHubRepositoryPick>(
+			[...repositories],
+			{
+				canPickMany: false,
+				placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository"),
+			}
+		);
+	}
+
+	private async getRepositoryPicks(): Promise<readonly IGitHubRepositoryPick[]> {
+		const knownRepositories = Array.from(this.gitService.repositories);
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (workspaceFolders.length > 1) {
+			return workspaceFolders.map((folder): IGitHubRepositoryPick => {
+				const repository = knownRepositories.find(repository =>
+					isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folder.uri)
+				);
+				const info = repository && getGitHubRemoteInfo(repository.state.get());
+				return info ? {
+					label: folder.name,
+					description: `${info.owner}/${info.repo}`,
+					repoId: `${info.owner}/${info.repo}`,
+					folderUri: folder.uri,
+				} : {
+					label: folder.name,
+					folderUri: folder.uri,
+				};
+			});
+		}
+
+		const repositoryIds = new Set<string>();
+		for (const repository of knownRepositories) {
+			if (!repository) {
+				continue;
+			}
+			const info = getGitHubRemoteInfo(repository.state.get());
+			if (info) {
+				repositoryIds.add(`${info.owner}/${info.repo}`);
+			}
+		}
+		return Array.from(repositoryIds)
+			.sort()
+			.map(repoId => ({ label: repoId, repoId }));
+	}
+
+	private getRepositoryId(folderUri: URI | undefined): string | undefined {
+		if (!folderUri) {
+			return undefined;
+		}
+		const repository = Array.from(this.gitService.repositories).find(repository =>
+			isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folderUri)
+		);
+		const info = repository && getGitHubRemoteInfo(repository.state.get());
+		return info ? `${info.owner}/${info.repo}` : undefined;
 	}
 }
 
@@ -178,8 +313,9 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 		@ILabelService private _labelService: ILabelService,
 	) { }
 
-	isEnabled(): Promise<boolean> | boolean {
-		return this._editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0;
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		const hasEligibleOpenEditors = this._editorService.editors.some(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput);
+		return shouldShowOpenEditorsContext(widget, hasEligibleOpenEditors);
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry[]> {
@@ -326,27 +462,71 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	}
 }
 
-class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
+class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
-	readonly type = 'valuePick';
-	readonly icon = Codicon.output;
-	readonly label = localize('chatContext.debugEventsSnapshot', 'Debug Events Snapshot');
-	readonly ordinal = -600;
+	readonly type = 'pickerPick';
+	readonly icon = Codicon.comment;
+	readonly label = localize('chatContext.sessions', 'Sessions...');
+	readonly ordinal = -400;
 
 	constructor(
-		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IPathService private readonly _pathService: IPathService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
-		const sessionResource = widget.viewModel?.sessionResource;
-		return !!sessionResource && this._chatDebugService.getEvents(sessionResource).length > 0;
+		return widget.location === ChatAgentLocation.Chat;
 	}
 
-	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
-		const sessionResource = widget.viewModel?.sessionResource;
-		if (!sessionResource) {
-			return undefined;
-		}
-		return createDebugEventsAttachment(sessionResource, this._chatDebugService);
+	asPicker(widget: IChatWidget): IChatContextPicker {
+		const currentSessionResource = widget.viewModel?.sessionResource;
+		const onlyShowAttachableCopilotCliSessions = !!currentSessionResource && isAgentHostTarget(getChatSessionType(currentSessionResource));
+		return {
+			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
+			picks: (async () => {
+				const picks: { pick: IChatContextPickerPickItem; lastActivity: number }[] = [];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
+				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+							continue;
+						}
+						const sessionResource = item.resource;
+						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
+							continue;
+						}
+						const icon = item.iconPath ?? providerIcon;
+						const lastActivity = item.timing.lastRequestEnded ?? item.timing.created;
+						picks.push({
+							lastActivity,
+							pick: {
+								label: item.label,
+								description: new Date(lastActivity).toLocaleString(),
+								asAttachment: (): IChatRequestVariableEntry => ({
+									kind: 'sessionReference',
+									id: sessionResource.toString(),
+									name: item.label,
+									value: sessionResource,
+									icon,
+								})
+							}
+						});
+					}
+				}
+				picks.sort((a, b) => b.lastActivity - a.lastActivity);
+				return picks.map(({ pick }) => pick);
+			})()
+		};
+	}
+
+	private _canAttachCopilotCliSession(sessionResource: URI): boolean {
+		// For now, attachments while in an Agent Host Copilot harness are attachable when backed by Copilot CLI events.jsonl.
+		return !!buildHostLocalEventsPath(
+			sessionResource,
+			this._pathService.userHome({ preferLocal: true }),
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
 	}
 }

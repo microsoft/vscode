@@ -19,7 +19,7 @@ import {
 } from './chatDebugTypes.js';
 
 /**
- * Shared filter state for the Agent Debug Panel.
+ * Shared filter state for the Agent Debug Logs.
  *
  * Both the Logs view and the Flow Chart view read from this single source of
  * truth. Toggle commands modify the state and fire `onDidChange` so every
@@ -48,11 +48,12 @@ export class ChatDebugFilterState extends Disposable {
 			case 'toolCall': return this.filterKindToolCall;
 			case 'modelTurn': return this.filterKindModelTurn;
 			case 'generic':
-				// The "Prompt Discovery" toggle only hides events produced by
-				// the prompt discovery pipeline (category === 'discovery').
+				// The "Chat Customization" toggle hides events produced by
+				// the prompt discovery pipeline (category === 'discovery')
+				// and the customization summary (category === 'customization').
 				// Other generic events (e.g. from external providers) are
 				// always visible and are not affected by this toggle.
-				if (category !== 'discovery') {
+				if (category !== 'discovery' && category !== 'customization') {
 					return true;
 				}
 				return this.filterKindPromptDiscovery;

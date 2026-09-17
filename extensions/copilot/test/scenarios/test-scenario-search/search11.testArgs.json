@@ -1,0 +1,10 @@
+{
+	"question": "css background color attributes",
+	"exampleIncludeGlobs": [ "*.css" ],
+	"queryShouldFind": [
+		[ "style.css", [
+				"background-color",
+				"background-color"
+			] ]
+	]
+}

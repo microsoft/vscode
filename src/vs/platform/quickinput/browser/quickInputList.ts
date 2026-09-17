@@ -19,7 +19,7 @@ import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '../
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
 import { equals } from '../../../base/common/arrays.js';
-import { ThrottledDelayer } from '../../../base/common/async.js';
+import { disposableTimeout, ThrottledDelayer } from '../../../base/common/async.js';
 import { compareAnything } from '../../../base/common/comparers.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -41,6 +41,7 @@ import { WorkbenchObjectTree } from '../../list/browser/listService.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
+import { asCssVariable } from '../../theme/common/colorUtils.js';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickFocus, QuickPickItem } from '../common/quickInput.js';
 import { IQuickInputStyles } from './quickInput.js';
 import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
@@ -321,14 +322,26 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 }
 
-abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implements ITreeRenderer<T, void, IQuickInputItemTemplateData> {
+abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> extends Disposable implements ITreeRenderer<T, void, IQuickInputItemTemplateData> {
 	abstract templateId: string;
+
+	private readonly _onDidDisposeFocusedElement = this._register(new Emitter<void>());
+
+	/**
+	 * This event is emitted when the renderer disposes an element that has focus.
+	 * This allows the list to re-focus itself and prevent focus from being lost
+	 * (potentially causing quickinput to dismiss itself) when an element is
+	 * removed while focused.
+	 */
+	readonly onDidDisposeFocusedElement = this._onDidDisposeFocusedElement.event;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate | undefined,
 		private readonly toggleStyles: IToggleStyles,
 		private readonly contextMenuService: IContextMenuService
-	) { }
+	) {
+		super();
+	}
 
 	// TODO: only do the common stuff here and have a subclass handle their specific stuff
 	renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
@@ -392,6 +405,9 @@ abstract class BaseQuickInputListRenderer<T extends IQuickPickElement> implement
 	}
 
 	disposeElement(_element: ITreeNode<IQuickPickElement, void>, _index: number, data: IQuickInputItemTemplateData): void {
+		if (dom.isAncestorOfActiveElement(data.entry)) {
+			this._onDidDisposeFocusedElement.fire();
+		}
 		data.toDisposeElement.clear();
 		data.toolBar.setActions([]);
 	}
@@ -456,6 +472,11 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		const mainItem: IQuickPickItem = element.item;
 
 		element.element.classList.toggle('not-pickable', element.item.pickable === false);
+		if (typeof mainItem.id === 'string') {
+			data.entry.setAttribute('data-quick-input-id', mainItem.id);
+		} else {
+			data.entry.removeAttribute('data-quick-input-id');
+		}
 
 		this.ensureCheckbox(element, data);
 
@@ -471,6 +492,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			data.icon.style.backgroundImage = '';
 			data.icon.className = mainItem.iconClass ? `quick-input-list-icon ${mainItem.iconClass}` : '';
 		}
+		data.icon.style.color = mainItem.iconColor ? asCssVariable(mainItem.iconColor.id) : '';
 
 		// Label
 		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
@@ -746,8 +768,8 @@ export class QuickInputList extends Disposable {
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
-		this._separatorRenderer = instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle);
-		this._itemRenderer = instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle);
+		this._separatorRenderer = this._register(instantiationService.createInstance(QuickPickSeparatorElementRenderer, hoverDelegate, this.styles.toggle));
+		this._itemRenderer = this._register(instantiationService.createInstance(QuickPickItemElementRenderer, hoverDelegate, this.styles.toggle));
 		this._tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
@@ -786,6 +808,8 @@ export class QuickInputList extends Disposable {
 			}
 		));
 		this._tree.getHTMLElement().id = id;
+		this._register(this._itemRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
+		this._register(this._separatorRenderer.onDidDisposeFocusedElement(() => this._tree.domFocus()));
 		this._registerListeners();
 	}
 
@@ -1140,7 +1164,7 @@ export class QuickInputList extends Disposable {
 		// Accessibility hack, unfortunately on next tick
 		// https://github.com/microsoft/vscode/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			setTimeout(() => {
+			disposableTimeout(() => {
 				// eslint-disable-next-line no-restricted-syntax
 				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
 				const parent = focusedElement?.parentNode;
@@ -1149,7 +1173,7 @@ export class QuickInputList extends Disposable {
 					focusedElement.remove();
 					parent.insertBefore(focusedElement, nextSibling);
 				}
-			}, 0);
+			}, 0, this._elementDisposable);
 		}
 	}
 

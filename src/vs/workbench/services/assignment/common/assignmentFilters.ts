@@ -44,7 +44,7 @@ export enum ExtensionsFilter {
 	/**
 	 * The tracking ID of the user from Copilot entitlement API.
 	 */
-	CopilotTrackingId = 'X-Copilot-Tracking-Id',
+	CopilotTrackingId = 'X-Copilot-CopilotTrackingId',
 
 	/**
 	 * Whether the `sn` flag is set to `'1'` in the copilot token.
@@ -101,6 +101,10 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this.copilotIsSn = this._storageService.get(StorageVersionKeys.CopilotIsSn, StorageScope.PROFILE);
 		this.copilotIsFcv1 = this._storageService.get(StorageVersionKeys.CopilotIsFcv1, StorageScope.PROFILE);
 
+		this.updateExtensionVersions();
+		this.updateCopilotEntitlementInfo();
+		this.updateCopilotTokenInfo();
+
 		this._register(this._extensionService.onDidChangeExtensionsStatus(extensionIdentifiers => {
 			if (extensionIdentifiers.some(identifier => ExtensionIdentifier.equals(identifier, 'github.copilot') || ExtensionIdentifier.equals(identifier, 'github.copilot-chat'))) {
 				this.updateExtensionVersions();
@@ -114,10 +118,6 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this._register(this._defaultAccountService.onDidChangeCopilotTokenInfo(() => {
 			this.updateCopilotTokenInfo();
 		}));
-
-		this.updateExtensionVersions();
-		this.updateCopilotEntitlementInfo();
-		this.updateCopilotTokenInfo();
 	}
 
 	private async updateExtensionVersions() {
@@ -237,6 +237,87 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		const filters = new Map<string, string | null>();
 		const filterValues = Object.values(ExtensionsFilter);
 		for (const value of filterValues) {
+			filters.set(value, this.getFilterValue(value));
+		}
+
+		return filters;
+	}
+}
+
+/**
+ * userParam names for the new TAS assignments API (POST /api/v1/assignments) that carry
+ * the GitHub account signals available in core. Hex org/business ids are not yet parsed
+ * in core, so they are intentionally omitted here.
+ */
+export enum GitHubAssignmentsFilter {
+	CopilotTrackingId = 'copilottrackingid',
+	IsGhOrMsftStaff = 'github_core_isghormsftstaff',
+	GhMsftOrExternal = 'github_core_ghmsftorexternal',
+}
+
+/**
+ * Emits the core-available GitHub account filters for the new TAS assignments API using
+ * the new userParam key names.
+ */
+export class GitHubCoreAssignmentsFilterProvider extends Disposable implements IExperimentationFilterProvider {
+	private copilotTrackingId: string | undefined;
+	private internalOrg: 'vscode' | 'github' | 'microsoft' | undefined;
+
+	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
+	readonly onDidChangeFilters = this._onDidChangeFilters.event;
+
+	constructor(
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		const newTrackingId = this._chatEntitlementService.copilotTrackingId ?? this.copilotTrackingId;
+		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
+
+		if (this.copilotTrackingId === newTrackingId && this.internalOrg === newInternalOrg) {
+			return;
+		}
+
+		this.copilotTrackingId = newTrackingId;
+		this.internalOrg = newInternalOrg;
+
+		this._onDidChangeFilters.fire();
+	}
+
+	getFilterValue(filter: string): string | null {
+		// copilotTrackingId is the stable user id (it never changes) but can be unavailable
+		// during sign-in delays. Latch the first known value and fall back to it so the
+		// filter is not dropped from later requests once we have seen it.
+		const liveTrackingId = this._chatEntitlementService.copilotTrackingId;
+		if (liveTrackingId) {
+			this.copilotTrackingId = liveTrackingId;
+		}
+		const copilotTrackingId = liveTrackingId ?? this.copilotTrackingId;
+		const internalOrg = getInternalOrg(this._chatEntitlementService.organisations) ?? this.internalOrg;
+		switch (filter) {
+			case GitHubAssignmentsFilter.CopilotTrackingId:
+				return copilotTrackingId ?? null;
+			case GitHubAssignmentsFilter.IsGhOrMsftStaff:
+				return internalOrg ? '1' : '0';
+			case GitHubAssignmentsFilter.GhMsftOrExternal:
+				return internalOrg === 'github'
+					? 'github'
+					: (internalOrg === 'microsoft' || internalOrg === 'vscode')
+						? 'microsoft'
+						: 'external';
+			default:
+				return null;
+		}
+	}
+
+	getFilters(): Map<string, string | null> {
+		const filters = new Map<string, string | null>();
+		for (const value of Object.values(GitHubAssignmentsFilter)) {
 			filters.set(value, this.getFilterValue(value));
 		}
 

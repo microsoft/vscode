@@ -59,17 +59,17 @@
               "url": {
                 "type": "string",
                 "default": "/user.schema.json",
-                "description": "%json.schemas.url.desc%"
+                "markdownDescription": "%json.schemas.url.desc%"
               },
               "fileMatch": {
                 "type": "array",
                 "items": {
                   "type": "string",
                   "default": "MyFile.json",
-                  "description": "%json.schemas.fileMatch.item.desc%"
+                  "markdownDescription": "%json.schemas.fileMatch.item.desc%"
                 },
                 "minItems": 1,
-                "description": "%json.schemas.fileMatch.desc%"
+                "markdownDescription": "%json.schemas.fileMatch.desc%"
               },
               "schema": {
                 "$ref": "http://json-schema.org/draft-07/schema#",
@@ -135,13 +135,14 @@
             "https://raw.githubusercontent.com/devcontainers/spec/": true,
             "https://www.schemastore.org/": true,
             "https://json.schemastore.org/": true,
+            "https://spec.openapis.org/": true,
             "https://json-schema.org/": true,
             "https://developer.microsoft.com/json-schemas/": true
           },
           "additionalProperties": {
             "type": "boolean"
           },
-          "description": "%json.schemaDownload.trustedDomains.desc%",
+          "markdownDescription": "%json.schemaDownload.trustedDomains.desc%",
           "tags": [
             "usesOnlineServices"
           ]
@@ -172,6 +173,29 @@
       {
         "fileMatch": "*.schema.json",
         "url": "http://json-schema.org/draft-07/schema#"
+      },
+      {
+        "fileMatch": "arazzo.json",
+        "url": "https://www.schemastore.org/openapi-arazzo-1.X.json"
+      },
+      {
+        "fileMatch": [
+          "openapi.json",
+          "*.openapi.json"
+        ],
+        "url": "https://www.schemastore.org/openapi-3.X.json"
+      },
+      {
+        "fileMatch": [
+          "overlay.json",
+          "*.overlay.json"
+        ],
+        "url": "https://www.schemastore.org/openapi-overlay-1.X.json"
+      }
+    ],
+    "jsonValidationRegistry": [
+      {
+        "url": "vscode://schemas-associations/schemas-associations.json"
       }
     ],
     "commands": [
@@ -188,12 +212,12 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/extension-telemetry": "^0.9.9",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "^10.0.0-next.20"
+    "vscode-languageclient": "^10.1.1"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "repository": {
     "type": "git",

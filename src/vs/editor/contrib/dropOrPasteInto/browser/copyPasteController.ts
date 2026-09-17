@@ -657,7 +657,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		if ('only' in preference) {
 			return provider.providedPasteEditKinds.some(providedKind => preference.only.contains(providedKind));
 		} else if ('preferences' in preference) {
-			return preference.preferences.some(providedKind => preference.preferences.some(preferredKind => preferredKind.contains(providedKind)));
+			return provider.providedPasteEditKinds.some(providedKind => preference.preferences.some(preferredKind => preferredKind.contains(providedKind)));
 		} else {
 			return provider.id === preference.providerId;
 		}

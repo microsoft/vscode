@@ -7,6 +7,7 @@ export interface IOutputAnalyzerOptions {
 	readonly exitCode: number | undefined;
 	readonly exitResult: string;
 	readonly commandLine: string;
+	readonly isSandboxWrapped: boolean;
 }
 
 export interface IOutputAnalyzer {

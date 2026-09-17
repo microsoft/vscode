@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isLocalhostAuthority, isURLDomainTrusted, normalizeURL } from '../../common/trustedDomains.js';
+import { isAllInterfacesAuthority, isLocalhostAuthority, isURLDomainTrusted, normalizeURL } from '../../common/trustedDomains.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -20,6 +20,72 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://subdomain.localhost'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://[::1]'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://[::1]:3000'), []), true);
+		});
+
+		test('backslashes are treated as URL path separators', () => {
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com\\.localhost'), []), false);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com\\.github.com'), ['https://*.github.com']), false);
+		});
+
+		test('percent-encoded backslash user information is not implicitly trusted as localhost', () => {
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://localhost%5C@evil.example/'), []), false);
+		});
+
+		test('percent-encoded backslash user information does not match configured trusted domains', () => {
+			assert.deepStrictEqual([
+				isURLDomainTrusted(URI.parse('https://example.com%5C@evil.example/'), ['https://example.com']),
+				isURLDomainTrusted(URI.parse('https://api.github.com%5C@evil.example/'), ['https://*.github.com']),
+			], [
+				false,
+				false,
+			]);
+		});
+
+		test('encoded user information does not match implicit or configured trusted domains', () => {
+			const encodedSeparators = ['%2F', '%2f', '%5c', '%25%32%46', '%25%32%66', '%25%35%43', '%25%35%63'];
+
+			assert.deepStrictEqual(
+				encodedSeparators.map(encodedSeparator => ({
+					encodedSeparator,
+					localhost: isURLDomainTrusted(URI.parse(`https://localhost${encodedSeparator}@evil.example/`), []),
+					exact: isURLDomainTrusted(URI.parse(`https://example.com${encodedSeparator}@evil.example/`), ['https://example.com']),
+					wildcard: isURLDomainTrusted(URI.parse(`https://api.example.com${encodedSeparator}@evil.example/`), ['https://*.example.com']),
+				})),
+				encodedSeparators.map(encodedSeparator => ({
+					encodedSeparator,
+					localhost: false,
+					exact: false,
+					wildcard: false,
+				}))
+			);
+		});
+
+		test('authorityless HTTP URLs cannot become trusted through backslash normalization', () => {
+			const urls = [
+				String.raw`https:\localhost%2F@evil.example/resource`,
+				String.raw`https:/\localhost%25%32%66@evil.example/resource`,
+				String.raw`https:\example.com%5C@evil.example/resource`,
+				String.raw`https:/\api.example.com%25%35%43@evil.example/resource`,
+			];
+
+			assert.deepStrictEqual(
+				urls.map(url => ({
+					localhost: isURLDomainTrusted(URI.parse(url), []),
+					exact: isURLDomainTrusted(URI.parse(url), ['https://example.com']),
+					wildcard: isURLDomainTrusted(URI.parse(url), ['https://*.example.com']),
+					explicitTrustAll: isURLDomainTrusted(URI.parse(url), ['*']),
+				})),
+				urls.map(() => ({
+					localhost: false,
+					exact: false,
+					wildcard: false,
+					explicitTrustAll: true,
+				}))
+			);
+		});
+
+		test('bare wildcard explicitly trusts URLs with encoded user information', () => {
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com%2F@evil.example/'), ['*']), true);
 		});
 
 		test('wildcard (*) matches everything', () => {
@@ -118,10 +184,13 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isLocalhostAuthority('SUB.LOCALHOST'), true);
 		});
 
-		test('recognizes IPv6 localhost [::1]', () => {
+		test('recognizes IPv6 localhost [::1] and [0:0:0:0:0:0:0:1]', () => {
 			assert.strictEqual(isLocalhostAuthority('[::1]'), true);
 			assert.strictEqual(isLocalhostAuthority('[::1]:3000'), true);
 			assert.strictEqual(isLocalhostAuthority('[::1]:8080'), true);
+			assert.strictEqual(isLocalhostAuthority('[0:0:0:0:0:0:0:1]'), true);
+			assert.strictEqual(isLocalhostAuthority('[0:0:0:0:0:0:0:1]:3000'), true);
+			assert.strictEqual(isLocalhostAuthority('[0:0:0:0:0:0:0:1]:8080'), true);
 		});
 
 		test('does not match non-localhost authorities', () => {
@@ -132,6 +201,33 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isLocalhostAuthority('[::]'), false);
 			assert.strictEqual(isLocalhostAuthority('[::2]'), false);
 			assert.strictEqual(isLocalhostAuthority('[::1'), false);
+		});
+	});
+
+	suite('isAllInterfacesAuthority', () => {
+
+		test('recognizes 0.0.0.0', () => {
+			assert.strictEqual(isAllInterfacesAuthority('0.0.0.0'), true);
+			assert.strictEqual(isAllInterfacesAuthority('0.0.0.0:3000'), true);
+			assert.strictEqual(isAllInterfacesAuthority('0.0.0.0:8080'), true);
+		});
+
+		test('recognizes IPv6 all-interfaces [::]', () => {
+			assert.strictEqual(isAllInterfacesAuthority('[::]'), true);
+			assert.strictEqual(isAllInterfacesAuthority('[::]:3000'), true);
+			assert.strictEqual(isAllInterfacesAuthority('[::]:8080'), true);
+		});
+
+		test('recognizes full-form IPv6 all-interfaces [0:0:0:0:0:0:0:0]', () => {
+			assert.strictEqual(isAllInterfacesAuthority('[0:0:0:0:0:0:0:0]'), true);
+			assert.strictEqual(isAllInterfacesAuthority('[0:0:0:0:0:0:0:0]:3000'), true);
+		});
+
+		test('does not match localhost or other non-all-interfaces authorities', () => {
+			assert.strictEqual(isAllInterfacesAuthority('localhost'), false);
+			assert.strictEqual(isAllInterfacesAuthority('127.0.0.1'), false);
+			assert.strictEqual(isAllInterfacesAuthority('[::1]'), false);
+			assert.strictEqual(isAllInterfacesAuthority('example.com'), false);
 		});
 	});
 });

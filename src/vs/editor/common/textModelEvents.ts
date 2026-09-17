@@ -235,6 +235,24 @@ export class ModelRawFlush {
 }
 
 /**
+ * Represents a fixed-width injected text range within a line.
+ * @internal
+ */
+export interface FixedWidthInjectedTextRange {
+	readonly startOffset: number;
+	readonly endOffset: number;
+	readonly widthInEm: number;
+}
+
+/**
+ * Whether injected text takes up space on a line, either through its content or, when it is
+ * width-only (e.g. `{ content: '', widthInEm: 1 }`), through the horizontal space it reserves.
+ */
+function occupiesHorizontalSpace(options: InjectedTextOptions): boolean {
+	return options.content.length > 0 || (options.widthInEm !== undefined && options.widthInEm > 0);
+}
+
+/**
  * Represents text injected on a line
  * @internal
  */
@@ -257,7 +275,7 @@ export class LineInjectedText {
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
-			if (decoration.options.before && decoration.options.before.content.length > 0) {
+			if (decoration.options.before && occupiesHorizontalSpace(decoration.options.before)) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.startLineNumber,
@@ -266,7 +284,7 @@ export class LineInjectedText {
 					0,
 				));
 			}
-			if (decoration.options.after && decoration.options.after.content.length > 0) {
+			if (decoration.options.after && occupiesHorizontalSpace(decoration.options.after)) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.endLineNumber,
@@ -285,6 +303,32 @@ export class LineInjectedText {
 			}
 			return a.lineNumber - b.lineNumber;
 		});
+		return result;
+	}
+
+	/**
+	 * The ranges of `applyInjectedText(...)` that are rendered at a fixed width. Width-only injected
+	 * text produces an empty range (`startOffset === endOffset`) which reserves horizontal space
+	 * without covering any character.
+	 *
+	 * `injectedTexts` must be sorted by column, which is what `fromDecorations` produces and what
+	 * `applyInjectedText` already requires. The result is then sorted by `startOffset` and never
+	 * overlaps: injections at the same column are laid out one after the other, so only an injection
+	 * with empty content leaves the next one starting at the same offset.
+	 */
+	public static getFixedWidthInjectedTextRanges(injectedTexts: readonly LineInjectedText[] | null): FixedWidthInjectedTextRange[] {
+		const result: FixedWidthInjectedTextRange[] = [];
+		let injectedTextLength = 0;
+		for (const injectedText of injectedTexts ?? []) {
+			const length = injectedText.options.content.length;
+			const startOffset = injectedText.column - 1 + injectedTextLength;
+			const endOffset = startOffset + length;
+			const widthInEm = injectedText.options.widthInEm;
+			if (widthInEm !== undefined) {
+				result.push({ startOffset, endOffset, widthInEm });
+			}
+			injectedTextLength += length;
+		}
 		return result;
 	}
 

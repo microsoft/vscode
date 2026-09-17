@@ -8,7 +8,7 @@ The image carousel is a self-contained workbench contribution that follows the *
 
 - **URI scheme**: `vscode-image-carousel` (registered in `Schemas` in `src/vs/base/common/network.ts`) — used for `EditorInput.resource` identity.
 - **Direct editor input**: Callers create `ImageCarouselEditorInput` with a collection and open it directly via `IEditorService.openEditor()`.
-- **Image extraction**: `IImageCarouselService.extractImagesFromResponse()` extracts images from chat response tool invocations into a **sections-based** collection. All images from a single response are grouped into one section. The collection title is the user's chat request message. Each image caption is derived from the tool's `pastTenseMessage` (preferred) or `invocationMessage`.
+- **Image extraction**: Chat integration builds a **sections-based** collection from chat request/response items. A section can include user-attached request images alongside response-derived images (tool invocations and inline references). For paired request/response items, the section title prefers the user's chat request message; pending requests with image attachments form their own section.
 
 ## How to open the carousel
 
@@ -22,7 +22,7 @@ await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 
 ### From chat (via click handler)
 
-Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is true) executes the `workbench.action.chat.openImageInCarousel` command, which extracts all images from the chat response and opens them in the carousel. MIME types are resolved via `getMediaMime()` from `src/vs/base/common/mime.ts`.
+Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is true) executes the `workbench.action.chat.openImageInCarousel` command, which collects request attachment images together with response-derived images for the current chat session and opens them in the carousel. MIME types are resolved via `getMediaMime()` from `src/vs/base/common/mime.ts`.
 
 ## Key design decisions
 
@@ -30,9 +30,9 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 
 - **Modal editor**: Opens in `MODAL_GROUP` (-4) as an overlay.
 - **Not restorable**: `canSerialize()` returns `false` — image data is in-memory only.
-- **Collection ID = chat response identity**: `sessionResource + '_' + responseId` for stable dedup via `EditorInput.matches()`.
+- **Collection ID = chat session identity**: `sessionResource + '_carousel'` for stable dedup via `EditorInput.matches()`.
 - **Preview-gated**: `chat.imageCarousel.enabled` (default `false`, tagged `preview`). When off, clicks fall through to `openResource()`.
-- **Exact image matching**: Scans responses in reverse, only opens a collection if the clicked image bytes are found in it (`findIndex` + `VSBuffer.equals`).
+- **Exact image matching**: Finds the clicked image within the constructed collection by URI first, then falls back to byte equality when needed.
 
 ### DOM & rendering
 
@@ -46,3 +46,24 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 
 - **Keyboard parity**: Uses `registerOpenEditorListeners` (click, double-click, Enter, Space) matching other attachment widgets.
 - **Arrow key navigation**: Handled via DOM `keydown` listener with `stopPropagation()` — not Action2 keybindings, because the modal editor's `KEY_DOWN` handler blocks `workbench.*` commands not in its allowlist. The editor overrides `focus()` to forward focus to the slideshow container so arrow keys work immediately without clicking.
+
+### Zoom
+
+Zoom state is `ZoomScale = number | 'fit'` held in `_zoomScale`.
+
+| Gesture | Effect |
+|---------|--------|
+| Click | Zoom in one level |
+| Alt+click (Mac) / Ctrl+click (Win/Linux) | Zoom out one level |
+| Ctrl+scroll (Win/Linux) or Alt+scroll (Mac) | Continuous zoom (~7.5% per tick) |
+| Trackpad pinch | Zoom (reported as `wheel` + `e.ctrlKey`) |
+
+Predefined zoom levels: 10%, 20%, 30%, …, 100%, 150%, 200%, 300%, 500%, 700%, 1000%, 1500%, 2000%. Click cycles through these levels.
+
+`_applyZoom(scale)` is the central method:
+- `'fit'` → adds `scale-to-fit` class, clears `img.style.zoom`, removes `.zoomed` from container
+- numeric → sets `img.style.zoom`, adds `.zoomed` on the container (enabling `overflow: auto` for panning with themed scrollbars), preserves scroll center using `dx/dy` ratio math, adds `pixelated` class at ≥ 3× zoom
+
+Zoom always resets to `'fit'` when navigating to a different image.
+
+Cursor changes to `zoom-out` when the zoom-out modifier key is held (via `.zoom-out` class on the container).

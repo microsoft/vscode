@@ -133,7 +133,7 @@ export class Scanner {
 			case TokenType.LtEq:
 				return '<=';
 			case TokenType.Gt:
-				return '>=';
+				return '>';
 			case TokenType.GtEq:
 				return '>=';
 			case TokenType.RegexOp:

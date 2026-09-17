@@ -7,6 +7,7 @@ import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { bufferToStream, readableToBuffer, VSBuffer, VSBufferReadable } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
@@ -32,7 +33,8 @@ import { TestWorkspace } from '../../../platform/workspace/test/common/testWorks
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
@@ -352,7 +354,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
-	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	async updateReadonly(_resource: URI | URI[], _readonly: boolean | IMarkdownString | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
 };
 
@@ -786,13 +788,16 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 
 	_serviceBrand: undefined;
 
+	context: Lazy<ChatEntitlementContext> | undefined;
+
 	readonly organisations: undefined;
-	readonly isInternal = false;
+	readonly isInternal: boolean = false;
 	readonly sku = undefined;
 	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly quotas = {};
 
 	update(token: CancellationToken): Promise<void> {
@@ -811,9 +816,14 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
+	markSetupCompleted(): void { }
+	setForceHidden(_hidden: boolean): void { }
 
-	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

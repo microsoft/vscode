@@ -1,0 +1,47 @@
+[
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 1 function definition with long parameters",
+		"requests": [
+			"fb020926770fb3a27125326727c96b6302cea3c4dfbca17a57e3248889aed267"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 2 long print statememt",
+		"requests": [
+			"3f206e55babfadea2f1a47217c1dd45eb6867825147687704f83b26a072c463a"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 3 long dictionary / list",
+		"requests": [
+			"fb56abe3c02e4b50fd353c234552f5d9f92b4c0cb2225c506922c74af2859903"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 4 long if condition and function call",
+		"requests": [
+			"be6e30ebfda61b0a5c995e61867d5958637f126003d7ad5b5d22737e091e1592"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 5 multi-line docstring",
+		"requests": [
+			"44df141dcc4ca32a5a5321a6ad1a54e238a9a5e70c027638397f52643bb46190",
+			"4bc7e5d2ab36c388880656ca1cd045af861c76b2b8a3e6d40f96777ec9295440",
+			"82746d98fd800ce01a4f6f2056f654d78750c48666060efb79bd0f544bc9a214",
+			"8d2680c52fb65b7efb4fefab8f207939465b8e5ab280f4b0059689b92c3dfcc4"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - unecessary parenthesis",
+		"requests": [
+			"22949d49aff8549799bd0af80799c25b017112d5c20fb51decdd316b034f7fb8"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (pylint) [inline] [python] - unused module imported",
+		"requests": [
+			"509139dc2166641cf07f26dde84009f8f3f19aedce398cb4f78c59057da047f2"
+		]
+	}
+]

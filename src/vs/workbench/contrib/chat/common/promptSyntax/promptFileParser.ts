@@ -50,6 +50,10 @@ export class ParsedPromptFile {
 	}
 }
 
+export function isPromptFileTildePath(path: string): boolean {
+	return path === '~' || path.startsWith('~/');
+}
+
 export interface ParseError {
 	readonly message: string;
 	readonly range: Range;
@@ -68,6 +72,7 @@ export namespace PromptHeaderAttributes {
 	export const agent = 'agent';
 	export const mode = 'mode';
 	export const model = 'model';
+	export const reasoningEffort = 'reasoning-effort';
 	export const applyTo = 'applyTo';
 	export const paths = 'paths';
 	export const tools = 'tools';
@@ -81,10 +86,10 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
-	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
+	export const context = 'context';
 }
 
 export class PromptHeader {
@@ -250,7 +255,7 @@ export class PromptHeader {
 							model = prop.value.value;
 						}
 					}
-					if (agent && label && prompt !== undefined) {
+					if (agent && label?.trim() && prompt !== undefined) {
 						const handoff: IHandOff = {
 							agent,
 							label,
@@ -310,12 +315,15 @@ export class PromptHeader {
 	}
 
 	public get userInvocable(): boolean | undefined {
-		// TODO: user-invokable is deprecated, remove later and only keep user-invocable
-		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable) ?? this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable);
 	}
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	public get context(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.context);
 	}
 
 	/**
@@ -506,7 +514,7 @@ export class PromptBody {
 					if (match.groups?.['filePath']) {
 						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
 					} else if (match.groups?.['toolName']) {
-						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index, fullLength: fullMatch.length });
 					}
 				}
 				lineStartOffset += line.length;
@@ -520,9 +528,11 @@ export class PromptBody {
 		return this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
 	}
 
-	public resolveFilePath(path: string): URI | undefined {
+	public resolveFilePath(path: string, userHome?: URI): URI | undefined {
 		try {
-			if (path.startsWith('/')) {
+			if (userHome && isPromptFileTildePath(path)) {
+				return path === '~' ? userHome : joinPath(userHome, path.substring(2));
+			} else if (path.startsWith('/')) {
 				return this.uri.with({ path });
 			} else if (path.match(/^[a-zA-Z]+:\//)) {
 				return URI.parse(path);
@@ -546,6 +556,7 @@ export interface IBodyVariableReference {
 	readonly name: string;
 	readonly range: Range;
 	readonly offset: number;
+	readonly fullLength: number;
 }
 
 /**
@@ -621,4 +632,13 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 	return { type: 'sequence', items: result, range: stringValue.range };
 }
 
-
+/**
+ * Returns the effective `applyTo` pattern for an instruction file.
+ * Claude rules use `paths` (defaulting to `**`), while regular instructions use `applyTo`.
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo;
+}

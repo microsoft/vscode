@@ -29,11 +29,22 @@ interface ConfigFilePatterns {
 }
 
 const workspaceStatsCache = new Map<string, Promise<WorkspaceStats>>();
-export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
-	const cacheKey = `${folder}::${filter.join(':')}`;
-	const cached = workspaceStatsCache.get(cacheKey);
-	if (cached) {
-		return cached;
+
+/** Sentinel key in {@link WorkspaceStats.fileTypes} for files with no extension. */
+const NO_EXT_KEY = '\0no-extension';
+
+export async function collectWorkspaceStats(folder: string, filter: string[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<WorkspaceStats> {
+	// Include `unbounded` in the cache key so a bounded (20k-cap) result is never
+	// returned for an unbounded request (which would silently truncate counts).
+	const cacheKey = `${folder}::${filter.join(':')}::${options?.unbounded ? 'unbounded' : 'bounded'}`;
+	if (!options?.skipCache) {
+		const cached = workspaceStatsCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+	} else {
+		// Drop any in-flight or stale entry so callers can be sure they get fresh data.
+		workspaceStatsCache.delete(cacheKey);
 	}
 
 	const configFilePatterns: ConfigFilePatterns[] = [
@@ -79,12 +90,21 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
-	const MAX_FILES = 20000;
+	const MAX_FILES = options?.unbounded ? Number.POSITIVE_INFINITY : 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean; readdirCount: number }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
 		return Promises.withAsyncBody(async resolve => {
+			// Bail before touching the filesystem when the cap has already been hit so
+			// sibling-directory recursion doesn't pay readdir IO after the scan is
+			// effectively done.
+			if (token.count >= MAX_FILES) {
+				token.maxReached = true;
+				resolve();
+				return;
+			}
+
 			let files: IDirent[];
 
 			token.readdirCount++;
@@ -97,7 +117,6 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			}
 
 			if (token.count >= MAX_FILES) {
-				token.count += files.length;
 				token.maxReached = true;
 				resolve();
 				return;
@@ -109,16 +128,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 				return;
 			}
 
-			let filesToRead = files;
-			if (token.count + files.length > MAX_FILES) {
-				token.maxReached = true;
-				pending = MAX_FILES - token.count;
-				filesToRead = files.slice(0, pending);
-			}
-
-			token.count += files.length;
-
-			for (const file of filesToRead) {
+			for (const file of files) {
 				if (file.isDirectory()) {
 					if (!filter.includes(file.name)) {
 						await collect(root, join(dir, file.name), filter, token);
@@ -129,13 +139,24 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 						return;
 					}
 				} else {
-					const index = file.name.lastIndexOf('.');
-					if (index >= 0) {
-						const fileType = file.name.substring(index + 1);
-						if (fileType) {
-							fileTypes.set(fileType, (fileTypes.get(fileType) ?? 0) + 1);
-						}
+					if (token.count >= MAX_FILES) {
+						token.maxReached = true;
+						resolve();
+						return;
 					}
+					token.count++;
+
+					const index = file.name.lastIndexOf('.');
+					let fileType: string | undefined;
+					if (index >= 0) {
+						fileType = file.name.substring(index + 1) || undefined;
+					}
+					// Track files with no usable extension under a sentinel key so they
+					// can be folded into the "other" bucket at render time. Without this,
+					// extension-less files (Makefile, LICENSE, scripts in bin/, etc.) would
+					// be silently dropped from the file-type counts and the totals would
+					// not reconcile with the overall file count.
+					fileTypes.set(fileType ?? NO_EXT_KEY, (fileTypes.get(fileType ?? NO_EXT_KEY) ?? 0) + 1);
 
 					for (const configFile of configFilePatterns) {
 						if (configFile.relativePathPattern?.test(relativePath) !== false && configFile.filePattern.test(file.name)) {
@@ -271,8 +292,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo> {
-		return Promise.all([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info)]).then(async result => {
+	public async getPerformanceInfo(info: IMainProcessDiagnostics, remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[], options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo> {
+		return Promise.all([listProcesses(info.mainPID), this.formatWorkspaceMetadata(info, options)]).then(async result => {
 			let [rootProcess, workspaceInfo] = result;
 			let processInfo = this.formatProcessList(info, rootProcess);
 
@@ -413,12 +434,25 @@ export class DiagnosticsService implements IDiagnosticsService {
 		};
 
 		// File Types
+		// Skip the no-extension sentinel from the named list and fold its count into
+		// the "other" bucket so totals reconcile with fileCount.
 		let line = '|      File types:';
 		const maxShown = 10;
-		const max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
+		const namedTypes = workspaceStats.fileTypes.filter(t => t.name !== NO_EXT_KEY);
+		const noExtCount = workspaceStats.fileTypes
+			.filter(t => t.name === NO_EXT_KEY)
+			.reduce((sum, t) => sum + t.count, 0);
+		const max = Math.min(namedTypes.length, maxShown);
 		for (let i = 0; i < max; i++) {
-			const item = workspaceStats.fileTypes[i];
+			const item = namedTypes[i];
 			appendAndWrap(item.name, item.count);
+		}
+		let otherCount = noExtCount;
+		for (let i = max; i < namedTypes.length; i++) {
+			otherCount += namedTypes[i].count;
+		}
+		if (otherCount > 0) {
+			appendAndWrap('other', otherCount);
 		}
 		output.push(line);
 
@@ -449,7 +483,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 	}
 
-	private formatWorkspaceMetadata(info: IMainProcessDiagnostics): Promise<string> {
+	private formatWorkspaceMetadata(info: IMainProcessDiagnostics, options?: { skipCache?: boolean; unbounded?: boolean }): Promise<string> {
 		const output: string[] = [];
 		const workspaceStatPromises: Promise<void>[] = [];
 
@@ -464,7 +498,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 				const folderUri = URI.revive(uriComponents);
 				if (folderUri.scheme === Schemas.file) {
 					const folder = folderUri.fsPath;
-					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
+					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git'], options).then(stats => {
 						let countMessage = `${stats.fileCount} files`;
 						if (stats.maxFilesReached) {
 							countMessage = `more than ${countMessage}`;
@@ -536,7 +570,11 @@ export class DiagnosticsService implements IDiagnosticsService {
 			const folder = folderUri.fsPath;
 			try {
 				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
-				stats.fileTypes.forEach(item => items.add(item.name));
+				stats.fileTypes.forEach(item => {
+					if (item.name !== NO_EXT_KEY) {
+						items.add(item.name);
+					}
+				});
 			} catch { }
 		}
 		return { extensions: [...items] };
@@ -579,6 +617,9 @@ export class DiagnosticsService implements IDiagnosticsService {
 					count: number;
 				};
 				stats.fileTypes.forEach(e => {
+					if (e.name === NO_EXT_KEY) {
+						return;
+					}
 					this.telemetryService.publicLog2<WorkspaceStatsFileEvent, WorkspaceStatsFileClassification>('workspace.stats.file', {
 						rendererSessionId: workspace.rendererSessionId,
 						type: e.name,

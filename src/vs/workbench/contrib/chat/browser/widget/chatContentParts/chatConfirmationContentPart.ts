@@ -39,7 +39,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const confirmationWidget = this._register(this.instantiationService.createInstance(SimpleChatConfirmationWidget, context, { title: confirmation.title, buttons, message: confirmation.message }));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
-		this._register(confirmationWidget.onDidClick(async e => {
+		this._register(confirmationWidget.onDidClick(async ({ button: e }) => {
 			if (isResponseVM(element)) {
 				const prompt = `${e.label}: "${confirmation.title}"`;
 				const options: IChatSendRequestOptions = e.isSecondary ?
@@ -49,7 +49,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = e.label;
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
-				options.userSelectedModelId = widget?.input.currentLanguageModel;
+				Object.assign(options, widget?.getSelectedModelRequestOptions());
 				options.modeInfo = widget?.input.currentModeInfo;
 				options.location = widget?.location;
 				Object.assign(options, widget?.getModeRequestOptions());
