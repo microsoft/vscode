@@ -17,6 +17,7 @@
 			"restart": true,
 			"name": "Attach to Extension Host",
 			"timeout": 0,
+			"address": "127.0.0.1",
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
@@ -30,6 +31,7 @@
 			"restart": true,
 			"name": "Attach to Shared Process",
 			"timeout": 0,
+			"address": "127.0.0.1",
 			"port": 5879,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -39,6 +41,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Search Process",
+			"address": "127.0.0.1",
 			"port": 5876,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -48,6 +51,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Pty Host Process",
+			"address": "127.0.0.1",
 			"port": 5877,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -57,6 +61,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Agent Host Process",
+			"address": "127.0.0.1",
 			"port": 5878,
 			"restart": true,
 			"timeout": 0,
@@ -68,6 +73,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to CLI Process",
+			"address": "127.0.0.1",
 			"port": 5874,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -78,6 +84,7 @@
 			"request": "attach",
 			"name": "Attach to Main Process",
 			"timeout": 30000,
+			"address": "127.0.0.1",
 			"port": 5875,
 			"continueOnAttach": true,
 			"outFiles": [
