@@ -32,8 +32,11 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { EditorsOrder } from '../../../common/editor.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { EditorResourceAccessor, EditorsOrder, SideBySideEditor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -114,6 +117,8 @@ export class DebugService implements IDebugService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITestService private readonly testService: ITestService,
+		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -351,6 +356,26 @@ export class DebugService implements IDebugService {
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
 	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions, saveBeforeStart = !options?.parentSession): Promise<boolean> {
+		// Snapshot the active editor resource synchronously so that ${file} (and related
+		// file variables) resolve against whatever file the user was looking at when they
+		// triggered debugging, rather than against whichever editor happens to be active
+		// later, after awaits such as workspace trust, save-all and preLaunchTask. Without
+		// this snapshot, quickly shifting focus right after pressing F5 could cause the
+		// wrong program to be launched. See https://github.com/microsoft/vscode/issues/278130.
+		// Callers that already captured the resource (e.g. the F5 keybinding handler,
+		// which captures before awaiting `saveAllBeforeDebugStart`) may supply it via
+		// `options.activeFileOverride`; otherwise we fall back to a best-effort capture
+		// at the time `startDebugging` is entered.
+		if (options?.parentSession === undefined && options?.activeFileOverride === undefined) {
+			const captured = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, {
+				supportSideBySide: SideBySideEditor.PRIMARY,
+				filterByScheme: [Schemas.file, Schemas.vscodeUserData, this.pathService.defaultUriScheme]
+			});
+			if (captured) {
+				options = { ...options, activeFileOverride: captured };
+			}
+		}
+
 		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
 		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
@@ -453,6 +478,19 @@ export class DebugService implements IDebugService {
 	 * gets the debugger for the type, resolves configurations by providers, substitutes variables and runs prelaunch tasks
 	 */
 	private async createSession(launch: ILaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Promise<boolean> {
+		// If the caller snapshotted the active file at trigger time (see #278130),
+		// keep that snapshot in effect for the entire resolution + variable-substitution
+		// phase so that `${file}` et al. resolve against the originally-active editor
+		// even if focus changed during the intervening async work.
+		if (options?.activeFileOverride) {
+			return this.configurationResolverService.withActiveFileOverride(
+				options.activeFileOverride,
+				() => this.createSessionInternal(launch, config, options));
+		}
+		return this.createSessionInternal(launch, config, options);
+	}
+
+	private async createSessionInternal(launch: ILaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Promise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
 		let type: string | undefined;
