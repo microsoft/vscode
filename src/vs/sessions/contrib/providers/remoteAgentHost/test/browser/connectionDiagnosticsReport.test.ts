@@ -219,9 +219,12 @@ suite('ConnectionDiagnosticsReport', () => {
 		const content = container.querySelector<HTMLElement>('.connection-diagnostics-content')!;
 		const scrollable = container.querySelector<HTMLElement>('.connection-diagnostics-scrollable')!;
 		let scrollTop = 0;
+		let dimensionReads = 0;
 		Object.defineProperties(content, {
-			clientHeight: { configurable: true, value: 100 },
-			scrollHeight: { configurable: true, value: 1000 },
+			clientHeight: { configurable: true, get: () => { dimensionReads++; return 100; } },
+			scrollHeight: { configurable: true, get: () => { dimensionReads++; return 1000; } },
+			clientWidth: { configurable: true, get: () => { dimensionReads++; return 200; } },
+			scrollWidth: { configurable: true, get: () => { dimensionReads++; return 200; } },
 			scrollTop: {
 				configurable: true,
 				get: () => scrollTop,
@@ -231,18 +234,22 @@ suite('ConnectionDiagnosticsReport', () => {
 		container.querySelector<HTMLDetailsElement>('details')!.dispatchEvent(new mainWindow.Event('toggle'));
 		report.focus();
 		scrollTop = 400;
+		dimensionReads = 0;
 		content.dispatchEvent(new mainWindow.Event('scroll'));
+		const scrollDimensionReads = dimensionReads;
 		const event = new mainWindow.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100 });
 		Object.defineProperty(event, 'wheelDeltaY', { value: -120 });
 		scrollable.dispatchEvent(event);
 		await report.refresh();
 		assert.deepStrictEqual({
+			scrollDimensionReads,
 			overflowY: dom.getWindow(content).getComputedStyle(content).overflowY,
 			touchAction: dom.getWindow(content).getComputedStyle(content).touchAction,
 			consumedWheel: event.defaultPrevented,
 			scrolledFromNativePosition: content.scrollTop > 400,
 			focused: dom.getActiveElement() === content,
 		}, {
+			scrollDimensionReads: 0,
 			overflowY: 'auto',
 			touchAction: 'pan-y',
 			consumedWheel: true,
@@ -275,13 +282,19 @@ suite('ConnectionDiagnosticsReport', () => {
 		const action = container.querySelector<HTMLElement>('[aria-label="Restore Hidden laptop"]')!;
 		const prevented = [];
 		for (const [type, pageY] of [['touchstart', 300], ['touchmove', 290], ['touchend', 290]] as const) {
-			const touch = new Touch({ identifier: 0, target: action, pageX: 100, pageY });
-			const event = new TouchEvent(type, {
-				bubbles: true,
-				cancelable: true,
-				touches: type === 'touchend' ? [] : [touch],
-				targetTouches: type === 'touchend' ? [] : [touch],
-				changedTouches: [touch],
+			const touch: Touch = {
+				identifier: 0, target: action, pageX: 100, pageY,
+				clientX: 100, clientY: pageY, screenX: 100, screenY: pageY,
+				force: 1, radiusX: 1, radiusY: 1, rotationAngle: 0,
+			};
+			const touches: TouchList = { 0: touch, length: 1, item: index => index === 0 ? touch : null, [Symbol.iterator]: () => [touch].values() };
+			const emptyTouches: TouchList = { length: 0, item: () => null, [Symbol.iterator]: () => [].values() };
+			// Desktop WebKit exposes Touch but does not allow constructing it.
+			const event = new mainWindow.Event(type, { bubbles: true, cancelable: true });
+			Object.defineProperties(event, {
+				touches: { value: type === 'touchend' ? emptyTouches : touches },
+				targetTouches: { value: type === 'touchend' ? emptyTouches : touches },
+				changedTouches: { value: touches },
 			});
 			action.dispatchEvent(event);
 			prevented.push(event.defaultPrevented);

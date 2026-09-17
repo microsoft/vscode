@@ -64,7 +64,10 @@ export class ConnectionDiagnosticsReport extends Disposable {
 		// Keep native touch/keyboard scrolling while retaining the workbench scrollbar and wheel handling.
 		this.content.style.overflow = '';
 		this._register(Gesture.ignoreTarget(this.content));
-		this._register(dom.addDisposableListener(this.content, dom.EventType.SCROLL, () => this.scrollable.scanDomNode()));
+		this._register(dom.addDisposableListener(this.content, dom.EventType.SCROLL, () => this.scrollable.setScrollPosition({
+			scrollTop: this.content.scrollTop,
+			scrollLeft: this.content.scrollLeft,
+		})));
 		dom.append(container, this.scrollable.getDomNode());
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ConnectionDiagnosticsReport.scrollable', () => this.scrollable.scanDomNode()));
 		this._register(resizeObserver.observe(this.scrollable.getDomNode()));
