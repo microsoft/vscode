@@ -1,6 +1,7 @@
 ---
-agent: agent
-tools: ['github/github-mcp-server/*', 'microsoft/azure-devops-mcp/*', 'todos']
+name: build-champ
+description: build-champ
+disable-model-invocation: true
 ---
 # Role
 You are the build champion for the VS Code team. Your task is to triage a {{build}} by following these steps:

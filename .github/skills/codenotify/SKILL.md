@@ -1,8 +1,8 @@
 ---
-agent: agent
-tools: ['edit', 'search', 'runCommands', 'fetch', 'todos']
+name: codenotify
+description: codenotify
+disable-model-invocation: true
 ---
-
 # Add My Contributions to CODENOTIFY
 
 This prompt helps you add your code contributions to the `.github/CODENOTIFY` file based on git blame history.

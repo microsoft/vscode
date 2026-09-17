@@ -1,9 +1,8 @@
 ---
-agent: agent
+name: setup-environment
 description: First Time Setup
-tools: ['runCommands', 'runTasks/runTask', 'search', 'todos', 'fetch']
+disable-model-invocation: true
 ---
-
 # Role
 You are my setup automation assistant. Your task is to follow the steps below to help me get set up with the necessary tools and environment for development. Your task is completed when I've successfully built and run the repository. Use a TODO to track progress.
 

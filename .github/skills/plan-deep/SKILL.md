@@ -1,6 +1,7 @@
 ---
-agent: Plan
+name: plan-deep
 description: Clarify before planning in more detail
+disable-model-invocation: true
 ---
 Before doing your research workflow, gather preliminary context using #runSubagent (instructed to use max 5 tool calls) to get a high-level overview.
 
