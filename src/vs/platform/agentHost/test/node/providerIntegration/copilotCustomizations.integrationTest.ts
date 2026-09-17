@@ -65,7 +65,7 @@ const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
  * event cancels and restarts its timer: a mutation stream at (or faster than)
  * the debounce window starves the delayer and the re-scan never runs at all.
  */
-const WATCH_MUTATION_RETRY_INTERVAL_MS = 2_000;
+const WATCH_MUTATION_RETRY_INTERVAL_MS = 5_000;
 
 interface IWaitForAssertOptions {
 	readonly timeoutMs?: number;
@@ -128,6 +128,12 @@ async function applyAndWaitForAssert(mutate: () => Promise<void>, assertion: () 
 			await mutate();
 		},
 	});
+}
+
+async function recreateFile(path: string, contents: string): Promise<void> {
+	await rm(path, { force: true });
+	await new Promise<void>(resolve => setTimeout(resolve, WATCH_ASSERT_POLL_INTERVAL_MS));
+	await writeFile(path, contents);
 }
 
 const TEST_WATCH = true;
@@ -1034,7 +1040,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		client.clearReceived();
 		await applyAndWaitForAssert(
-			() => writeFile(addedInstructionFile, [
+			() => recreateFile(addedInstructionFile, [
 				'---',
 				'name: Added Policy',
 				'applyTo:',
@@ -1143,7 +1149,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		client.clearReceived();
 		await applyAndWaitForAssert(
-			() => writeFile(workspaceClaudeInstructionsFile, 'Use workspace CLAUDE instructions.'),
+			() => recreateFile(workspaceClaudeInstructionsFile, 'Use workspace CLAUDE instructions.'),
 			() => assertAllCustomizations(
 				[
 					URI.file(workspaceAgentInstructionsFile).toString(),
@@ -1250,6 +1256,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		client.clearReceived();
 		await applyAndWaitForAssert(
 			async () => {
+				await rm(addedSkillDir, { recursive: true, force: true });
 				await mkdir(addedSkillDir, { recursive: true });
 				await writeFile(addedSkillFile, [
 					'---',
@@ -1346,7 +1353,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 		client.clearReceived();
 		await applyAndWaitForAssert(
-			() => writeFile(addedAgentFile, [
+			() => recreateFile(addedAgentFile, [
 				'---',
 				'name: Added Agent',
 				'description: Added after startup',
