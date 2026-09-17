@@ -280,6 +280,9 @@
 	user-select: none;
 	flex-shrink: 0;
 	max-width: var(--chat-tab-max-width);
+	/* Chat tabs have no file icon, so match the symmetric padding the shared
+		tab styles give icon-less editor tabs. */
+	--modern-ui-tab-padding-left: var(--vscode-spacing-size80);
 }
 
 /* Keep keyboard focus on the rounded fill; high-contrast styling is provided by the shared tab styles. */
