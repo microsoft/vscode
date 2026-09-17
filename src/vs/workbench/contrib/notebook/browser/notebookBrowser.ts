@@ -836,7 +836,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	readonly onDidChangeOptions: Event<void>;
 	readonly onDidChangeDecorations: Event<void>;
-	createMarkupPreview(cell: ICellViewModel): Promise<void>;
+	createMarkupPreview(cell: ICellViewModel, forceRender?: boolean): Promise<void>;
 	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 
