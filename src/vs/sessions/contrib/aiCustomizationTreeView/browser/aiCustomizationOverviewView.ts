@@ -32,7 +32,6 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { isContributionEnabled } from '../../../../workbench/contrib/chat/common/enablement.js';
 
 const $ = DOM.$;
 
@@ -208,7 +207,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		if (mcpSection) {
 			this._register(autorun(reader => {
 				const servers = this.mcpService.servers.read(reader);
-				mcpSection.count = servers.filter(server => isContributionEnabled(server.enablement.read(reader))).length;
+				mcpSection.count = servers.length;
 				this.updateCountElements();
 			}));
 		}
@@ -218,7 +217,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		if (pluginSection) {
 			this._register(autorun(reader => {
 				const plugins = this.agentPluginService.plugins.read(reader);
-				pluginSection.count = plugins.filter(plugin => isContributionEnabled(plugin.enablement.read(reader))).length;
+				pluginSection.count = plugins.length;
 				this.updateCountElements();
 			}));
 		}

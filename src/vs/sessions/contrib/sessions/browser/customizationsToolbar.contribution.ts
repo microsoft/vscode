@@ -35,7 +35,6 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { isContributionEnabled } from '../../../../workbench/contrib/chat/common/enablement.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -154,7 +153,8 @@ async function openCustomizationSectionPage(editorService: IEditorService, harne
 /**
  * Custom ActionViewItem for each customization link in the toolbar.
  * Renders icon + label + a single count badge driven by the same
- * observables that feed the customizations editor.
+ * observables that feed the customizations editor — so the badge always
+ * matches the editor's count exactly.
  */
 export class CustomizationLinkViewItem extends ActionViewItem {
 
@@ -218,7 +218,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			return this._itemsModel.getCount(this._config.modelSection).read(reader);
 		}
 		if (this._config.isMcp) {
-			return this._mcpService.servers.read(reader).filter(server => isContributionEnabled(server.enablement.read(reader))).length;
+			return this._mcpService.servers.read(reader).length;
 		}
 		if (this._config.isPlugins) {
 			return this._itemsModel.getPluginCount().read(reader);
