@@ -477,6 +477,12 @@
 #### sessions/sessionsList/SessionsList_CompactChatRename/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2065baa531ad27e1b71e053b384a264859b99fa169fa50b04bb2e679a4abdded)
 
+#### sessions/sessionsList/SessionsList_CompactNeedsInput/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a8a00b4654c7581310bebd78710a1e29e9920ddbabbf9e35655bd9cd689e4d9d)
+
+#### sessions/sessionsList/SessionsList_CompactNeedsInput/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1af97afcf566429c3f8acb74707c2b8f014060ca0547a79777aa632302ae301e)
+
 #### sessions/sessionsList/SessionsList_CompactSessionRename/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/73f2fa43e0a03367d08916d8d27decbe5b76cbdff325549fae73a976d8af3b78)
 

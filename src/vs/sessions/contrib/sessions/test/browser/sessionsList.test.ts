@@ -4088,6 +4088,91 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('expands a compact row while the session needs input', () => {
+			const { session: baseSession, status } = createTestSession('Answer required', { workspaceLabel: 'vscode' });
+			const session: ISession = {
+				...baseSession,
+				description: constObservable(new MarkdownString('Which **strategy** should I use?')),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 400);
+
+			const readPresentation = () => {
+				const callout = container.querySelector<HTMLElement>('.session-input-needed-row');
+				const row = callout?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(callout);
+				assert.ok(row);
+				return {
+					height: row.style.height,
+					visible: callout.classList.contains('visible'),
+					label: callout.textContent,
+					ariaHidden: callout.getAttribute('aria-hidden'),
+					ariaLabel: row.getAttribute('aria-label'),
+				};
+			};
+
+			const completed = readPresentation();
+			status.set(SessionStatus.NeedsInput, undefined);
+			const needsInput = readPresentation();
+			status.set(SessionStatus.Completed, undefined);
+			const completedAgain = readPresentation();
+
+			assert.deepStrictEqual({ completed, needsInput, completedAgain }, {
+				completed: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
+				needsInput: { height: '62px', visible: true, label: 'Which strategy should I use?', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Input Needed, Which strategy should I use?' },
+				completedAgain: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
+			});
+		});
+
+		test('shows an approval instead of the generic input-needed callout', () => {
+			const { session } = createTestSession('Approval required', { workspaceLabel: 'vscode', status: SessionStatus.NeedsInput });
+			const mainChat = session.mainChat.get();
+			const approval: IAgentSessionApprovalInfo = {
+				approvalId: mainChat.resource.toString(),
+				kind: AgentSessionApprovalKind.Terminal,
+				label: 'git push origin main',
+				languageId: 'shellscript',
+				since: new Date(),
+				confirm: () => { },
+			};
+			const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+				override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+					return constObservable(resource.toString() === mainChat.resource.toString() ? approval : undefined);
+				}
+			}();
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(500, 400);
+
+			const inputNeeded = container.querySelector<HTMLElement>('.session-input-needed-row');
+			const approvalRow = container.querySelector<HTMLElement>('.session-item > .session-main > .session-approval-row:not(.session-input-needed-row)');
+			assert.deepStrictEqual({
+				inputNeededVisible: inputNeeded?.classList.contains('visible'),
+				approvalVisible: approvalRow?.classList.contains('visible'),
+				approvalLabel: approvalRow?.querySelector('.session-approval-label')?.textContent,
+				hasAllowButton: !!approvalRow?.querySelector('.session-approval-button .monaco-button'),
+			}, {
+				inputNeededVisible: false,
+				approvalVisible: true,
+				approvalLabel: 'git push origin main',
+				hasAllowButton: true,
+			});
+		});
+
 		test('refreshes compact presentation across phone layout transitions', () => {
 			const session = createTestSession('Responsive compact session', {
 				workspaceLabel: 'vscode',
@@ -4273,7 +4358,9 @@ suite('Sessions - SessionsList', () => {
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
-				onSessionOpen: (resource: URI) => opened.push(resource.toString()),
+				onSessionOpen: (resource: URI) => {
+					opened.push(resource.toString());
+				},
 				canOpenSession,
 			}));
 			list.layout(300, 400);

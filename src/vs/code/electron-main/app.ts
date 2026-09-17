@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, net, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -151,6 +151,7 @@ import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../pla
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
+import { createRemoteResourceRequestHandler } from '../../platform/protocol/electron-main/remoteResourceProtocol.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -1634,22 +1635,7 @@ export class CodeApplication extends Disposable {
 		this.installMutex();
 
 		// Remote Authorities
-		protocol.handle(Schemas.vscodeRemoteResource, async request => {
-			try {
-				return await net.fetch(
-					request.url.replace(/^vscode-remote-resource:/, 'http:'),
-					{
-						method: request.method,
-						headers: request.headers,
-						body: request.body,
-						bypassCustomProtocolHandlers: true
-					}
-				);
-			} catch (error) {
-				this.logService.warn('error loading remote resource', error);
-				return Response.error();
-			}
-		});
+		protocol.handle(Schemas.vscodeRemoteResource, createRemoteResourceRequestHandler(this.logService));
 		this._register(toDisposable(() => protocol.unhandle(Schemas.vscodeRemoteResource)));
 
 		// Start to fetch shell environment (if needed) after window has opened
