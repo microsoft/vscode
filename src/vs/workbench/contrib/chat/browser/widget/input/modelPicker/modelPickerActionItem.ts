@@ -82,6 +82,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setCompact(pickerOptions.compact);
+		this._pickerWidget.setContextViewLayer(pickerOptions.contextViewLayer);
 		if (pickerOptions.minimal) {
 			this._pickerWidget.setMinimal(pickerOptions.minimal);
 		}

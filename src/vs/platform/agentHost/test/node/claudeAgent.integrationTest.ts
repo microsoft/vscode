@@ -92,6 +92,7 @@ const noopOTelService: IAgentHostOTelService = {
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
 	releaseSessionTraceContext: () => { },
 	withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 	getCurrentTraceContext: () => undefined,

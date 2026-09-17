@@ -168,6 +168,7 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
+			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -222,6 +223,28 @@ suite('Sessions - Actions', () => {
 			group: 'secondary/4_pin',
 			order: 10,
 			when: 'sessionIsCreated && !sessionIsArchived',
+		}]);
+	});
+
+	test('shows Close in every multi-pane desktop header', () => {
+		const closeItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'sessions.chatCompositeBar.close')
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''))
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
+
+		assert.deepStrictEqual(closeItems, [{
+			group: 'navigation',
+			order: 20,
+			when: 'multipleSessionsVisible && !sessionsIsPhoneLayout',
+		}, {
+			group: 'secondary/4_pin',
+			order: 30,
+			when: 'multipleSessionsVisible || sessionIsCreated',
 		}]);
 	});
 
@@ -311,6 +334,7 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual(actions, [
 			{ title: 'Pin', group: 'navigation' },
 			{ title: 'Pin', group: 'secondary/4_pin' },
+			{ title: 'Close', group: 'navigation' },
 			{ title: 'Maximize', group: 'secondary/4_pin' },
 			{ title: 'Close', group: 'secondary/4_pin' },
 		]);

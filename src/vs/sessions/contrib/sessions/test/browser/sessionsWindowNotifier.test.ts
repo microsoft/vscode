@@ -20,7 +20,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IHostService, IToastOptions, IToastResult } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsWindowNotifier } from '../../browser/sessionsWindowNotifier.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -44,6 +44,8 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 class TestSessionsService extends mock<ISessionsService>() {
 
 	readonly opened: URI[] = [];
+	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+	override readonly visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
 
 	override async openSession(sessionResource: URI): Promise<void> {
 		this.opened.push(sessionResource);
@@ -235,6 +237,72 @@ suite('SessionsWindowNotifier', () => {
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.body), [
 			'Completed in vscode.',
+		]);
+	});
+
+	test('notifies for a question waiting in an inactive visible pane while the window is focused', async () => {
+		const active = createSession('active', SessionStatus.InProgress);
+		const waiting = createSession('waiting', SessionStatus.InProgress);
+		const management = new TestSessionsManagementService([waiting.session]);
+		const sessions = new TestSessionsService();
+		sessions.activeSession.set(active.session as IActiveSession, undefined);
+		sessions.visibleSessions.set([active.session as IActiveSession, waiting.session as IActiveSession], undefined);
+		const host = new TestHostService();
+		host.hasFocus = true;
+		const chat = new TestChatService();
+		chat.model = new class extends mock<IChatModel>() {
+			override readonly requestNeedsInput = observableValue('requestNeedsInput', { title: 'Fix waiting' });
+		};
+		store.add(new TestSessionsWindowNotifier(
+			management,
+			sessions,
+			host,
+			new TestConfigurationService({
+				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
+			}),
+			chat,
+			new TestChatWidgetService(),
+		));
+		store.add(management);
+
+		waiting.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+
+		assert.deepStrictEqual({
+			toasts: host.toasts.map(toast => toast.dedupeKey),
+			focusModes: host.focusModes,
+		}, {
+			toasts: ['chat-session:test:/waiting:needsInput'],
+			focusModes: [],
+		});
+	});
+
+	test('falls back to session status when a live model misses its needs-input state', async () => {
+		const { session, status } = createSession('missing-model-state', SessionStatus.InProgress);
+		const management = new TestSessionsManagementService([session]);
+		const sessions = new TestSessionsService();
+		const host = new TestHostService();
+		const chat = new TestChatService();
+		chat.model = new class extends mock<IChatModel>() {
+			override readonly requestNeedsInput = observableValue('requestNeedsInput', undefined);
+		};
+		store.add(new TestSessionsWindowNotifier(
+			management,
+			sessions,
+			host,
+			new TestConfigurationService({
+				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
+			}),
+			chat,
+			new TestChatWidgetService(),
+		));
+		store.add(management);
+
+		status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+
+		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), [
+			'chat-session:test:/missing-model-state:needsInput',
 		]);
 	});
 

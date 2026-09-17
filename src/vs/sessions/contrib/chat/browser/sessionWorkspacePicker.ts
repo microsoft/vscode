@@ -120,8 +120,10 @@ export interface IWorkspacePickerNoWorkspaceOption {
 export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
-	readonly tooltip?: string;
+	readonly tooltip?: string | (() => string);
 	readonly icon?: ThemeIcon;
+	readonly contextViewLayer?: number;
+	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -548,6 +550,17 @@ export class WorkspacePicker extends Disposable {
 		return slot;
 	}
 
+	/**
+	 * Renders another trigger without replacing the primary picker controls.
+	 */
+	renderAdditionalTrigger(container: HTMLElement, options: IWorkspacePickerTrigger): IDisposable {
+		const disposables = new DisposableStore();
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
+		disposables.add({ dispose: () => slot.remove() });
+		disposables.add(this._addTrigger(slot, options));
+		return disposables;
+	}
+
 	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
@@ -612,7 +625,10 @@ export class WorkspacePicker extends Disposable {
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
-			triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+			const tooltip = options.tooltip;
+			triggerDisposables.add(typeof tooltip === 'function'
+				? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
+				: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
 		// in vs/sessions/contrib/onboardingTours.
@@ -830,6 +846,7 @@ export class WorkspacePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 			},
 			this._buildListOptions(items, undefined),
+			this._triggerOptions.get(triggerElement)?.contextViewLayer,
 		);
 	}
 
@@ -869,6 +886,7 @@ export class WorkspacePicker extends Disposable {
 			delegate,
 			accessibilityProvider,
 			width: TABBED_PICKER_WIDTH,
+			contextViewLayer: this._triggerOptions.get(triggerElement)?.contextViewLayer,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
 		});
 	}
@@ -1861,7 +1879,10 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		const noWorkspaceOption = this._getNoWorkspaceOption();
-		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
+		const hideNoWorkspaceOption = this._activeTriggerElement
+			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
+			: false;
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true || hideNoWorkspaceOption) {
 			return items;
 		}
 

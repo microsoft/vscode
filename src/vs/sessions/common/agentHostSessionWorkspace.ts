@@ -87,6 +87,7 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			repo?.branchName ?? '',
 			repo?.baseBranchName ?? '',
 			String(repo?.baseBranchProtected ?? ''),
+			String(repo?.hasGitRemote ?? ''),
 			String(repo?.hasGitHubRemote ?? ''),
 			repo?.upstreamBranchName ?? '',
 			String(repo?.incomingChanges ?? ''),
@@ -102,13 +103,14 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const baseBranchProtected = baseBranchName !== undefined
 		? matchesAnyBranchProtectionPattern(baseBranchName, options.branchProtectionPatterns)
 		: undefined;
+	const hasGitRemote = gitState?.hasGitRemote;
 	const hasGitHubRemote = gitState?.hasGitHubRemote;
 	const upstreamBranchName = gitState?.upstreamBranchName;
 	const incomingChanges = gitState?.incomingChanges;
 	const outgoingChanges = gitState?.outgoingChanges;
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
-	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
 	// state / project association. Additional directories are emitted as plain

@@ -29,6 +29,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
+import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
@@ -55,7 +56,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { isAssistedPermissionsEnabled, isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
@@ -65,7 +66,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -74,6 +75,7 @@ import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
+import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -1959,6 +1961,10 @@ interface INewSessionConstructionContext {
 	readonly initialConfigValues?: Record<string, unknown>;
 	/** Provider-owned Automation values restored before the first configuration resolution. */
 	readonly initialSessionTemplate?: IAutomationSessionTemplate;
+	/** Model selected specifically for this draft. */
+	readonly initialModelId?: string;
+	/** Model-specific primitive values scoped specifically to this draft. */
+	readonly initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	/**
 	 * Optional property schemas to seed into the new session's config before its
 	 * first {@link NewSession.resolveConfig} round-trip. Carried over from the
@@ -2123,7 +2129,17 @@ class NewSession extends Disposable {
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, ctx.initialSessionTemplate));
+		const initialSessionTemplate = ctx.initialSessionTemplate;
+		const initialModelId = ctx.initialModelId ?? initialSessionTemplate?.modelId;
+		if (ctx.initialModelConfiguration && !initialModelId) {
+			throw new Error('Session model configuration requires a model identifier.');
+		}
+		const initialModelConfiguration = ctx.initialModelConfiguration
+			?? (initialSessionTemplate?.modelId === initialModelId ? initialSessionTemplate?.modelConfiguration : undefined);
+		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, initialModelId ? {
+			modelId: initialModelId,
+			...(initialModelConfiguration !== undefined ? { modelConfiguration: initialModelConfiguration } : {}),
+		} : undefined));
 		const workspaceUri = ctx.workspace?.folders[0]?.root;
 		this._kind = sessionKind(!!ctx.quickChat);
 		if (this._kind.requiresWorkspace && !workspaceUri) {
@@ -2139,7 +2155,7 @@ class NewSession extends Disposable {
 		this._activeClientScope = ctx.activeClientScope;
 		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
-		this._initialSessionTemplate = ctx.initialSessionTemplate;
+		this._initialSessionTemplate = initialSessionTemplate;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -2153,7 +2169,7 @@ class NewSession extends Disposable {
 		this._workspace = observableValue<ISessionWorkspace | undefined>(this, ctx.workspace);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		const checkpoints = observableValue(this, undefined);
-		this._selectedModelId = ctx.initialSessionTemplate?.modelId;
+		this._selectedModelId = initialModelId;
 		this._selectedAgent = ctx.initialSessionTemplate?.agent ? { uri: ctx.initialSessionTemplate.agent.uri, name: '' } : undefined;
 		this._modelId = observableValue<string | undefined>(this, this._selectedModelId);
 		this._modelSource = observableValue<ChatModelSource | undefined>(this, this._selectedModelId ? ChatModelSource.Chosen : undefined);
@@ -2317,6 +2333,7 @@ class NewSession extends Disposable {
 					isRepository: constObservable(true),
 					branchName: gitState?.branchName ?? currentRepository.branchName,
 					baseBranchName: gitState?.baseBranchName ?? currentRepository.baseBranchName,
+					hasGitRemote: gitState?.hasGitRemote ?? currentRepository.hasGitRemote,
 					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,
 					upstreamBranchName: gitState?.upstreamBranchName ?? currentRepository.upstreamBranchName,
 					incomingChanges: gitState?.incomingChanges ?? currentRepository.incomingChanges,
@@ -2549,7 +2566,7 @@ class NewSession extends Disposable {
 				await connection.createSession({
 					provider: this.agentProvider,
 					session: backendUri,
-					...(this._initialSessionTemplate?.modelId ? { model: this.getSelectedModel() } : {}),
+					...(this._selectedModelId ? { model: this.getSelectedModel() } : {}),
 					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
 					config: this._config?.values,
 					_meta: this._initialMetadata,
@@ -2734,7 +2751,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly usesCombinedNewSessionConfigPicker = true;
+	readonly supportsModelConfigurationForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
+
+	getPermissionOptionsForCreation(sessionTypeId: string): readonly ISessionPermissionOption[] {
+		return getAgentHostSessionPermissionOptions(
+			sessionTypeId,
+			isAutoApprovePolicyRestricted(this._baseConfigurationService),
+			isAssistedPermissionsEnabled(this._baseConfigurationService),
+		);
+	}
 
 	get order(): number { return 0; }
 
@@ -2922,6 +2948,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
+	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
 
 	/**
 	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
@@ -3230,7 +3257,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
-				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				supportsWorktreeConfiguration: true,
 				authRequirement: resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
@@ -3566,8 +3593,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			workspace,
 			false,
-			options?.metadata,
+			options?.createdBySession
+				? withSessionCreationReference(options.metadata, {
+					session: options.createdBySession.session.toString(),
+					chat: options.createdBySession.chat?.toString(),
+					turnId: options.createdBySession.turnId,
+				})
+				: options?.metadata,
 			options?.automationConfiguration,
+			options?.modelId,
+			options?.modelConfiguration,
+			options?.permissionId,
 		);
 	}
 
@@ -3595,8 +3631,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			undefined,
 			true,
-			options?.metadata,
+			options?.createdBySession
+				? withSessionCreationReference(options.metadata, {
+					session: options.createdBySession.session.toString(),
+					chat: options.createdBySession.chat?.toString(),
+					turnId: options.createdBySession.turnId,
+				})
+				: options?.metadata,
 			options?.automationConfiguration,
+			options?.modelId,
+			options?.modelConfiguration,
+			options?.permissionId,
 		);
 	}
 
@@ -3605,7 +3650,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>, initialAutomationConfiguration?: IAutomationSessionConfiguration): ISession {
+	private _createDraftSession(
+		sessionType: ISessionType,
+		workspace: ISessionWorkspace | undefined,
+		quickChat: boolean,
+		initialMetadata?: Record<string, unknown>,
+		initialAutomationConfiguration?: IAutomationSessionConfiguration,
+		initialModelId?: string,
+		initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+		initialPermissionId?: string,
+	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -3615,12 +3669,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
-		const initialConfigValues = initialAutomationConfiguration
+		const baseInitialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
 				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
 			}
 			: this._initialNewSessionConfig(workspace);
+		const permissionConfig = initialPermissionId
+			? getAgentHostSessionPermissionConfig(
+				sessionType.id,
+				initialPermissionId,
+				isAutoApprovePolicyRestricted(this._baseConfigurationService),
+				isAssistedPermissionsEnabled(this._baseConfigurationService),
+			)
+			: undefined;
+		if (initialPermissionId && !permissionConfig) {
+			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
+		}
+		const initialConfigValues = permissionConfig
+			? { ...baseInitialConfigValues, ...permissionConfig }
+			: baseInitialConfigValues;
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
@@ -3635,6 +3703,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				logService: this._logService,
 				initialConfigValues,
 				initialSessionTemplate,
+				initialModelId,
+				initialModelConfiguration,
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
 				instantiationService: this._instantiationService,
@@ -3944,7 +4014,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Dynamic session config ----------------------------------------------
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
-		return this._getNewSession(sessionId)?.modelConfiguration;
+		return this._getNewSession(sessionId)?.modelConfiguration ?? this._runningModelConfigurations.get(sessionId);
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -4435,6 +4505,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				modelTarget: undefined,
 			};
 		}
+		return this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
+	}
+
+	getModelsSnapshotForCreation(_workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
+		return this._getModelsSnapshotForTarget(this.resourceSchemeForProvider(sessionTypeId), desiredModelId);
+	}
+
+	private _getModelsSnapshotForTarget(resourceScheme: string, desiredModelId?: string): ISessionModelsSnapshot {
 		const allModels = getRegisteredLanguageModels(this._languageModelsService);
 		const models = allModels.filter(model => {
 			if (model.metadata.targetChatSessionType !== resourceScheme) {
@@ -4612,6 +4690,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			return undefined;
 		}
+	}
+
+	getSessionContextReference(chatResource: URI): string | undefined {
+		const backendResource = this.getBackendChatResource(chatResource);
+		return backendResource ? buildOpenSessionLinkForChatResource(backendResource) : undefined;
 	}
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
@@ -5069,11 +5152,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
 		const selectedModelId = this._resolveSendModelId(chatId, cached.getChatModelId(chatResource));
+		const selectedModelConfiguration = this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: selectedModelId,
+			userSelectedModelConfiguration: selectedModelConfiguration,
 			modeInfo: selectedAgentUri ? {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,
@@ -5106,14 +5191,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		try {
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri);
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 			if (result.kind === 'rejected') {
 				throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 			}
 
-			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true });
+			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { clearDraft: true, modelConfiguration: selectedModelConfiguration });
 		} finally {
 			modelRef.dispose();
 		}
@@ -5150,7 +5235,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._chatModelRetentionLeases.set(resourceKey, lease);
 	}
 
-	private _applyChatSessionState(modelRef: IChatModelReference, modelId: string | undefined, agentUri: string | undefined, options?: { readonly clearDraft?: boolean }): void {
+	private _applyChatSessionState(
+		modelRef: IChatModelReference,
+		modelId: string | undefined,
+		agentUri: string | undefined,
+		options?: {
+			readonly clearDraft?: boolean;
+			readonly modelConfiguration?: IAutomationSessionTemplate['modelConfiguration'];
+		},
+	): void {
 		const inputModel = modelRef.object.inputModel;
 		if (!inputModel) {
 			return;
@@ -5158,7 +5251,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (modelId) {
 			const languageModel = this._languageModelsService.lookupLanguageModel(modelId);
 			if (languageModel) {
-				inputModel.setState({ selectedModel: { identifier: modelId, metadata: languageModel } });
+				inputModel.setState({
+					selectedModel: { identifier: modelId, metadata: languageModel },
+					modelConfiguration: options?.modelConfiguration,
+				});
 			}
 		}
 		inputModel.setState({
@@ -5181,6 +5277,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
+		const selectedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;
+		const selectedModelConfiguration = newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgent = newSession.getSelectedAgent();
 
 		const { query, attachedContext } = options;
@@ -5191,7 +5289,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: selectedModelId,
-			userSelectedModelConfiguration: newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId),
+			userSelectedModelConfiguration: selectedModelConfiguration,
 			modeInfo: selectedAgent ? {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,
@@ -5227,7 +5325,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (selectedModelId) {
 				const languageModel = this._languageModelsService.lookupLanguageModel(selectedModelId);
 				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: selectedModelId, metadata: languageModel } });
+					modelRef.object.inputModel.setState({
+						selectedModel: { identifier: selectedModelId, metadata: languageModel },
+						modelConfiguration: selectedModelConfiguration,
+					});
 				}
 			}
 			if (selectedAgent) {
@@ -5287,17 +5388,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (options.title) {
 					await this.renameSession(committedSession.sessionId, options.title);
 				}
-				// Carry the picked custom agent onto the committed session before
-				// the replace event so the agent picker doesn't reset to the
-				// default once the active session is swapped (the picker mirrors
-				// `session.mode`, which is otherwise `undefined` on the freshly
-				// committed adapter). The host already received the agent with the
-				// first turn (see `sendOptions.modeInfo`), so update only the local
-				// mode observable here rather than re-notifying it via `setAgent`.
-				if (selectedAgent) {
-					const committedRawIdForAgent = this._rawIdFromChatId(committedSession.sessionId);
-					const committedAdapter = committedRawIdForAgent ? this._sessionCache.get(committedRawIdForAgent) : undefined;
-					committedAdapter?.setChatAgent(committedAdapter.resource, selectedAgent);
+				const committedRawIdForSelections = this._rawIdFromChatId(committedSession.sessionId);
+				const committedAdapter = committedRawIdForSelections ? this._sessionCache.get(committedRawIdForSelections) : undefined;
+				if (committedAdapter && selectedModelId) {
+					this._preserveNewSessionModelSelection(committedAdapter, selectedModelId, selectedModelSource, selectedModelConfiguration);
+				}
+				if (committedAdapter && selectedAgent) {
+					committedAdapter.setChatAgent(committedAdapter.resource, selectedAgent);
 				}
 				// Session graduated: release the eager subscription without
 				// firing `disposeSession`. The session handler has already
@@ -5368,6 +5465,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		this._applyWorktreeIsolation(committedSessionId, config?.values);
+	}
+
+	private _preserveNewSessionModelSelection(
+		committedAdapter: AgentHostSessionAdapter,
+		modelId: string,
+		source: ChatModelSource,
+		modelConfiguration: IAutomationSessionTemplate['modelConfiguration'],
+	): void {
+		if (modelConfiguration !== undefined) {
+			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+				modelId,
+				modelConfiguration,
+			}));
+		}
+		committedAdapter.setChatModelId(committedAdapter.resource, modelId, source);
 	}
 
 	protected _rawIdFromChatId(chatId: string): string | undefined {
@@ -5668,6 +5780,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const chatState = chatRef.object.value;
 				const model = chatState && !(chatState instanceof Error) ? chatState.draft?.model : undefined;
 				if (model) {
+					if (model.config !== undefined) {
+						const modelId = `${cached.resource.scheme}:${model.id}`;
+						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
+							modelId,
+							modelConfiguration: model.config,
+						}));
+					}
 					cached.hydrateSelectedModel(model);
 				}
 			}
@@ -6085,6 +6204,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					this._sessionCache.delete(key);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
+					this._runningModelConfigurations.deleteAndDispose(cached.sessionId);
 					removed.push(cached);
 				}
 			}
@@ -6339,6 +6459,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
+		this._runningModelConfigurations.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateSubscriptions.deleteAndDispose(stateOwner.sessionId);
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(stateOwner.sessionId);

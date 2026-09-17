@@ -36,6 +36,7 @@ Do not turn those files into general Sessions guidance.
 | Session-aware layout capture and restoration | [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) |
 | Single-pane behavior scenarios | [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md) |
 | Sessions sidebar list | [SESSIONS_LIST.md](SESSIONS_LIST.md) |
+| Multi-harness implementation comparisons | [SESSION_COMPARISONS.md](SESSION_COMPARISONS.md) |
 | Phone layout and mobile components | [MOBILE.md](MOBILE.md) |
 | AI customizations | [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) |
 | Copilot customizations | [copilot-customizations-spec.md](copilot-customizations-spec.md) |

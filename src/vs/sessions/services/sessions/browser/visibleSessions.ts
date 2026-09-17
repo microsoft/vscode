@@ -255,6 +255,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
@@ -307,6 +309,8 @@ class ResourceOverrideSession implements ISession {
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
@@ -541,7 +545,7 @@ export class VisibleSessions extends Disposable {
 	 * @param activeIndex Index into `slots` of the slot that should be active,
 	 * or `-1` for none.
 	 */
-	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number): void {
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number, tx?: ITransaction): void {
 		this._visibleList = [];
 		this._stickyIds.clear();
 
@@ -581,10 +585,15 @@ export class VisibleSessions extends Disposable {
 			? activeId
 			: lastNonStickySlot;
 
-		transaction(tsx => {
+		const updateObservables = (tsx: ITransaction) => {
 			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
-		});
+		};
+		if (tx) {
+			updateObservables(tx);
+		} else {
+			transaction(updateObservables);
+		}
 	}
 
 	/**

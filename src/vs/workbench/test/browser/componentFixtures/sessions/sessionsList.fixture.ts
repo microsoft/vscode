@@ -38,6 +38,8 @@ import { IAgentHostFilterService } from '../../../../../sessions/services/agentH
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionGroup, ISessionGroupsService } from '../../../../../sessions/services/sessions/browser/sessionGroupsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionComparisonService } from '../../../../../sessions/services/sessions/common/sessionComparison.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionSectionOrderService } from '../../../../../sessions/services/sessions/browser/sessionSectionOrderService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
@@ -339,6 +341,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable([]);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
+			}());
+			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;
