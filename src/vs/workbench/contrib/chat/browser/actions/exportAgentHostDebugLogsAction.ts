@@ -6,6 +6,7 @@
 import { Action } from '../../../../../base/common/actions.js';
 import { VSBuffer, newWriteableBufferStream, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isAbsolute, normalize } from '../../../../../base/common/path.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,6 +20,7 @@ import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConn
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -31,6 +33,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme } from '../copilotCliEventsUri.js';
 import { getRemoteConnectionForSession } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
@@ -94,15 +97,18 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 	constructor(
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 	) { }
 
 	async selectDestination(exportName: string): Promise<URI | undefined> {
+		const defaultUri = await resolveAgentHostDebugLogsExportDirectory(this.configurationService, this.fileDialogService, this.fileService, this.logService);
 		const folders = await this.fileDialogService.showOpenDialog({
 			title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
 			canSelectFiles: false,
 			canSelectFolders: true,
 			canSelectMany: false,
+			defaultUri,
 			availableFileSystems: [Schemas.file],
 		});
 		return folders?.[0] ? joinPath(folders[0], exportName) : undefined;
@@ -111,6 +117,33 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<void> {
 		await exportFilesToLocalFolder(destination, files, hostArtifact, this.fileService, this.logService);
 	}
+}
+
+export async function resolveAgentHostDebugLogsExportDirectory(
+	configurationService: IConfigurationService,
+	fileDialogService: IFileDialogService,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<URI> {
+	const configuredPath = configurationService.inspect<string>(ChatConfiguration.AgentHostDebugLogsDefaultExportLocation).userLocalValue;
+	if (configuredPath) {
+		if (isAbsolute(configuredPath)) {
+			const configuredDirectory = URI.file(normalize(configuredPath));
+			if (await fileService.exists(configuredDirectory)) {
+				const stat = await fileService.resolve(configuredDirectory);
+				if (stat.isDirectory) {
+					return configuredDirectory;
+				}
+				logService.warn('[ExportAgentHostDebugLogs] Configured default export location is not a folder; using the default file-dialog location');
+			} else {
+				logService.warn('[ExportAgentHostDebugLogs] Configured default export location does not exist; using the default file-dialog location');
+			}
+		} else {
+			logService.warn('[ExportAgentHostDebugLogs] Configured default export location is not absolute; using the default file-dialog location');
+		}
+	}
+
+	return fileDialogService.preferredHome(Schemas.file);
 }
 
 export function resolveAgentHostDebugLogsChat(
