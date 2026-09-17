@@ -269,7 +269,7 @@ suite('Remote Agent Host chat session contribution', () => {
 			supportsDelegation: registeredContribution.supportsDelegation,
 		}, {
 			type: 'remote-test-host-copilot',
-			displayName: 'Copilot',
+			displayName: 'Copilot [Test Host]',
 			canDelegate: true,
 			supportsDelegation: false,
 		});

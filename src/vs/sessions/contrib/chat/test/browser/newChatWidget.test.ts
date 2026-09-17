@@ -480,11 +480,17 @@ suite('NewChatWidget', () => {
 			labels: option?.submenuActions?.map(action => action.label),
 			icons: option?.submenuActions?.map(action => (action as { readonly icon?: { readonly id: string } }).icon?.id),
 			selections,
-		}, {
-			labels: ['Local', 'Test Remote'],
-			icons: [Codicon.vm.id, Codicon.remote.id],
-			selections: [{ providerId: 'agenthost-remote-test' }],
-		});
+		}, isWeb
+			? {
+				labels: undefined,
+				icons: undefined,
+				selections: [],
+			}
+			: {
+				labels: ['Local', 'Test Remote'],
+				icons: [Codicon.vm.id, Codicon.remote.id],
+				selections: [{ providerId: 'agenthost-remote-test' }],
+			});
 	});
 
 	test('selects the sole quick chat provider directly', () => {
@@ -509,7 +515,7 @@ suite('NewChatWidget', () => {
 			selections,
 		}, {
 			hasSubmenu: false,
-			selections: [{ providerId: 'agenthost-remote-test' }],
+			selections: isWeb ? [] : [{ providerId: 'agenthost-remote-test' }],
 		});
 	});
 

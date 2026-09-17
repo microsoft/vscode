@@ -336,7 +336,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const hostLabel = configuredName || address;
 		const agentLabel = agent.displayName?.trim() || agent.provider;
-		const displayName = agentLabel;
+		const displayName = `${agentLabel} [${hostLabel}]`;
 
 		// Per-agent working directory cache, scoped to the agent store lifetime
 		const sessionWorkingDirs = new Map<string, URI>();
