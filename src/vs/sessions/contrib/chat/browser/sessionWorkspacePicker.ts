@@ -491,7 +491,11 @@ export class WorkspacePicker extends Disposable {
 			this._syncAttachedContext();
 			const activeTrigger = this._activeTriggerElement;
 			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-				this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				if (this._tabbedWidget.isVisible) {
+					this._tabbedWidget.refreshActiveList();
+				} else {
+					this.actionWidgetService.updateItems(this._buildItems());
+				}
 			}
 		}));
 
