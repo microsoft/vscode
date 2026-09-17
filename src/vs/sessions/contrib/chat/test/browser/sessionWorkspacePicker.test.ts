@@ -505,7 +505,10 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuFilter: unifiedRemoteItem?.submenuOptions?.showFilter,
 				submenuFilterPlaceholder: unifiedRemoteItem?.submenuOptions?.filterPlaceholder,
 				submenuFocusFilterOnOpen: unifiedRemoteItem?.submenuOptions?.focusFilterOnOpen,
-				submenuWidth: unifiedRemoteItem?.submenuOptions?.minWidth,
+				submenuWidth: {
+					min: unifiedRemoteItem?.submenuOptions?.minWidth,
+					max: unifiedRemoteItem?.submenuOptions?.maxWidth,
+				},
 				openSubmenuOnClick: unifiedRemoteItem?.openSubmenuOnClick,
 			},
 			unifiedFilteredRemoteItems: unifiedRemoteItem?.filterItems?.map(item => ({
@@ -528,13 +531,13 @@ suite('WorkspacePicker - Connection Status', () => {
 			],
 			unifiedTopLevel: [],
 			unifiedListOptions: {
-				submenuPointerIntent: true,
+				submenuPointerIntent: undefined,
 				preserveVerticalPosition: true,
 				alignToAnchorTop: true,
 				submenuFilter: true,
 				submenuFilterPlaceholder: 'Search Remote',
 				submenuFocusFilterOnOpen: true,
-				submenuWidth: 180,
+				submenuWidth: { min: 180, max: undefined },
 				openSubmenuOnClick: true,
 			},
 			unifiedFilteredRemoteItems: [

@@ -200,7 +200,7 @@ Requests route through `ISessionsManagementService` to the provider identified b
 
 ### Multiple chats
 
-Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
+Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
 
 ## State propagation
 
