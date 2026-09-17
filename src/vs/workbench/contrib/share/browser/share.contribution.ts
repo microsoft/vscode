@@ -12,12 +12,6 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import * as dom from '../../../../base/browser/dom.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { CodeAction, CodeActionList, CodeActionProvider } from '../../../../editor/common/languages.js';
@@ -27,7 +21,6 @@ import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/typ
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
@@ -354,117 +347,24 @@ class ShareWorkbenchContribution extends Disposable {
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
-				const dialogService = accessor.get(IDialogService);
-				const clipboardService = accessor.get(IClipboardService);
-				const codeEditorService = accessor.get(ICodeEditorService);
+							const dialogService = accessor.get(IDialogService);
 
-				// Capture selection text before dialog focus changes.
-				const editor = codeEditorService.getActiveCodeEditor();
-				const model = editor?.getModel();
-				const preserved = editor?.getSelection() ?? undefined;
-				const selectedText = (model && preserved && !preserved.isEmpty())
-					? model.getValueInRange(preserved)
-					: '';
-				const lineCount = preserved && !preserved.isEmpty()
-					? preserved.endLineNumber - preserved.startLineNumber + 1
-					: 0;
-				const fileLabel = model?.uri.path.split('/').pop() || model?.uri.path || 'selection';
-
-				const markdown = new MarkdownString(undefined, { supportThemeIcons: true, isTrusted: true });
-				markdown.appendMarkdown(localize(
-					'showShareCodeTip.body',
-					"With code selected, open the editor context menu and choose **Share**:\n\n- **Share as Private Gist** — share the selection privately (prototype)\n- **Copy GitHub.com Link** — copy a github.com permalink for the current line\n- **Copy vscode.dev Link** — existing VS Code share action\n\nTip: you can also use **Share: Share as Private Gist** from the Command Palette."
-				));
-
-				const result = await dialogService.prompt({
-					type: Severity.Info,
-					message: localize('showShareCodeTip.title', "Show me how to share this code"),
-					custom: {
-						icon: Codicon.lightbulb,
-						markdownDetails: [{
-							markdown,
-							classes: ['share-dialog-input-text']
-						}]
-					},
-					cancelButton: localize('showShareCodeTip.close', "Close"),
-					buttons: [
-						{
-							label: localize('showShareCodeTip.tryGist', "Share as Private Gist"),
-							run: () => 'gist' as const
+							// Prototype tip only — show briefly, no follow-on action required.
+							await dialogService.prompt({
+								type: Severity.Info,
+								message: localize('showShareCodeTip.title', "Show me how to share this code"),
+								detail: localize(
+									'showShareCodeTip.detail',
+									"Select code, then use Share → Share as Private Gist or Share → Copy GitHub.com Link."
+								),
+								custom: {
+									icon: Codicon.lightbulb,
+								},
+								cancelButton: localize('showShareCodeTip.close', "Close"),
+							});
 						}
-					]
-				});
-
-				if (result.result !== 'gist') {
-					return;
+					}));
 				}
-
-				if (!selectedText.trim()) {
-					await dialogService.info(
-						localize('shareAsPrivateGist.noSelectionTitle', "Share as Private Gist"),
-						localize('shareAsPrivateGist.noSelection', "Select a block of text in the editor, then choose Share as Private Gist.")
-					);
-					return;
-				}
-
-				const previewLimit = 280;
-				const preview = selectedText.length > previewLimit
-					? `${selectedText.slice(0, previewLimit)}\n…`
-					: selectedText;
-				const previewMarkdown = new MarkdownString(undefined, { supportThemeIcons: false });
-				previewMarkdown.appendCodeblock('', preview);
-
-				const gistResult = await dialogService.prompt({
-					type: Severity.Info,
-					message: localize('shareAsPrivateGist.title', "Share as Private Gist"),
-					detail: localize(
-						'shareAsPrivateGist.detail',
-						"Prototype only — no gist will be created. {0} line(s) from '{1}' are ready to share privately.",
-						lineCount,
-						fileLabel
-					),
-					custom: {
-						icon: Codicon.gistSecret,
-						markdownDetails: [{
-							markdown: previewMarkdown,
-							classes: ['share-dialog-input-text', 'share-private-gist-preview']
-						}]
-					},
-					cancelButton: localize('shareAsPrivateGist.cancel', "Cancel"),
-					buttons: [
-						{
-							label: localize('shareAsPrivateGist.confirm', "Share Private Gist"),
-							run: () => 'shared' as const
-						},
-						{
-							label: localize('shareAsPrivateGist.copy', "Copy Selection"),
-							run: async () => {
-								await clipboardService.writeText(selectedText);
-								return 'copied' as const;
-							}
-						}
-					]
-				});
-
-				if (gistResult.result === 'shared') {
-					await dialogService.info(
-						localize('shareAsPrivateGist.doneTitle', "Private Gist Ready"),
-						localize(
-							'shareAsPrivateGist.done',
-							"UI prototype complete. Selected text from '{0}' would be shared as a private gist ({1} characters).",
-							fileLabel,
-							selectedText.length
-						)
-					);
-				} else if (gistResult.result === 'copied') {
-					await dialogService.info(
-						localize('shareAsPrivateGist.copiedTitle', "Selection Copied"),
-						localize('shareAsPrivateGist.copied', "Copied the selected text to the clipboard.")
-					);
-				}
-			}
-		}));
-	}
 
 	/**
 	 * Reuses the editor lightbulb / Quick Fix surface (VS Code equivalent of
@@ -597,114 +497,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	}
 });
 
-/**
- * Selection lightbulb affordance (VS Code content-widget pattern used by Quick Fix).
- * Shows when text is selected; click opens the share tip quick action.
- */
-class ShareSelectionLightbulbWidget extends Disposable implements IContentWidget {
-	readonly allowEditorOverflow = true;
-	readonly suppressMouseDown = true;
-
-	private readonly _domNode: HTMLElement;
-	private _position: IContentWidgetPosition | null = null;
-	private _visible = false;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _onClick: () => void,
-	) {
-		super();
-		this._domNode = dom.$('div.share-selection-lightbulb');
-		this._domNode.setAttribute('role', 'button');
-		this._domNode.setAttribute('tabindex', '0');
-		this._domNode.setAttribute('aria-label', localize('shareSelectionLightbulb.aria', "Show me how to share this code"));
-		this._domNode.title = localize('shareSelectionLightbulb.title', "Show me how to share this code");
-		const icon = dom.$('span');
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulb));
-		this._domNode.appendChild(icon);
-
-		const trigger = (e: Event) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._onClick();
-		};
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, trigger));
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				trigger(e);
-			}
-		}));
-	}
-
-	getId(): string { return 'share.selectionLightbulb'; }
-	getDomNode(): HTMLElement { return this._domNode; }
-	getPosition(): IContentWidgetPosition | null { return this._position; }
-
-	show(selection: Selection): void {
-		this._position = {
-			position: selection.getStartPosition(),
-			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
-		};
-		if (!this._visible) {
-			this._editor.addContentWidget(this);
-			this._visible = true;
-		} else {
-			this._editor.layoutContentWidget(this);
-		}
-		this._domNode.classList.add('visible');
-	}
-
-	hide(): void {
-		if (!this._visible) {
-			return;
-		}
-		this._domNode.classList.remove('visible');
-		this._editor.removeContentWidget(this);
-		this._visible = false;
-		this._position = null;
-	}
-
-	override dispose(): void {
-		this.hide();
-		super.dispose();
-	}
-}
-
-class ShareSelectionLightbulbController extends Disposable implements IEditorContribution {
-	static readonly ID = 'editor.contrib.shareSelectionLightbulb';
-
-	private readonly _widget: ShareSelectionLightbulbWidget;
-	private readonly _update: RunOnceScheduler;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ICommandService private readonly _commandService: ICommandService,
-	) {
-		super();
-		this._widget = this._register(new ShareSelectionLightbulbWidget(this._editor, () => {
-			void this._commandService.executeCommand(SHOW_SHARE_CODE_TIP_COMMAND_ID);
-		}));
-		this._update = this._register(new RunOnceScheduler(() => this._render(), 100));
-		this._register(this._editor.onDidChangeCursorSelection(() => this._update.schedule()));
-		this._register(this._editor.onDidChangeModel(() => this._update.schedule()));
-		this._register(this._editor.onDidScrollChange(() => this._update.schedule()));
-		this._update.schedule();
-	}
-
-	private _render(): void {
-		const model = this._editor.getModel();
-		const selection = this._editor.getSelection();
-		if (!model || !selection || selection.isEmpty()) {
-			this._widget.hide();
-			return;
-		}
-		const text = model.getValueInRange(selection);
-		if (!text || text.trim().length < 2) {
-			this._widget.hide();
-			return;
-		}
-		this._widget.show(selection);
-	}
-}
-
-registerEditorContribution(ShareSelectionLightbulbController.ID, ShareSelectionLightbulbController, EditorContributionInstantiation.AfterFirstRender);

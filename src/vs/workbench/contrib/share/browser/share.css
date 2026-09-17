@@ -30,32 +30,3 @@ div.share-private-gist-preview {
 	line-height: 1.4;
 	margin-top: 8px;
 }
-
-.monaco-editor .share-selection-lightbulb {
-	display: none;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	margin: 2px 0 0 4px;
-	border-radius: 4px;
-	cursor: pointer;
-	color: var(--vscode-editorLightBulb-foreground, #ffcc00);
-	background: var(--vscode-editor-background);
-	box-shadow: 0 0 0 1px var(--vscode-widget-border, rgba(0, 0, 0, 0.2));
-	pointer-events: auto;
-	z-index: 50;
-}
-
-.monaco-editor .share-selection-lightbulb .codicon {
-	font-size: 16px;
-	color: var(--vscode-editorLightBulb-foreground, #ffcc00);
-}
-
-.monaco-editor .share-selection-lightbulb.visible {
-	display: inline-flex !important;
-}
-
-.monaco-editor .share-selection-lightbulb:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-}
