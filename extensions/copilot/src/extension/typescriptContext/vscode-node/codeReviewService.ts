@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { packageJson } from '../../../platform/env/common/packagejson';
-import { ICodeReviewService, NullCodeReviewService, type TypeScriptChangeBucket, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptMetricsResult, type TypeScriptReviewLineChange } from '../../../platform/languageContextProvider/common/codeReviewService';
+import { ICodeReviewService, NullCodeReviewService, type CodeReviewCommentLocation, type TypeScriptChangeBucket, type TypeScriptChangeExplanation, type TypeScriptChangeExplanationInput, type TypeScriptChangeClassificationInput, type TypeScriptChangeClassificationResult, type TypeScriptMetricsResult, type TypeScriptReviewLineChange } from '../../../platform/languageContextProvider/common/codeReviewService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -29,6 +29,7 @@ interface CodeReviewSource {
 	readonly filePath: string;
 	readonly original: string;
 	readonly modified: string;
+	readonly commentingRanges: readonly { readonly start: number; readonly end: number }[];
 	readonly reviewedChanges: Map<string, TypeScriptReviewLineChange>;
 }
 
@@ -38,6 +39,8 @@ export class CodeReviewService implements ICodeReviewService {
 	private readonly disposables = new DisposableStore();
 	private readonly reviewSources = new Map<string, CodeReviewSource>();
 	private readonly reviewDocumentChangeEmitter = this.disposables.add(new vscode.EventEmitter<vscode.Uri>());
+	private readonly reviewInvalidationEmitter = this.disposables.add(new vscode.EventEmitter<string>());
+	readonly onDidInvalidateReview = this.reviewInvalidationEmitter.event;
 	private provider: CodeReviewProvider;
 
 	constructor(
@@ -127,6 +130,7 @@ export class CodeReviewService implements ICodeReviewService {
 			filePath: input.filePath,
 			original: input.original.content,
 			modified,
+			commentingRanges: CodeReviewService.mergeLineRanges([...input.modified.added, ...input.modified.changed]),
 		});
 		const ranges = new Map<string, { original?: { start: number; end: number }; modified?: { start: number; end: number } }>();
 		for (const bucket of result.original) {
@@ -178,6 +182,26 @@ export class CodeReviewService implements ICodeReviewService {
 		return true;
 	}
 
+	getCommentingRanges(uri: vscode.Uri): readonly vscode.Range[] {
+		const review = this.getModifiedReview(uri);
+		if (review === undefined) {
+			return [];
+		}
+		return review.source.commentingRanges.map(CodeReviewService.toCommentingRange);
+	}
+
+	resolveCommentLocation(uri: vscode.Uri, range: vscode.Range): CodeReviewCommentLocation | undefined {
+		const review = this.getModifiedReview(uri);
+		if (review === undefined || !review.source.commentingRanges.some(candidate => CodeReviewService.toCommentingRange(candidate).contains(range))) {
+			return undefined;
+		}
+		return {
+			reviewId: review.id,
+			uri: vscode.Uri.file(review.source.filePath),
+			range,
+		};
+	}
+
 	async openDiff(uri: vscode.Uri): Promise<void> {
 		if (uri.path !== CodeReviewDiffUriPath) {
 			throw new Error(`Unsupported code review URI path '${uri.path}'`);
@@ -215,6 +239,9 @@ export class CodeReviewService implements ICodeReviewService {
 
 	dispose(): void {
 		this.provider.dispose();
+		for (const reviewId of this.reviewSources.keys()) {
+			this.reviewInvalidationEmitter.fire(reviewId);
+		}
 		this.reviewSources.clear();
 		this.disposables.dispose();
 	}
@@ -300,10 +327,28 @@ export class CodeReviewService implements ICodeReviewService {
 				break;
 			}
 			this.reviewSources.delete(oldest);
+			this.reviewInvalidationEmitter.fire(oldest);
 		}
 		const id = generateUuid();
 		this.reviewSources.set(id, { ...source, reviewedChanges: new Map() });
 		return id;
+	}
+
+	private getModifiedReview(uri: vscode.Uri): { readonly id: string; readonly source: CodeReviewSource } | undefined {
+		if (uri.scheme !== codeReviewDiffScheme) {
+			return undefined;
+		}
+		const params = new URLSearchParams(uri.query);
+		const id = params.get('id');
+		if (id === null || params.get('side') !== 'modified') {
+			return undefined;
+		}
+		const source = this.reviewSources.get(id);
+		if (source === undefined) {
+			return undefined;
+		}
+		const expectedUri = this.createSnapshotUri(source.filePath, id, 'modified');
+		return uri.authority === expectedUri.authority && uri.path === expectedUri.path ? { id, source } : undefined;
 	}
 
 	private createEntityLink(reviewId: string, bucket: TypeScriptChangeBucket, ranges: { original?: { start: number }; modified?: { start: number } } | undefined): vscode.Uri {
@@ -362,6 +407,24 @@ export class CodeReviewService implements ICodeReviewService {
 
 	private static isValidReviewRange(range: { start: number; end: number }): boolean {
 		return Number.isInteger(range.start) && range.start >= 0 && Number.isInteger(range.end) && range.end >= range.start;
+	}
+
+	private static toCommentingRange(range: { readonly start: number; readonly end: number }): vscode.Range {
+		return new vscode.Range(range.start, 0, range.end - 1, Number.MAX_SAFE_INTEGER - 1);
+	}
+
+	private static mergeLineRanges(ranges: readonly { readonly start: number; readonly end: number }[]): readonly { readonly start: number; readonly end: number }[] {
+		const sorted = [...ranges].sort((left, right) => left.start - right.start || left.end - right.end);
+		const result: { start: number; end: number }[] = [];
+		for (const range of sorted) {
+			const previous = result[result.length - 1];
+			if (previous === undefined || range.start > previous.end) {
+				result.push({ ...range });
+			} else {
+				previous.end = Math.max(previous.end, range.end);
+			}
+		}
+		return result;
 	}
 
 	private static isSameReviewLineChange(left: TypeScriptReviewLineChange, right: TypeScriptReviewLineChange): boolean {

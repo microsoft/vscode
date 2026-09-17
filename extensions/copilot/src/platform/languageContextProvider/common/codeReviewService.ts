@@ -149,10 +149,20 @@ export interface TypeScriptReviewLineChange {
 	readonly modified: LineRange;
 }
 
+export interface CodeReviewCommentLocation {
+	readonly reviewId: string;
+	readonly uri: vscode.Uri;
+	readonly range: vscode.Range;
+}
+
 export const ICodeReviewService = createServiceIdentifier<ICodeReviewService>('ICodeReviewService');
 
 export interface ICodeReviewService extends vscode.Disposable {
 	readonly _serviceBrand: undefined;
+	/**
+	 * Fires when a cached review snapshot is no longer available.
+	 */
+	readonly onDidInvalidateReview: vscode.Event<string>;
 
 	/**
 	 * Computes metrics for executable entities in the file. Unnamed entities are aggregated
@@ -178,6 +188,16 @@ export interface ICodeReviewService extends vscode.Disposable {
 	setChangesReviewed(entityLink: vscode.Uri, changes: readonly TypeScriptReviewLineChange[], reviewed: boolean): boolean;
 
 	/**
+	 * Gets the modified-snapshot ranges on which review comments can be created.
+	 */
+	getCommentingRanges(uri: vscode.Uri): readonly vscode.Range[];
+
+	/**
+	 * Maps a range in a modified review snapshot to the corresponding real file.
+	 */
+	resolveCommentLocation(uri: vscode.Uri, range: vscode.Range): CodeReviewCommentLocation | undefined;
+
+	/**
 	 * Opens a code-review entity link created by {@link classifyChanges}.
 	 */
 	openDiff(uri: vscode.Uri): Promise<void>;
@@ -185,6 +205,7 @@ export interface ICodeReviewService extends vscode.Disposable {
 
 export class NullCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
+	readonly onDidInvalidateReview: vscode.Event<string> = () => ({ dispose: () => { } });
 
 	async computeMetrics(): Promise<undefined> {
 		return undefined;
@@ -200,6 +221,14 @@ export class NullCodeReviewService implements ICodeReviewService {
 
 	setChangesReviewed(): boolean {
 		return false;
+	}
+
+	getCommentingRanges(): readonly vscode.Range[] {
+		return [];
+	}
+
+	resolveCommentLocation(): undefined {
+		return undefined;
 	}
 
 	async openDiff(): Promise<void> { }

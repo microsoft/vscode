@@ -47,6 +47,7 @@ import { PowerStateLogger } from '../../power/vscode-node/powerStateLogger';
 import { DebugCommandsContribution } from '../../prompt/vscode-node/debugCommands';
 import { RenameSuggestionsContrib } from '../../prompt/vscode-node/renameSuggestions';
 import { PromptFileContextContribution } from '../../promptFileContext/vscode-node/promptFileContextService';
+import { ChangedEntitiesCommentControllerContribution } from '../../review/vscode-node/changedEntitiesCommentController';
 import { ChangedEntitiesViewContribution } from '../../review/vscode-node/changedEntitiesView';
 import { SearchPanelCommands } from '../../search/vscode-node/commands';
 import { SettingsSchemaFeature } from '../../settingsSchema/vscode-node/settingsSchemaFeature';
@@ -96,6 +97,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(ChatQuotaContribution),
 	asContributionFactory(NotebookFollowCommands),
 	asContributionFactory(PromptFileContextContribution),
+	asContributionFactory(ChangedEntitiesCommentControllerContribution),
 	asContributionFactory(ChangedEntitiesViewContribution),
 	asContributionFactory(ScmContextProviderContribution),
 	asContributionFactory(DiagnosticsContextContribution),

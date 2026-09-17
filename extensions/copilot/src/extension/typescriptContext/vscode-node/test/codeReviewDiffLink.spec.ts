@@ -106,7 +106,7 @@ suite('Code review service', () => {
 				filePath: 'C:\\workspace\\reader.ts',
 				modified: {
 					content: modifiedContent,
-					added: [],
+					added: [{ start: 25, end: 27 }],
 					changed: [{ start: 24, end: 25 }],
 				},
 				original: {
@@ -122,6 +122,9 @@ suite('Code review service', () => {
 			const diffCall = mocks.executeCommand.mock.calls[2];
 			const originalUri = diffCall[1] as vscode.Uri;
 			const modifiedUri = diffCall[2] as vscode.Uri;
+			const commentingRanges = service.getCommentingRanges(modifiedUri);
+			const commentRange = new vscode.Range(24, 2, 26, 4);
+			const commentLocation = service.resolveCommentLocation(modifiedUri, commentRange);
 			const documentChanges: vscode.Uri[] = [];
 			const documentChangeListener = mocks.provider?.onDidChange?.(uri => documentChanges.push(uri));
 			const reviewChanges = [
@@ -160,6 +163,16 @@ suite('Code review service', () => {
 					title: diffCall[3],
 					selectionLine: diffCall[4].selection.start.line,
 				},
+				comments: {
+					ranges: commentingRanges.map(range => [range.start.line, range.end.line]),
+					originalRanges: service.getCommentingRanges(originalUri),
+					location: commentLocation === undefined ? undefined : {
+						sameReview: commentLocation.reviewId === new URLSearchParams(modifiedUri.query).get('id'),
+						filePath: commentLocation.uri.fsPath,
+						range: [commentLocation.range.start.line, commentLocation.range.end.line],
+					},
+					outsideLocation: service.resolveCommentLocation(modifiedUri, new vscode.Range(27, 0, 27, 1)),
+				},
 				review: {
 					accepted,
 					acceptedOriginal,
@@ -180,6 +193,16 @@ suite('Code review service', () => {
 					modified: modifiedContent,
 					title: 'reader.ts — Reader.listen',
 					selectionLine: 20,
+				},
+				comments: {
+					ranges: [[24, 26]],
+					originalRanges: [],
+					location: {
+						sameReview: true,
+						filePath: 'c:\\workspace\\reader.ts',
+						range: [24, 26],
+					},
+					outsideLocation: undefined,
 				},
 				review: {
 					accepted: true,

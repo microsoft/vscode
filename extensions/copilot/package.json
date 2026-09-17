@@ -2601,6 +2601,22 @@
         "icon": "$(discard)"
       },
       {
+        "command": "github.copilot.changedEntities.comments.save",
+        "title": "%copilot.changedEntities.comments.save%",
+        "icon": "$(check)"
+      },
+      {
+        "command": "github.copilot.changedEntities.comments.discard",
+        "title": "%copilot.changedEntities.comments.discard%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "github.copilot.changedEntities.comments.sendAll",
+        "title": "%copilot.changedEntities.comments.sendAll%",
+        "icon": "$(send)",
+        "enablement": "chatIsEnabled && github.copilot.changedEntities.pendingCommentCount > 0"
+      },
+      {
         "command": "github.copilot.chat.triggerPermissiveSignIn",
         "title": "%github.copilot.command.triggerPermissiveSignIn%"
       },
@@ -5820,6 +5836,18 @@
           "when": "false"
         },
         {
+          "command": "github.copilot.changedEntities.comments.save",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.changedEntities.comments.discard",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.changedEntities.comments.sendAll",
+          "when": "chatIsEnabled && github.copilot.changedEntities.pendingCommentCount > 0"
+        },
+        {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
         },
@@ -6150,6 +6178,11 @@
       ],
       "view/title": [
         {
+          "command": "github.copilot.changedEntities.comments.sendAll",
+          "when": "chatIsEnabled && view == github.copilot.changedEntities && github.copilot.changedEntities.pendingCommentCount > 0",
+          "group": "navigation@1"
+        },
+        {
           "submenu": "github.copilot.chat.debug.filter",
           "when": "view == copilot-chat",
           "group": "navigation"
@@ -6246,7 +6279,19 @@
           "when": "commentController == github-copilot-review"
         }
       ],
+      "comments/commentThread/context": [
+        {
+          "command": "github.copilot.changedEntities.comments.save",
+          "group": "inline@1",
+          "when": "chatIsEnabled && commentController == github-copilot-changed-entities && !commentIsEmpty"
+        }
+      ],
       "commentsView/commentThread/context": [
+        {
+          "command": "github.copilot.changedEntities.comments.discard",
+          "group": "context@0",
+          "when": "chatIsEnabled && commentController == github-copilot-changed-entities && commentThread == copilotChangedEntitiesPendingComment"
+        },
         {
           "command": "github.copilot.chat.review.apply",
           "group": "context@1",
@@ -6327,6 +6372,11 @@
         }
       ],
       "comments/commentThread/title": [
+        {
+          "command": "github.copilot.changedEntities.comments.discard",
+          "group": "inline@0",
+          "when": "chatIsEnabled && commentController == github-copilot-changed-entities && commentThread == copilotChangedEntitiesPendingComment"
+        },
         {
           "command": "github.copilot.chat.review.previous",
           "group": "inline@1",

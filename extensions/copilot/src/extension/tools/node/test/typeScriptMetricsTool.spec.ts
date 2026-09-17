@@ -90,6 +90,7 @@ suite('TypeScript metrics tool', () => {
 
 class TestCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
+	readonly onDidInvalidateReview: vscode.Event<string> = () => ({ dispose: () => { } });
 	readonly calls: Array<ITypeScriptMetricsToolInput> = [];
 
 	constructor(private readonly result: TypeScriptMetricsResult | undefined) { }
@@ -109,6 +110,14 @@ class TestCodeReviewService implements ICodeReviewService {
 
 	setChangesReviewed(): boolean {
 		return false;
+	}
+
+	getCommentingRanges(): readonly vscode.Range[] {
+		return [];
+	}
+
+	resolveCommentLocation(): undefined {
+		return undefined;
 	}
 
 	async openDiff(): Promise<void> { }

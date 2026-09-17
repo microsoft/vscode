@@ -578,6 +578,7 @@ suite('Changed entities view', () => {
 
 class TestCodeReviewService implements ICodeReviewService {
 	readonly _serviceBrand: undefined;
+	readonly onDidInvalidateReview = Event.None;
 	readonly inputs: TypeScriptChangeClassificationInput[] = [];
 	readonly metricInputs: { readonly filePath: string; readonly content?: string }[] = [];
 	readonly explanationInputs: TypeScriptChangeExplanationInput[] = [];
@@ -611,6 +612,14 @@ class TestCodeReviewService implements ICodeReviewService {
 	setChangesReviewed(entityLink: vscode.Uri, changes: readonly TypeScriptReviewLineChange[], reviewed: boolean): boolean {
 		this.reviewedChanges.push({ entityLink, changes, reviewed });
 		return true;
+	}
+
+	getCommentingRanges(): readonly vscode.Range[] {
+		return [];
+	}
+
+	resolveCommentLocation(): undefined {
+		return undefined;
 	}
 
 	async openDiff(): Promise<void> { }
