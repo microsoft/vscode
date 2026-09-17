@@ -170,16 +170,10 @@
 	overflow-wrap: break-word;
 }
 
-.search-view .message.ai-keywords {
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	line-clamp: 2;
-	-webkit-line-clamp: 2;
+.search-view .message .ai-keyword-suggestions {
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: normal;
-	margin: 0 22px 8px;
-	padding: 0px;
+	white-space: nowrap;
 }
 
 .search-view .message p:first-child {
