@@ -16,7 +16,7 @@ import { CancellationToken, cancelOnDispose } from '../../../../../base/common/c
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { MutableDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MutableDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { parseLinkedText } from '../../../../../base/common/linkedText.js';
 import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -31,6 +31,7 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService, nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
@@ -47,6 +48,7 @@ import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
+import { ChatAccessRequestController } from './chatAccessRequest.js';
 
 const defaultChat = product.defaultChatAgent;
 const completionsConfigurationTargets = [
@@ -138,6 +140,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@IStorageService private readonly storageService: IStorageService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -291,6 +294,57 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// New to Chat / Signed out
 		this.renderSetupSection();
+
+		this.renderAccessRequest(updatePromise);
+	}
+
+	private renderAccessRequest(entitlementRefresh: Promise<void>): void {
+		if (!this.defaultAccountService.currentDefaultAccount) {
+			return;
+		}
+		const controller = this._store.add(this.instantiationService.createInstance(ChatAccessRequestController));
+		const container = this.element.appendChild($('div'));
+		container.style.display = 'none';
+		container.appendChild($('div.description', undefined, localize('accessRequestDescription', "Ask an organization admin for Copilot access.")));
+		const button = this._store.add(new Button(container, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
+		button.label = localize('requestCopilotAccess', "Request Copilot Access");
+		this._store.add(button.onDidClick(() => controller.open()));
+
+		const targetWindow = getWindow(this.element);
+		let dashboardVisible = false;
+		let buttonVisible = false;
+		const recordExposure = () => {
+			if (!targetWindow.document.hidden) {
+				if (dashboardVisible) {
+					controller.recordTrigger();
+				}
+				if (buttonVisible) {
+					controller.recordImpression();
+				}
+			}
+		};
+		const observer = new targetWindow.IntersectionObserver(entries => {
+			for (const entry of entries) {
+				if (entry.target === this.element) {
+					dashboardVisible = entry.isIntersecting;
+				} else {
+					buttonVisible = entry.isIntersecting;
+				}
+			}
+			recordExposure();
+		});
+		this._store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(this.element);
+		observer.observe(button.element);
+		this._store.add(addDisposableListener(targetWindow.document, 'visibilitychange', recordExposure));
+		this._store.add(controller.onDidChange(() => {
+			container.style.display = controller.visible ? '' : 'none';
+			buttonVisible = false;
+			if (dashboardVisible && !targetWindow.document.hidden) {
+				controller.recordTrigger();
+			}
+		}));
+		void controller.refresh(entitlementRefresh);
 	}
 
 	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, headerUpgradeButton: Button | undefined, updatePromise: Promise<void>): void {

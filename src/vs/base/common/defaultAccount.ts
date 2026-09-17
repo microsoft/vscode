@@ -39,6 +39,12 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly organization_login_list: string[];
 	readonly is_staff?: boolean;
 	readonly analytics_tracking_id: string;
+	readonly can_request_copilot_access?: boolean;
+	readonly copilot_access_request_assignment?: {
+		readonly variant: 'control' | 'treatment';
+		readonly assignment_context: string;
+		readonly data_version: number;
+	};
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
@@ -99,4 +105,6 @@ export interface IDefaultAccount {
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;
+	/** Time of the successful entitlement fetch, preserved when cached data is reused. */
+	readonly entitlementsDataFetchedAt?: number;
 }
