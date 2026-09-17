@@ -17,6 +17,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { isContributionEnabled } from '../../common/enablement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -75,13 +76,13 @@ export interface IAICustomizationItemsModel {
 	getActiveItemSource(): IAICustomizationItemSource;
 
 	/**
-	 * Convenience: an observable of the count for the given section.
+	 * Convenience: an observable of the enabled item count for the given section.
 	 */
 	getCount(section: ItemsModelSection): IObservable<number>;
 
 	/**
-	 * Returns an observable of the Plugins section count. This combines
-	 * locally installed plugins with plugin rows supplied by the active
+	 * Returns an observable of the enabled Plugins section count. This combines
+	 * locally installed plugins with enabled plugin rows supplied by the active
 	 * customization harness provider.
 	 */
 	getPluginCount(): IObservable<number>;
@@ -121,7 +122,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
 	private readonly perSectionPending = new Map<ItemsModelSection, Promise<void>>();
-	private readonly remotePluginNames = observableValue<readonly string[]>('aiCustomizationRemotePluginNames', []);
+	private readonly enabledRemotePluginNames = observableValue<readonly string[]>('aiCustomizationEnabledRemotePluginNames', []);
 	private readonly pluginCount = derived(reader => {
 		const installed = this.agentPluginService.plugins.read(reader);
 		// Match PluginListWidget's installed-name derivation
@@ -129,9 +130,10 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		// editor widget agree on what counts as a duplicate when a plugin's
 		// `label` is empty/undefined.
 		const installedNames = new Set(installed.map(p => (p.label || basename(p.uri)).toLowerCase()));
-		const remoteNames = this.remotePluginNames.read(reader);
+		const enabledInstalledCount = installed.filter(plugin => isContributionEnabled(plugin.enablement.read(reader))).length;
+		const remoteNames = this.enabledRemotePluginNames.read(reader);
 		const uniqueRemote = remoteNames.filter(name => name && !installedNames.has(name.toLowerCase()));
-		return installed.length + uniqueRemote.length;
+		return enabledInstalledCount + uniqueRemote.length;
 	});
 	private pluginCountObserved = false;
 	private pluginFetchSeq = 0;
@@ -163,7 +165,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		for (const section of ITEMS_MODEL_SECTIONS) {
 			const items = observableValue<readonly IAICustomizationListItem[]>(`aiCustomizationItems:${section}`, []);
 			this.perSection.set(section, items);
-			this.perSectionCount.set(section, derived(reader => items.read(reader).length));
+			this.perSectionCount.set(section, derived(reader => items.read(reader).filter(item => !item.disabled).length));
 			this.fetchSeq.set(section, 0);
 		}
 
@@ -311,7 +313,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		const seq = ++this.pluginFetchSeq;
 		const pending = source.fetchProviderItems().then(items => {
 			return items
-				.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
+				.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client' && item.enabled !== false)
 				.map(item => item.name ?? '');
 		});
 
@@ -325,7 +327,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 			if (this.getActiveItemSource() !== source) {
 				return;
 			}
-			this.remotePluginNames.set(names, undefined);
+			this.enabledRemotePluginNames.set(names, undefined);
 		}, e => {
 			if (!this._store.isDisposed) {
 				onUnexpectedError(e);

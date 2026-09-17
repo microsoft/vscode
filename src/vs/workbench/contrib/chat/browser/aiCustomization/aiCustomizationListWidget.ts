@@ -932,7 +932,7 @@ export class AICustomizationListWidget extends Disposable {
 			const items = observable.read(reader);
 			this.allItems = items;
 			this.filterItems();
-			this._onDidChangeItemCount.fire(items.length);
+			this._onDidChangeItemCount.fire(this.itemsModel.getCount(modelSection).read(reader));
 		});
 		this.updateAddButton();
 		await this.itemsModel.whenSectionLoaded(modelSection);
@@ -1255,13 +1255,13 @@ export class AICustomizationListWidget extends Disposable {
 		const section = toItemsModelSection(this.currentSection);
 		this.allItems = section ? this.itemsModel.getItems(section).get() : [];
 		this.filterItems();
-		this._onDidChangeItemCount.fire(this.allItems.length);
+		this._onDidChangeItemCount.fire(section ? this.itemsModel.getCount(section).get() : 0);
 	}
 
 	/**
 	 * Computes the item count for a given section without updating the display.
-	 * Reads from the items model so the count is consistent with what the
-	 * editor and sidebar render. Returns 0 for sections not modeled here
+	 * Reads from the items model so the editor and sidebar use the same enabled
+	 * count. Returns 0 for sections not modeled here
 	 * (McpServers / Plugins / Models — those have their own services).
 	 */
 	computeItemCountForSection(section: AICustomizationManagementSection): number {

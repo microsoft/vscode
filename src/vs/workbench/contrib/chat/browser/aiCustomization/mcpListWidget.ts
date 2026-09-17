@@ -22,7 +22,7 @@ import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServe
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ContributionEnablementState, isContributionDisabled } from '../../common/enablement.js';
+import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -996,6 +996,7 @@ export class McpListWidget extends Disposable {
 	private addButton!: Button;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
+	private filteredEnabledServerCount = 0;
 	private filteredBuiltinCount = 0;
 	private filteredActiveSessionCount = 0;
 	private displayEntries: IMcpListEntry[] = [];
@@ -1243,7 +1244,10 @@ export class McpListWidget extends Disposable {
 			}
 		}));
 		this._register(autorun(reader => {
-			this.mcpService.servers.read(reader);
+			const servers = this.mcpService.servers.read(reader);
+			for (const server of servers) {
+				server.enablement.read(reader);
+			}
 			if (!this.browseMode) {
 				this.refresh();
 			}
@@ -1418,13 +1422,19 @@ export class McpListWidget extends Disposable {
 			{ scope: LocalMcpServerScope.User, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "MCP servers configured in your user settings. Private to you and available across all projects."), entries: [] },
 		];
 
+		let enabledServerCount = 0;
 		for (const server of this.filteredServers) {
+			const activeSessionServer = activeSessionMatcher.take(getWorkbenchServerMatchKeys(server));
+			const localServer = localServerMatcher.find(getWorkbenchServerMatchKeys(server));
 			const entry: IMcpServerItemEntry = {
 				type: 'server-item',
 				server,
-				activeSessionServer: activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)),
-				localServer: localServerMatcher.find(getWorkbenchServerMatchKeys(server)),
+				activeSessionServer,
+				localServer,
 			};
+			if (activeSessionServer?.enabled ?? (localServer ? isContributionEnabled(localServer.enablement.get()) : true)) {
+				enabledServerCount++;
+			}
 			const scope = server.local?.scope;
 			if (scope === LocalMcpServerScope.Workspace) {
 				groups[0].entries.push(entry);
@@ -1565,18 +1575,21 @@ export class McpListWidget extends Disposable {
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 
-		// Compute sidebar badge directly from the data arrays (same source as group headers)
-		this.filteredBuiltinCount = builtinServers.length;
-		this.filteredActiveSessionCount = activeSessionOnlyServers.length;
+		// Compute the sidebar badge from the enabled rows.
+		const enabledBuiltinCount = [...pluginServers, ...extensionServers, ...otherBuiltinServers]
+			.filter(({ server, activeSessionServer }) => activeSessionServer?.enabled ?? isContributionEnabled(server.enablement.get()))
+			.length;
+		this.filteredEnabledServerCount = enabledServerCount;
+		this.filteredBuiltinCount = enabledBuiltinCount;
+		this.filteredActiveSessionCount = activeSessionOnlyServers.filter(server => server.enabled).length;
 		this._onDidChangeItemCount.fire(this.itemCount);
 	}
 
 	/**
-	 * Gets the total item count from the underlying data arrays
-	 * (the same source used to build group headers).
+	 * Gets the enabled item count from the underlying data arrays.
 	 */
 	get itemCount(): number {
-		return this.filteredServers.length + this.filteredBuiltinCount + this.filteredActiveSessionCount;
+		return this.filteredEnabledServerCount + this.filteredBuiltinCount + this.filteredActiveSessionCount;
 	}
 
 	/**

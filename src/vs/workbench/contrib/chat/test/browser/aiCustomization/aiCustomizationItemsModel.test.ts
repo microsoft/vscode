@@ -668,10 +668,11 @@ suite('AICustomizationItemsModel', () => {
 		] as const;
 
 		for (const [section, type] of sectionsByType) {
-			test(`getCount(${section}) mirrors provider items filtered by type=${type}`, async () => {
+			test(`getCount(${section}) counts enabled provider items filtered by type=${type}`, async () => {
 				providerItems = [
 					providerOfType(type, 'a'),
 					providerOfType(type, 'b'),
+					{ ...providerOfType(type, 'disabled'), enabled: false },
 					providerOfType(PromptsType.agent, 'unrelated-1'),
 					providerOfType(PromptsType.skill, 'unrelated-2'),
 				];
@@ -680,24 +681,25 @@ suite('AICustomizationItemsModel', () => {
 				const count = model.getCount(section);
 				await model.whenSectionLoaded(section);
 
-				const expected = providerItems.filter(i => i.type === type).length;
-				assert.strictEqual(count.get(), expected, `${section} count should equal provider items where type === ${type}`);
+				const expected = providerItems.filter(i => i.type === type && i.enabled !== false).length;
+				assert.strictEqual(count.get(), expected, `${section} count should equal enabled provider items where type === ${type}`);
 			});
 		}
 
-		test('getCount reacts to provider onDidChange for observed sections', async () => {
-			providerItems = [providerSkill('one')];
+		test('getCount reacts to provider enablement changes for observed sections', async () => {
+			providerItems = [providerSkill('one'), providerSkill('two')];
 
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			const count = model.getCount(AICustomizationManagementSection.Skills);
 			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-			assert.strictEqual(count.get(), 1, 'initial fetch reflects provider state');
+			const initialCount = count.get();
 
-			providerItems = [providerSkill('one'), providerSkill('two')];
+			providerItems = [providerSkill('one'), { ...providerSkill('two'), enabled: false }];
 			providerDidChange.fire();
 			await timeout(0);
+			const disabledCount = count.get();
 
-			assert.strictEqual(count.get(), 2, 'count refetches after provider change');
+			assert.deepStrictEqual({ initialCount, disabledCount }, { initialCount: 2, disabledCount: 1 });
 		});
 
 		test('getPluginCount returns local plugin count when harness has no plugin rows', async () => {
@@ -711,10 +713,26 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(count.get(), 2, 'plugin count uses local plugins when the harness exposes none');
 		});
 
+		test('getPluginCount reacts to local plugin enablement changes', async () => {
+			const enablement = observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile);
+			plugins.set([{ ...localPlugin('local'), enablement }], undefined);
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+			const enabledCount = count.get();
+
+			enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+			const disabledCount = count.get();
+
+			assert.deepStrictEqual({ enabledCount, disabledCount }, { enabledCount: 1, disabledCount: 0 });
+		});
+
 		test('getPluginCount returns harness plugin row count when no local plugins are installed', async () => {
 			providerItems = [
 				harnessPluginRow('x'),
 				harnessPluginRow('y', { type: AICustomizationManagementSection.Plugins }),
+				harnessPluginRow('disabled', { enabled: false }),
 				harnessPluginRow('synced', { groupKey: 'remote-client' }),
 			];
 			plugins.set([], undefined);
@@ -723,7 +741,7 @@ suite('AICustomizationItemsModel', () => {
 			const count = model.getPluginCount();
 			await timeout(0);
 
-			assert.strictEqual(count.get(), 2, 'remote-client harness rows are excluded; both internal "plugin" and API "plugins" types are recognised');
+			assert.strictEqual(count.get(), 2, 'disabled and remote-client rows are excluded; both internal "plugin" and API "plugins" types are recognised');
 		});
 
 		test('getPluginCount sums local plugins and unique harness plugin rows', async () => {
