@@ -4089,7 +4089,11 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('expands a compact row while the session needs input', () => {
-			const { session, status } = createTestSession('Answer required', { workspaceLabel: 'vscode' });
+			const { session: baseSession, status } = createTestSession('Answer required', { workspaceLabel: 'vscode' });
+			const session: ISession = {
+				...baseSession,
+				description: constObservable(new MarkdownString('Which **strategy** should I use?')),
+			};
 			const harness = createListHarness(disposables, [session]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -4110,6 +4114,7 @@ suite('Sessions - SessionsList', () => {
 					visible: callout.classList.contains('visible'),
 					label: callout.textContent,
 					ariaHidden: callout.getAttribute('aria-hidden'),
+					ariaLabel: row.getAttribute('aria-label'),
 				};
 			};
 
@@ -4120,9 +4125,9 @@ suite('Sessions - SessionsList', () => {
 			const completedAgain = readPresentation();
 
 			assert.deepStrictEqual({ completed, needsInput, completedAgain }, {
-				completed: { height: '30px', visible: false, label: '', ariaHidden: 'true' },
-				needsInput: { height: '62px', visible: true, label: 'Input needed', ariaHidden: 'true' },
-				completedAgain: { height: '30px', visible: false, label: '', ariaHidden: 'true' },
+				completed: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
+				needsInput: { height: '62px', visible: true, label: 'Which strategy should I use?', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Input Needed, Which strategy should I use?' },
+				completedAgain: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
 			});
 		});
 

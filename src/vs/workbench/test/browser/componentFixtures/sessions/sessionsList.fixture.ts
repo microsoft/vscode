@@ -657,7 +657,7 @@ const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
 		workspace: 'vscode',
 		minutesAgo: 2,
 		status: SessionStatus.NeedsInput,
-		description: 'Which compatibility strategy should I use?',
+		description: 'Which compatibility strategy should I use for existing authentication extensions and older remote clients?',
 	},
 	{
 		id: 'approval',
@@ -695,7 +695,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CompactNeedsInput: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a callout saying "Which compatibility strategy should I use?" but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
+		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a truncated input-needed callout but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
 		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_NEEDS_INPUT_SESSIONS, compact: true, width: 380 }),
 	}),
 	SessionsList_CompactSessionRename: defineComponentFixture({
