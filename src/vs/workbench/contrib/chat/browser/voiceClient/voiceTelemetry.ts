@@ -144,7 +144,7 @@ export type VoiceNarrationDroppedClassification = {
 export type VoiceNarrationRejectionReason = 'stale_pending' | 'missing' | 'unknown';
 
 export function toVoiceNarrationRejectionReason(reason: string | undefined): VoiceNarrationRejectionReason {
-	if (!reason) {
+	if (reason === undefined) {
 		return 'missing';
 	}
 	return reason === 'stale_pending' ? reason : 'unknown';

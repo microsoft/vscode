@@ -3343,12 +3343,13 @@ suite('VoiceSessionController', () => {
 			disposition: IVoiceNarrationAck['disposition'];
 			reason?: string;
 		}[] = [
-			{ disposition: 'invalid', reason: 'stale_pending' },
-			{ disposition: 'invalid' },
-			{ disposition: 'invalid', reason: 'backend details that must not be logged' },
-			{ disposition: 'accepted', reason: 'stale_pending' },
-			{ disposition: 'busy', reason: 'speaking' },
-		];
+				{ disposition: 'invalid', reason: 'stale_pending' },
+				{ disposition: 'invalid' },
+				{ disposition: 'invalid', reason: '' },
+				{ disposition: 'invalid', reason: 'backend details that must not be logged' },
+				{ disposition: 'accepted', reason: 'stale_pending' },
+				{ disposition: 'busy', reason: 'speaking' },
+			];
 		const events = cases.map(({ disposition, reason }, index) => {
 			const voiceClientService = new TestVoiceClientService();
 			const telemetryService = new TestTelemetryService();
@@ -3370,6 +3371,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(events, [
 			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'stale_pending' } }],
 			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'missing' } }],
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'unknown' } }],
 			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'unknown' } }],
 			[],
 			[{ name: 'voiceNarrationDeferred', data: { kind: 'confirmation', reason: 'busy' } }],
