@@ -11,6 +11,7 @@ import { Button, IButtonOptions } from '../../../../base/browser/ui/button/butto
 import { IFindInputOptions } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
 import { IInputBoxStyles, IMessage, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
@@ -32,8 +33,8 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IToggleStyles, Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from './searchIcons.js';
-import { ToggleSearchEditorContextLinesCommandId } from '../../searchEditor/browser/constants.js';
+import { searchContextLinesOptionsIcon, searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from './searchIcons.js';
+import { SearchContextLinesMode, searchContextLinesModes, ToggleSearchEditorContextLinesCommandId } from '../../searchEditor/browser/constants.js';
 import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFilters.js';
@@ -178,6 +179,8 @@ export class SearchWidget extends Widget {
 
 	private showContextToggle!: Toggle;
 	public contextLinesInput!: InputBox;
+	private contextLinesMode = SearchContextLinesMode.Surrounding;
+	private contextLinesModeAction!: Action;
 
 	private _notebookFilters: NotebookFindFilters;
 	private readonly _toggleReplaceButtonListener: MutableDisposable<IDisposable>;
@@ -527,21 +530,54 @@ export class SearchWidget extends Widget {
 				this.onContextLinesChanged();
 			}));
 			dom.append(searchInputContainer, this.showContextToggle.domNode);
+			const contextLinesModeContainer = dom.append(searchInputContainer, dom.$('.context-lines-mode'));
+			this.contextLinesModeAction = this._register(new Action('search.contextLinesMode', this.getContextLinesModeActionLabel()));
+			const contextLinesModeActionBar = this._register(new ActionBar(contextLinesModeContainer, {
+				ariaLabel: nls.localize('contextLinesMode', "Context Lines Placement"),
+				actionViewItemProvider: action => new DropdownMenuActionViewItem(action, {
+					getActions: () => searchContextLinesModes.map(mode => {
+						const modeAction = new Action(`search.contextLinesMode.${mode}`, this.getContextLinesModeLabel(mode), undefined, true, () => this.setContextLinesMode(mode));
+						modeAction.checked = this.contextLinesMode === mode;
+						return modeAction;
+					})
+				}, this.contextMenuService, { classNames: ThemeIcon.asClassNameArray(searchContextLinesOptionsIcon) })
+			}));
+			contextLinesModeActionBar.push(this.contextLinesModeAction);
+		}
+	}
+
+	private getContextLinesModeLabel(mode: SearchContextLinesMode): string {
+		switch (mode) {
+			case SearchContextLinesMode.Surrounding: return nls.localize('contextLinesMode.surrounding', "Around");
+			case SearchContextLinesMode.Before: return nls.localize('contextLinesMode.before', "Before");
+			case SearchContextLinesMode.After: return nls.localize('contextLinesMode.after', "After");
+		}
+	}
+
+	private getContextLinesModeActionLabel(): string {
+		return nls.localize('contextLinesMode.actionLabel', "Context Lines Placement: {0}", this.getContextLinesModeLabel(this.contextLinesMode));
+	}
+
+	private setContextLinesMode(mode: SearchContextLinesMode, triggerChange = true): void {
+		this.contextLinesMode = searchContextLinesModes.includes(mode) ? mode : SearchContextLinesMode.Surrounding;
+		this.contextLinesModeAction.label = this.getContextLinesModeActionLabel();
+		if (triggerChange) {
+			this.onContextLinesChanged();
 		}
 	}
 
 	private onContextLinesChanged() {
-		this._onDidToggleContext.fire();
-
 		if (this.contextLinesInput.value.includes('-')) {
 			this.contextLinesInput.value = '0';
+			return;
 		}
 
 		this._onDidToggleContext.fire();
 	}
 
-	public setContextLines(lines: number) {
+	public setContextLines(lines: number, mode = SearchContextLinesMode.Surrounding) {
 		if (!this.contextLinesInput) { return; }
+		this.setContextLinesMode(mode, false);
 		if (lines === 0) {
 			this.showContextToggle.checked = false;
 		} else {
@@ -827,6 +863,10 @@ export class SearchWidget extends Widget {
 
 	getContextLines() {
 		return this.showContextToggle.checked ? +this.contextLinesInput.value : 0;
+	}
+
+	getContextLinesMode() {
+		return this.contextLinesMode;
 	}
 
 	modifyContextLines(increase: boolean) {
