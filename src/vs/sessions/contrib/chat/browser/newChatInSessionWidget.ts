@@ -19,10 +19,11 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, toToolSetVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 
 // #region --- New Chat In Session Widget ---
 
@@ -46,6 +47,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -214,8 +216,23 @@ export class NewChatInSessionWidget extends Disposable {
 		this._newChatInput.focus();
 	}
 
+	prefillInput(text: string): void {
+		this._newChatInput.prefillInput(text);
+	}
+
 	attach(uris: URI[]): void {
 		this._newChatInput.attach(uris);
+	}
+
+	attachTextContext(name: string, content: string, id: string): void {
+		this._newChatInput.attachTextContext(name, content, Codicon.pulse, id);
+	}
+
+	attachToolSet(toolSetId: string): void {
+		const toolSet = this.languageModelToolsService.getToolSet(toolSetId);
+		if (toolSet) {
+			this._newChatInput.addAttachments(toToolSetVariableEntry(toolSet));
+		}
 	}
 }
 

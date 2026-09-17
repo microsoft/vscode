@@ -70,7 +70,6 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private currentChatResource: URI | undefined;
 	private diagnosticsModel: SessionDiagnosticsModel | undefined;
 	private sessionInsightsView: SessionInsightsView | undefined;
-	private troubleshootChatResource: URI | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService;
@@ -345,17 +344,10 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			this.notificationService.error(localize('agentDiagnostics.troubleshootSessionUnavailable', "The Diagnostics source session is no longer open."));
 			return;
 		}
-		let chat = this.troubleshootChatResource
-			? session.chats.get().find(candidate => isEqual(candidate.resource, this.troubleshootChatResource))
-			: undefined;
-		const isNewChat = !chat;
+		const chat = await this.sessionsManagementService.createNewChatInSession(session, { forceNew: true });
 		if (!chat) {
-			chat = await this.sessionsManagementService.createNewChatInSession(session, { forceNew: true });
-			if (!chat) {
-				this.notificationService.error(localize('agentDiagnostics.troubleshootUnavailable', "A Troubleshoot chat could not be created in this session."));
-				return;
-			}
-			this.troubleshootChatResource = chat.resource;
+			this.notificationService.error(localize('agentDiagnostics.troubleshootUnavailable', "A Troubleshoot chat could not be created in this session."));
+			return;
 		}
 		const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
 		if (!sessionView) {
@@ -368,9 +360,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		if (this.languageModelToolsService.getToolSet('agentDiagnostics')) {
 			sessionView.attachToolSet('agentDiagnostics');
 		}
-		if (isNewChat) {
-			sessionView.prefillInput(request.query);
-		}
+		sessionView.prefillInput(request.query);
 		this.sessionsPartService.focusSession(session);
 	}
 
