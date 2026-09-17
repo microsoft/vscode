@@ -113,7 +113,7 @@ Row renderers use tree-supported row classes and APIs rather than traversing tre
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section collapse, pins, custom groups, manual sort keys, and section order. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and session-branch collapse, pins, custom groups, manual sort keys, and section order. Ordinary catalog updates preserve collapsed branches; explicit navigation may expand their ancestors. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 
