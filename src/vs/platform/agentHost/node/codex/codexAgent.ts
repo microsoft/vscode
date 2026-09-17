@@ -3101,7 +3101,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * other item kinds defer to {@link mapItemStarted}.
 	 */
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
-		if (params.item.type === 'agentMessage' && params.item.delivery === 'async' && params.item.questions?.length) {
+		// Isolated subagents have no answer-routing entry or independently retained input lifecycle.
+		if (this._sessions.get(session.sessionId) === session && params.item.type === 'agentMessage' && params.item.delivery === 'async' && params.item.questions?.length) {
 			this._getAsyncQuestions(session).ask(params.item.id, params.item.questions);
 			return [];
 		}
@@ -3122,11 +3123,18 @@ export class CodexAgent extends Disposable implements IAgent {
 					throw new Error('Codex connection is unavailable');
 				}
 				// Native turn/start steers an active turn or starts a continuation with sticky thread settings.
+				const hostTurnId = session.currentTurnId;
+				const appTurnId = session.currentAppTurnId;
 				const result = await connection.client.request<'turn/start', TurnStartResponse>('turn/start', {
 					threadId: session.threadId,
 					input: [{ type: 'text', text, text_elements: [] }],
 				}, this._traceContext(session));
-				// The RPC response may arrive before the turn/started notification.
+				// Stop needs the acknowledged native id even before turn/started, but a stale response must not replace newer ownership.
+				if (hostTurnId && this._sessions.get(session.sessionId) === session
+					&& session.currentTurnId === hostTurnId && session.currentAppTurnId === appTurnId) {
+					session.currentAppTurnId = result.turn.id;
+					session.hostTurnIdByAppTurnId.set(result.turn.id, hostTurnId);
+				}
 				return result.turn.id;
 			},
 			finish: completion => {
