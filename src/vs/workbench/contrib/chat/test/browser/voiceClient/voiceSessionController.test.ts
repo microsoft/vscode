@@ -3338,6 +3338,44 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(results, [false, false, false]);
 	});
 
+	test('categorizes invalid confirmation narration rejection reasons without changing accepted or busy acknowledgements', () => {
+		const cases: readonly {
+			disposition: IVoiceNarrationAck['disposition'];
+			reason?: string;
+		}[] = [
+			{ disposition: 'invalid', reason: 'stale_pending' },
+			{ disposition: 'invalid' },
+			{ disposition: 'invalid', reason: 'backend details that must not be logged' },
+			{ disposition: 'accepted', reason: 'stale_pending' },
+			{ disposition: 'busy', reason: 'speaking' },
+		];
+		const events = cases.map(({ disposition, reason }, index) => {
+			const voiceClientService = new TestVoiceClientService();
+			const telemetryService = new TestTelemetryService();
+			const controller = createController(voiceClientService, undefined, undefined, telemetryService);
+			const sessionId = `chat-session:/confirmation-ack-${index}`;
+			const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }) => boolean;
+			const handleAck = Reflect.get(controller, '_handleNarrationAck') as (event: IVoiceNarrationAck) => void;
+
+			narrate.call(controller, sessionId, 'confirmation', 'Allow this command?', undefined, undefined, 'tool', { pendingId: `pending-${index}` });
+			handleAck.call(controller, {
+				narrationId: voiceClientService.requests[0].narrationId,
+				codingSessionId: sessionId,
+				disposition,
+				reason,
+			});
+			return telemetryService.events;
+		});
+
+		assert.deepStrictEqual(events, [
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'stale_pending' } }],
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'missing' } }],
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'unknown' } }],
+			[],
+			[{ name: 'voiceNarrationDeferred', data: { kind: 'confirmation', reason: 'busy' } }],
+		]);
+	});
+
 	test('active checkpoint playback is preempted when final response audio starts', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
