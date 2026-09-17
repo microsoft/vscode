@@ -231,6 +231,18 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 
 	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
 	ensureNpmPackage(packageName, nodeModulesRoot, options);
+
+	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
+	const requiredFiles = [
+		'index.js',
+		'app.js',
+		path.join('prebuilds', copilotPackagePlatformArch, 'runtime.node'),
+		path.join('prebuilds', copilotPackagePlatformArch, 'cli-native.node'),
+	];
+	const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.join(packageDir, file)));
+	if (missingFiles.length > 0) {
+		throw new Error(`[ensureCopilotPlatformPackage] ${packageName} is not an expanded runtime package; missing ${missingFiles.join(', ')}.`);
+	}
 }
 
 /**

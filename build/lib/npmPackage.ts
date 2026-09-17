@@ -14,11 +14,12 @@ interface NpmPackageLock {
 	packages?: Record<string, {
 		version?: string;
 		integrity?: string;
+		resolved?: string;
 	}>;
 }
 
 export interface EnsureNpmPackageOptions {
-	packPackage?: (packageName: string, version: string, tempDir: string) => string;
+	packPackage?: (packageName: string, version: string, tempDir: string, resolved?: string) => string;
 }
 
 /**
@@ -40,7 +41,7 @@ export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_mo
 
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-'));
 	try {
-		const tarballPath = (options.packPackage ?? packNpmPackage)(packageName, lockPackage.version, tempDir);
+		const tarballPath = (options.packPackage ?? packNpmPackage)(packageName, lockPackage.version, tempDir, lockPackage.resolved);
 		verifyNpmIntegrity(tarballPath, lockPackage.integrity);
 
 		fs.mkdirSync(packageDir, { recursive: true });
@@ -81,8 +82,8 @@ export function materializeNpmPackageVersion(packageName: string, version: strin
 }
 
 
-function packNpmPackage(packageName: string, version: string, tempDir: string): string {
-	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe', shell: process.platform === 'win32' });
+function packNpmPackage(packageName: string, version: string, tempDir: string, resolved?: string): string {
+	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', resolved ?? `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe', shell: process.platform === 'win32' });
 
 	const tarball = fs.readdirSync(tempDir).find(name => name.endsWith('.tgz'));
 	if (!tarball) {

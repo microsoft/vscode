@@ -198,30 +198,71 @@ suite('copilot', () => {
 	test('materializes missing target platform packages from the lockfile', () => {
 		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-platform-test-'));
 		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
+		const resolved = 'https://example.test/copilot-darwin-x64.tgz';
 		try {
 			fs.mkdirSync(nodeModulesRoot, { recursive: true });
 			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
 				packages: {
 					'node_modules/@github/copilot-darwin-x64': {
 						version: '1.0.64-1',
+						resolved,
 					}
 				}
 			}));
 
+			let packed: { packageName: string; version: string; resolved?: string } | undefined;
 			ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
-				packPackage: (_packageName, _version, tempDir) => {
+				packPackage: (packageName, version, tempDir, lockResolved) => {
+					packed = { packageName, version, resolved: lockResolved };
 					const packageRoot = path.join(tempDir, 'package');
 					fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'darwin-x64'), { recursive: true });
 					fs.writeFileSync(path.join(packageRoot, 'index.js'), '');
+					fs.writeFileSync(path.join(packageRoot, 'app.js'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'runtime.node'), '');
+					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'cli-native.node'), '');
 					const tarball = path.join(tempDir, 'copilot-darwin-x64.tgz');
 					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
 					return tarball;
 				}
 			});
 
-			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'index.js')));
-			assert(fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')));
+			assert.deepStrictEqual({
+				packed,
+				entrypoint: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'index.js')),
+				runtime: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')),
+			}, {
+				packed: { packageName: '@github/copilot-darwin-x64', version: '1.0.64-1', resolved },
+				entrypoint: true,
+				runtime: true,
+			});
+		} finally {
+			fs.rmSync(repoRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('rejects a target platform package that only contains the standalone executable', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sea-test-'));
+		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
+		try {
+			fs.mkdirSync(nodeModulesRoot, { recursive: true });
+			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
+				packages: {
+					'node_modules/@github/copilot-darwin-x64': {
+						version: '1.0.86-2',
+					}
+				}
+			}));
+
+			assert.throws(() => ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
+				packPackage: (_packageName, _version, tempDir) => {
+					const packageRoot = path.join(tempDir, 'package');
+					fs.mkdirSync(packageRoot, { recursive: true });
+					fs.writeFileSync(path.join(packageRoot, 'copilot'), '');
+					const tarball = path.join(tempDir, 'copilot-darwin-x64.tgz');
+					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
+					return tarball;
+				}
+			}), /is not an expanded runtime package/);
 		} finally {
 			fs.rmSync(repoRoot, { recursive: true, force: true });
 		}
