@@ -49,7 +49,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('Independent sessions')),
-			'Independent sessions created by an agent appear beneath their creator when their pin and group placement allows it, including sessions in other repositories. These are full sessions, not chats or subagents. Use the right and left arrow keys to expand or collapse a branch, the up and down arrow keys to navigate, and Enter to open a session. Actions on a session do not automatically apply to its children.',
+			'Independent sessions created by an agent appear beneath their creator when their pin and group placement allows it, including sessions in other repositories. These are full sessions, not chats or subagents. Use the right and left arrow keys to expand or collapse a branch, the up and down arrow keys to navigate, and Enter to open a session. Actions on a session do not automatically apply to its children. When archiving or marking a parent as done, the confirmation offers an unchecked option to include nested sessions, including collapsed descendants.',
 		);
 	});
 

@@ -55,8 +55,13 @@ Archived
 
 A branch is assigned to its root's workspace or date section. Every represented
 session, including descendants, contributes once to its section's membership,
-counts, and section-wide actions. A row action still targets only that session:
-nesting does not cascade archiving, deletion, cancellation, or workspace changes.
+counts, and section-wide actions. A row action targets only its selected sessions
+by default. Archiving or marking a session as done offers an unchecked option to
+include additional full sessions nested beneath it in the current hierarchy,
+including collapsed descendants but not peer chats. The choice is not remembered.
+Without that explicit choice, nesting does not cascade archiving, deletion,
+cancellation, or workspace changes. Programmatic single-session archiving
+retains its independent ownership.
 `SessionsFlatList` consumers remain flat.
 
 Section roots and complete membership are distinct. Workspace-specific creation

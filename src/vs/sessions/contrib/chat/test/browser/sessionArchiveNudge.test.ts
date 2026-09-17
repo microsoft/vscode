@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { restore, stub } from 'sinon';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
@@ -37,6 +38,7 @@ import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../.
 import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -52,7 +54,10 @@ import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/se
 suite('SessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => Memento.clear(StorageScope.APPLICATION));
+	teardown(() => {
+		restore();
+		Memento.clear(StorageScope.APPLICATION);
+	});
 
 	function artifact(number: number, overrides: Partial<ISessionArtifact> = {}): ISessionArtifact {
 		return {
@@ -142,6 +147,11 @@ suite('SessionArchiveNudge', () => {
 		const commandService = new class extends mock<ICommandService>() {
 			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
 				commands.push({ id, args });
+				if (id === ARCHIVE_SESSION_COMMAND_ID) {
+					const session = sessions.find(candidate => candidate === args[0]);
+					assert.ok(session);
+					await management.archiveSession(session);
+				}
 				return undefined;
 			}
 		}();
@@ -230,7 +240,7 @@ suite('SessionArchiveNudge', () => {
 			new NullWorkbenchAssignmentService(),
 			NullTelemetryService,
 		));
-		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
+		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, commandService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
 		function createNudge() {
 			const nudge = store.add(new SessionArchiveNudge(current, configuration, entitlement, github, service, commandService));
@@ -238,7 +248,7 @@ suite('SessionArchiveNudge', () => {
 			return nudge;
 		}
 		return {
-			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, commands,
+			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, commands, commandService,
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
@@ -253,7 +263,7 @@ suite('SessionArchiveNudge', () => {
 			},
 			reloadService() {
 				service.dispose();
-				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
+				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, commandService));
 			},
 			setArchiveError(error: Error) { archiveError = error; },
 			setArchiveNoop() { archiveNoop = true; },
@@ -691,6 +701,27 @@ suite('SessionArchiveNudge', () => {
 			message: 'The session could not be updated. Check its connection and try again.',
 		});
 		assert.deepStrictEqual({ visible: !!nudge.options.get(), events: context.events }, { visible: true, events: [] });
+	});
+
+	test('keeps the suggestion available when the archive scope dialog is cancelled', async () => {
+		const context = setup();
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const executeCommand = stub(context.commandService, 'executeCommand').resolves(false);
+
+		await nudge.options.get()!.onArchive();
+
+		assert.deepStrictEqual({
+			command: executeCommand.firstCall.args,
+			archived: context.archiveTargets,
+			events: context.events,
+			visible: !!nudge.options.get(),
+		}, {
+			command: [ARCHIVE_SESSION_COMMAND_ID, context.current.get()],
+			archived: [],
+			events: [],
+			visible: true,
+		});
 	});
 
 	for (const outcome of [OnboardingOutcome.Completed, OnboardingOutcome.Skipped]) {

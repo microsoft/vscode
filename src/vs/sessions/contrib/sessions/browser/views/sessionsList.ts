@@ -219,6 +219,22 @@ interface ISessionHierarchy {
 	readonly childrenByParentSessionId: ReadonlyMap<ISession['sessionId'], readonly ISession[]>;
 }
 
+function withSessionDescendants(sessions: readonly ISession[], hierarchy: ISessionHierarchy): ISession[] {
+	const result: ISession[] = [];
+	const append = (items: readonly ISession[]): void => {
+		for (const session of items) {
+			result.push(session);
+			const children = hierarchy.childrenByParentSessionId.get(session.sessionId);
+			if (children === undefined) {
+				continue;
+			}
+			append(children);
+		}
+	};
+	append(sessions);
+	return result;
+}
+
 function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 	return item instanceof SessionChatItem;
 }
@@ -2555,6 +2571,8 @@ export interface ISessionsList {
 	 * Sessions hidden by section capping ("show more") are excluded.
 	 */
 	getVisibleSessions(): readonly ISession[];
+	/** Nested full sessions in the current hierarchy, including collapsed descendants but not peer chats. */
+	getNestedSessions(session: ISession): readonly ISession[];
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
 	setVisible(visible: boolean): void;
@@ -3447,21 +3465,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.hierarchy.set(hierarchy, undefined);
 		this.listedSessionIds = new Set(filtered.map(session => session.sessionId));
 		const roots = filtered.filter(session => !hierarchy.parentByChildSessionId.has(session.sessionId));
-		const withDescendants = (sessions: readonly ISession[]): ISession[] => {
-			const result: ISession[] = [];
-			const remaining = [...sessions].reverse();
-			while (remaining.length > 0) {
-				const session = remaining.pop()!;
-				result.push(session);
-				const children = hierarchy.childrenByParentSessionId.get(session.sessionId);
-				if (children) {
-					for (let i = children.length - 1; i >= 0; i--) {
-						remaining.push(children[i]);
-					}
-				}
-			}
-			return result;
-		};
+		const withDescendants = (sessions: readonly ISession[]) => withSessionDescendants(sessions, hierarchy);
 		const rootOf = (session: ISession) => {
 			let root = session;
 			for (let parent = hierarchy.parentByChildSessionId.get(root.sessionId); parent; parent = hierarchy.parentByChildSessionId.get(root.sessionId)) {
@@ -3842,6 +3846,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.reveal(chatItem, 0.5);
 		this.tree.setFocus([chatItem]);
 		this.tree.setSelection([chatItem]);
+	}
+
+	getNestedSessions(session: ISession): readonly ISession[] {
+		const hierarchy = this.hierarchy.get();
+		return withSessionDescendants(hierarchy.childrenByParentSessionId.get(session.sessionId) ?? [], hierarchy);
 	}
 
 	getVisibleSessions(): readonly ISession[] {

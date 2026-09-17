@@ -2659,6 +2659,7 @@ suite('Sessions - SessionsList', () => {
 				sessions: list.getVisibleSessions().map(session => session.sessionId),
 				section: container.querySelector('.monaco-list-row')?.getAttribute('aria-label'),
 				chatIsLast: container.querySelector('.session-chat-item')?.classList.contains('last-chat'),
+				nested: list.getNestedSessions(parent).map(session => session.sessionId),
 			}, {
 				outline: [
 					{ title: 'Repo A', level: 1 },
@@ -2672,6 +2673,7 @@ suite('Sessions - SessionsList', () => {
 				sessions: ['Parent', 'Child', 'Grandchild', 'Other'],
 				section: 'Repo A, 3',
 				chatIsLast: false,
+				nested: ['Child', 'Grandchild'],
 			});
 		});
 
@@ -2875,6 +2877,7 @@ suite('Sessions - SessionsList', () => {
 			collapse(container, 'Parent');
 			list.update();
 			const afterUpdate = list.getVisibleSessions().map(session => session.sessionId);
+			const nestedAfterCollapse = list.getNestedSessions(parent).map(session => session.sessionId);
 			list.dispose();
 			const restored = createList(createContainer(400, 1000));
 			const afterRestore = restored.getVisibleSessions().map(session => session.sessionId);
@@ -2885,10 +2888,11 @@ suite('Sessions - SessionsList', () => {
 			const afterCollapseAll = createList(createContainer(400, 1000));
 
 			assert.deepStrictEqual({
-				afterUpdate, afterRestore, revealed, afterReveal,
+				afterUpdate, nestedAfterCollapse, afterRestore, revealed, afterReveal,
 				afterCollapseAll: afterCollapseAll.getVisibleSessions().map(session => session.sessionId),
 			}, {
 				afterUpdate: ['Parent'],
+				nestedAfterCollapse: ['Child', 'Grandchild'],
 				afterRestore: ['Parent'],
 				revealed: true,
 				afterReveal: ['Parent', 'Child', 'Grandchild'],

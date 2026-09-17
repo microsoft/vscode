@@ -938,8 +938,19 @@ KeybindingsRegistry.registerKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
 });
 
+function getArchiveSessionConfirmationMessage(sessions: readonly ISession[], wording: ChatSessionArchiveActionWording): string {
+	if (sessions.length === 1) {
+		return wording === ChatSessionArchiveActionWording.MarkAsDone
+			? localize('markSessionDone.confirmNested', "Mark '{0}' as done?", sessions[0].title.get())
+			: localize('archiveSession.confirmNested', "Archive '{0}'?", sessions[0].title.get());
+	}
+	return wording === ChatSessionArchiveActionWording.MarkAsDone
+		? localize('markSessionsDone.confirmNested', "Mark {0} sessions as done?", sessions.length)
+		: localize('archiveSessions.confirmNested', "Archive {0} sessions?", sessions.length);
+}
+
 abstract class BaseArchiveSessionAction extends Action2 {
-	constructor(wording: ChatSessionArchiveActionWording) {
+	constructor(private readonly wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
 			id: ARCHIVE_SESSION_COMMAND_ID,
@@ -968,15 +979,57 @@ abstract class BaseArchiveSessionAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<boolean> {
 		const targets = context
 			? (Array.isArray(context) ? context : [context])
 			: getFocusedSessionListTargets(accessor) ?? [];
-		const sessions = targets.filter(session => !session.isArchived.get());
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
+		const sessions = new Map(targets.filter(session => !session.isArchived.get()).map(session => [session.sessionId, session]));
+		if (sessions.size === 0) {
+			return false;
 		}
+
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const control = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl;
+		const nestedSessions = new Map<ISession['sessionId'], ISession>();
+		for (const session of sessions.values()) {
+			for (const nested of control?.getNestedSessions(session) ?? []) {
+				if (sessions.has(nested.sessionId) || nested.isArchived.get()) {
+					continue;
+				}
+				nestedSessions.set(nested.sessionId, nested);
+			}
+		}
+		if (nestedSessions.size > 0) {
+			const confirmation = await accessor.get(IDialogService).confirm({
+				message: getArchiveSessionConfirmationMessage([...sessions.values()], this.wording),
+				detail: localize('archiveSession.nestedDetail', "Nested sessions: {0}.\n\nIf you include nested sessions, they will also be hidden from the sessions list. Otherwise, they remain active. Session history is kept so sessions can be restored later. Associated worktrees may be removed.", nestedSessions.size),
+				primaryButton: getChatSessionArchiveActionPresentation(this.wording).archive.title.value,
+				checkbox: {
+					label: this.wording === ChatSessionArchiveActionWording.MarkAsDone
+						? localize('markSessionDone.includeNested', "Also mark nested sessions as done")
+						: localize('archiveSession.includeNested', "Also archive nested sessions"),
+					checked: false,
+				},
+			});
+			if (!confirmation.confirmed) {
+				return false;
+			}
+			if (confirmation.checkboxChecked === true) {
+				for (const nested of nestedSessions.values()) {
+					sessions.set(nested.sessionId, nested);
+				}
+			}
+		}
+
+		let archived = false;
+		for (const session of sessions.values()) {
+			if (session.isArchived.get()) {
+				continue;
+			}
+			await sessionsManagementService.archiveSession(session);
+			archived = true;
+		}
+		return archived;
 	}
 }
 
@@ -986,7 +1039,7 @@ export class ArchiveSessionAction extends BaseArchiveSessionAction {
 	}
 }
 
-class MarkSessionAsDoneAction extends BaseArchiveSessionAction {
+export class MarkSessionAsDoneAction extends BaseArchiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
