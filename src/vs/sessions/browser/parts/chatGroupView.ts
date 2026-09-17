@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -104,7 +104,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 	private readonly _connection: SessionRemoteConnection;
 
-	/** The configured wording for the archive/unarchive action (Archive vs Mark as Done). */
+	/** The configured wording for the archive/unarchive action (Archive vs Delete). */
 	private readonly _archiveActionWording: IObservable<ReturnType<typeof getChatSessionArchiveActionWording>>;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
@@ -228,14 +228,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			const archived = context.session.isArchived.read(reader);
 			if (archived) {
-				const wording = this._archiveActionWording.read(reader);
-				const action = getChatSessionArchiveActionPresentation(wording).unarchive;
+				const action = getChatSessionArchiveActionPresentation(this._archiveActionWording.read(reader)).unarchive;
 				return {
 					archived: true,
 					content: {
-						message: wording === ChatSessionArchiveActionWording.MarkAsDone
-							? localize('sessionReadOnlyBanner.done', "Sessions marked as done are read-only.")
-							: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
 							label: action.title.value,
 							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),

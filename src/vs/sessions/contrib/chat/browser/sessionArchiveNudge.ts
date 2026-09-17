@@ -32,7 +32,7 @@ import { createSessionArchiveTour, SESSION_ARCHIVE_TOUR_ID } from '../../onboard
 import { getSessionArchiveOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 
-export const SESSION_ARCHIVE_NUDGE_SETTING = 'chat.agentSessions.archiveNudge.enabled';
+export const SESSION_MARK_AS_DONE_NUDGE_SETTING = 'chat.agentSessions.markAsDoneNudge.enabled';
 
 const DISMISSED_STORAGE_KEY_PREFIX = 'sessions.archiveNudge.dismissed.';
 
@@ -261,7 +261,7 @@ export class SessionArchiveNudge extends Disposable {
 	) {
 		super();
 
-		const enabled = observableConfigValue<boolean>(SESSION_ARCHIVE_NUDGE_SETTING, false, configurationService);
+		const enabled = observableConfigValue<boolean>(SESSION_MARK_AS_DONE_NUDGE_SETTING, false, configurationService);
 		const eligibleSession = derived(this, reader => {
 			if (chatEntitlementService.sentimentObs.read(reader).hidden) {
 				return undefined;
