@@ -739,23 +739,44 @@ suite('dom', () => {
 
 	suite('ModifierKeyEmitter', () => {
 
-		test('only resets on window blur when the document lost focus (#199998)', async () => {
-			const emitter = ModifierKeyEmitter.getInstance();
+		async function withDocumentFocus(test: (setHasFocus: (hasFocus: boolean) => void) => Promise<void>): Promise<void> {
+			let hasFocus = true;
+			const document = mainWindow.document;
+			document.hasFocus = () => hasFocus;
 			try {
-				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
-				assert.strictEqual(emitter.keyStatus.altKey, true);
-
-				mainWindow.dispatchEvent(new FocusEvent('blur'));
-				await timeout(20);
-
-				// The window also blurs when focus moves into an embedded iframe, in
-				// which case the document keeps focus and the state must be preserved.
-				// Only when the document really lost focus the state must be reset.
-				assert.strictEqual(emitter.keyStatus.altKey, mainWindow.document.hasFocus());
+				await test(value => hasFocus = value);
 			} finally {
+				delete (document as Partial<Document>).hasFocus; // restore Document.prototype.hasFocus
 				ModifierKeyEmitter.disposeInstance();
 			}
-		});
+		}
+
+		test('keeps modifier state when the window blurs because focus moved into an iframe (#199998)', () => withDocumentFocus(async setHasFocus => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+			assert.strictEqual(emitter.keyStatus.altKey, true);
+
+			setHasFocus(true); // the iframe has focus, so the document still does
+			mainWindow.dispatchEvent(new FocusEvent('blur'));
+			await timeout(20);
+			assert.strictEqual(emitter.keyStatus.altKey, true);
+
+			// the application loses focus while the iframe is focused: no second window blur
+			setHasFocus(false);
+			await timeout(400);
+			assert.strictEqual(emitter.keyStatus.altKey, false);
+		}));
+
+		test('resets modifier state when the window blurs because the document lost focus', () => withDocumentFocus(async setHasFocus => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+			assert.strictEqual(emitter.keyStatus.altKey, true);
+
+			setHasFocus(false);
+			mainWindow.dispatchEvent(new FocusEvent('blur'));
+			await timeout(20);
+			assert.strictEqual(emitter.keyStatus.altKey, false);
+		}));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
