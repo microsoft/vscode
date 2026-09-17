@@ -207,6 +207,57 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('item count includes only enabled MCP servers', () => {
+		interface TestWidget {
+			mcpService: IMcpService;
+			installedEntries: Array<{ readonly entry: { readonly type: 'session-server-item'; readonly server: AgentHostMcpServer } }>;
+			readonly itemCount: number;
+		}
+		const { service: mcpService } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const widget = Object.create(McpListWidget.prototype) as TestWidget;
+		widget.mcpService = mcpService;
+		widget.installedEntries = [
+			{
+				entry: {
+					type: 'session-server-item',
+					server: createAgentHostServer({
+						id: 'enabled',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+					}),
+				},
+			},
+			{
+				entry: {
+					type: 'session-server-item',
+					server: createAgentHostServer({
+						id: 'disabled',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					}),
+				},
+			},
+			{
+				entry: {
+					type: 'session-server-item',
+					server: createAgentHostServer({
+						id: 'plugin-disabled',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+						disabledReason: {
+							source: 'plugin',
+							plugin: {
+								id: 'plugin-1',
+								name: 'Plugin One',
+								uri: URI.file('/plugins/plugin-1').toString(),
+								enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+							},
+						},
+					}),
+				},
+			},
+		];
+
+		assert.strictEqual(widget.itemCount, 1);
+	});
+
 	test('classifies active-session-only MCP servers as built-in entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });
 

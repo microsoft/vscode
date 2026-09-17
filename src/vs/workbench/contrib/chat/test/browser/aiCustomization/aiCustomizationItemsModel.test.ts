@@ -435,6 +435,78 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(count.get(), 2);
 		});
 
+		test('section count excludes disabled items and contributions from disabled plugins', async () => {
+			const plugin = createLocalPlugin('parent');
+			const pluginEnablement = observableValue('parentPluginEnablement', ContributionEnablementState.DisabledProfile);
+			plugins.set([{ ...plugin, enablement: pluginEnablement }], undefined);
+			providerA_items = [
+				{
+					uri: URI.parse('file:///workspace/skills/enabled/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Enabled',
+					source: AICustomizationSources.local,
+					enabled: true,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('file:///workspace/skills/disabled/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Disabled',
+					source: AICustomizationSources.local,
+					enabled: false,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('plugin-test://parent/skills/plugin-skill/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Plugin Skill',
+					source: AICustomizationSources.plugin,
+					enabled: true,
+					extensionId: undefined,
+					pluginUri: plugin.uri,
+					userInvocable: true,
+				},
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getCount(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const disabledCount = count.get();
+
+			pluginEnablement.set(ContributionEnablementState.EnabledProfile, undefined);
+
+			assert.deepStrictEqual({ disabledCount, enabledCount: count.get() }, { disabledCount: 1, enabledCount: 2 });
+		});
+
+		test('plugin count excludes disabled local and provider plugins', async () => {
+			const plugin = createLocalPlugin('local-disabled');
+			const pluginEnablement = observableValue('localPluginEnablement', ContributionEnablementState.DisabledProfile);
+			plugins.set([{ ...plugin, enablement: pluginEnablement }], undefined);
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/plugins/remote-disabled'),
+				type: 'plugin',
+				name: 'Remote Disabled',
+				source: AICustomizationSources.plugin,
+				enabled: false,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: undefined,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+			const disabledCount = count.get();
+
+			pluginEnablement.set(ContributionEnablementState.EnabledProfile, undefined);
+
+			assert.deepStrictEqual({ disabledCount, enabledCount: count.get() }, { disabledCount: 0, enabledCount: 1 });
+		});
+
 		test('local plugin changes update plugin count without refetching provider customizations', async () => {
 			providerA_items = [{
 				uri: URI.parse('agent-host://test-authority/plugins/remote-one'),

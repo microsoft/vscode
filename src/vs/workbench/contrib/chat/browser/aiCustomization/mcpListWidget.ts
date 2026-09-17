@@ -1404,8 +1404,6 @@ export class McpListWidget extends Disposable {
 	private installedAddButton!: Button | undefined;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
-	private filteredBuiltinCount = 0;
-	private filteredActiveSessionCount = 0;
 	private installedEntries: IMcpInstalledPresentation[] = [];
 	private gallerySnapshotServers: IWorkbenchMcpServer[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
@@ -2393,6 +2391,10 @@ export class McpListWidget extends Disposable {
 		return isPrimaryMcpServerEnabled(this.mcpService, serverId, activeSessionServer);
 	}
 
+	private isInstalledEntryInUse(entry: IMcpInstalledEntry): boolean {
+		return getMcpDisabledReason(entry)?.source !== 'plugin' && this.isInstalledEntryEnabled(entry);
+	}
+
 	private setInstalledEntryEnabled(entry: IMcpInstalledEntry, enabled: boolean): void {
 		const activeSessionServer = getActiveSessionServer(entry);
 		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
@@ -2511,9 +2513,6 @@ export class McpListWidget extends Disposable {
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
 
-		// Compute sidebar badge directly from the data arrays (same source as group headers)
-		this.filteredBuiltinCount = builtinServers.length;
-		this.filteredActiveSessionCount = activeSessionOnlyServers.length;
 		this._onDidChangeItemCount.fire(this.itemCount);
 		if (render) {
 			this.renderFilteredServers();
@@ -2536,12 +2535,9 @@ export class McpListWidget extends Disposable {
 		].join(':')).join('|');
 	}
 
-	/**
-	 * Gets the total item count from the underlying data arrays
-	 * (the same source used to build group headers).
-	 */
+	/** Gets the effective enabled item count for the section badge. */
 	get itemCount(): number {
-		return this.filteredServers.length + this.filteredBuiltinCount + this.filteredActiveSessionCount;
+		return this.installedEntries.filter(({ entry }) => this.isInstalledEntryInUse(entry)).length;
 	}
 
 	/**

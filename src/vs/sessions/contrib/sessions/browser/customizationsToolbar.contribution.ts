@@ -35,6 +35,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isContributionEnabled } from '../../../../workbench/contrib/chat/common/enablement.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -220,7 +221,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			return this._itemsModel.getCount(this._config.modelSection).read(reader);
 		}
 		if (this._config.isMcp) {
-			return this._mcpService.servers.read(reader).length;
+			return this._mcpService.servers.read(reader).filter(server => isContributionEnabled(server.enablement.read(reader))).length;
 		}
 		if (this._config.isPlugins) {
 			return this._itemsModel.getPluginCount().read(reader);
