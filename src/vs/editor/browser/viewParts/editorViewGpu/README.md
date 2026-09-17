@@ -25,7 +25,10 @@ This integration does not enable the renderer in standalone web/server builds.
 
 Desktop startup probes the application's `@vscode/editor-view/dist/index.js`
 once, using ASAR-aware filesystem access and the same location as the runtime
-loader. The detected `hasEditorView` value is passed to renderer windows in
+loader. Both detection and loading use the environment service's `isBuilt`
+state, not the presence of `product.commit`: custom packaged builds without
+commit metadata still use ASAR, and development runs use `node_modules`.
+The detected `hasEditorView` value is passed to renderer windows in
 their product configuration **before** editor settings are registered:
 
 - Present: `editor.experimentalGpuAcceleration` offers `off`, `on`, `editorView`.

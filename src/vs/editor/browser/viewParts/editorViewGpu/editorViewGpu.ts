@@ -28,6 +28,7 @@ import { EditorViewModelSync } from './editorViewModelSync.js';
 import type { IContentDecorationLineRange, IContentDecorationRangeRequest } from '../decorations/decorations.js';
 import type { IEditorViewLineWidthProvider } from '../viewLines/viewLines.js';
 import type { IViewLineHitTestProvider } from '../../controller/mouseHandler.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 /**
  * Which editor surfaces the `@vscode/editor-view` (Rust/WASM) renderer draws
@@ -166,7 +167,11 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private static readonly BLINK_INTERVAL = 500;
 	private readonly _editorRoot: HTMLElement;
 
-	constructor(context: ViewContext, editorRoot: HTMLElement) {
+	constructor(
+		context: ViewContext,
+		editorRoot: HTMLElement,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+	) {
 		super(context);
 		this._editorRoot = editorRoot;
 		this._decorationResolver = new EditorViewDecorationResolver(editorRoot);
@@ -197,7 +202,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	private async _initialize(): Promise<void> {
 		try {
-			const url = resolveAmdNodeModulePath('@vscode/editor-view', 'dist/index.js');
+			const url = resolveAmdNodeModulePath('@vscode/editor-view', 'dist/index.js', this._environmentService.isBuilt);
 			// Runtime-computed URL to keep bundlers from rewriting the import (same as @vscode/diff).
 			const mod = await import(/* webpackIgnore: true */ /* @vite-ignore */ `${url}`) as EditorViewModule;
 			if (this._disposed) {

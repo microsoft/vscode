@@ -199,7 +199,7 @@ export class View extends ViewEventHandler {
 		if (gpuAcceleration === 'on') {
 			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		} else if (gpuAcceleration === 'editorView') {
-			this._editorViewGpu = new EditorViewGpu(this._context, this.domNode.domNode);
+			this._editorViewGpu = this._instantiationService.createInstance(EditorViewGpu, this._context, this.domNode.domNode);
 			this._viewParts.push(this._editorViewGpu);
 		}
 		// In `editorView` mode the `@vscode/editor-view` (Rust/WASM) canvas draws

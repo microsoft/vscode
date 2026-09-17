@@ -193,7 +193,7 @@ class CodeMain {
 		}
 		services.set(ILogService, logService);
 
-		productService.hasEditorView = isEditorViewInstalled(Boolean(productService.commit), logService);
+		productService.hasEditorView = isEditorViewInstalled(environmentMainService.isBuilt, logService);
 		Object.assign(product, { hasEditorView: productService.hasEditorView });
 
 		// Files
