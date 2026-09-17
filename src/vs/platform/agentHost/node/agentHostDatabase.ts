@@ -39,6 +39,12 @@ export interface IAgentHostDatabaseSessionOptions {
 
 export interface IAgentHostDatabaseRegisterOptions {
 	readonly checkTombstone: boolean;
+	/**
+	 * Marks the session registered-but-not-yet-materialized in the same
+	 * transaction as the registration, so a crash cannot leave a durable row
+	 * without its marker — the very state this marker exists to recognise.
+	 */
+	readonly provisional?: boolean;
 }
 
 export interface IAgentHostDatabaseExternalUpdate {
@@ -181,6 +187,15 @@ export interface IAgentHostDatabase extends IDisposable {
 	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void>;
 	/** Session URIs currently marked Agent-Merge-enabled. */
 	listAgentMergeEnabledSessions(): Promise<readonly string[]>;
+	/**
+	 * Records whether `session` is registered but not yet materialized. Stored as
+	 * host-owned metadata rather than a `registration_source` value so an older
+	 * build, which casts that column straight to its union, keeps reading the
+	 * session unchanged.
+	 */
+	setSessionProvisional(session: string, provisional: boolean): Promise<void>;
+	/** Session URIs still marked provisional, read in bulk so listing opens no session database. */
+	listProvisionalSessions(): Promise<readonly string[]>;
 	/** Importer-only: records an identity in v2 without writing the legacy registry. */
 	registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
 	/** Importer-only: removes an identity and its payload from v2 without changing legacy. */
@@ -424,6 +439,13 @@ function agentMergeEnabledKey(session: string): string {
 	return `${agentMergeEnabledKeyPrefix}${session}`;
 }
 
+const provisionalSessionKeyPrefix = 'sessionProvisional:';
+
+/** Metadata key marking a session registered but not yet materialized. */
+function provisionalSessionKey(session: string): string {
+	return `${provisionalSessionKeyPrefix}${session}`;
+}
+
 function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
@@ -496,6 +518,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
@@ -819,6 +842,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				if (!registerOptions.checkTombstone) {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
 				}
+				if (registerOptions.provisional) {
+					await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [provisionalSessionKey(session)]);
+				}
 				await exec(database, 'COMMIT');
 				return changes > 0;
 			} catch (error) {
@@ -856,6 +883,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
 				await exec(database, 'COMMIT');
@@ -913,6 +941,25 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			[agentMergeEnabledKeyPrefix],
 		);
 		return rows.map(row => (row.key as string).slice(agentMergeEnabledKeyPrefix.length));
+	}
+
+	setSessionProvisional(session: string, provisional: boolean): Promise<void> {
+		return provisional
+			? this._run(
+				`INSERT INTO metadata (key, value) VALUES (?, 'true')
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+				[provisionalSessionKey(session)],
+			)
+			: this._run('DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
+	}
+
+	async listProvisionalSessions(): Promise<readonly string[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT key FROM metadata WHERE key LIKE ? || '%' AND value = 'true'`,
+			[provisionalSessionKeyPrefix],
+		);
+		return rows.map(row => (row.key as string).slice(provisionalSessionKeyPrefix.length));
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {

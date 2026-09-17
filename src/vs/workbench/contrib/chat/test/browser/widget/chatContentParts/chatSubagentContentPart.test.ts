@@ -323,6 +323,7 @@ suite('ChatSubagentContentPart', () => {
 		// Mock hover service
 		mockHoverService = {
 			_serviceBrand: undefined,
+			getStickyHover: () => undefined,
 			showDelayedHover: () => undefined,
 			setupDelayedHover: () => ({ dispose: () => { } }),
 			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),

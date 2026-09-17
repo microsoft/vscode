@@ -1484,6 +1484,7 @@ export class WorkspacePicker extends Disposable {
 			providerId?: string;
 			browseAction?: ISessionWorkspaceBrowseAction;
 			run?: () => void;
+			preferDevContainer?: boolean;
 		} = {};
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
@@ -1493,6 +1494,40 @@ export class WorkspacePicker extends Disposable {
 			remotePickerItem.providerId = item.providerId;
 			remotePickerItem.browseAction = item.browseAction;
 			remotePickerItem.run = item.run;
+			remotePickerItem.preferDevContainer = item.preferDevContainer;
+		};
+		const createWorkspaceModeActions = (workspace: ISessionWorkspace, folderUri: URI, providerId: string, item: IWorkspacePickerItem): IAction[] | undefined => {
+			if ((workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL && workspace.group !== SESSION_WORKSPACE_GROUP_REMOTE)
+				|| this._isProviderUnavailable(providerId)
+				|| !this._isDevContainerWorkspaceAvailable(folderUri, providerId)) {
+				return undefined;
+			}
+			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
+			const actionId = `workspacePicker.devContainer.${providerId}.${devContainerActionIndex++}`;
+			const selectMode = (preferDevContainer: boolean): void => {
+				item.preferDevContainer = preferDevContainer;
+				if (useRemoteSubmenu && workspace.group === SESSION_WORKSPACE_GROUP_REMOTE) {
+					setRemotePickerItem(item);
+				}
+			};
+			return [
+				toAction({
+					id: `${actionId}.host`,
+					label: workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
+						? localize('workspacePicker.devContainer.local', "Use Local")
+						: localize('workspacePicker.devContainer.remote', "Use Remote Host"),
+					tooltip: '',
+					checked: !usingDevContainer,
+					run: () => selectMode(false),
+				}),
+				toAction({
+					id: `${actionId}.container`,
+					label: localize('workspacePicker.devContainer.use', "Use Dev Container"),
+					tooltip: '',
+					checked: usingDevContainer,
+					run: () => selectMode(true),
+				}),
+			];
 		};
 		// Own recents first, then VS Code recents (merged and deduplicated by the service)
 		const recentWorkspaces = this._directPickerAttachesContext === true
@@ -1535,10 +1570,13 @@ export class WorkspacePicker extends Disposable {
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
+			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
+			const modeActions = createWorkspaceModeActions(workspace, folderUri, providerId, item);
 			if (useRemoteSubmenu && workspace.group === SESSION_WORKSPACE_GROUP_REMOTE) {
 				const unavailable = this._isProviderUnavailable(providerId);
-				const submenuAction = toAction({
-					id: `workspacePicker.remote.workspace.${providerId}.${remoteSubmenuActions.length}`,
+				const actionId = `workspacePicker.remote.workspace.${providerId}.${remoteSubmenuActions.length}`;
+				const submenuAction = modeActions ? new SubmenuAction(actionId, workspace.label, modeActions) : toAction({
+					id: actionId,
 					label: workspace.label,
 					tooltip: typeof workspace.description === 'string' ? workspace.description : undefined,
 					enabled: !unavailable,
@@ -1565,28 +1603,11 @@ export class WorkspacePicker extends Disposable {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
 			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
-			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
-			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
-			const submenuActions = workspace.group === SESSION_WORKSPACE_GROUP_LOCAL && this._isDevContainerWorkspaceAvailable(folderUri, providerId)
+			const submenuActions = modeActions
 				? [new SubmenuAction(
-					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}`,
+					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}.options`,
 					'',
-					[
-						toAction({
-							id: `workspacePicker.devContainer.local.${providerId}.${devContainerActionIndex}`,
-							label: localize('workspacePicker.devContainer.local', "Use Local"),
-							tooltip: '',
-							checked: !usingDevContainer,
-							run: () => item.preferDevContainer = false,
-						}),
-						toAction({
-							id: `workspacePicker.devContainer.use.${providerId}.${devContainerActionIndex++}`,
-							label: localize('workspacePicker.devContainer.use', "Use Dev Container"),
-							tooltip: '',
-							checked: usingDevContainer,
-							run: () => item.preferDevContainer = true,
-						}),
-					],
+					modeActions,
 				)]
 				: undefined;
 			items.push({
@@ -1637,7 +1658,7 @@ export class WorkspacePicker extends Disposable {
 			const actionLabel = action === this._localBrowseAction
 				&& this._useConsolidatedRemoteWorkspaces()
 				&& this._directPickerAttachesContext !== true
-				? localize('workspacePicker.chooseFolder', "Choose Folder")
+				? localize('workspacePicker.openFolder', "Open Folder...")
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|\u2026)$/, '')
 					: action.label;
@@ -1846,10 +1867,14 @@ export class WorkspacePicker extends Disposable {
 			return items;
 		}
 
+		const noWorkspaceAriaDescription = this._useConsolidatedRemoteWorkspaces()
+			? localize('workspacePicker.noFolderDescription', "Start the session in a temporary directory.")
+			: undefined;
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
 			kind: ActionListItemKind.Action,
 			label: this._getNoWorkspaceLabel(),
 			description: this._useConsolidatedRemoteWorkspaces() ? undefined : noWorkspaceOption.description,
+			ariaDescription: noWorkspaceAriaDescription,
 			group: { title: '', icon: this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion },
 			item: {
 				checked: noWorkspaceOption.isSelected || undefined,
@@ -1871,7 +1896,7 @@ export class WorkspacePicker extends Disposable {
 
 	private _getNoWorkspaceLabel(): string {
 		return this._useConsolidatedRemoteWorkspaces()
-			? localize('workspacePicker.startFromScratch', "Start from Scratch")
+			? localize('workspacePicker.chat', "Chat")
 			: localize('workspacePicker.noWorkspace', "No workspace");
 	}
 
