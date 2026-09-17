@@ -1905,6 +1905,34 @@ suite('ChatService', () => {
 			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, selectedMode);
 		});
 
+		test('carries the untitled mode when the materialized request is queued', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-queued-mode' });
+			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			untitledRef.object.inputModel.setState({ mode: selectedMode });
+
+			const result = await service.sendRequest(untitledResource, 'hello', {
+				agentId: remoteScheme,
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			});
+			const realModel = service.getSession(realResource) as ChatModel;
+
+			assert.deepStrictEqual({
+				resultKind: result.kind,
+				mode: realModel.inputModel.state.get()?.mode,
+				pendingRequestCount: realModel.getPendingRequests().length,
+			}, {
+				resultKind: 'queued',
+				mode: selectedMode,
+				pendingRequestCount: 1,
+			});
+		});
+
 		test('two concurrent sends create a single real session and reject the duplicate', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent' });
 			const askMode = builtinModeInfo(ChatModeKind.Ask);
