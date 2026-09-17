@@ -69,6 +69,7 @@ export class SessionInsightsView extends Disposable {
 	private readonly turnNodes = new Map<string, ITurnNode>();
 	private readonly expandedSpanIds = new Set<string>();
 	private readonly expandedMessageIds = new Set<string>();
+	private readonly expandedConversationTraceIds = new Set<string>();
 	private readonly expandedTurnBySession = new Map<string, string | null>();
 	private readonly overviewDisposables = this._register(new DisposableStore());
 
@@ -417,9 +418,6 @@ export class SessionInsightsView extends Disposable {
 			return;
 		}
 
-		const conversation = DOM.append(node.detail, DOM.$('.agent-diagnostics-conversation'));
-		const conversationHeading = DOM.append(conversation, DOM.$('h4.agent-diagnostics-detail-heading'));
-		conversationHeading.textContent = localize('agentDiagnostics.conversation', "Conversation");
 		const messages = turn.otelMessages.length > 0 ? turn.otelMessages : [{
 			id: turn.id,
 			traceId: trace.traceId,
@@ -428,8 +426,37 @@ export class SessionInsightsView extends Disposable {
 			content: turn.prompt,
 			timestamp: turn.startTime,
 		}];
-		for (const message of messages) {
-			this.renderConversationMessage(node, conversation, turn, trace, message);
+		const conversation = DOM.append(node.detail, DOM.$('.agent-diagnostics-conversation'));
+		const conversationHeading = DOM.append(conversation, DOM.$('h4.agent-diagnostics-conversation-heading'));
+		const conversationButton = node.detailStore.add(new Button(conversationHeading, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			buttonSecondaryBackground: 'transparent',
+			buttonSecondaryBorder: 'transparent',
+			buttonSecondaryForeground: 'var(--vscode-foreground)',
+			buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',
+		}));
+		conversationButton.element.classList.add('agent-diagnostics-conversation-button');
+		const conversationExpanded = this.expandedConversationTraceIds.has(trace.traceId);
+		const conversationLabel = localize('agentDiagnostics.conversationWithCount', "Conversation ({0})", messages.length);
+		conversationButton.label = `$(${conversationExpanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${conversationLabel}`;
+		conversationButton.setAriaLabel(conversationLabel);
+		conversationButton.element.setAttribute('aria-expanded', String(conversationExpanded));
+		node.detailStore.add(conversationButton.onDidClick(() => {
+			if (conversationExpanded) {
+				this.expandedConversationTraceIds.delete(trace.traceId);
+			} else {
+				this.expandedConversationTraceIds.add(trace.traceId);
+			}
+			this.updateTraceNode(node, turn, trace);
+			this.scrollable.scanDomNode();
+		}));
+		if (conversationExpanded) {
+			const conversationBody = DOM.append(conversation, DOM.$('.agent-diagnostics-conversation-body'));
+			for (const message of messages) {
+				this.renderConversationMessage(node, conversationBody, turn, trace, message);
+			}
 		}
 
 		const waterfall = DOM.append(node.detail, DOM.$('.agent-diagnostics-waterfall'));

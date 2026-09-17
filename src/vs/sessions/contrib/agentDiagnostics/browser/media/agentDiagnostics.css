@@ -920,11 +920,41 @@
 }
 
 .agent-diagnostics-conversation {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.agent-diagnostics-conversation-heading {
+	width: 100%;
+	margin: 0;
+}
+
+.agent-diagnostics-conversation-button.monaco-button {
+	justify-content: flex-start;
+	width: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-conversation-button.monaco-button:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-diagnostics-conversation-button.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-diagnostics-conversation-body {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
 	gap: var(--vscode-spacing-size60);
-	margin-bottom: var(--vscode-spacing-size160);
+	margin-top: var(--vscode-spacing-size60);
+	width: 100%;
 }
 
 .agent-diagnostics-message {
