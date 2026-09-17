@@ -1327,7 +1327,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 					finalization.text,
 					this._activeBackend !== 'mai' && options?.preserveLiveTranscript === true,
 				);
-			if (this._activeBackend === 'nemo' && finalization.timedOut && !text) {
+			if (this._activeBackend === 'nemo' && finalization.timedOut && !stripDictationFillers(text)) {
 				this._sessionErrorCode = this._sessionErrorCode || 'transcribe.timeout';
 			}
 		} catch (err) {

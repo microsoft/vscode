@@ -377,15 +377,16 @@ suite('ChatSpeechToTextService', () => {
 		service._sessionGeneration = 0;
 		service._activeBackend = 'nemo';
 		service._maiReceivedFinal = false;
-		service._finalizedText = '';
+		service._finalizedText = 'um';
 		service._deltaText = '';
 		service._sessionErrorCode = '';
 		service._flushCapture = undefined;
-		service._finishBackend = async () => ({ text: '', timedOut: true });
+		service._finishBackend = async () => ({ text: 'um', timedOut: true });
 		service._stopCapture = () => { };
 		service._setState = state => states.push(state);
 		service._accessibilitySignalService = { playSignal: () => { } };
 		service._configurationService = { getValue: () => false };
+		service._logService = { trace: () => { } };
 		service._logSessionTelemetry = outcome => outcomes.push(outcome);
 		service._teardown = () => { };
 
