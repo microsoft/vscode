@@ -405,11 +405,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
-				// The platform-specific Copilot CLI and SDK runtime packages must be
-				// unpacked because they contain spawned executables and native modules.
-				// The pure JavaScript `@github/copilot-sdk` package stays in the archive.
+				// Only the platform-specific Copilot CLI packages (`@github/copilot-<os>-<arch>`)
+				// need to be unpacked: the CLI is spawned as a subprocess and is a
+				// self-locating bundle that memory-maps files and resolves its native
+				// addons / sub-binaries relative to its own on-disk location, so it cannot
+				// run from inside the archive. `@github/copilot-sdk` is intentionally NOT
+				// matched here — it is pure JavaScript that the agent host loads via
+				// `import` (ASAR-aware), so it stays in the archive.
 				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
-				'**/@github/copilot-sdk-{darwin,linux,linuxmusl,win32}-*/**',
 				// The Dev Container CLI is spawned as an external Node process,
 				// so its bundled entrypoint must be available outside the ASAR.
 				'**/@devcontainers/cli/**',
