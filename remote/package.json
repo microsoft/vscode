@@ -4,7 +4,6 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.86-2",
     "@github/copilot-sdk": "1.0.14",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -56,14 +55,6 @@
     "zod": "^4.4.3"
   },
   "overrides": {
-    "@github/copilot-darwin-arm64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-darwin-arm64.tgz",
-    "@github/copilot-darwin-x64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-darwin-x64.tgz",
-    "@github/copilot-linux-arm64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-linux-arm64.tgz",
-    "@github/copilot-linux-x64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-linux-x64.tgz",
-    "@github/copilot-linuxmusl-arm64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-linuxmusl-arm64.tgz",
-    "@github/copilot-linuxmusl-x64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-linuxmusl-x64.tgz",
-    "@github/copilot-win32-arm64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-win32-arm64.tgz",
-    "@github/copilot-win32-x64": "https://github.com/github/copilot-cli/releases/download/v1.0.86-2/github-copilot-1.0.86-2-win32-x64.tgz",
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
@@ -86,5 +77,6 @@
     "cpu-features": false,
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
-  }
+  },
+  "copilotRuntimeVersion": "1.0.85"
 }

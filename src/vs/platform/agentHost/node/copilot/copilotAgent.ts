@@ -240,23 +240,26 @@ function getCopilotPlatformPackageCandidates(): string[] {
 	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
 }
 
-async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+interface ICopilotRuntimePaths {
+	readonly runtimePath: string;
+	readonly sdkPath: string;
+}
+
+async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilotRuntimePaths> {
 	const tried: string[] = [];
 	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
-		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, 'index.js').fsPath;
-		tried.push(cliPath);
-		if (await fileExists(cliPath)) {
-			return cliPath;
+		const packageUri = URI.joinPath(nodeModulesUri, '@github', `copilot-sdk-${platformPackage}`);
+		const prebuildsUri = URI.joinPath(packageUri, 'prebuilds', platformPackage);
+		const runtimePath = URI.joinPath(prebuildsUri, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime').fsPath;
+		const nativePath = URI.joinPath(prebuildsUri, 'runtime.node').fsPath;
+		const sdkPath = URI.joinPath(packageUri, 'sdk', 'index.js').fsPath;
+		tried.push(`${runtimePath} with ${nativePath} and ${sdkPath}`);
+		if (await fileExists(runtimePath) && await fileExists(nativePath) && await fileExists(sdkPath)) {
+			return { runtimePath, sdkPath };
 		}
 	}
 
-	const oldTopLevelPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
-	tried.push(oldTopLevelPath);
-	if (await fileExists(oldTopLevelPath)) {
-		return oldTopLevelPath;
-	}
-
-	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
+	throw new Error(`Unable to resolve @github/copilot SDK runtime paths. Tried: ${tried.join(', ')}`);
 }
 
 /**
@@ -1383,11 +1386,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async getManagedSettingsDiagnostics(): Promise<IAgentHostManagedSettingsSnapshot> {
 		this._logService.debug('[Copilot] Collecting runtime managed-settings diagnostics');
-		let stage = 'resolving the Copilot CLI path';
+		let stage = 'resolving the Copilot SDK runtime paths';
 		const diagnostics = (async () => {
 			const nodeModulesUri = getAppNodeModulesUri();
-			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
-			const runtimeSdkPath = join(dirname(cliPath), 'sdk', 'index.js');
+			const { sdkPath: runtimeSdkPath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 			stage = 'checking the Copilot runtime SDK';
 			if (!await fileExists(runtimeSdkPath)) {
 				throw new Error(`Copilot runtime SDK not found at ${runtimeSdkPath}`);
@@ -2316,16 +2318,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				delete env['RUBBER_DUCK_AGENT'];
 			}
 
-			// Resolve the CLI entry point and native SDK binaries from node_modules.
-			// In the desktop app these live next to the ASAR archive in
-			// `node_modules.asar.unpacked` (the `@github/copilot-<platform>` CLI and
-			// the `@microsoft/mxc-sdk/bin` executables are unpacked so they can be
-			// spawned), while in dev and on the server (which has no ASAR) they live
-			// in a plain `node_modules`.
-			// We can't use require.resolve() because @github/copilot's exports map
-			// blocks direct subpath access.
+			// Keep the SDK wrapper and native module paired within one platform package.
 			const nodeModulesUri = getAppNodeModulesUri();
-			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
+			const { runtimePath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
@@ -2342,7 +2337,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH';
 			const currentPath = env[pathKey];
 			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
-			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
+			this._logService.info(`[Copilot] Resolved runtime path: ${runtimePath}`);
 
 			const telemetry = await this._otelService.getSdkTelemetryConfig();
 			const nativeTelemetry = await this._otelService.getNativeSdkTelemetryConfig();
@@ -2364,7 +2359,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
-				connection: RuntimeConnection.forStdio({ path: cliPath }),
+				connection: RuntimeConnection.forStdio({ path: runtimePath }),
 				env,
 				clientInfo: {
 					applicationName: 'vscode-agent-host',
