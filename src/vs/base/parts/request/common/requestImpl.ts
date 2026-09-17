@@ -6,11 +6,14 @@
 import { bufferToStream, VSBuffer } from '../../../common/buffer.js';
 import { CancellationToken } from '../../../common/cancellation.js';
 import { canceled } from '../../../common/errors.js';
-import { IHeaders, IRequestContext, IRequestOptions, OfflineError } from './request.js';
+import { IHeaders, IRequestContext, IRequestOptions, OfflineError, ResponseTooLargeError } from './request.js';
 
 export async function request(options: IRequestOptions, token: CancellationToken, isOnline?: () => boolean): Promise<IRequestContext> {
 	if (token.isCancellationRequested) {
 		throw canceled();
+	}
+	if (options.maxResponseBytes !== undefined && (!Number.isSafeInteger(options.maxResponseBytes) || options.maxResponseBytes < 0)) {
+		throw new Error('Invalid response body limit');
 	}
 
 	const cancellation = new AbortController();
@@ -39,7 +42,7 @@ export async function request(options: IRequestOptions, token: CancellationToken
 				statusCode: res.status,
 				headers: getResponseHeaders(res),
 			},
-			stream: bufferToStream(VSBuffer.wrap(new Uint8Array(await res.arrayBuffer()))),
+			stream: bufferToStream(await readResponseBody(res, options.maxResponseBytes)),
 		};
 	} catch (err) {
 		if (isOnline && !isOnline()) {
@@ -54,6 +57,38 @@ export async function request(options: IRequestOptions, token: CancellationToken
 		throw err;
 	} finally {
 		disposable.dispose();
+	}
+}
+
+async function readResponseBody(response: Response, limit: number | undefined): Promise<VSBuffer> {
+	if (limit === undefined) {
+		return VSBuffer.wrap(new Uint8Array(await response.arrayBuffer()));
+	}
+	if (Number(response.headers.get('content-length')) > limit) {
+		await response.body?.cancel();
+		throw new ResponseTooLargeError(limit);
+	}
+	if (!response.body) {
+		return VSBuffer.alloc(0);
+	}
+	const reader = response.body.getReader();
+	const chunks: VSBuffer[] = [];
+	let length = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				return VSBuffer.concat(chunks, length);
+			}
+			length += value.byteLength;
+			if (length > limit) {
+				await reader.cancel();
+				throw new ResponseTooLargeError(limit);
+			}
+			chunks.push(VSBuffer.wrap(value));
+		}
+	} finally {
+		reader.releaseLock();
 	}
 }
 
