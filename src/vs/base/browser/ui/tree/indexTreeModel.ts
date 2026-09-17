@@ -18,6 +18,7 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	readonly children: IIndexTreeNode<T, TFilterData>[];
 	visibleChildrenCount: number;
 	visibleChildIndex: number;
+	childIndex: number;
 	collapsible: boolean;
 	collapsed: boolean;
 	renderNodeCount: number;
@@ -132,6 +133,7 @@ export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData =
 			depth: 0,
 			visibleChildrenCount: 0,
 			visibleChildIndex: -1,
+			childIndex: -1,
 			collapsible: false,
 			collapsed: false,
 			renderNodeCount: 0,
@@ -258,6 +260,7 @@ export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData =
 
 		for (const child of nodesToInsertIterator) {
 			nodesToInsert.push(child);
+			child.childIndex = lastIndex + nodesToInsert.length - 1;
 			renderNodeCount += child.renderNodeCount;
 
 			if (child.visible) {
@@ -266,6 +269,14 @@ export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData =
 		}
 
 		const deletedNodes = splice(parentNode.children, lastIndex, deleteCount, nodesToInsert);
+
+		// adjust childIndex for nodes after the splice point
+		const childIndexDelta = nodesToInsert.length - deleteCount;
+		if (childIndexDelta !== 0) {
+			for (let i = lastIndex + nodesToInsert.length; i < parentNode.children.length; i++) {
+				parentNode.children[i].childIndex += childIndexDelta;
+			}
+		}
 
 		if (!diffIdentityProvider) {
 			parentNode.lastDiffIds = undefined;
@@ -495,6 +506,7 @@ export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData =
 			depth: parent.depth + 1,
 			visibleChildrenCount: 0,
 			visibleChildIndex: -1,
+			childIndex: -1,
 			collapsible: typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : (typeof treeElement.collapsed !== 'undefined'),
 			collapsed: typeof treeElement.collapsed === 'undefined' ? this.collapseByDefault : treeElement.collapsed,
 			renderNodeCount: 1,
@@ -518,6 +530,7 @@ export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData =
 
 		for (const el of childElements) {
 			const child = this.createTreeNode(el, node, visibility, childRevealed, treeListElements, onDidCreateNode);
+			child.childIndex = node.children.length;
 			node.children.push(child);
 			renderNodeCount += child.renderNodeCount;
 
@@ -743,13 +756,13 @@ export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData =
 		return this.getTreeNode(location);
 	}
 
-	// TODO@joao perf!
+	// Optimized: use cached childIndex instead of indexOf (O(1) per level instead of O(siblings))
 	getNodeLocation(node: ITreeNode<T, TFilterData>): number[] {
 		const location: number[] = [];
 		let indexTreeNode = node as IIndexTreeNode<T, TFilterData>; // typing woes
 
 		while (indexTreeNode.parent) {
-			location.push(indexTreeNode.parent.children.indexOf(indexTreeNode));
+			location.push(indexTreeNode.childIndex);
 			indexTreeNode = indexTreeNode.parent;
 		}
 
