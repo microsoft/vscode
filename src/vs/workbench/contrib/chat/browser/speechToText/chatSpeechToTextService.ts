@@ -965,13 +965,15 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private async _startMaiSession(window: Window & typeof globalThis, generation: number): Promise<void> {
 		const authToken = await this._getGitHubToken();
-		const backendToken = getVoiceBackendAuthToken(this._configurationService, authToken);
+		const transcriptionUrl = getTranscriptionWebSocketUrl(this._configurationService, this._productService);
+		const backendToken = getVoiceBackendAuthToken(this._configurationService, authToken, transcriptionUrl);
 		if (generation !== this._sessionGeneration) {
 			return;
 		}
 		if (!backendToken) {
 			this._sessionErrorCode = this._sessionErrorCode || 'connect.noauth';
-			throw new Error(this._configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled)
+			const useGptLiveAuth = this._configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) && transcriptionUrl.includes('gpt-live-caas.mai.microsoft.com');
+			throw new Error(useGptLiveAuth
 				? localize('chatStt.gptLiveApiKeyRequired', "Set agents.voice.gptLive.apiKey to use cloud dictation with GPT Live.")
 				: localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
 		}

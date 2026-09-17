@@ -111,6 +111,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _sessionStartedOnSocket = false;
 	private _window: (Window & typeof globalThis) | undefined;
 	private _lastSessionId: string | undefined;
+	private _currentWsUrl: string | undefined;
 
 	// --- Keep-alive ping/pong ---
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -312,7 +313,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
 		this._window = window;
-		this._authToken = getVoiceBackendAuthToken(this._configurationService, authToken);
+		this._currentWsUrl = this._getWsUrl();
+		this._authToken = getVoiceBackendAuthToken(this._configurationService, authToken, this._currentWsUrl);
 		this._resetReconnectBudget();
 		this._connectWebSocket();
 	}
@@ -323,7 +325,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			return;
 		}
 
-		const baseUrl = this._getWsUrl();
+		const baseUrl = this._currentWsUrl || this._getWsUrl();
 		if (!baseUrl) {
 			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
 			this._onFatalDisconnect.fire({ code: 0, reason: '', kind: 'fatal', clientSide: true });
@@ -578,6 +580,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._currentWsUrl = undefined;
 		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;

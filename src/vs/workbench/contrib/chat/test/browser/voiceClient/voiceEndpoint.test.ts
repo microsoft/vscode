@@ -111,7 +111,7 @@ suite('Voice endpoint', () => {
 			[AgentsVoiceSettingId.GptLiveApiKey]: '  gpt-live-key  ',
 		});
 
-		assert.strictEqual(getVoiceBackendAuthToken(configurationService, 'github-token'), 'gpt-live-key');
+		assert.strictEqual(getVoiceBackendAuthToken(configurationService, 'github-token', 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice'), 'gpt-live-key');
 	});
 
 	test('keeps GitHub auth token when GPT Live is disabled', () => {
@@ -119,6 +119,22 @@ suite('Voice endpoint', () => {
 			[AgentsVoiceSettingId.GptLiveApiKey]: 'gpt-live-key',
 		});
 
-		assert.strictEqual(getVoiceBackendAuthToken(configurationService, 'github-token'), 'github-token');
+		assert.strictEqual(getVoiceBackendAuthToken(configurationService, 'github-token', 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice'), 'github-token');
+	});
+
+	test('keeps GitHub auth token for explicit voice backend overrides', () => {
+		const configurationService = new TestConfigurationService({
+			[AgentsVoiceSettingId.GptLiveEnabled]: true,
+			[AgentsVoiceSettingId.GptLiveApiKey]: 'gpt-live-key',
+			'agents.voice.backendUrl': 'wss://custom.example/api/v1/realtime/voice',
+		});
+
+		assert.deepStrictEqual({
+			voice: getVoiceWebSocketUrl(configurationService, productService),
+			token: getVoiceBackendAuthToken(configurationService, 'github-token', 'wss://custom.example/api/v1/realtime/voice'),
+		}, {
+			voice: 'wss://custom.example/api/v1/realtime/voice',
+			token: 'github-token',
+		});
 	});
 });

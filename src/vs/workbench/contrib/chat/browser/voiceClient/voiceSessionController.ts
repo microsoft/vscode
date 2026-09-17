@@ -2521,7 +2521,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		switch (event.code) {
 			case VoiceCloseCode.Unauthenticated:
-				return this.configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled)
+				return this._usesGptLiveCredentialForVoice()
 					? localize('voice.gptLiveApiKeyRequired', "Set agents.voice.gptLive.apiKey to use Voice Mode with GPT Live.")
 					: localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
 			case VoiceCloseCode.Forbidden:
@@ -2578,7 +2578,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// that fixes this.
 		const action = event.clientSide ? undefined : (info ? info.action : 'retry');
 		const choices: IPromptChoice[] = [];
-		if (action === 'signIn') {
+		if (action === 'signIn' && this._usesGptLiveCredentialForVoice()) {
+			choices.push({
+				label: localize('voice.openSettingsAction', "Open Settings"),
+				run: () => { void this.commandService.executeCommand('workbench.action.openSettings', `@id:${AgentsVoiceSettingId.GptLiveApiKey}`); },
+			});
+		} else if (action === 'signIn') {
 			choices.push({
 				label: localize('voice.signInAction', "Sign in"),
 				// Force reauthorization: an expired or under-scoped token still counts
@@ -2592,6 +2597,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			});
 		}
 		this.notificationService.prompt(Severity.Error, message, choices);
+	}
+
+	private _usesGptLiveCredentialForVoice(): boolean {
+		if (this.configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) !== true) {
+			return false;
+		}
+		const configured = this.configurationService.getValue<string>('agents.voice.backendUrl');
+		return typeof configured !== 'string' || configured.trim().length === 0;
 	}
 
 	private _endTelemetrySession(): void {

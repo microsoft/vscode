@@ -681,6 +681,7 @@ configurationRegistry.registerConfiguration({
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+			ignoreSync: true,
 			included: false,
 		},
 		'agents.voice.speakResponses': {
