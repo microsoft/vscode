@@ -362,8 +362,10 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 	private _registerLastEditorClose(): void {
 		this._register(
 			this._editorService.onDidCloseEditor(() => {
+				const session = this._sessionsService.activeSession.get();
+				const isQuickChat = session?.isQuickChat?.get() ?? false;
 				if (
-					!this._getActiveNewSessionKey() ||
+					(!this._getActiveNewSessionKey() && !isQuickChat) ||
 					this._ctx.multipleSessionsVisibleObs.get() ||
 					this._ctx.isRestoringSessionLayout ||
 					this._layoutService.isEditorPartAutoVisibilitySuppressed() ||
