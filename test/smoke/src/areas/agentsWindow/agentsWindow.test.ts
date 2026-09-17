@@ -323,6 +323,7 @@ export function setup(logger: Logger, quality: Quality) {
 					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');
 					await assertRemoteDevContainerRouting(context.logsPath, transport, workspacePath, reply);
+					await fixture.verifyMockServerRouting?.();
 					await app.workbench.agentsWindow.startNewSession();
 					await app.workbench.agentsWindow.activateSessionByLabel([prompt, reply], reply, 60_000);
 					await app.workbench.agentsWindow.waitForAssistantText(reply);

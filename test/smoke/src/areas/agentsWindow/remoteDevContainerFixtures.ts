@@ -36,6 +36,7 @@ export interface IRemoteDevContainerFixture {
 	readonly sourceAppRoot?: string;
 	readonly workspacePath?: string;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
+	verifyMockServerRouting?(): Promise<void>;
 	dispose(): Promise<void>;
 }
 
@@ -865,8 +866,8 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		PATH: `${serverPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
 		COPILOT_HOME: `${root}/home/.copilot`, CODEX_HOME: `${root}/home/.codex`,
 		VSCODE_CLI_DATA_DIR: `${root}/cli`, VSCODE_CLI_USE_FILE_KEYCHAIN: '1',
-		COPILOT_API_URL: mockServerUrl.href, COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl.href,
-		VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl.href,
+		VSCODE_SMOKE_TEST_WSL_MOCK_UPSTREAM: mockServerUrl.href,
+		VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
 		GITHUB_COPILOT_API_TOKEN: fakeModelToken, GITHUB_PAT: 'smoketest-fake-pat',
 		IS_SCENARIO_AUTOMATION: '1', VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED: 'false', VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED: 'false',
 		VSCODE_AGENT_HOST_TELEMETRY_LEVEL: 'off',
@@ -880,6 +881,12 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		name: distro,
 		workspacePath,
 		settings: { 'chat.wslRemoteAgentHostCommand': command },
+		verifyMockServerRouting: async () => {
+			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
+			if (!logs.includes('Using CAPI URL override http://127.0.0.1:') || logs.includes('Ignoring non-loopback CAPI URL override')) {
+				throw new Error('The WSL source Agent Host did not accept the loopback mock CAPI endpoint.');
+			}
+		},
 		dispose: () => resources.dispose(),
 	};
 }
