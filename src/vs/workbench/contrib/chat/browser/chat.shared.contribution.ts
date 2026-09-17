@@ -21,7 +21,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, AutoModeTiersExperimentName, CopilotAutoModeTierOverrideSettingId, CopilotAutoModeTiersEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -1732,16 +1732,9 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
 		},
-		[CopilotAutoModeTiersEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.autoModeTiers', "Show the Auto model's \"Optimize for\" picker with Efficiency, Balance, and Intelligence options in Copilot Chat and Copilot SDK sessions. When disabled, the service chooses how to route unless an override is configured."),
-			default: false,
-			experiment: { mode: 'startup', name: AutoModeTiersExperimentName },
-			tags: ['experimental', 'advanced'],
-		},
 		[CopilotAutoModeTierOverrideSettingId]: {
 			type: ['string', 'null'],
-			markdownDescription: nls.localize('chat.copilot.autoModeTierOverride', "Override Auto's \"Optimize for\" preference for evals and debugging, even when the picker is disabled. Accepts `efficiency`, `balance`, or `intelligence` in both Copilot Chat and Copilot SDK sessions; `fast` is extension-only. Set to `null` to clear."),
+			markdownDescription: nls.localize('chat.copilot.autoModeTierOverride', "Override Auto's \"Optimize for\" preference for evals and debugging. Accepts `efficiency`, `balance`, or `intelligence` in both Copilot Chat and Copilot SDK sessions; `fast` is extension-only. Set to `null` to clear."),
 			default: null,
 			tags: ['advanced'],
 		},
