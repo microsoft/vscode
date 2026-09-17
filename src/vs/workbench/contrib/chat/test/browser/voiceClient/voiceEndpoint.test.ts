@@ -137,4 +137,11 @@ suite('Voice endpoint', () => {
 			token: 'github-token',
 		});
 	});
+
+	test('keeps fallback token when configuration service is unavailable', () => {
+		assert.strictEqual(
+			getVoiceBackendAuthToken(undefined, 'github-token', 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice'),
+			'github-token',
+		);
+	});
 });

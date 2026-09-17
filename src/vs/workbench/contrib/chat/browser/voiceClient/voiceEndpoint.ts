@@ -12,11 +12,14 @@ const TRANSCRIPTION_PATH = '/realtime/transcription';
 const GPT_LIVE_VOICE_WS_URL = 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice';
 const GPT_LIVE_HOST = 'gpt-live-caas.mai.microsoft.com';
 
-function isGptLiveEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
+function isGptLiveEnabled(configurationService: IConfigurationService | undefined): boolean {
+	return configurationService?.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
 }
 
-function getGptLiveApiKey(configurationService: IConfigurationService): string | undefined {
+function getGptLiveApiKey(configurationService: IConfigurationService | undefined): string | undefined {
+	if (!configurationService) {
+		return undefined;
+	}
 	const configured = configurationService.getValue<string>(AgentsVoiceSettingId.GptLiveApiKey);
 	const key = typeof configured === 'string' ? configured.trim() : '';
 	return key || undefined;
@@ -61,7 +64,7 @@ export function addWebSocketAuthToken(url: string, token: string): string {
 	return authenticatedUrl.toString();
 }
 
-export function getVoiceBackendAuthToken(configurationService: IConfigurationService, fallbackToken: string | undefined, endpointUrl?: string): string | undefined {
+export function getVoiceBackendAuthToken(configurationService: IConfigurationService | undefined, fallbackToken: string | undefined, endpointUrl?: string): string | undefined {
 	if (!isGptLiveEnabled(configurationService) || !isGptLiveEndpoint(endpointUrl)) {
 		return fallbackToken;
 	}
