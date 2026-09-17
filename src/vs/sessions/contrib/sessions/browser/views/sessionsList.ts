@@ -1562,7 +1562,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.elementDisposables.add(autorun(reader => {
 			let hasGitHub = false;
 			let hasNonCloudWorkspace = false;
-			for (const session of element.sessions) {
+			for (const session of element.rootSessions) {
 				for (const folder of session.workspace.read(reader)?.folders ?? []) {
 					if (folder.gitRepository?.gitHubInfo.read(reader) !== undefined) {
 						hasGitHub = true;

@@ -6,20 +6,72 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { extUri, ExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { IGitHubService } from '../../browser/githubService.js';
+import { NEW_SESSION_FROM_PULL_REQUEST_COMMAND_ID } from '../../browser/createSessionFromPullRequestAction.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
 suite('Create Session from Pull Request', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('workspace PR action never falls back to a descendant repository', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+		let hidden = false;
+		const warnings: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { });
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IUriIdentityService, { extUri });
+		instantiationService.stub(INotificationService, {
+			warn: (message: string) => warnings.push(message),
+			error: (error: Error) => { throw error; },
+		});
+		const picker = new class extends mock<IQuickPick<IPullRequestQuickPickItem, { useSeparators: true }>>() {
+			override readonly onDidHide = onDidHide.event;
+			override show(): void { }
+			override hide(): void { hidden = true; onDidHide.fire({ reason: QuickInputHideReason.Other }); }
+			override dispose(): void { }
+		};
+		instantiationService.stub(IQuickInputService, {}, 'createQuickPick', () => picker);
+		const root = sessionWithRepository(URI.file('/repos/A'), 'owner', 'A', false);
+		const child = sessionWithRepository(URI.file('/repos/B'), 'owner', 'B');
+		const command = CommandsRegistry.getCommand(NEW_SESSION_FROM_PULL_REQUEST_COMMAND_ID);
+		assert.ok(command);
+
+		await command.handler(instantiationService, {
+			id: 'workspace:A',
+			label: 'A',
+			rootSessions: [root],
+			sessions: [root, child],
+		});
+
+		assert.deepStrictEqual({ hidden, warnings }, {
+			hidden: true,
+			warnings: ['No GitHub repository could be resolved for this workspace.'],
+		});
+	});
 
 	test('groups available pull requests by review and assignment priority', () => {
 		const items = createPullRequestQuickPickItems([
@@ -249,7 +301,7 @@ suite('Create Session from Pull Request', () => {
 			pullRefSessionAwaitingMetadata,
 			sessionWithPullRequest('other', 'vscode', 3),
 		];
-		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode', [repositorySessionAwaitingMetadata, pullRefSessionAwaitingMetadata]);
+		const existing = getExistingPullRequests(sessions, { folderUri: repositoryRoot, repositoryUri: repositoryRoot, owner: 'microsoft', repo: 'vscode' }, extUri);
 		const availableItems = createPullRequestQuickPickItems([
 			pullRequest(5, { headRef: 'feature-three' }),
 			pullRequest(7),
@@ -263,6 +315,25 @@ suite('Create Session from Pull Request', () => {
 			numbers: [1, 2, 4, 5],
 			headRefs: ['feature-two', 'feature-three', 'pull/5/head'],
 			availableNumbers: [7, 6],
+		});
+	});
+
+	test('deduplicates metadata-pending sessions by source repository rather than ancestry or folder label', async () => {
+		const source = URI.file('/repos/source');
+		const rootFolder = URI.file('/worktrees/root');
+		const root = sessionWithRepository(rootFolder, 'owner', 'repo', true, undefined, source);
+		const repository = await resolvePullRequestSessionRepository([root]);
+		assert.ok(repository);
+		const child = sessionWithRepository(URI.file('/worktrees/child'), 'owner', 'repo', false, 'origin/pull/42/head', source);
+		const caseVariant = sessionWithRepository(URI.file('/worktrees/case'), 'owner', 'repo', false, 'origin/pull/43/head', URI.file('/REPOS/SOURCE'));
+		const unrelated = sessionWithRepository(URI.file('/repos/other'), 'owner', 'repo', false, 'origin/pull/77/head');
+		const differentHost = sessionWithRepository(URI.parse('vscode-remote://ssh-remote+host/repos/source'), 'owner', 'repo', false, 'origin/pull/88/head');
+		const existing = getExistingPullRequests([root, child, caseVariant, unrelated, differentHost], repository, new ExtUri(() => true));
+
+		assert.deepStrictEqual({ repository, numbers: [...existing.numbers], headRefs: [...existing.headRefs] }, {
+			repository: { folderUri: rootFolder, repositoryUri: source, owner: 'owner', repo: 'repo' },
+			numbers: [42, 43],
+			headRefs: ['pull/42/head', 'pull/43/head'],
 		});
 	});
 
@@ -281,10 +352,12 @@ suite('Create Session from Pull Request', () => {
 	test('resolves non-cloud repositories from session metadata', async () => {
 		const cloudRoot = URI.parse('github-remote-file://github/alexr00/playground/copilot%252Finspect-pull-request-748');
 		const localRoot = URI.file('/repos/alexr00/playground');
+		const worktreeRoot = URI.file('/worktrees/playground');
 		const remoteRoot = URI.parse('vscode-remote://ssh-remote+host/repos/alexr00/playground');
 		const cloudSession = sessionWithRepository(cloudRoot, 'alexr00', 'playground');
 		const localSession = sessionWithRepository(localRoot, 'alexr00', 'playground', false);
 		const localSessionWithMetadata = sessionWithRepository(localRoot, 'alexr00', 'playground');
+		const worktreeSession = sessionWithRepository(worktreeRoot, 'alexr00', 'playground', false, undefined, localRoot);
 		const otherCloudSession = sessionWithRepository(cloudRoot, 'microsoft', 'vscode');
 		const remoteSession = sessionWithRepository(remoteRoot, 'alexr00', 'playground');
 
@@ -292,6 +365,7 @@ suite('Create Session from Pull Request', () => {
 			cloud: await resolvePullRequestSessionRepository([cloudSession]),
 			local: await resolvePullRequestSessionRepository([localSession]),
 			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession]),
+			mixedWorktree: await resolvePullRequestSessionRepository([cloudSession, worktreeSession]),
 			mixedRepositories: await resolvePullRequestSessionRepository([otherCloudSession, localSessionWithMetadata]),
 			remote: await resolvePullRequestSessionRepository([remoteSession]),
 		}, {
@@ -299,16 +373,73 @@ suite('Create Session from Pull Request', () => {
 			local: undefined,
 			mixed: {
 				folderUri: localRoot,
+				repositoryUri: localRoot,
+				owner: 'alexr00',
+				repo: 'playground',
+			},
+			mixedWorktree: {
+				folderUri: worktreeRoot,
+				repositoryUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',
 			},
 			mixedRepositories: {
 				folderUri: localRoot,
+				repositoryUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',
 			},
 			remote: {
 				folderUri: remoteRoot,
+				repositoryUri: remoteRoot,
+				owner: 'alexr00',
+				repo: 'playground',
+			},
+		});
+	});
+
+	test('preserves repository selection through missing workspace and repository metadata', async () => {
+		const folderRoot = URI.file('/folders/playground');
+		const repositoryRoot = URI.file('/repos/alexr00/playground');
+		const emptyWorkspace: ISessionWorkspace = {
+			uri: folderRoot,
+			label: 'playground',
+			icon: Codicon.folder,
+			folders: [],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const noWorkspace = sessionWithWorkspace(undefined);
+		const noFolders = sessionWithWorkspace(emptyWorkspace);
+		const noRepository = sessionWithWorkspace({
+			...emptyWorkspace,
+			folders: [{
+				root: folderRoot,
+				workingDirectory: folderRoot,
+				name: 'playground',
+				description: undefined,
+			}],
+		});
+		const pendingRepository = sessionWithRepository(URI.file('/worktrees/playground'), 'alexr00', 'playground', false, undefined, repositoryRoot);
+		const cloud = sessionWithRepository(URI.parse('github-remote-file://github/alexr00/playground'), 'alexr00', 'playground');
+		const resolvedRepository = sessionWithRepository(repositoryRoot, 'alexr00', 'playground');
+		const incomplete = [noWorkspace, noFolders, noRepository, pendingRepository];
+
+		assert.deepStrictEqual({
+			noIdentity: await resolvePullRequestSessionRepository(incomplete),
+			fallback: await resolvePullRequestSessionRepository([...incomplete, cloud]),
+			resolvedAfterIncomplete: await resolvePullRequestSessionRepository([cloud, ...incomplete, resolvedRepository]),
+		}, {
+			noIdentity: undefined,
+			fallback: {
+				folderUri: folderRoot,
+				repositoryUri: folderRoot,
+				owner: 'alexr00',
+				repo: 'playground',
+			},
+			resolvedAfterIncomplete: {
+				folderUri: repositoryRoot,
+				repositoryUri: repositoryRoot,
 				owner: 'alexr00',
 				repo: 'playground',
 			},
@@ -365,7 +496,7 @@ function sessionWithPullRequest(owner: string, repo: string, number: number, ups
 	return sessionWithWorkspace(workspace);
 }
 
-function sessionWithRepository(root: URI, owner: string, repo: string, includeGitHubInfo = true, upstreamBranchName?: string): ISession {
+function sessionWithRepository(root: URI, owner: string, repo: string, includeGitHubInfo = true, upstreamBranchName?: string, repositoryUri = root): ISession {
 	return sessionWithWorkspace({
 		uri: root,
 		label: repo,
@@ -376,7 +507,7 @@ function sessionWithRepository(root: URI, owner: string, repo: string, includeGi
 			name: repo,
 			description: undefined,
 			gitRepository: {
-				uri: root,
+				uri: repositoryUri,
 				workTreeUri: root,
 				baseBranchName: 'main',
 				upstreamBranchName,
@@ -388,7 +519,7 @@ function sessionWithRepository(root: URI, owner: string, repo: string, includeGi
 	});
 }
 
-function sessionWithWorkspace(workspace: ISessionWorkspace): ISession {
+function sessionWithWorkspace(workspace: ISessionWorkspace | undefined): ISession {
 	return new class extends mock<ISession>() {
 		override readonly workspace = constObservable(workspace);
 	}();

@@ -46,11 +46,11 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -121,6 +121,56 @@ suite('Sessions - SessionsList', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('SessionSectionRenderer', () => {
+
+		test('keeps workspace action availability scoped to roots while counting descendants', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const renderer = new SessionSectionRenderer(
+				false, () => { }, constObservable(false), constObservable(new Set<string>()),
+				instantiationService, contextKeyService,
+				new class extends mock<IAutomationService>() { override readonly runs = constObservable([]); },
+				constObservable([]), constObservable(undefined),
+				new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(() => true); },
+				new class extends mock<ICustomViewService>() { }, new class extends mock<IMenuService>() { },
+			);
+			const rootInfo = observableValue<IGitHubInfo | undefined>('root GitHub info', undefined);
+			const withRepository = (title: string, gitHubInfo: IObservable<IGitHubInfo | undefined>): ISession => {
+				const base = createTestSession(title).session;
+				const workspace = base.workspace.get();
+				assert.ok(workspace);
+				const root = URI.file(`/repos/${title}`);
+				return {
+					...base,
+					workspace: constObservable({
+						...workspace,
+						uri: root,
+						folders: [{ root, workingDirectory: root, name: title, description: undefined, gitRepository: { uri: root, workTreeUri: root, baseBranchName: 'main', gitHubInfo } }],
+					}),
+				};
+			};
+			const root = withRepository('A', rootInfo);
+			const child = withRepository('B', constObservable({ owner: 'owner', repo: 'B' }));
+			const template = renderer.renderTemplate(document.createElement('div'));
+			disposables.add(template.disposables);
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'workspace:A', label: 'A', rootSessions: [root], sessions: [root, child] },
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+			const before = SessionSectionHasGitHubRepositoryContext.getValue(template.contextKeyService);
+			rootInfo.set({ owner: 'owner', repo: 'A' }, undefined);
+
+			assert.deepStrictEqual({
+				before,
+				after: SessionSectionHasGitHubRepositoryContext.getValue(template.contextKeyService),
+				local: SessionSectionHasNonCloudRepositoryContext.getValue(template.contextKeyService),
+				count: template.count.textContent,
+			}, { before: false, after: true, local: true, count: '2' });
+		});
 
 		test('selects the rendered section before the toolbar handles its context menu', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());

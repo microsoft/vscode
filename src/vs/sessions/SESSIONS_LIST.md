@@ -49,8 +49,9 @@ Archived
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
 
-Section roots and complete membership are distinct. Both sets currently contain
-the same sessions.
+Section roots and complete membership are distinct. Workspace-specific creation
+actions derive their repository from the roots; counts and bulk actions retain
+the complete membership. Both sets currently contain the same sessions.
 
 The active session remains visible even when a filter would otherwise exclude it.
 
