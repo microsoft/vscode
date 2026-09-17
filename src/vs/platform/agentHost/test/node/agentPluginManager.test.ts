@@ -203,17 +203,32 @@ suite('AgentPluginManager', () => {
 			assert.strictEqual((await fileService.readFile(URI.joinPath(dir1, 'index.js'))).value.toString(), 'v1');
 		});
 
-		test('evicts the oldest revision once the per-plugin retention window is exceeded', async () => {
+		test('evicts the oldest revision on restart once the per-plugin retention window is exceeded', async () => {
 			// One more revision than the retention window (8).
 			for (let i = 1; i <= 9; i++) {
 				await seedPluginDir('rev', { 'index.js': `v${i}` });
 				await manager.syncCustomizations('test-client', [makeRef('rev', `nonce-${i}`)]);
 			}
+			const restartedManager = new AgentPluginManager(basePath, fileService, new NullLogService());
+			await restartedManager.syncCustomizations('test-client', [makeRef('rev', 'nonce-9')]);
 
 			assert.deepStrictEqual(
 				await readCacheNonces(),
 				new Set(['nonce-2', 'nonce-3', 'nonce-4', 'nonce-5', 'nonce-6', 'nonce-7', 'nonce-8', 'nonce-9']),
 			);
+		});
+
+		test('keeps a synchronized skill readable while newer revisions are materialized', async () => {
+			await seedPluginDir('rev', { 'SKILL.md': 'skill v1' });
+			const active = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+			const activeSkill = URI.joinPath(active[0].pluginDir!, 'SKILL.md');
+
+			for (let i = 2; i <= 9; i++) {
+				await seedPluginDir('rev', { 'SKILL.md': `skill v${i}` });
+				await manager.syncCustomizations('test-client', [makeRef('rev', `nonce-${i}`)]);
+			}
+
+			assert.strictEqual((await fileService.readFile(activeSkill)).value.toString(), 'skill v1');
 		});
 
 		test('retains a locked older nonce so both revisions coexist', async () => {
@@ -308,14 +323,29 @@ suite('AgentPluginManager', () => {
 	// ---- LRU eviction -------------------------------------------------------
 
 	suite('LRU eviction', () => {
+		test('keeps synchronized plugins readable while the runtime limit is exceeded', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 2);
+			await seedPluginDir('plugin-1', { 'SKILL.md': 'active skill' });
+			const active = await smallManager.syncCustomizations('test-client', [makeRef('plugin-1', 'n1')]);
+			const activeSkill = URI.joinPath(active[0].pluginDir!, 'SKILL.md');
 
-		test('evicts least recently used plugins when limit exceeded', async () => {
+			for (let i = 2; i <= 3; i++) {
+				await seedPluginDir(`plugin-${i}`, { 'SKILL.md': `skill ${i}` });
+				await smallManager.syncCustomizations('test-client', [makeRef(`plugin-${i}`, `n${i}`)]);
+			}
+
+			assert.strictEqual((await fileService.readFile(activeSkill)).value.toString(), 'active skill');
+		});
+
+		test('evicts least recently used plugins on restart when limit exceeded', async () => {
 			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 3);
 
 			for (let i = 1; i <= 4; i++) {
 				await seedPluginDir(`plugin-${i}`, { 'index.js': `p${i}` });
 				await smallManager.syncCustomizations('test-client', [makeRef(`plugin-${i}`, `n${i}`)]);
 			}
+			const restartedManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 3);
+			await restartedManager.syncCustomizations('test-client', [makeRef('plugin-4', 'n4')]);
 
 			// The evicted dir should no longer exist on disk (cache.json + 3 plugin dirs)
 			const evictedDir = URI.joinPath(basePath, 'agentPlugins');
@@ -341,6 +371,8 @@ suite('AgentPluginManager', () => {
 
 			await seedPluginDir('plugin-3', { 'index.js': 'p3' });
 			await smallManager.syncCustomizations('client-3', [makeRef('plugin-3', 'n3')]);
+			const restartedManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 2);
+			await restartedManager.syncCustomizations('client-3', [makeRef('plugin-3', 'n3')]);
 
 			// plugin-1 should survive (locked) and plugin-2 should be evicted instead.
 			assert.strictEqual(await fileService.exists(dir1), true, 'locked plugin-1 should be retained');

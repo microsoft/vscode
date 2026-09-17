@@ -15,7 +15,7 @@ export const IAgentPluginManager = createDecorator<IAgentPluginManager>('agentPl
 export interface ISyncedCustomization {
 	/** The session customization with loading/error status. */
 	readonly customization: PluginCustomization;
-	/** Local plugin directory URI, defined when the sync was successful. */
+	/** Local plugin directory URI, available for the lifetime of the manager. */
 	readonly pluginDir?: URI;
 }
 

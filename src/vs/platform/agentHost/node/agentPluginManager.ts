@@ -13,10 +13,9 @@ import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCus
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
 /**
- * Cap on the total number of materialized plugin revisions kept on disk,
- * across all plugins. Bounds disk usage; the LRU decides which revisions
- * survive, so a plugin that is actively synced keeps more of its history
- * than one that has gone idle.
+ * Cap on materialized plugin revisions retained across manager lifetimes.
+ * Cleanup runs before any cached path is returned, so it cannot invalidate a
+ * directory referenced by an active session.
  */
 const DEFAULT_MAX_PLUGIN_REVISIONS = 64;
 
@@ -51,13 +50,11 @@ interface ICacheEntry {
  * {@link SequencerByKey} per plugin URI so that concurrent syncs of the same
  * plugin are serialized and cannot clobber each other.
  *
- * Older nonces of a plugin are evicted opportunistically: when the manager
- * starts up and again after each fresh sync of the same plugin. Up to
- * {@link MAX_REVISIONS_PER_PLUGIN} revisions are retained so that a
- * customization set which cycles back to a previously synced state is a cache
- * hit rather than a full re-copy. If a stale nonce directory cannot be removed
- * (e.g. it is still locked), it is retained in the LRU and retried on a later
- * cleanup pass.
+ * Older nonces are evicted when the manager starts, before any cached path can
+ * be handed to a session. Runtime eviction is unsafe because sessions retain
+ * the concrete nonce path and may read a skill from it much later. Up to
+ * {@link MAX_REVISIONS_PER_PLUGIN} revisions are retained across restarts so a
+ * customization set which cycles back to a recent state remains a cache hit.
  *
  * The LRU (which records each plugin's URI and nonce) is persisted to a JSON
  * file in the base path so it survives process restarts.
@@ -129,9 +126,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	/**
 	 * Syncs a single plugin to local storage. Each nonce is materialized in its
 	 * own `{key}/{nonce}` subdirectory; when the same nonce is already present
-	 * the copy is skipped. After a fresh copy, older nonces of the same plugin
-	 * are evicted on a best-effort basis (retained in the LRU if still locked).
-	 * Returns the local directory URI.
+	 * the copy is skipped. Returns the local directory URI.
 	 */
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
 		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
@@ -156,10 +151,6 @@ export class AgentPluginManager implements IAgentPluginManager {
 		this._removeEntry(ref.uri, ref.nonce);
 		this._lru.push({ uri: ref.uri, nonce: ref.nonce ?? '' });
 
-		// Try to clean up superseded nonces of this plugin; undeletable ones stay
-		// in the LRU for a later attempt.
-		await this._cleanupStaleNoncesFor(ref.uri);
-		await this._evictIfNeeded();
 		await this._persistCache();
 
 		return destDir;
@@ -305,6 +296,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 		await this._pruneMissingEntries();
 		await this._cleanupStaleNonces();
+		await this._evictIfNeeded();
 		await this._persistCache();
 	}
 
