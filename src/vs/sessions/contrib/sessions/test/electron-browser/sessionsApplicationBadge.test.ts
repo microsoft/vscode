@@ -19,7 +19,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT, SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING, SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from '../../electron-browser/sessionsApplicationBadge.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -53,14 +53,11 @@ class TestNativeHostService extends mock<INativeHostService>() {
 
 class TestBlockedSessions extends mock<BlockedSessions>() {
 
-	private readonly _blockedSessionsWithReasons = observableValue<readonly IBlockedSession[]>('blockedSessionsWithReasons', []);
-	override readonly blockedSessionsWithReasons = this._blockedSessionsWithReasons;
+	private readonly _failingCISessions = observableValue<readonly ISession[]>('failingCISessions', []);
+	override readonly failingCISessions = this._failingCISessions;
 
-	setSessions(sessions: readonly ISession[]): void {
-		this._blockedSessionsWithReasons.set(sessions.map(session => {
-			const reason = session.status.get() === SessionStatus.NeedsInput ? BlockedSessionReason.NeedsInput : BlockedSessionReason.FailingCI;
-			return { session, reason, occurrenceId: reason };
-		}), undefined);
+	setFailingCISessions(sessions: readonly ISession[]): void {
+		this._failingCISessions.set(sessions, undefined);
 	}
 
 	override dispose(): void { }
@@ -91,7 +88,6 @@ suite('SessionsApplicationBadge', () => {
 
 		const nativeHost = new TestNativeHostService();
 		const blockedSessions = new TestBlockedSessions();
-		blockedSessions.setSessions(sessions.filter(session => !session.isArchived.get() && session.status.get() === SessionStatus.NeedsInput));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stubInstance(BlockedSessions, blockedSessions);
 
@@ -120,7 +116,7 @@ suite('SessionsApplicationBadge', () => {
 			new TestConfigurationService({ [SESSIONS_APPLICATION_BADGE_SETTING]: true }),
 		);
 
-		blockedSessions.setSessions([needsInput.session, failingCI.session]);
+		blockedSessions.setFailingCISessions([failingCI.session]);
 
 		assert.deepStrictEqual({
 			defaults: SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT,
@@ -133,25 +129,29 @@ suite('SessionsApplicationBadge', () => {
 
 	for (const { options, expectedCount } of [
 		{ options: { inputNeeded: false, unread: false, ciFailing: false }, expectedCount: 0 },
-		{ options: { inputNeeded: true, unread: false, ciFailing: false }, expectedCount: 2 },
-		{ options: { inputNeeded: false, unread: true, ciFailing: false }, expectedCount: 3 },
-		{ options: { inputNeeded: false, unread: false, ciFailing: true }, expectedCount: 2 },
-		{ options: { inputNeeded: true, unread: true, ciFailing: false }, expectedCount: 4 },
-		{ options: { inputNeeded: true, unread: false, ciFailing: true }, expectedCount: 4 },
-		{ options: { inputNeeded: false, unread: true, ciFailing: true }, expectedCount: 4 },
-		{ options: { inputNeeded: true, unread: true, ciFailing: true }, expectedCount: 5 },
+		{ options: { inputNeeded: true, unread: false, ciFailing: false }, expectedCount: 4 },
+		{ options: { inputNeeded: false, unread: true, ciFailing: false }, expectedCount: 4 },
+		{ options: { inputNeeded: false, unread: false, ciFailing: true }, expectedCount: 4 },
+		{ options: { inputNeeded: true, unread: true, ciFailing: false }, expectedCount: 6 },
+		{ options: { inputNeeded: true, unread: false, ciFailing: true }, expectedCount: 6 },
+		{ options: { inputNeeded: false, unread: true, ciFailing: true }, expectedCount: 6 },
+		{ options: { inputNeeded: true, unread: true, ciFailing: true }, expectedCount: 7 },
 	]) {
 		test(`counts each matching session once with ${JSON.stringify(options)}`, () => {
 			const needsInput = createSession('needs-input', { status: SessionStatus.NeedsInput });
 			const unreadNeedsInput = createSession('unread-needs-input', { status: SessionStatus.NeedsInput, isRead: false });
 			const failingCI = createSession('failing-ci', {});
 			const unreadFailingCI = createSession('unread-failing-ci', { isRead: false });
+			const needsInputFailingCI = createSession('needs-input-failing-ci', { status: SessionStatus.NeedsInput });
+			const unreadNeedsInputFailingCI = createSession('unread-needs-input-failing-ci', { status: SessionStatus.NeedsInput, isRead: false });
 			const archivedFailingCI = createSession('archived-failing-ci', { isArchived: true });
 			const { nativeHost, blockedSessions } = createBadge([
 				needsInput.session,
 				unreadNeedsInput.session,
 				failingCI.session,
 				unreadFailingCI.session,
+				needsInputFailingCI.session,
+				unreadNeedsInputFailingCI.session,
 				archivedFailingCI.session,
 				createSession('unread', { isRead: false }).session,
 				createSession('archived-input', { status: SessionStatus.NeedsInput, isRead: false, isArchived: true }).session,
@@ -160,7 +160,7 @@ suite('SessionsApplicationBadge', () => {
 				createSession('idle', {}).session,
 			], true, options);
 
-			blockedSessions.setSessions([needsInput.session, unreadNeedsInput.session, failingCI.session, unreadFailingCI.session, archivedFailingCI.session]);
+			blockedSessions.setFailingCISessions([failingCI.session, unreadFailingCI.session, needsInputFailingCI.session, unreadNeedsInputFailingCI.session, archivedFailingCI.session]);
 
 			assert.strictEqual(nativeHost.badges.at(-1)?.count ?? 0, expectedCount);
 		});
@@ -191,7 +191,7 @@ suite('SessionsApplicationBadge', () => {
 		const failingCI = createSession('failing-ci', {});
 		const { nativeHost, blockedSessions } = createBadge([failingCI.session], true, { ciFailing: true });
 
-		blockedSessions.setSessions([failingCI.session]);
+		blockedSessions.setFailingCISessions([failingCI.session]);
 
 		assert.deepStrictEqual(nativeHost.badges.map(badge => ({ count: badge?.count, description: badge?.description })), [
 			{ count: 1, description: '1 session needs your attention' }
@@ -215,7 +215,7 @@ suite('SessionsApplicationBadge', () => {
 			createSession('unread-2', { isRead: false }).session,
 			...failingCI,
 		]);
-		blockedSessions.setSessions(failingCI);
+		blockedSessions.setFailingCISessions(failingCI);
 
 		for (const options of [
 			{ inputNeeded: false, unread: true, ciFailing: false },

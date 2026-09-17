@@ -19,7 +19,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { BlockedSessionReason, BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
 export const SESSIONS_APPLICATION_BADGE_DEFAULT = product.quality !== 'stable';
@@ -76,9 +76,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 
 			const options = badgeOptions.read(reader);
 			const ciFailingSessionIds = options.ciFailing
-				? new Set(this._blockedSessions.blockedSessionsWithReasons.read(reader)
-					.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
-					.map(blocked => blocked.session.sessionId))
+				? new Set(this._blockedSessions.failingCISessions.read(reader).map(session => session.sessionId))
 				: undefined;
 			let count = 0;
 			for (const session of this._sessions.read(reader)) {
