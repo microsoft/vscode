@@ -42,6 +42,12 @@ All three VS Code channels converge in `AccountPolicyService.getPolicyData()`.
 
 **Sandbox routing exception:** `sandbox.enabled` follows the runtime's `force-on-wins` contract: `true` from any managed channel wins over `false` from another channel. The shared resolver supplies this result to harness selection, permissions UI, and Policy Diagnostics; runtime enforcement remains authoritative. Other keys retain their existing delivery-channel precedence.
 
+**Sandbox routing exception:** `sandbox.enabled` follows the runtime's `force-on-wins`
+contract: `true` from any managed channel wins over `false` from another channel.
+The shared resolver supplies this result to harness selection, permissions UI, and
+Policy Diagnostics; runtime enforcement remains authoritative. Other keys retain
+their existing delivery-channel precedence.
+
 ## Schema source of truth
 
 When the developer has `copilot-agent-runtime` checked out side-by-side, reference `copilot-agent-runtime/schema/managed-settings-schema.json` as the authoritative shape. It is aligned with the `managed_settings` API output and is the schema for all delivery channels (MDM plist/registry, file-based, server-managed). The runtime schema also contains keys that VS Code never projects because their behavior is runtime-owned. The table below contains selected VS Code-projected examples with non-obvious composition or encoding. It is not an inventory; derive the current key set from policy declarations and the runtime schema.
