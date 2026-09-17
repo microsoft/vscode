@@ -3,12 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+interface QueuedTask {
+	readonly kind: 'task';
+	readonly epoch: number;
+	readonly run: () => Promise<void>;
+	readonly complete: () => void;
+}
+
+interface QueuedBarrier {
+	readonly kind: 'barrier';
+	readonly run: (epoch: number) => Promise<void> | void;
+	readonly complete: () => void;
+}
+
 /**
  * Serializes tasks against an authoritative epoch and converts task failures into recovery.
  * Current-epoch failures advance the epoch and invoke recovery before later tasks run.
  */
 export class RecoveringTaskQueue {
-	#queue = Promise.resolve();
+	readonly #pending: (QueuedTask | QueuedBarrier)[] = [];
+	#tail = Promise.resolve();
+	#processing = false;
 	#epoch = 0;
 	readonly #onError: (error: unknown, epoch: number) => Promise<void>;
 	readonly #onRecoveryError: (error: unknown) => void;
@@ -33,10 +48,11 @@ export class RecoveringTaskQueue {
 	}
 
 	/**
-	 * Resolves after all work queued before this call, including any recovery it triggers, has completed.
+	 * Resolves after the current queue tail, including its recovery, has completed.
+	 * A pending barrier also waits for current-epoch tasks accepted before it starts.
 	 */
 	drain(): Promise<void> {
-		return this.#queue;
+		return this.#tail;
 	}
 
 	/**
@@ -51,40 +67,93 @@ export class RecoveringTaskQueue {
 	 * A current-epoch failure advances the epoch and awaits recovery before later work runs.
 	 */
 	enqueue(epoch: number, task: () => Promise<void>): Promise<void> {
-		this.#queue = this.#queue.then(async () => {
-			if (epoch !== this.#epoch) {
-				return;
-			}
-			try {
-				await task();
-			} catch (error) {
-				if (epoch !== this.#epoch) {
-					return;
-				}
-				const recoveryEpoch = this.invalidate();
-				try {
-					await this.#onError(error, recoveryEpoch);
-				} catch (recoveryError) {
-					this.#onRecoveryError(recoveryError);
-				}
-			}
-		});
-		return this.#queue;
+		let complete!: () => void;
+		const completion = new Promise<void>(resolve => complete = resolve);
+		const entry = {
+			kind: 'task' as const,
+			epoch,
+			run: task,
+			complete,
+		};
+		const barrierIndex = this.#pending.findIndex(candidate => candidate.kind === 'barrier');
+		if (barrierIndex >= 0) {
+			this.#pending.splice(barrierIndex, 0, entry);
+		} else {
+			this.#pending.push(entry);
+			this.#tail = completion;
+		}
+		this.#process();
+		return completion;
 	}
 
 	/**
-	 * Runs after previously queued work and advances the epoch immediately before invoking the task.
-	 * This preserves accepted work while invalidating later tasks computed from the previous state.
+	 * Runs once the current epoch has no pending tasks, then advances the epoch before invoking the barrier.
+	 * Current-epoch tasks accepted while the barrier waits run before it; later stale tasks are skipped.
 	 */
 	enqueueBarrier(task: (epoch: number) => Promise<void> | void): Promise<void> {
-		this.#queue = this.#queue.then(async () => {
-			const epoch = this.invalidate();
-			try {
-				await task(epoch);
-			} catch (error) {
-				this.#onRecoveryError(error);
-			}
+		let complete!: () => void;
+		const completion = new Promise<void>(resolve => complete = resolve);
+		this.#pending.push({
+			kind: 'barrier',
+			run: task,
+			complete,
 		});
-		return this.#queue;
+		this.#tail = completion;
+		this.#process();
+		return completion;
+	}
+
+	#process(): void {
+		if (this.#processing) {
+			return;
+		}
+		this.#processing = true;
+		void this.#processPending();
+	}
+
+	async #processPending(): Promise<void> {
+		try {
+			while (this.#pending.length) {
+				const entry = this.#pending.shift()!;
+				try {
+					if (entry.kind === 'task') {
+						await this.#runTask(entry.epoch, entry.run);
+					} else {
+						const epoch = this.invalidate();
+						try {
+							await entry.run(epoch);
+						} catch (error) {
+							this.#onRecoveryError(error);
+						}
+					}
+				} finally {
+					entry.complete();
+				}
+			}
+		} finally {
+			this.#processing = false;
+			if (this.#pending.length) {
+				this.#process();
+			}
+		}
+	}
+
+	async #runTask(epoch: number, task: () => Promise<void>): Promise<void> {
+		if (epoch !== this.#epoch) {
+			return;
+		}
+		try {
+			await task();
+		} catch (error) {
+			if (epoch !== this.#epoch) {
+				return;
+			}
+			const recoveryEpoch = this.invalidate();
+			try {
+				await this.#onError(error, recoveryEpoch);
+			} catch (recoveryError) {
+				this.#onRecoveryError(recoveryError);
+			}
+		}
 	}
 }
