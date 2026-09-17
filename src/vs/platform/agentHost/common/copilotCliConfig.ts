@@ -38,9 +38,7 @@ export const enum CopilotCliConfigKey {
 	HydraFusion = 'hydraFusion',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
-	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
-	AutoModeTiers = 'autoModeTiers',
-	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
+	/** Override Auto's "Optimize for" preference. */
 	AutoModeTierOverride = 'autoModeTierOverride',
 	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
 	SubagentModelGuidance = 'subagentModelGuidance',
@@ -75,12 +73,7 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
-export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
-
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
-
-/** Applied to the shared setting's default by the workbench configuration service. */
-export const AutoModeTiersExperimentName = 'copilotchat.autoModeTiersEnabled';
 
 export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
@@ -227,16 +220,10 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.skillCharBudget.description', "Maximum number of characters available for skill descriptions in the Copilot SDK system message."),
 		default: DEFAULT_COPILOT_SKILL_CHAR_BUDGET,
 	}),
-	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.autoModeTiers.title', "Auto Optimize for"),
-		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker with Efficiency, Balance, and Intelligence options. You can change the preference during a session. When disabled, the service chooses how to route unless an override is configured."),
-		default: false,
-	}),
 	[CopilotCliConfigKey.AutoModeTierOverride]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
-		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference, even when the picker is disabled. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
+		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
 		default: '',
 	}),
 	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
