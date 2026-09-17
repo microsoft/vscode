@@ -106,6 +106,21 @@ suite('CustomizationMigrationDashboard', () => {
 		});
 	});
 
+	test('moves initial loading focus to the first review action when the overview loads', () => {
+		const { dashboard } = createDashboard();
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.focus();
+		const loadingFocus = document.activeElement?.textContent;
+		dashboard.showOverview(overview());
+		assert.deepStrictEqual({
+			loadingFocus,
+			overviewFocus: document.activeElement?.getAttribute('aria-label'),
+		}, {
+			loadingFocus: 'Migrations',
+			overviewFocus: 'Review Prompts to skills from Your profile',
+		});
+	});
+
 	test('skipping and including workspace preserves focus through loading and hides its categories', () => {
 		let model = overview();
 		const { parent, dashboard } = createDashboard({

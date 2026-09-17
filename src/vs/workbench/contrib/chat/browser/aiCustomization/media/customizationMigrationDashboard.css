@@ -171,7 +171,7 @@
 
 .customization-migration-dashboard .migration-attention {
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent);
-	color: var(--vscode-editorWarning-foreground);
+	color: var(--vscode-list-warningForeground);
 }
 
 .customization-migration-dashboard .monaco-button {
