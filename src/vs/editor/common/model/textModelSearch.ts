@@ -100,13 +100,14 @@ export function isMultilineRegexSource(searchString: string): boolean {
 
 export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
 	if (!captureMatches) {
-		return new FindMatch(range, null);
+		return new FindMatch(range, null, null);
 	}
 	const matches: string[] = [];
 	for (let i = 0, len = rawMatches.length; i < len; i++) {
 		matches[i] = rawMatches[i];
 	}
-	return new FindMatch(range, matches);
+	const groups = rawMatches.groups ? { ...rawMatches.groups } : null;
+	return new FindMatch(range, matches, groups);
 }
 
 class LineFeedCounter {
