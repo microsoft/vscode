@@ -20,7 +20,7 @@ import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
-import type { ThinkingData, ThinkingOrigin } from '../../../thinking/common/thinking';
+import type { ThinkingData, ThinkingOriginApi } from '../../../thinking/common/thinking';
 import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { MISSING_STATEFUL_TOOL_RESULT } from '../../common/statefulMarkerContainer';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
@@ -101,12 +101,12 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 	}]
 });
 
-const createThinkingAssistantMessage = (thinking: ThinkingData, origin?: ThinkingOrigin): Raw.ChatMessage => ({
+const createThinkingAssistantMessage = (thinking: ThinkingData, originApi?: ThinkingOriginApi): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
 			type: Raw.ChatCompletionContentPartKind.Opaque,
-			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking, origin },
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking, originApi },
 		},
 		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
 	],
@@ -389,7 +389,7 @@ describe('createResponsesRequestBody', () => {
 		const id = 'CzDhIBSZ31VSyW6rYILnFerwKDkArecaC';
 		const messages = [createThinkingAssistantMessage(
 			{ id, text: 'reasoning', encrypted: 'enc_blob' },
-			{ api: 'responses', modelId: testEndpoint.model },
+			'responses',
 		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
@@ -408,26 +408,7 @@ describe('createResponsesRequestBody', () => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const messages = [createThinkingAssistantMessage(
 			{ id: 'rs_looks_legit', text: '', encrypted: 'sig_from_anthropic' },
-			{ api: 'messages', modelId: testEndpoint.model },
-		)];
-
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
-
-		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('drops Responses reasoning issued by a different model', () => {
-		// Encrypted reasoning is model-scoped opaque state. This is the gate the `vscode.lm`
-		// path never had of its own.
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const messages = [createThinkingAssistantMessage(
-			{ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' },
-			{ api: 'responses', modelId: 'some-other-model' },
+			'messages',
 		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
@@ -463,7 +444,7 @@ describe('createResponsesRequestBody', () => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const messages = [createThinkingAssistantMessage(
 			{ id: 'rs_abc123', text: 'summary only' },
-			{ api: 'responses', modelId: testEndpoint.model },
+			'responses',
 		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));

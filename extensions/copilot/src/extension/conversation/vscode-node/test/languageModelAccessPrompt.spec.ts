@@ -73,7 +73,7 @@ describe('LanguageModelAccessPrompt', () => {
 		});
 	});
 
-	test('collapses vscode.lm provenance metadata back into an envelope origin', async () => {
+	test('reads vscode.lm provenance metadata back onto the envelope', async () => {
 		// `vscode.lm` transports thinking as flat parts with no envelope, so provenance rides
 		// per-part metadata. Losing it here is what forced the request builder to guess from the
 		// payload's id, which silently dropped reasoning whose id had no `rs` prefix.
@@ -81,11 +81,10 @@ describe('LanguageModelAccessPrompt', () => {
 		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
 		const accessor = services.createTestingAccessor();
 		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, 'gpt-5');
-		const origin = { api: 'responses', modelId: 'gpt-5' } as const;
 		const message = {
 			role: LanguageModelChatMessageRole.Assistant,
 			content: [
-				new LanguageModelThinkingPart('a1', 'CzDhIBSZ31', { encrypted_content: 'opaque-a', ...thinkingOriginToMetadata(origin) }),
+				new LanguageModelThinkingPart('a1', 'CzDhIBSZ31', { encrypted_content: 'opaque-a', ...thinkingOriginToMetadata('responses') }),
 			],
 			name: undefined,
 		};
@@ -109,11 +108,10 @@ describe('LanguageModelAccessPrompt', () => {
 				metadata: {
 					encrypted_content: 'opaque-a',
 					vscode_thinking_origin_api: 'responses',
-					vscode_thinking_origin_model: 'gpt-5',
 				},
 				encrypted: 'opaque-a',
 			},
-			origin,
+			originApi: 'responses',
 		}]);
 	});
 });

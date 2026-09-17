@@ -83,20 +83,14 @@ export interface ThinkingData {
 	redacted?: boolean;
 }
 
-/** The wire protocol that produced a thinking payload. Mirrors `IChatEndpoint.apiType`. */
-export type ThinkingOriginApi = 'responses' | 'messages' | 'chatCompletions';
-
 /**
- * Identifies the request that produced a thinking payload.
+ * The wire protocol that produced a thinking payload. Mirrors `IChatEndpoint.apiType`.
  *
- * Encrypted reasoning is opaque provider state, so it may only be replayed to the API and
- * model that issued it. The id is not a usable substitute for provenance: id formats are
- * provider conventions, not protocol guarantees.
+ * Encrypted reasoning is opaque protocol state, so it may only be replayed to the API that
+ * issued it. The payload's id is not a usable substitute: id formats are provider
+ * conventions, not protocol guarantees.
  */
-export interface ThinkingOrigin {
-	readonly api: ThinkingOriginApi;
-	readonly modelId: string;
-}
+export type ThinkingOriginApi = 'responses' | 'messages' | 'chatCompletions';
 
 const thinkingOriginApis: readonly string[] = ['responses', 'messages', 'chatCompletions'];
 
@@ -110,20 +104,14 @@ export function asThinkingOriginApi(value: unknown): ThinkingOriginApi | undefin
 
 /**
  * `vscode.lm` transports thinking as flat parts with no envelope, so provenance has to ride
- * per-part metadata and be collapsed back into an envelope on the way in.
+ * per-part metadata and be read back off it on the way in.
  */
 export const thinkingOriginApiMetadataKey = 'vscode_thinking_origin_api';
-export const thinkingOriginModelMetadataKey = 'vscode_thinking_origin_model';
 
-export function thinkingOriginToMetadata(origin: ThinkingOrigin): { [key: string]: string } {
-	return {
-		[thinkingOriginApiMetadataKey]: origin.api,
-		[thinkingOriginModelMetadataKey]: origin.modelId,
-	};
+export function thinkingOriginToMetadata(originApi: ThinkingOriginApi): { [key: string]: string } {
+	return { [thinkingOriginApiMetadataKey]: originApi };
 }
 
-export function thinkingOriginFromMetadata(metadata: { readonly [key: string]: any } | undefined): ThinkingOrigin | undefined {
-	const api = asThinkingOriginApi(metadata?.[thinkingOriginApiMetadataKey]);
-	const modelId = metadata?.[thinkingOriginModelMetadataKey];
-	return api && typeof modelId === 'string' && modelId ? { api, modelId } : undefined;
+export function thinkingOriginFromMetadata(metadata: { readonly [key: string]: any } | undefined): ThinkingOriginApi | undefined {
+	return asThinkingOriginApi(metadata?.[thinkingOriginApiMetadataKey]);
 }

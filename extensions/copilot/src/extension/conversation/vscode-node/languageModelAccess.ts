@@ -897,10 +897,10 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
 		let thinkingActive = false;
-		// Tag encrypted reasoning with the API and model that produced it so a consumer can tell
-		// whether it may be replayed, rather than having to guess from the payload's id.
+		// Tag encrypted reasoning with the API that produced it so a consumer can tell whether it
+		// may be replayed, rather than having to guess from the payload's id.
 		const originApi = asThinkingOriginApi(endpoint.apiType);
-		const originMetadata = originApi ? thinkingOriginToMetadata({ api: originApi, modelId: endpoint.model }) : undefined;
+		const originMetadata = originApi ? thinkingOriginToMetadata(originApi) : undefined;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
 				if (isEncryptedThinkingDelta(delta.thinking)) {

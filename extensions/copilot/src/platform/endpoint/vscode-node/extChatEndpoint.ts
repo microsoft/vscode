@@ -387,11 +387,11 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: Co
 				}
 				const thinkingEnvelope = rawPartAsThinkingEnvelope(contentPart);
 				if (thinkingEnvelope) {
-					const { thinking, origin } = thinkingEnvelope;
+					const { thinking, originApi } = thinkingEnvelope;
 					// `vscode.lm` has no envelope, so provenance rides per-part metadata and is
-					// collapsed back into an envelope by the receiving side.
-					const metadata = origin
-						? { ...thinking.metadata, ...thinkingOriginToMetadata(origin) }
+					// read back off it by the receiving side.
+					const metadata = originApi
+						? { ...thinking.metadata, ...thinkingOriginToMetadata(originApi) }
 						: thinking.metadata;
 					apiContent.push(new vscode.LanguageModelThinkingPart(thinking.text, thinking.id, metadata));
 				}

@@ -421,7 +421,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
 					input.push(...extractCompactionData(message.content));
-					input.push(...extractThinkingData(message.content, modelId));
+					input.push(...extractThinkingData(message.content));
 					const asstContent = message.content.map(rawContentToResponsesAssistantContent).filter(isDefined);
 					if (asstContent.length) {
 						const assistantMessage: ResponseInputAssistantMessageWithPhase = {
@@ -654,36 +654,32 @@ function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionCont
 }
 
 /**
- * Encrypted reasoning is opaque provider state, so it may only be replayed to the API and
- * model that issued it. Replaying a foreign payload fails the entire request with
+ * Encrypted reasoning is opaque protocol state, so it may only be replayed to the API that
+ * issued it. Replaying a foreign payload fails the entire request with
  * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
  *
- * Provenance is recorded on the thinking envelope when a round is created, so the check is
- * on where the payload came from rather than what its id looks like. An id-prefix test is not
+ * Provenance is recorded on the thinking envelope when a round is created, so the check is on
+ * which API produced the payload rather than what its id looks like. An id-prefix test is not
  * a usable substitute: CAPI's production `/responses` endpoint issues reasoning ids that do
  * not begin with `rs`, so testing the prefix silently drops valid reasoning between tool
  * calls — the model then re-derives work it had already done.
  *
- * The model check is what keeps foreign thinking (e.g. Anthropic `thinking_<index>` blocks)
- * out of a Responses request, including over the `vscode.lm` path which has no model gate of
- * its own.
- *
  * Rounds persisted before provenance tracking carry no origin. Those fall back to the
  * historical `rs` prefix test, which preserves the previous behavior for existing history.
  */
-function canReplayAsResponsesReasoning(envelope: IThinkingEnvelope, destinationModelId: string): boolean {
-	const { thinking, origin } = envelope;
-	if (origin) {
-		return origin.api === 'responses' && origin.modelId === destinationModelId;
+function canReplayAsResponsesReasoning(envelope: IThinkingEnvelope): boolean {
+	const { thinking, originApi } = envelope;
+	if (originApi) {
+		return originApi === 'responses';
 	}
 	return typeof thinking.id === 'string' && thinking.id.startsWith('rs');
 }
 
-function extractThinkingData(content: Raw.ChatCompletionContentPart[], destinationModelId: string): OpenAI.Responses.ResponseReasoningItem[] {
+function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const envelope = rawPartAsThinkingEnvelope(part);
-			if (envelope?.thinking.encrypted && canReplayAsResponsesReasoning(envelope, destinationModelId)) {
+			if (envelope?.thinking.encrypted && canReplayAsResponsesReasoning(envelope)) {
 				return {
 					type: 'reasoning',
 					id: envelope.thinking.id,

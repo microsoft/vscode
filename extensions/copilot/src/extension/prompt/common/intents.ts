@@ -54,9 +54,8 @@ export interface IToolCallRound {
 	/** The model ID. */
 	modelId?: string;
 	/**
-	 * The API protocol that produced this round's `thinking`. Together with `modelId` this
-	 * identifies the origin of any encrypted reasoning, which may only be replayed to the
-	 * API and model that issued it.
+	 * The API protocol that produced this round's `thinking`. Identifies the origin of any
+	 * encrypted reasoning, which may only be replayed to the API that issued it.
 	 */
 	originApi?: ThinkingOriginApi;
 }
