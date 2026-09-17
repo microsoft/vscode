@@ -5,6 +5,7 @@
 
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { pauseCSSAnimationsWhenHidden, synchronizeCSSAnimations } from '../../../../../base/browser/animationSync.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
@@ -299,6 +300,7 @@ const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
 	private static readonly ITEM_HEIGHT_COMPACT = 28;
+	private static readonly INPUT_NEEDED_ROW_HEIGHT = 32;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
@@ -327,6 +329,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly _isPhone: () => boolean,
 		private readonly _isCompact: () => boolean,
+		private readonly _getSessionStatus: (session: ISession) => SessionStatus,
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
 		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
 		private readonly _useCompactQuickChatRows = true,
@@ -379,14 +382,19 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		} else {
 			height = SessionsTreeDelegate.ITEM_HEIGHT;
 		}
+		const session = element as ISession;
+		let approval: IAgentSessionApprovalInfo | undefined;
 		if (this._approvalModel) {
 			// In the main tree only the main chat's approval renders on the session
 			// row (nested/side chats surface theirs on their own rows); flat lists
 			// with no chat rows aggregate an approval from any of the session's chats.
-			const approval = getSessionRowApproval(this._approvalModel, element as ISession, undefined, this._aggregateChatApprovals);
+			approval = getSessionRowApproval(this._approvalModel, session, undefined, this._aggregateChatApprovals);
 			if (approval) {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
 			}
+		}
+		if (!approval && this._isCompact() && this._getSessionStatus(session) === SessionStatus.NeedsInput) {
+			height += SessionsTreeDelegate.INPUT_NEEDED_ROW_HEIGHT;
 		}
 		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
@@ -709,6 +717,36 @@ function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLi
 	return info ? SessionItemRenderer.getApprovalRowHeight(info.label, maxLines) : 0;
 }
 
+interface ICompactInputNeededPresentationOptions {
+	readonly compact?: () => boolean;
+	readonly deriveStatusFromMainChat?: boolean;
+	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
+	readonly aggregateChatApprovals?: boolean;
+}
+
+function getCompactInputNeededMessage(
+	session: ISession,
+	reader: IReader | undefined,
+	options: ICompactInputNeededPresentationOptions,
+	approvalModel: AgentSessionApprovalModel | undefined,
+): ReturnType<typeof getSessionStatusMessage> {
+	if (!options.compact?.()) {
+		return undefined;
+	}
+	const sessionStatus = getSessionRowStatus(
+		session,
+		reader,
+		!!options.deriveStatusFromMainChat,
+		options.collapsedSessionIds?.read(reader).has(session.sessionId) ?? true,
+	);
+	const approval = approvalModel
+		? getSessionRowApproval(approvalModel, session, reader, options.aggregateChatApprovals ?? false)
+		: undefined;
+	return sessionStatus === SessionStatus.NeedsInput && !approval
+		? getSessionStatusMessage(sessionStatus, session.description.read(reader))
+		: undefined;
+}
+
 /**
  * Renders a pending approval's label (and, when requested, a hover with the
  * full content) plus an "Allow" button into the given row elements. Shared by
@@ -884,6 +922,8 @@ interface ISessionItemTemplate {
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
+	readonly inputNeededRow: HTMLElement;
+	readonly inputNeededLabel: HTMLElement;
 	readonly ciRow: HTMLElement;
 	readonly ciLabel: HTMLElement;
 	readonly ciButtonContainer: HTMLElement;
@@ -1054,6 +1094,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const approvalLabel = DOM.append(approvalRow, $('span.session-approval-label'));
 		const approvalButtonContainer = DOM.append(approvalRow, $('.session-approval-button'));
 
+		const inputNeededRow = DOM.append(mainCol, $('.session-input-needed-row.session-approval-row'));
+		inputNeededRow.setAttribute('aria-hidden', 'true');
+		const inputNeededLabel = DOM.append(inputNeededRow, $('span.session-input-needed-label'));
+
 		// Fix-CI row — shown only in the blocked-sessions list for sessions whose
 		// pull request has failing CI checks. Styled like the chat input's CI banner.
 		const ciRow = DOM.append(mainCol, $('.session-ci-row'));
@@ -1102,7 +1146,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1398,11 +1442,46 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.approvalModel) {
 			this.renderApprovalRow(element, template);
 		}
+		this.renderCompactInputNeededRow(element, template);
 
 		// Fix-CI row — reactive (only supplied by the blocked-sessions list)
 		if (this.ciFixModel) {
 			this.renderCIRow(element, template);
 		}
+	}
+
+	private renderCompactInputNeededRow(element: ISession, template: ISessionItemTemplate): void {
+		const contentStore = template.elementDisposables.add(new DisposableStore());
+		let wasVisible = !!getCompactInputNeededMessage(element, undefined, this.options, this.approvalModel);
+		template.inputNeededRow.classList.toggle('visible', wasVisible);
+
+		template.elementDisposables.add(autorun(reader => {
+			contentStore.clear();
+			const message = getCompactInputNeededMessage(element, reader, this.options, this.approvalModel);
+			const visible = !!message;
+			template.inputNeededRow.classList.toggle('visible', visible);
+			template.inputNeededLabel.textContent = '';
+
+			if (message) {
+				if (typeof message === 'string') {
+					template.inputNeededLabel.textContent = message;
+				} else {
+					contentStore.add(this.markdownRendererService.render(message, { sanitizerConfig: { replaceWithPlaintext: true } }, template.inputNeededLabel));
+				}
+				if (this.options.showHover) {
+					contentStore.add(this.hoverService.setupDelayedHover(template.inputNeededLabel, {
+						content: message,
+						style: HoverStyle.Pointer,
+						position: { hoverPosition: HoverPosition.BELOW },
+					}));
+				}
+			}
+
+			if (wasVisible !== visible) {
+				wasVisible = visible;
+				this._onDidChangeItemHeight.fire(element);
+			}
+		}));
 	}
 
 	private renderApprovalRow(element: ISession, template: ISessionItemTemplate): void {
@@ -2134,7 +2213,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 //#region Accessibility
 
-interface ISessionsAccessibilityProviderOptions {
+interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPresentationOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
@@ -2145,6 +2224,7 @@ interface ISessionsAccessibilityProviderOptions {
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
+	readonly approvalModel?: AgentSessionApprovalModel;
 }
 
 class SessionsAccessibilityProvider {
@@ -2228,6 +2308,12 @@ class SessionsAccessibilityProvider {
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			const inputNeededMessage = this.options
+				? getCompactInputNeededMessage(element, reader, this.options, this.options.approvalModel)
+				: undefined;
+			if (inputNeededMessage) {
+				label = localize('sessionItemInputNeededMessageAria', "{0}, {1}", label, renderAsPlaintext(inputNeededMessage, { omitMarkdownSyntax: true }));
 			}
 			const workspace = element.workspace.read(reader);
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
@@ -3068,6 +3154,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			approvalModel,
 			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
 			() => this.isCompact(),
+			session => getSessionRowStatus(session, undefined, true, this.collapsedSessionIds.get().has(session.sessionId)),
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
 			undefined,
 			true /* useCompactQuickChatRows */,
@@ -3094,6 +3181,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					grouping: this.options.grouping,
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
+					compact: () => this.isCompact(),
+					approvalModel,
+					aggregateChatApprovals: false,
 					deriveStatusFromMainChat: true,
 					collapsedSessionIds: this.collapsedSessionIds,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
@@ -5303,7 +5393,7 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, session => session.status.get(), this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
