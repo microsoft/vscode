@@ -60,7 +60,7 @@ gh api --paginate "repos/microsoft/vscode/commits/$HEAD/check-runs?per_page=100"
 
 When active workflow jobs remain and waiting is useful, run `gh pr checks --watch --fail-fast` for at most one minute, using the execution environment to terminate the process at that deadline. `gh` has no timeout flag; do not rely on its watch to return by itself.
 
-After each one-minute interval, run the classification query again. Start another interval only while active workflow jobs remain and the task's overall wait budget has not expired. Stop immediately when a check fails, only policy/approval gates remain, or the overall budget expires. This preserves `--fail-fast` without letting unrelated pending checks hold the agent indefinitely.
+After each one-minute interval, run the classification query again. Start another interval only while active workflow jobs remain and an explicitly configured finite overall wait budget has not expired; if no such budget is configured, do not start another interval. Stop immediately when a check fails, only policy/approval gates remain, or the overall budget expires. This preserves `--fail-fast` without letting unrelated pending checks hold the agent indefinitely.
 
 ---
 
