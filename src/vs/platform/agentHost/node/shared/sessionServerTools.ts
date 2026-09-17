@@ -34,7 +34,7 @@ const maxSessionSpawnDepth = 3;
 const maxCreatedSessions = 25;
 const maxCreatedChats = 25;
 
-/** Process-wide backstop against runaway `send_message` fan-out. */
+/** Per-originating-turn backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 50;
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
@@ -1509,7 +1509,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor): IServerToolGroup {
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
-	let sentMessageCount = 0;
+	const sentMessageCountsBySourceChat = new Map<ProtocolURI, { readonly turnId: string | undefined; readonly count: number }>();
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
@@ -1573,11 +1573,13 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
+					const previousCount = sentMessageCountsBySourceChat.get(currentChannel);
+					const sentMessageCount = previousCount && previousCount.turnId === context.turnId ? previousCount.count : 0;
 					if (sentMessageCount >= maxSentMessages) {
-						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
+						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in one turn.`);
 					}
 					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
-					sentMessageCount++;
+					sentMessageCountsBySourceChat.set(currentChannel, { turnId: context.turnId, count: sentMessageCount + 1 });
 					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
