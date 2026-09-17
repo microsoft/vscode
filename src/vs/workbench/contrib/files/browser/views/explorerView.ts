@@ -407,7 +407,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 	}
 
-	override focus(): void {
+		override focus(): void {
 		super.focus();
 		this.tree.domFocus();
 
