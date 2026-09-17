@@ -235,12 +235,11 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			&& this.configurationService.getValue<boolean>(AgentHostAgentDebugLogEnabledSettingId)
 			&& this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
 			&& this.configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		this.diagnosticsConfigurationButton.element.toggleAttribute('hidden', configured && !this.diagnosticsConfigurationInProgress);
 		this.diagnosticsConfigurationButton.label = this.diagnosticsConfigurationInProgress
 			? localize('agentDiagnostics.configuring', "Configuring Diagnostics...")
-			: configured
-				? localize('agentDiagnostics.configured', "Diagnostics Configured")
-				: localize('agentDiagnostics.configure', "Configure Diagnostics");
-		this.diagnosticsConfigurationButton.enabled = !this.diagnosticsConfigurationInProgress && !configured;
+			: localize('agentDiagnostics.configure', "Configure Diagnostics");
+		this.diagnosticsConfigurationButton.enabled = !this.diagnosticsConfigurationInProgress;
 	}
 
 	private createTab(parent: HTMLElement, tab: DiagnosticsTab, label: string, panelId: string): void {

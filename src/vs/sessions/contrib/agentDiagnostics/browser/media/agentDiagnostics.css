@@ -56,6 +56,10 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.agent-diagnostics-tabs .agent-diagnostics-configure-button.monaco-button[hidden] {
+	display: none;
+}
+
 .agent-diagnostics-content {
 	display: flex;
 	flex: 1;
