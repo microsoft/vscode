@@ -43,7 +43,7 @@ export class Extension extends vscode.Disposable {
 	private _updateNpmFeature(): void {
 		const enabled = vscode.workspace.getConfiguration('vscode-extras').get<boolean>('npmUpToDateFeature.enabled', true);
 		if (enabled && !this._npmFeature) {
-			this._npmFeature = new NpmUpToDateFeature(this._output);
+			this._npmFeature = new NpmUpToDataFeature(this._output);
 			this._output.info('NpmUpToDateFeature enabled.');
 		} else if (!enabled && this._npmFeature) {
 			this._npmFeature.dispose();
