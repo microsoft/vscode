@@ -13,6 +13,16 @@ const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enable
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
 const sendExtensionData = escape(localize('sendExtensionData', "Include additional extension info"));
 const acknowledgementsLabel = escape(localize('acknowledgements', "I acknowledge that my VS Code version is not updated and this issue may be closed."));
+const insidersBannerLabel = localize( // intentionally not escaped because of its embedded link
+	{
+		key: 'insidersBannerLabel',
+		comment: [
+			'{Locked="<a href=\"https://aka.ms/vscode-insiders\" id=\"insiders-link\" target=\"_blank\">"}',
+			'{Locked="</a>"}'
+		]
+	},
+	'Before reporting, please test your issue in the latest <a href="https://aka.ms/vscode-insiders" id="insiders-link" target="_blank">VS Code Insiders</a> build — many bugs in stable are already fixed there.'
+);
 const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
 	{
 		key: 'reviewGuidanceLabel',
@@ -29,6 +39,9 @@ export default (): string => `
 	<span class="update-banner-text" id="update-banner-text">
 		<!-- To be dynamically filled -->
 	</span>
+</div>
+<div id="insiders-banner" class="issue-reporter-update-banner hidden">
+	${insidersBannerLabel}
 </div>
 <div class="issue-reporter" id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
