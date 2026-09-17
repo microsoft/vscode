@@ -7,13 +7,12 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { BranchPicker as SharedBranchPicker } from '../../../chat/browser/branchPicker.js';
-import { SessionIsolationPickerVisibleContext } from '../../../../common/contextkeys.js';
+import { ISessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession } from './copilotChatSessionsProvider.js';
@@ -24,7 +23,6 @@ import { CopilotChatSessionsProvider, ICopilotChatSession } from './copilotChatS
  */
 export class BranchPicker extends Disposable {
 	private readonly _picker: SharedBranchPicker;
-	private readonly _visibleKey: IContextKey<boolean>;
 	private _hasGitRepo = false;
 	private _isolationOptionEnabled: boolean;
 	private _rendered = false; // Guards context key until DOM exists (#323361)
@@ -32,15 +30,14 @@ export class BranchPicker extends Disposable {
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionInputPickerVisibility private readonly _pickerVisibility: ISessionInputPickerVisibility,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._visibleKey = SessionIsolationPickerVisibleContext.bindTo(contextKeyService);
-		this._register(toDisposable(() => this._visibleKey.reset()));
+		this._register(toDisposable(() => this._pickerVisibility.setVisible('isolation', false)));
 		this._isolationOptionEnabled = this._configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -161,6 +158,6 @@ export class BranchPicker extends Disposable {
 				disabledReason: !this._hasGitRepo ? localize('isolationPicker.noGitRepo', "Git repository required for worktree isolation") : undefined,
 			},
 		});
-		this._visibleKey.set(this._rendered && this._hasGitRepo && this._isolationOptionEnabled);
+		this._pickerVisibility.setVisible('isolation', this._rendered && this._hasGitRepo && this._isolationOptionEnabled);
 	}
 }
