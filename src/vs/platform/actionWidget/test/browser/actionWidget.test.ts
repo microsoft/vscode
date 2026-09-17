@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import * as dom from '../../../../base/browser/dom.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -23,7 +24,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../keybindin
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionListItemKind } from '../../browser/actionList.js';
+import { ActionListItemKind, IActionListItem } from '../../browser/actionList.js';
 import { ActionWidgetService, IActionWidgetService } from '../../browser/actionWidget.js';
 
 suite('ActionWidgetService', () => {
@@ -218,5 +219,52 @@ suite('ActionWidgetService', () => {
 			{ initialFocusItemId: undefined, openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
 			{ initialFocusItemId: 'manual', openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
 		]);
+	});
+
+	test('keeps a nested submenu open when removing a remote row refreshes parent items', async () => {
+		const { service } = setup();
+		let hides = 0;
+		const keep = toAction({ id: 'keep', label: 'Keep', run: () => { } });
+		const makeParent = (children: readonly IAction[]): IActionListItem<{ id: string }> => ({
+			kind: ActionListItemKind.Action,
+			label: 'Remote',
+			item: { id: 'remote' },
+			submenuActions: [...children],
+		});
+		const removable = Object.assign(toAction({ id: 'remove', label: 'Remove Me', run: () => { } }), {
+			onRemove: async () => {
+				service.updateItems([makeParent([keep])], undefined, { preserveHover: true });
+			},
+		});
+		service.show('remote', false, [makeParent([removable, keep])], {
+			onSelect: () => { },
+			onHide: () => { hides++; },
+		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
+			showFilter: true,
+		});
+
+		const widget = document.querySelector<HTMLElement>('.action-widget .actionList');
+		assert.ok(widget);
+		widget.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = document.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		const removeButton = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'Remove Me')
+			?.querySelector<HTMLElement>('.action-list-item-toolbar .action-label');
+		assert.ok(removeButton);
+		removeButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			visible: service.isVisible,
+			hides,
+			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+				.map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+		}, {
+			visible: true,
+			hides: 0,
+			rows: ['Keep'],
+		});
+		service.hide();
 	});
 });
