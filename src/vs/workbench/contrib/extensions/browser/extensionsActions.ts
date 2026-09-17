@@ -367,7 +367,10 @@ export class ButtonWithDropDownExtensionAction extends ExtensionAction {
 		}
 		actions = actions.length ? actions.slice(0, actions.length - 1) : actions;
 
-		this.primaryAction = actions[0];
+		this.primaryAction = this.selectPrimaryAction(actions);
+		if (this.primaryAction && actions[0] !== this.primaryAction) {
+			actions = [this.primaryAction, ...actions.filter(a => a !== this.primaryAction)];
+		}
 		this._menuActions = actions.length > 1 ? actions : [];
 		this._onDidChange.fire({ menuActions: this._menuActions });
 
@@ -390,6 +393,10 @@ export class ButtonWithDropDownExtensionAction extends ExtensionAction {
 
 	protected getLabel(action: ExtensionAction): string {
 		return action.label;
+	}
+
+	protected selectPrimaryAction(actions: IAction[]): IAction | undefined {
+		return actions[0];
 	}
 }
 
@@ -1979,6 +1986,16 @@ export class EnableDropDownAction extends ButtonWithDropDownExtensionAction {
 			]
 		]);
 	}
+
+	protected override selectPrimaryAction(actions: IAction[]): IAction | undefined {
+		if (this.extension?.enablementState === EnablementState.DisabledWorkspace) {
+			const workspaceAction = actions.find(a => a instanceof EnableForWorkspaceAction);
+			if (workspaceAction?.enabled) {
+				return workspaceAction;
+			}
+		}
+		return actions[0];
+	}
 }
 
 export class DisableDropDownAction extends ButtonWithDropDownExtensionAction {
@@ -1996,6 +2013,16 @@ export class DisableDropDownAction extends ButtonWithDropDownExtensionAction {
 				instantiationService.createInstance(DisableAIFeaturesInWorkspaceAction)
 			]
 		]);
+	}
+
+	protected override selectPrimaryAction(actions: IAction[]): IAction | undefined {
+		if (this.extension?.enablementState === EnablementState.EnabledWorkspace) {
+			const workspaceAction = actions.find(a => a instanceof DisableForWorkspaceAction);
+			if (workspaceAction?.enabled) {
+				return workspaceAction;
+			}
+		}
+		return actions[0];
 	}
 
 }
