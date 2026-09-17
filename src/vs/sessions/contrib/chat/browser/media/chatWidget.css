@@ -374,6 +374,10 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
+.action-widget .sessions-new-chat-picker-list.inline-description .monaco-list-row.action .action-list-submenu-indicator {
+	margin-right: var(--vscode-spacing-size40);
+}
+
 .sessions-workspace-category-picker .sessions-chat-dropdown-label {
 	margin-left: 0;
 }

@@ -2129,18 +2129,21 @@ export class ActionListWidget<T> extends Disposable {
 			});
 			return;
 		}
-		// Don't select when activating the toolbar, submenu indicator, or inline toggle
-		if (dom.isMouseEvent(e.browserEvent) || e.browserEvent?.type === TouchEventType.Tap) {
+		const isPointerActivation = dom.isMouseEvent(e.browserEvent) || e.browserEvent?.type === TouchEventType.Tap;
+		if (isPointerActivation) {
 			const target = e.browserEvent.target;
 			if (dom.isHTMLElement(target) && (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-item-inline-toggle'))) {
 				this._list.setSelection([]);
 				return;
 			}
-			if (element.openSubmenuOnClick && element.submenuActions?.length) {
-				this._list.setSelection([]);
-				this._showSubmenuForItem(element);
-				return;
+		}
+		if (element.openSubmenuOnClick && element.submenuActions?.length && (isPointerActivation || e.browserEvent instanceof AcceptSelectedEvent)) {
+			this._list.setSelection([]);
+			this._showSubmenuForItem(element);
+			if (!isPointerActivation) {
+				this._currentSubmenuWidget?.focus();
 			}
+			return;
 		}
 		if (element.item && this.focusCondition(element)) {
 			const isPreviewEvent = e.browserEvent instanceof PreviewSelectedEvent;
@@ -2523,7 +2526,7 @@ export class ActionListWidget<T> extends Disposable {
 						group: { title: '', icon },
 						hideIcon: false,
 						hover: hover ? { content: hover } : undefined,
-						tooltip: child.label,
+						tooltip: child.tooltip || child.label,
 						onRemove: extendedChild.onRemove,
 						submenuActions: child instanceof SubmenuAction ? [new SubmenuAction(child.id, '', child.actions)] : undefined,
 					});
@@ -2548,7 +2551,7 @@ export class ActionListWidget<T> extends Disposable {
 						group: { title: '' },
 						hideIcon: false,
 						hover: hover ? { content: hover } : undefined,
-						tooltip: action.label,
+						tooltip: action.tooltip || action.label,
 						onRemove: extendedAction.onRemove,
 					});
 				}
@@ -2727,9 +2730,8 @@ export class ActionListWidget<T> extends Disposable {
 				const submenuChromeHeight = (submenuWidget.headerContainer?.offsetHeight ?? 0)
 					+ (submenuWidget.filterContainer?.offsetHeight ?? 0)
 					+ (submenuWidget.footerContainer?.offsetHeight ?? 0);
-				const minimumListHeight = totalHeight === 0 ? 0 : this._actionLineHeight;
-				const minimumPanelHeight = outerChromeHeight + (submenuChromeHeight + minimumListHeight) * zoom;
-				top = Math.min(top, targetWindow.innerHeight - parentRect.top - minimumPanelHeight - 8);
+				const desiredPanelHeight = outerChromeHeight + (submenuChromeHeight + totalHeight) * zoom;
+				top = Math.min(top, targetWindow.innerHeight - parentRect.top - desiredPanelHeight - 8);
 			}
 			const panelBottom = parentRect.top + top + anchorHeight;
 			if (panelBottom > targetWindow.innerHeight && !(preserveVerticalPosition && currentElement.hover?.alignToAnchorTop)) {
