@@ -5,6 +5,7 @@
 
 import { Action } from '../../../../../base/common/actions.js';
 import { VSBuffer, newWriteableBufferStream, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../../base/common/path.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
@@ -125,18 +126,18 @@ export async function resolveAgentHostDebugLogsExportDirectory(
 	fileService: IFileService,
 	logService: ILogService,
 ): Promise<URI> {
-	const configuredPath = configurationService.inspect<string>(ChatConfiguration.AgentHostDebugLogsDefaultExportLocation).userLocalValue;
+	const configuredPath = configurationService.getValue<string>(ChatConfiguration.AgentHostDebugLogsDefaultExportLocation);
 	if (configuredPath) {
 		if (isAbsolute(configuredPath)) {
 			const configuredDirectory = URI.file(normalize(configuredPath));
-			if (await fileService.exists(configuredDirectory)) {
-				const stat = await fileService.resolve(configuredDirectory);
+			try {
+				const stat = await fileService.stat(configuredDirectory);
 				if (stat.isDirectory) {
 					return configuredDirectory;
 				}
 				logService.warn('[ExportAgentHostDebugLogs] Configured default export location is not a folder; using the default file-dialog location');
-			} else {
-				logService.warn('[ExportAgentHostDebugLogs] Configured default export location does not exist; using the default file-dialog location');
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to access configured default export location; using the default file-dialog location: ${getErrorMessage(error)}`);
 			}
 		} else {
 			logService.warn('[ExportAgentHostDebugLogs] Configured default export location is not absolute; using the default file-dialog location');

@@ -1601,7 +1601,8 @@ configurationRegistry.registerConfiguration({
 			patternErrorMessage: nls.localize('chat.agentHost.debugLogs.defaultExportLocation.error', "The default Agent Host debug-log export location must be an absolute path (for example, C:\\\\myFolder or /myFolder)."),
 			description: nls.localize('chat.agentHost.debugLogs.defaultExportLocation', "The default folder for archives and folders created by the Developer: Export Agent Host Debug Logs command. When empty or unavailable, the default file-dialog location is used."),
 			default: '',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
 			tags: ['advanced'],
 		},
 		[AgentHostAhpJsonlLoggingSettingId]: {
