@@ -780,9 +780,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
 
-	/** The `autoModeTiers` gate as of the last CAPI listing, which the Auto picker is built from. */
-	private _autoModeTiersListed = false;
-
 	/**
 	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
 	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
@@ -1023,7 +1020,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The migrate-legacy gate is snapshotted at startup (a change requires a
 			// window reload), so nothing reacts to it here.
 			this._refreshByokModels();
-			this._refreshModelsIfAutoModeTiersChanged();
 		}));
 
 		// Surface renderer BYOK models in the picker: republish them whenever the
@@ -1083,10 +1079,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getSkillCharBudget(): number {
 		return normalizeSkillCharBudget(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SkillCharBudget));
-	}
-
-	private _areAutoModeTiersEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) === true;
 	}
 
 	private _getCopilotSdkLogLevelSetting(): CopilotSdkLogLevelSetting {
@@ -2099,18 +2091,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Re-enumerates models when the `autoModeTiers` gate flips, so the Auto model gains or loses its
-	 * routing-profile picker. The property is built from the CAPI listing, which is not retained.
-	 */
-	private _refreshModelsIfAutoModeTiersChanged(): void {
-		if (this._areAutoModeTiersEnabled() === this._autoModeTiersListed) {
-			return;
-		}
-		this._logService.info('[Copilot] Auto routing profiles toggled; refreshing models');
-		void this._scheduleModelRefresh();
-	}
-
-	/**
 	 * (Re)publish the renderer BYOK models from the bridge registry's serving
 	 * window. Triggered when any renderer bridge connects, disconnects, or
 	 * reports a model change — the registry owns enumeration (with its own
@@ -2482,10 +2462,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Synthesizes the Auto model's routing-profile picker, surfaced as the "Optimize for" button.
-	 * Gated because the runtime rejects unknown `capi` fields, failing the session outright.
 	 */
 	private _createAutoTierConfigSchemaProperty(modelId: string): ConfigPropertySchema | undefined {
-		if (!isAutoModel(modelId) || !this._areAutoModeTiersEnabled()) {
+		if (!isAutoModel(modelId)) {
 			return undefined;
 		}
 		return {
@@ -2993,8 +2972,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
 		this._freeLongContextModels.clear();
-		// Sampled after the fetch so a failed enumeration cannot claim a gate it never applied.
-		this._autoModeTiersListed = this._areAutoModeTiersEnabled();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
@@ -5126,7 +5103,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
-				// Clear stale SDK preferences when the picker is disabled or an override is removed.
+				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
 					? resolveCopilotAutoTier(model, this._configurationService, this._logService, current.configurationId) ?? null
 					: undefined;

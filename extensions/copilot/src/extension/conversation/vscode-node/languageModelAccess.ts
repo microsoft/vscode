@@ -120,11 +120,9 @@ function buildAutoRoutingContext(
 
 // Auto model delegates to different backends, so the only picker it exposes is
 // the routing tier; per-model options belong to the model it routes to.
-function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boolean, opusDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(endpoint: IChatEndpoint, opusDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
-		return autoTiersEnabled
-			? { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } }
-			: {};
+		return { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } };
 	}
 
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
@@ -298,11 +296,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			void this._refreshUtilityOverrides();
 			this._onDidChange.fire();
 		}));
-		this._register(this._automodeService.onDidChangeAutoModeTierSupport(() => {
-			// Withdraws (or restores) the Auto model's tier picker, which is only
-			// honored while routing goes through `POST /auto`.
-			this._onDidChange.fire();
-		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ConfigKey.ClaudeOpusDefaultReasoningEffort.fullyQualifiedId)) {
 				this._onDidChange.fire();
@@ -340,7 +333,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
-		const autoTiersEnabled = this._automodeService.areAutoModeTiersSupported();
 		const opusDefaultEffort = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeOpusDefaultReasoningEffort, this._expService) || undefined;
 
 		for (const endpoint of chatEndpoints) {
@@ -420,7 +412,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, autoTiersEnabled, opusDefaultEffort),
+				...buildConfigurationSchema(endpoint, opusDefaultEffort),
 			};
 
 			models.push(model);
