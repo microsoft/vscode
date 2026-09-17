@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { isCustomizationEnabled } from '../../../../platform/agentHost/common/customizationEnablement.js';
@@ -55,6 +56,7 @@ export interface ISessionCustomizationItem {
 	readonly type: CustomizationType;
 	readonly name: string;
 	readonly uri: string;
+	readonly openUri: string | undefined;
 	readonly parentName: string | undefined;
 	readonly parentUri: string | undefined;
 	readonly description: string | undefined;
@@ -327,6 +329,7 @@ function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCu
 		type: plugin.type,
 		name: plugin.name,
 		uri: plugin.uri,
+		openUri: pluginOpenUri(plugin),
 		parentName: undefined,
 		parentUri: undefined,
 		description: undefined,
@@ -349,6 +352,7 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 		type: child.type,
 		name: child.name,
 		uri: child.uri,
+		openUri: child.uri,
 		parentName: parent.name,
 		parentUri: parent.uri,
 		description: readDescription(child),
@@ -366,6 +370,7 @@ function toMcpServerItem(server: McpServerCustomization, evidence: readonly ISes
 		type: server.type,
 		name: server.name,
 		uri: server.uri,
+		openUri: server.uri,
 		parentName: undefined,
 		parentUri: undefined,
 		description: undefined,
@@ -475,6 +480,28 @@ function customizationMetadata(customization: PluginCustomization | ChildCustomi
 		case CustomizationType.Hook:
 			return [];
 	}
+}
+
+function pluginOpenUri(plugin: PluginCustomization): string | undefined {
+	const pluginResource = URI.parse(plugin.uri);
+	if (pluginResource.scheme === Schemas.file) {
+		return plugin.uri;
+	}
+	const sourceDirectories = ['skills', 'agents', 'rules', 'prompts', 'hooks'];
+	for (const child of plugin.children ?? []) {
+		const childResource = URI.parse(child.uri);
+		if (childResource.scheme !== Schemas.file) {
+			continue;
+		}
+		for (const directory of sourceDirectories) {
+			const marker = `/${directory}/`;
+			const index = childResource.path.lastIndexOf(marker);
+			if (index >= 0) {
+				return childResource.with({ path: childResource.path.slice(0, index) }).toString();
+			}
+		}
+	}
+	return undefined;
 }
 
 function collectUsage(customizations: readonly Customization[], chatStates: readonly ChatState[]): ReadonlyMap<string, readonly ISessionCustomizationEvidence[]> {

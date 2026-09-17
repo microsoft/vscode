@@ -187,23 +187,26 @@ export class SessionCustomizationsView extends Disposable {
 		sourceLabel.textContent = localize('agentDiagnostics.customizations.source', "Source");
 		const source = DOM.append(sourceRow, DOM.$('span.agent-diagnostics-customization-source'));
 		source.textContent = basename(URI.parse(item.uri));
-		const openSource = this.renderDisposables.add(new Button(sourceRow, { ...defaultButtonStyles, secondary: true }));
-		openSource.element.classList.add('agent-diagnostics-customization-open-source');
 		const isPlugin = item.type === CustomizationType.Plugin;
-		openSource.label = isPlugin
-			? localize('agentDiagnostics.customizations.openFolder', "Open Folder")
-			: localize('agentDiagnostics.customizations.openSource', "Open");
-		openSource.setAriaLabel(isPlugin
-			? localize('agentDiagnostics.customizations.openFolderAriaLabel', "Open folder for {0}", item.name)
-			: localize('agentDiagnostics.customizations.openSourceAriaLabel', "Open source for {0}", item.name));
-		this.renderDisposables.add(openSource.onDidClick(async () => {
-			const resource = URI.parse(item.uri);
-			if (isPlugin) {
-				await this.nativeHostService.showItemInFolder(resource.fsPath);
-			} else {
-				await this.editorService.openEditor({ resource, options: { pinned: true } });
-			}
-		}));
+		const openUri = item.openUri;
+		if (openUri) {
+			const openSource = this.renderDisposables.add(new Button(sourceRow, { ...defaultButtonStyles, secondary: true }));
+			openSource.element.classList.add('agent-diagnostics-customization-open-source');
+			openSource.label = isPlugin
+				? localize('agentDiagnostics.customizations.openFolder', "Open Folder")
+				: localize('agentDiagnostics.customizations.openSource', "Open");
+			openSource.setAriaLabel(isPlugin
+				? localize('agentDiagnostics.customizations.openFolderAriaLabel', "Open folder for {0}", item.name)
+				: localize('agentDiagnostics.customizations.openSourceAriaLabel', "Open source for {0}", item.name));
+			this.renderDisposables.add(openSource.onDidClick(async () => {
+				const resource = URI.parse(openUri);
+				if (isPlugin) {
+					await this.nativeHostService.showItemInFolder(resource.fsPath);
+				} else {
+					await this.editorService.openEditor({ resource, options: { pinned: true } });
+				}
+			}));
+		}
 		if (item.description) {
 			const description = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-description'));
 			description.textContent = item.description;
