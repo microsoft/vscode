@@ -13,9 +13,12 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { getCompactCodicon } from '../../chatIcons.js';
@@ -47,9 +50,11 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		private readonly data: IChatMcpAuthenticationRequired,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-mcp-servers-interaction');
+		const hintsEnabled = observableConfigValue(ChatConfiguration.McpAuthenticationHintsEnabled, true, configurationService);
 		// Re-render whenever the set of servers requiring auth changes — e.g. a
 		// server whose auth requirement surfaced after this part was first shown
 		// is pushed into the same observable by the session handler — or while a
@@ -58,9 +63,9 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 			const servers = this.data.servers.read(reader);
 			const authenticating = this._authenticating.read(reader);
 			this.render(servers, authenticating);
-			this.updateVisibility(servers, authenticating);
+			this.updateVisibility(servers, authenticating, hintsEnabled.read(reader));
 		}));
-		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.updateVisibility(this.data.servers.get(), this._authenticating.get())));
+		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.updateVisibility(this.data.servers.get(), this._authenticating.get(), hintsEnabled.get())));
 	}
 
 	private render(servers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
@@ -135,7 +140,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}
 	}
 
-	private updateVisibility(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+	private updateVisibility(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined, hintsEnabled: boolean): void {
 		// Stay visible while actively authenticating so the progress message is shown.
 		if (authenticating) {
 			this.domNode.style.display = '';
@@ -144,11 +149,12 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}
 		const sessionResource = URI.revive(this.data.sessionResource);
 		const servers = this.agentHostCustomizationService.getMcpServers(sessionResource);
-		const visible = dataServers.some(server => servers.some(current => current.id === server.id && current.status === McpServerStatus.AuthRequired));
+		const requiresAuthentication = dataServers.some(server => servers.some(current => current.id === server.id && current.status === McpServerStatus.AuthRequired));
+		const visible = hintsEnabled && requiresAuthentication;
 		this.domNode.style.display = visible ? '' : 'none';
 		if (visible) {
 			this._hasBeenVisible = true;
-		} else if (this._hasBeenVisible) {
+		} else if (!requiresAuthentication && this._hasBeenVisible) {
 			// Every server has been authenticated. Mark this part used so a
 			// subsequent auth requirement surfaces as a fresh prompt rather than
 			// silently reusing this now-hidden one.

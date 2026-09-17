@@ -55,6 +55,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -178,6 +179,16 @@ type AgentHostInvocationFailedClassification = {
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error stack. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
 	comment: 'Captures errors that prevent an agent host request from reaching a terminal host turn.';
+};
+
+type McpAuthenticationHintEligibleEvent = {
+	hintsEnabled: boolean;
+};
+
+type McpAuthenticationHintEligibleClassification = {
+	hintsEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether proactive MCP authentication hints were enabled when the conversation first became eligible.' };
+	owner: 'alexdima';
+	comment: 'Records the first proactive MCP authentication hint opportunity per open conversation, including when hints are suppressed.';
 };
 
 
@@ -1112,6 +1123,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * the prompt repeating on every message.
 	 */
 	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
+	private readonly _mcpAuthHintEligibleSessions = new ResourceSet();
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
@@ -1685,6 +1697,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
+					this._mcpAuthHintEligibleSessions.delete(sessionResource);
 					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 					this._chatURIsBySessionResource.delete(sessionResource);
 					if (chatURI) {
@@ -3760,12 +3773,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
+		const hintsEnabled = observableConfigValue(ChatConfiguration.McpAuthenticationHintsEnabled, true, this._configurationService);
 		let part: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
 		let ownedIds = new Set<string>();
 		let runId = 0;
+		store.add(toDisposable(() => runId++));
 
 		store.add(autorun(reader => {
 			const pendingAuth = mcpAuthRequired$.read(reader);
+			const enabled = hintsEnabled.read(reader);
 			const currentRunId = ++runId;
 			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
 				// Ignore stale completions: a newer run has superseded this one
@@ -3775,6 +3791,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 				const newServers = servers.filter(server => !surfaced.has(server.id));
+				if (newServers.length && !this._mcpAuthHintEligibleSessions.has(opts.sessionResource)) {
+					this._mcpAuthHintEligibleSessions.add(opts.sessionResource);
+					this._telemetryService.publicLog2<McpAuthenticationHintEligibleEvent, McpAuthenticationHintEligibleClassification>('chat.mcp.authenticationHintEligible', { hintsEnabled: enabled });
+				}
+				if (!enabled) {
+					part?.servers.set(servers.filter(server => ownedIds.has(server.id)), undefined);
+					return;
+				}
 				// Nothing new to prompt and no live prompt to update/hide.
 				if (!newServers.length && (!part || part.isUsed)) {
 					return;

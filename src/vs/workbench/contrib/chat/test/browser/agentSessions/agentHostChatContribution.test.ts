@@ -26,7 +26,8 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -39,15 +40,15 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platf
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type McpServerCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryData, ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -1051,8 +1052,15 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void> }) {
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; configurationServiceOverride?: IConfigurationService; telemetryServiceOverride?: ITelemetryService; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void> }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+
+	if (opts?.configurationServiceOverride) {
+		instantiationService.stub(IConfigurationService, opts.configurationServiceOverride);
+	}
+	if (opts?.telemetryServiceOverride) {
+		instantiationService.stub(ITelemetryService, opts.telemetryServiceOverride);
+	}
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
 		const pending = opts?.pendingTreatment;
@@ -15561,6 +15569,38 @@ suite('AgentHostChatContribution', () => {
 
 	suite('mcp auth prompt', () => {
 
+		function createHintTestServices(hintsEnabled: boolean | undefined) {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.McpAuthenticationHintsEnabled]: hintsEnabled,
+				'chat.agentHost.clientTools': [],
+			});
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const hintTelemetry: (ITelemetryData | undefined)[] = [];
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				override publicLog2(eventName?: string, data?: ITelemetryData): void {
+					if (eventName === 'chat.mcp.authenticationHintEligible') {
+						hintTelemetry.push(data);
+					}
+				}
+			}();
+			const services = createContribution(disposables, {
+				configurationServiceOverride: configurationService,
+				telemetryServiceOverride: telemetryService,
+			});
+
+			const setHintsEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.McpAuthenticationHintsEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([ChatConfiguration.McpAuthenticationHintsEnabled]),
+					change: { keys: [ChatConfiguration.McpAuthenticationHintsEnabled], overrides: [] },
+					affectsConfiguration: key => key === ChatConfiguration.McpAuthenticationHintsEnabled,
+				});
+			};
+
+			return { ...services, hintTelemetry, setHintsEnabled };
+		}
+
 		// A customization service whose MCP server statuses and change events the
 		// test drives directly, so the handler's auth prompt behavior can be
 		// exercised deterministically.
@@ -15582,11 +15622,11 @@ suite('AgentHostChatContribution', () => {
 		// An MCP server customization stuck in the auth-required state. Empty
 		// `authorization_servers` keeps the auto-grant probe off the network so it
 		// resolves to "not authenticated" and the server stays pending.
-		const authRequiredCustomization = () => ({
+		const authRequiredCustomization = (): McpServerCustomization => ({
 			type: CustomizationType.McpServer,
 			id: 'mcp-1',
 			name: 'GitHub MCP',
-			uri: URI.parse('https://example.com/mcp'),
+			uri: 'https://example.com/mcp',
 			state: {
 				kind: McpServerStatus.AuthRequired,
 				reason: McpAuthRequiredReason.Required,
@@ -15603,7 +15643,7 @@ suite('AgentHostChatContribution', () => {
 			chatAgentService: MockChatAgentService,
 			resource: URI,
 			seq: { v: number },
-			opts?: { customizations?: unknown[] },
+			opts?: { customizations?: McpServerCustomization[]; beforeComplete?: (progress: readonly IChatProgress[][]) => Promise<void> },
 		): Promise<IChatMcpAuthenticationRequired[]> {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -15628,13 +15668,14 @@ suite('AgentHostChatContribution', () => {
 				const sessionChannel = parseDefaultChatUri(dispatch.channel.toString())!;
 				agentHostService.fireAction({
 					channel: sessionChannel,
-					action: { type: ActionType.SessionCustomizationsChanged, customizations: opts.customizations } as unknown as SessionAction,
+					action: { type: ActionType.SessionCustomizationsChanged, customizations: opts.customizations },
 					serverSeq: seq.v++,
 					origin: undefined,
 				});
 			}
 			// Let the async auto-grant filter resolve and the prompt part emit.
 			await timeout(50);
+			await opts?.beforeComplete?.(collected);
 
 			const promptParts = collected.flat().filter((p): p is IChatMcpAuthenticationRequired => p.kind === 'mcpAuthenticationRequired');
 
@@ -15643,8 +15684,121 @@ suite('AgentHostChatContribution', () => {
 			return promptParts;
 		}
 
-		test('silently authenticates an existing session without an active turn', async () => {
+		for (const hintsEnabled of [undefined, true, false]) {
+			test(`records eligibility once per conversation with hints ${hintsEnabled ?? 'default'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, hintTelemetry } = createHintTestServices(hintsEnabled);
+				const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-hint-eligibility' });
+				const seq = { v: 1 };
+
+				const noAuth = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+				const noAuthTelemetry = [...hintTelemetry];
+				const first = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
+				const second = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+
+				assert.deepStrictEqual({
+					noAuth: { prompts: noAuth.length, telemetry: noAuthTelemetry },
+					first: first.flatMap(part => part.servers.get().map(server => server.name)),
+					second: second.length,
+					telemetry: hintTelemetry,
+				}, {
+					noAuth: { prompts: 0, telemetry: [] },
+					first: hintsEnabled === false ? [] : ['GitHub MCP'],
+					second: 0,
+					telemetry: [{ hintsEnabled: hintsEnabled ?? true }],
+				});
+			}));
+		}
+
+		test('enables hints during an active turn without duplicate prompts or eligibility events', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, hintTelemetry, setHintsEnabled } = createHintTestServices(false);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-hint-live-setting' });
+			const promptCounts: number[] = [];
+
+			const parts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, { v: 1 }, {
+				customizations: [authRequiredCustomization()],
+				beforeComplete: async progress => {
+					const recordPromptCount = () => promptCounts.push(progress.flat().filter(part => part.kind === 'mcpAuthenticationRequired').length);
+					recordPromptCount();
+					await setHintsEnabled(true);
+					await timeout(0);
+					recordPromptCount();
+					await setHintsEnabled(false);
+					await timeout(0);
+					await setHintsEnabled(true);
+					await timeout(0);
+					recordPromptCount();
+				},
+			});
+
+			assert.deepStrictEqual({
+				promptCounts,
+				servers: parts.flatMap(part => part.servers.get().map(server => server.name)),
+				telemetry: hintTelemetry,
+			}, {
+				promptCounts: [0, 1, 1],
+				servers: ['GitHub MCP'],
+				telemetry: [{ hintsEnabled: false }],
+			});
+		}));
+
+		test('records suppressed eligibility separately for different conversations', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, hintTelemetry } = createHintTestServices(false);
+			const promptCounts: number[] = [];
+			for (const id of ['first', 'second']) {
+				const resource = URI.from({ scheme: 'agent-host-copilot', path: `/mcp-hint-${id}` });
+				const parts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, { v: 1 }, { customizations: [authRequiredCustomization()] });
+				promptCounts.push(parts.length);
+			}
+
+			assert.deepStrictEqual({ promptCounts, telemetry: hintTelemetry }, {
+				promptCounts: [0, 0],
+				telemetry: [{ hintsEnabled: false }, { hintsEnabled: false }],
+			});
+		}));
+
+		test('keeps authentication-required tool calls actionable when hints are disabled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createHintTestServices(false);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const toolCallId = 'mcp-auth-tool';
+			fire({
+				type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'mcp_search', displayName: 'Search',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			});
+			fire({
+				type: ActionType.ChatToolCallReady, turnId, toolCallId,
+				invocationMessage: 'Searching', confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			fire({
+				type: ActionType.ChatToolCallAuthRequired, turnId, toolCallId,
+				auth: {
+					reason: McpAuthRequiredReason.Required,
+					resource: { resource: 'https://example.com/mcp', resource_name: 'GitHub MCP' },
+				},
+			});
+
+			const invocation = collected.flat().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			const waiting = invocation?.state.get();
+			fire({ type: ActionType.ChatToolCallAuthResolved, turnId, toolCallId });
+			const resolved = invocation?.state.get().type;
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				hints: collected.flat().filter(part => part.kind === 'mcpAuthenticationRequired').length,
+				waiting: waiting?.type,
+				server: waiting?.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? waiting.server.name : undefined,
+				resolved,
+			}, {
+				hints: 0,
+				waiting: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				server: 'GitHub MCP',
+				resolved: IChatToolInvocation.StateKind.Executing,
+			});
+		}));
+
+		test('silently authenticates an existing session without an active turn when hints are disabled', async () => {
 			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, {
+				configOverrides: { [ChatConfiguration.McpAuthenticationHintsEnabled]: false },
 				authServiceOverride: {
 					getOrActivateProviderIdForServer: async () => 'notion',
 					getSessions: async () => [{
