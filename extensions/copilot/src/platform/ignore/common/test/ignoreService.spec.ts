@@ -58,6 +58,24 @@ suite('filterIngoredResources', () => {
 		expect(mostRunning).toBe(20);
 	});
 
+	test('stops checking once a check has failed', async () => {
+		const files = resources(100);
+		let checked = 0;
+
+		const result = filterIngoredResources(ignoreServiceWith(async () => {
+			if (++checked === 30) {
+				throw new Error('git extension unavailable');
+			}
+			await timeout(0);
+			return false;
+		}), files);
+
+		await expect(result).rejects.toThrow('git extension unavailable');
+		// The caller already has its error, so the remaining workers must not carry on to the end.
+		await timeout(10);
+		expect(checked).toBeLessThan(files.length);
+	});
+
 	test('filters a whole workspace worth of results in linear time', async () => {
 		// Queueing every result into a Limiter made this quadratic, because its pending queue is
 		// drained with Array#shift: 200,000 fast checks took over ten seconds on a developer machine.

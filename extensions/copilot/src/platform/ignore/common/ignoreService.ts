@@ -72,12 +72,19 @@ export class NullIgnoreService implements IIgnoreService {
 export async function filterIngoredResources(ignoreService: IIgnoreService, resources: URI[]): Promise<URI[]> {
 	const ignored = new Array<boolean>(resources.length);
 	let nextIndex = 0;
+	let stopped = false;
 	const worker = async () => {
-		while (nextIndex < resources.length) {
+		while (!stopped && nextIndex < resources.length) {
 			const index = nextIndex++;
 			ignored[index] = await ignoreService.isCopilotIgnored(resources[index]);
 		}
 	};
-	await Promise.all(Array.from({ length: Math.min(IGNORE_CHECK_CONCURRENCY, resources.length) }, worker));
+	try {
+		await Promise.all(Array.from({ length: Math.min(IGNORE_CHECK_CONCURRENCY, resources.length) }, worker));
+	} finally {
+		// Promise.all reports the first failure straight away; this stops the other workers from
+		// checking the rest of the batch for a caller that has already been given the error.
+		stopped = true;
+	}
 	return resources.filter((_, index) => !ignored[index]);
 }
