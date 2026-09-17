@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
@@ -61,6 +61,7 @@ class MockProtocolClient extends Disposable {
 	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
 	readonly onDidScheduleReconnect = this._onDidScheduleReconnect.event;
 	readonly onDidReceiveOtlpLogs = Event.None;
+	readonly onDidConnectionDiagnostic = Event.None;
 	readonly connectionState = 'connecting' as const;
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
@@ -939,6 +940,40 @@ suite('RemoteAgentHostService', () => {
 				connectedConnection: undefined,
 				upgradeCalls: ['_vscodeUpgrade'],
 				upgradeResult: { ok: true, upgradeStarted: true },
+			});
+		});
+
+		test('records factory and setup stages before an entry exists and preserves failure evidence', async () => {
+			const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+			const started = new DeferredPromise<void>();
+			const factory = disposables.add(new class extends TestConnectionFactory {
+				override createConnection(_entry: IRemoteAgentHostEntry, options?: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+					options?.onDiagnostic?.({ operationId: 'setup', phase: 'relay.connect', outcome: 'started', timestamp: Date.now() });
+					void started.complete();
+					return pending.p;
+				}
+			}(RemoteAgentHostEntryType.CloudSandbox));
+			disposables.add(service.registerConnectionFactory(factory));
+			const entry = cloudSandboxEntry('Pending host', 'cloud:pending');
+			factory.stageFailure(entry, new Error('unused staged failure'));
+			service.reconnect(getEntryAddress(entry));
+			await started.p;
+			const entriesWhilePending = service.connections.length;
+			await pending.error(new NonReconnectableTransportError('Host unavailable', AgentHostTransportFailureReason.HostNotRunning));
+			while (!service.connections.some(connection => connection.status.kind === 'disconnected')) {
+				await Event.toPromise(service.onDidChangeConnections);
+			}
+			const events = service.getConnectionDiagnostics();
+			assert.deepStrictEqual({
+				entriesWhilePending,
+				events: events.map(event => [event.phase, event.outcome]),
+				sameAttempt: events.every(event => event.attemptId === events[0].attemptId),
+				error: events.at(-1)?.error?.message,
+			}, {
+				entriesWhilePending: 0,
+				events: [[`factory.${RemoteAgentHostEntryType.CloudSandbox}`, 'started'], ['relay.connect', 'started'], [`factory.${RemoteAgentHostEntryType.CloudSandbox}`, 'failed']],
+				sameAttempt: true,
+				error: 'Host unavailable',
 			});
 		});
 

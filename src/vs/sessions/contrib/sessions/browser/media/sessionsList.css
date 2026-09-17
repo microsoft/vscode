@@ -157,6 +157,24 @@
 		}
 	}
 
+	.session-inline-rename-input {
+		display: none;
+		flex: 1;
+		min-width: 0;
+
+		.monaco-inputbox {
+			width: 100%;
+			height: 22px;
+			box-sizing: border-box;
+			line-height: normal;
+		}
+
+		.monaco-inputbox > .ibwrapper > .input {
+			height: 20px;
+			padding: 0;
+		}
+	}
+
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
@@ -170,20 +188,6 @@
 		}
 	}
 
-	/* Pinned but not hovered/focused: show only the unpin action */
-	.monaco-list-row:not(:hover):not(.focused) .session-item.pinned:not(.archive-onboarding) {
-		.session-title-toolbar {
-			display: block;
-
-			.action-item:not(:last-child) {
-				display: none;
-			}
-		}
-
-		.session-title {
-			margin-right: 8px;
-		}
-	}
 }
 
 /* Session Item */
@@ -356,6 +360,19 @@
 		text-overflow: ellipsis;
 	}
 
+	&.renaming {
+		.session-title,
+		.session-title-toolbar,
+		.session-compact-hover-description,
+		.session-pending-voice-indicator {
+			display: none;
+		}
+
+		.session-title-input {
+			display: block;
+		}
+	}
+
 	.session-description p {
 		margin: 0;
 		overflow: hidden;
@@ -445,8 +462,9 @@
 		}
 
 		.session-title-row {
+			height: var(--vscode-spacing-size160, 16px);
 			padding-bottom: 0;
-			line-height: var(--vscode-spacing-size160);
+			line-height: var(--vscode-spacing-size160, 16px);
 		}
 
 		.session-details-row {
@@ -678,6 +696,16 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	&.renaming {
+		.session-chat-title {
+			display: none;
+		}
+
+		.session-chat-title-input {
+			display: block;
+		}
 	}
 
 	/* Reuses the session row's approval-row styling; only the left inset is

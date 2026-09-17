@@ -193,7 +193,6 @@ export class SyncedCustomizationBundler extends Disposable {
 
 	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
-	private _lastMetadataNonce: string | undefined;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -259,13 +258,13 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashKey: string; metadataHashPart: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
-		const addEntry = (file: ISyncableFile, source: IFileStatWithPartialMetadata, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri: source.resource, destUri, hashKey, metadataHashPart: `${hashKey}:${source.mtime}:${source.size}` });
+		const addEntry = (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): void => {
+			entries.push({ sourceUri, destUri, hashKey });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
-					uri: source.resource,
+					uri: sourceUri,
 					source: file.source,
 					extensionId: file.extensionId,
 					pluginUri: file.pluginUri,
@@ -283,8 +282,7 @@ export class SyncedCustomizationBundler extends Disposable {
 			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
 				const skillRoot = dirname(file.uri);
 				const skillDirName = basename(skillRoot);
-				const entrypoint = await this._queueFileOperation(() => this._fileService.stat(file.uri));
-				addEntry(file, entrypoint, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
 				for (const source of await collectDirectoryFiles(this._fileService, this._logService, skillRoot, skillRoot, operation => this._queueFileOperation(operation))) {
 					if (extUri.isEqual(source.resource, file.uri)) {
 						continue;
@@ -295,14 +293,13 @@ export class SyncedCustomizationBundler extends Disposable {
 					}
 					addEntry(
 						file,
-						source,
+						source.resource,
 						URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
 						`${dir}/${skillDirName}/${relativePath}`,
 					);
 				}
 			} else {
-				const source = await this._queueFileOperation(() => this._fileService.stat(file.uri));
-				addEntry(file, source, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
 		}));
 		this._throwIfDisposed();
@@ -327,24 +324,7 @@ export class SyncedCustomizationBundler extends Disposable {
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
-		const metadataHashParts = entries.map(e => e.metadataHashPart);
-		if (mcpContent !== undefined) {
-			metadataHashParts.push(`.mcp.json:${mcpContent}`);
-		}
-		if (mcpDefaultCwds !== undefined) {
-			metadataHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
-		}
-
-		metadataHashParts.sort();
-		const metadataNonce = String(hash(metadataHashParts.join('\n')));
-		this._throwIfDisposed();
-
-		// Nothing changed since the last successful bundle — reuse it and skip
-		// reading file contents and rewriting the in-memory plugin tree.
-		if (metadataNonce === this._lastMetadataNonce && this._lastRef) {
-			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
-		}
-
+		// Same-size edits can preserve mtime, so metadata cannot replace a content check.
 		const fileContents = await Promise.all(entries.map(async entry => ({
 			destUri: entry.destUri,
 			hashKey: entry.hashKey,
@@ -364,11 +344,9 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._throwIfDisposed();
 
 		if (nonce === this._lastNonce && this._lastRef) {
-			this._lastMetadataNonce = metadataNonce;
 			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
 		}
 
-		this._lastMetadataNonce = undefined;
 		this._lastNonce = undefined;
 		this._lastRef = undefined;
 		this._originByDest.clear();
@@ -401,7 +379,6 @@ export class SyncedCustomizationBundler extends Disposable {
 
 		this._throwIfDisposed();
 		this._originByDest = originByDest;
-		this._lastMetadataNonce = metadataNonce;
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;

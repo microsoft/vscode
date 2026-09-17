@@ -41,7 +41,7 @@ import { ChatMode, CustomChatMode, IChatMode, IChatModes, IChatModeService } fro
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -202,6 +202,7 @@ interface ICreateProviderOptions {
 	readonly fileService?: IFileService;
 	readonly pullRequestIconCache?: IPullRequestIconCache;
 	readonly pathService?: IPathService;
+	readonly logService?: ILogService;
 }
 
 function createGitConfigFileService(repositoryRoot: URI, config: string | (() => string), onRead?: () => void): IFileService {
@@ -314,6 +315,7 @@ function createProviderWithConfig(
 	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(ILogService, opts?.logService ?? new NullLogService());
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -1463,6 +1465,146 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.strictEqual(sessions.length, 1);
 		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
+	});
+
+	for (const multiChatEnabled of [false, true]) {
+		test(`cloud session exposes linked issues as artifacts and issue pill references (multi-chat: ${multiChatEnabled})`, () => {
+			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+			const linkedIssues = [
+				{ url: 'https://github.com/microsoft/vscode/issues/335868', title: 'Info spotlight not screen reader accessible' },
+				{ url: 'https://github.com/microsoft/vscode-docs/issues/42', title: 'Document accessible spotlight cards' },
+			];
+			model.addSession(createMockAgentSession(resource, {
+				providerType: AgentSessionProviders.Cloud,
+				metadata: {
+					owner: 'microsoft',
+					name: 'vscode',
+					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/336399',
+					linkedIssues: [...linkedIssues, { url: 'https://github.com/Microsoft/VSCode/issues/335868/', title: 'Duplicate' }],
+				},
+			}));
+
+			const provider = createProvider(disposables, model, { multiChatEnabled });
+			const session = provider.getSessions()[0];
+			const info = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+
+			assert.deepStrictEqual({
+				artifacts: session.artifacts?.get().map(artifact => ({ ...artifact, link: artifact.link?.toString() })),
+				issues: info?.issues?.map(issue => ({ ...issue, uri: issue.uri.toString() })),
+			}, {
+				artifacts: linkedIssues.map(issue => ({
+					id: `linked-issue:${issue.url}`,
+					kind: SessionArtifactKind.Issue,
+					label: issue.title,
+					isArtifact: true,
+					link: issue.url,
+					isGitHub: true,
+				})),
+				issues: [
+					{ owner: 'microsoft', repo: 'vscode', number: 335868, uri: linkedIssues[0].url, title: linkedIssues[0].title },
+					{ owner: 'microsoft', repo: 'vscode-docs', number: 42, uri: linkedIssues[1].url, title: linkedIssues[1].title },
+				],
+			});
+		});
+	}
+
+	test('cloud session refreshes linked issue artifacts and pill references atomically and removes stale links', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const metadata = { owner: 'microsoft', name: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/336399' };
+		const original = createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			createdAt: 1,
+			metadata: { ...metadata, linkedIssues: [{ url: 'https://github.com/microsoft/vscode/issues/335868', title: 'Original title' }] },
+		});
+		model.addSession(original);
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const snapshots: { artifactLabels: readonly string[]; issueTitles: readonly (string | undefined)[] }[] = [];
+		disposables.add(autorun(reader => {
+			snapshots.push({
+				artifactLabels: session.artifacts?.read(reader).map(artifact => artifact.label) ?? [],
+				issueTitles: session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.issues?.map(issue => issue.title) ?? [],
+			});
+		}));
+
+		const updated = createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			createdAt: 1,
+			metadata: { ...metadata, linkedIssues: [{ url: 'https://github.com/microsoft/vscode/issues/335868', title: 'Updated title' }] },
+		});
+		model.replaceSession(updated);
+		model.replaceSession(updated);
+		model.replaceSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			createdAt: 1,
+			metadata,
+		}));
+
+		assert.deepStrictEqual(snapshots, [
+			{ artifactLabels: ['Original title'], issueTitles: ['Original title'] },
+			{ artifactLabels: ['Updated title'], issueTitles: ['Updated title'] },
+			{ artifactLabels: [], issueTitles: [] },
+		]);
+	});
+
+	test('cloud session keeps enterprise issue artifacts without public GitHub promotion and logs invalid metadata', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const metadata = {
+			owner: 'owner',
+			name: 'repo',
+			host: 'github.example.com',
+			pullRequestUrl: 'https://github.example.com/owner/repo/pull/1',
+		};
+		const issueUrl = 'https://github.example.com/owner/repo/issues/42';
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: {
+				...metadata,
+				linkedIssues: [
+					null,
+					{ url: issueUrl, title: 42 },
+					{ url: 'not a URL', title: 'Invalid' },
+					{ url: 'command:example', title: 'Not a web link' },
+					{ url: 'https://github.com/owner/repo/pull/42', title: 'Not an issue' },
+					{ url: issueUrl, title: 'Enterprise issue' },
+				],
+			},
+		}));
+		const provider = createProvider(disposables, model, { logService });
+		const session = provider.getSessions()[0];
+		const before = {
+			artifactLinks: session.artifacts?.get().map(artifact => artifact.link?.toString()),
+			issues: session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.issues,
+			warnings: warnings.length,
+		};
+		model.replaceSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud,
+			metadata: { ...metadata, linkedIssues: 'invalid' },
+		}));
+
+		assert.deepStrictEqual({
+			before,
+			after: { artifacts: session.artifacts?.get(), warnings: warnings.length },
+		}, {
+			before: { artifactLinks: [issueUrl], issues: undefined, warnings: 5 },
+			after: { artifacts: [], warnings: 6 },
+		});
+	});
+
+	test('non-cloud sessions do not interpret cloud linked issue metadata', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
+		model.addSession(createMockAgentSession(resource, {
+			metadata: {
+				repositoryPath: '/test/repo',
+				linkedIssues: [{ url: 'https://github.com/microsoft/vscode/issues/335868', title: 'Cloud issue' }],
+			},
+		}));
+		const provider = createProvider(disposables, model);
+		assert.deepStrictEqual(provider.getSessions()[0].artifacts?.get(), []);
 	});
 
 	test('cloud session reports the provider pull request and uses the cached icon while live data loads', () => {

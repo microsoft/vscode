@@ -240,23 +240,52 @@ function getCopilotPlatformPackageCandidates(): string[] {
 	return isLinuxMuslRuntime() ? linuxCandidates.reverse() : linuxCandidates;
 }
 
-async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
+/** Paths to the paired Copilot runtime executable and SDK API. */
+interface ICopilotRuntimePaths {
+	readonly cliPath: string;
+	readonly sdkPath: string;
+}
+
+async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilotRuntimePaths> {
 	const tried: string[] = [];
 	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
-		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, 'index.js').fsPath;
-		tried.push(cliPath);
-		if (await fileExists(cliPath)) {
-			return cliPath;
+		const cliPath = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`, process.platform === 'win32' ? 'copilot.exe' : 'copilot').fsPath;
+		const sdkPath = URI.joinPath(nodeModulesUri, '@github', `copilot-sdk-${platformPackage}`, 'sdk', 'index.js').fsPath;
+		tried.push(`${cliPath} with ${sdkPath}`);
+		if (await fileExists(cliPath) && await fileExists(sdkPath)) {
+			return { cliPath, sdkPath };
 		}
 	}
 
-	const oldTopLevelPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
-	tried.push(oldTopLevelPath);
-	if (await fileExists(oldTopLevelPath)) {
-		return oldTopLevelPath;
+	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+		const packageUri = URI.joinPath(nodeModulesUri, '@github', `copilot-sdk-${platformPackage}`);
+		const cliPath = URI.joinPath(packageUri, 'prebuilds', platformPackage, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime').fsPath;
+		const sdkPath = URI.joinPath(packageUri, 'sdk', 'index.js').fsPath;
+		tried.push(`${cliPath} with ${sdkPath}`);
+		if (await fileExists(cliPath) && await fileExists(sdkPath)) {
+			return { cliPath, sdkPath };
+		}
 	}
 
-	throw new Error(`Unable to resolve @github/copilot CLI path. Tried: ${tried.join(', ')}`);
+	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+		const packageUri = URI.joinPath(nodeModulesUri, '@github', `copilot-${platformPackage}`);
+		const cliPath = URI.joinPath(packageUri, 'index.js').fsPath;
+		const sdkPath = URI.joinPath(packageUri, 'sdk', 'index.js').fsPath;
+		tried.push(`${cliPath} with ${sdkPath}`);
+		if (await fileExists(cliPath) && await fileExists(sdkPath)) {
+			return { cliPath, sdkPath };
+		}
+	}
+
+	const oldPackageUri = URI.joinPath(nodeModulesUri, '@github', 'copilot');
+	const oldCliPath = URI.joinPath(oldPackageUri, 'index.js').fsPath;
+	const oldSdkPath = URI.joinPath(oldPackageUri, 'sdk', 'index.js').fsPath;
+	tried.push(`${oldCliPath} with ${oldSdkPath}`);
+	if (await fileExists(oldCliPath) && await fileExists(oldSdkPath)) {
+		return { cliPath: oldCliPath, sdkPath: oldSdkPath };
+	}
+
+	throw new Error(`Unable to resolve @github/copilot SDK runtime paths. Tried: ${tried.join(', ')}`);
 }
 
 /**
@@ -1391,11 +1420,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async getManagedSettingsDiagnostics(): Promise<IAgentHostManagedSettingsSnapshot> {
 		this._logService.debug('[Copilot] Collecting runtime managed-settings diagnostics');
-		let stage = 'resolving the Copilot CLI path';
+		let stage = 'resolving the Copilot SDK runtime paths';
 		const diagnostics = (async () => {
 			const nodeModulesUri = getAppNodeModulesUri();
-			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
-			const runtimeSdkPath = join(dirname(cliPath), 'sdk', 'index.js');
+			const { sdkPath: runtimeSdkPath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 			stage = 'checking the Copilot runtime SDK';
 			if (!await fileExists(runtimeSdkPath)) {
 				throw new Error(`Copilot runtime SDK not found at ${runtimeSdkPath}`);
@@ -2336,16 +2364,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				delete env['RUBBER_DUCK_AGENT'];
 			}
 
-			// Resolve the CLI entry point and native SDK binaries from node_modules.
+			// Resolve the CLI executable and SDK from their paired target-platform packages.
 			// In the desktop app these live next to the ASAR archive in
-			// `node_modules.asar.unpacked` (the `@github/copilot-<platform>` CLI and
+			// `node_modules.asar.unpacked` (the `@github/copilot-sdk-<platform>` runtime and
 			// the `@microsoft/mxc-sdk/bin` executables are unpacked so they can be
 			// spawned), while in dev and on the server (which has no ASAR) they live
 			// in a plain `node_modules`.
-			// We can't use require.resolve() because @github/copilot's exports map
-			// blocks direct subpath access.
 			const nodeModulesUri = getAppNodeModulesUri();
-			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
+			const { cliPath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
@@ -4142,10 +4168,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return Object.keys(inherited).length > 0 ? inherited : undefined;
 	}
 
-	getAutonomousSessionConfig(_config: Readonly<Record<string, unknown>>): Record<string, unknown> {
+	getAutonomousSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> {
 		return {
 			[SessionConfigKey.Mode]: 'autopilot' satisfies SessionMode,
 			...(this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) !== true
+				&& config[SessionConfigKey.AutoApprove] !== 'autoApprove'
 				? { [SessionConfigKey.AutoApprove]: 'assisted' satisfies AutoApproveLevel }
 				: {}),
 		};

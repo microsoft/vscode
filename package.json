@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.139.0",
-  "distro": "9edcf676f14a3185aebf09cedb58013c8348e31d",
+  "distro": "8c7e9eebe250686ee086ffb96a4c570302ece3e3",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -104,8 +104,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.84-5",
-    "@github/copilot-sdk": "1.0.13",
+    "@github/copilot": "1.0.86-0",
+    "@github/copilot-sdk": "1.0.14",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -285,6 +285,7 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
+    "koffi": "3.2.1",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },
@@ -303,7 +304,7 @@
     "cpu-features": false,
     "foundry-local-sdk@1.2.3": true,
     "kerberos@2.1.1": true,
-    "koffi@3.1.2": false,
+    "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,

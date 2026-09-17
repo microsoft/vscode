@@ -186,6 +186,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
+				logId: this.clientId,
 				connectionId: this.clientId,
 				transport: 'local',
 			}))

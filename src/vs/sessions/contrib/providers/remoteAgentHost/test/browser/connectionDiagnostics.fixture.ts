@@ -29,14 +29,35 @@ const snapshotContent: Omit<IConnectionDiagnosticsSnapshot, 'text'> = {
 			],
 		},
 		{
-			title: 'Mock host - no connection, not in picker',
+			title: 'Work laptop - connected, selectable',
+			hostAddress: 'tunnel:work',
 			collapsed: true,
 			entries: [
 				{ label: 'Online', value: 'Yes' },
-				{ label: 'Cached', value: 'No' },
-				{ label: 'In host picker', value: 'No' },
-				{ label: 'Dismissed', value: 'Yes' },
+				{ label: 'Cached', value: 'Yes' },
+				{ label: 'Selectable', value: 'Yes' },
+				{ label: 'Dismissed', value: 'No' },
 				{ label: 'Host address', value: 'example-host-with-a-long-name-for-verifying-narrow-layout.example.invalid:12345' },
+			],
+		},
+		{
+			title: 'Home server - disconnected, selectable',
+			hostAddress: 'tunnel:home',
+			collapsed: true,
+			entries: [
+				{ label: 'Connection status', value: 'Disconnected' },
+				{ label: 'Selectable', value: 'Yes' },
+				{ label: 'Auto-connect suppressed', value: 'Yes' },
+			],
+		},
+		{
+			title: 'Build machine - no connection, not selectable',
+			hostAddress: 'tunnel:hidden',
+			collapsed: true,
+			entries: [
+				{ label: 'Connection status', value: 'No connection entry' },
+				{ label: 'Selectable', value: 'No' },
+				{ label: 'Persistently dismissed', value: 'Yes' },
 			],
 		},
 		{
@@ -83,19 +104,63 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 		colorTheme: theme,
 		additionalServices: reg => {
 			reg.defineInstance(IConnectionDiagnosticsService, new class extends mock<IConnectionDiagnosticsService>() {
-				override getSnapshot(): IConnectionDiagnosticsSnapshot { return snapshot; }
+				override readonly onDidChangeHostManagement = Event.None;
+				override async getSnapshot(): Promise<IConnectionDiagnosticsSnapshot> { return snapshot; }
+				override getHostManagementState() {
+					return {
+						hosts: [{
+							id: 'connected',
+							label: 'Work laptop',
+							address: 'tunnel:work',
+							status: 'connected' as const,
+							selectable: true,
+							selected: true,
+							hidden: false,
+							autoConnectSuppressed: false,
+							connectable: true,
+						}, {
+							id: 'disconnected',
+							label: 'Home server',
+							address: 'tunnel:home',
+							status: 'disconnected' as const,
+							selectable: true,
+							selected: false,
+							hidden: false,
+							autoConnectSuppressed: true,
+							connectable: true,
+						}, {
+							id: 'tunnel:hidden',
+							label: 'Build machine',
+							address: 'tunnel:hidden',
+							status: 'disconnected' as const,
+							selectable: false,
+							selected: false,
+							hidden: true,
+							autoConnectSuppressed: false,
+							connectable: false,
+						}],
+						isDiscovering: false,
+					};
+				}
+				override async runHostAction(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 		},
 	});
 	void showConnectionDiagnosticsSheet(container, snapshot, instantiationService, {
 		autoFocus: false,
+		enableHostManagement: true,
+		rediscoverOnRefresh: true,
 		onDidCreate: (report, api) => {
 			disposableStore.add(toDisposable(() => api.close()));
+			api.overlay.classList.add(width < 600 ? 'phone-layout' : 'desktop-layout');
 			api.overlay.style.height = '100%';
 			api.sheet.style.maxHeight = '100%';
 			if (expandClient) {
 				for (const target of report.getFocusTargets().slice(1)) {
-					target.click();
+					if (target.tagName === 'SUMMARY') {
+						target.click();
+					}
 				}
 			}
 			const header = api.sheet.querySelector<HTMLElement>('.mobile-picker-sheet-title-row')!;
@@ -129,7 +194,7 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 				override readonly onDidChangeDiscovering = Event.None;
 				override readonly hosts = [];
 				override readonly isDiscovering = false;
-				override async rediscover(): Promise<void> { }
+				override async rediscover(): Promise<boolean> { return true; }
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };

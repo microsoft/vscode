@@ -323,6 +323,7 @@ suite('ChatSubagentContentPart', () => {
 		// Mock hover service
 		mockHoverService = {
 			_serviceBrand: undefined,
+			getStickyHover: () => undefined,
 			showDelayedHover: () => undefined,
 			setupDelayedHover: () => ({ dispose: () => { } }),
 			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
@@ -3217,6 +3218,45 @@ suite('ChatSubagentContentPart', () => {
 			}, {
 				collapsed: true,
 				confirmationCount: 1,
+			});
+		});
+
+		test('highlights a completed parent pill when its retained subagent needs approval', () => {
+			actionViewItemService.actionViewItemFactory = (action, options, service) =>
+				service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
+			const part = createPart(createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.Completed,
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Retained review',
+					chatResource: 'ahp-chat://subagent/test/tool-call',
+					isChatAvailable: true,
+					hasStarted: true,
+					isActive: true,
+				},
+			}), createMockRenderContext(true));
+			const state = observableValue('childState', createState(IChatToolInvocation.StateKind.WaitingForConfirmation));
+			const childTool = { ...createMockToolInvocation({ toolId: 'terminal' }), state };
+			part.enableCarouselMode(() => { }, () => { }, (_tool, currentState) => currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			part.trackToolState(childTool);
+			const pill = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-widget');
+			assert.ok(pill);
+			const waiting = {
+				highlighted: pill.classList.contains('chat-subagent-needs-confirmation'),
+				pending: pill.classList.contains('chat-subagent-confirmation-pending'),
+				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
+			};
+			part.setConfirmationActive(true);
+			const active = pill.classList.contains('chat-subagent-confirmation-active');
+			state.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.deepStrictEqual({
+				waiting, active,
+				highlightedAfterApproval: pill.classList.contains('chat-subagent-needs-confirmation'),
+			}, {
+				waiting: { highlighted: true, pending: true, shimmer: false },
+				active: true,
+				highlightedAfterApproval: false,
 			});
 		});
 
