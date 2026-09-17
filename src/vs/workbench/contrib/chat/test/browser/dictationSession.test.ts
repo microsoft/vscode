@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -27,19 +28,21 @@ suite('DictationSession', () => {
 	 * the test drive interim updates through the returned emitter. `setTranscript`
 	 * updates what a subsequent `stopAndTranscribe` resolves with.
 	 */
-	function createService(transcript: string, showTranscriptWhileDictating: boolean, cancelBarrier?: Promise<void>): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void; starts: ChatDictationSurface[]; blockStop(): () => void } {
+	function createService(transcript: string, showTranscriptWhileDictating: boolean, cancelBarrier?: Promise<void>): { service: IChatSpeechToTextService; onDidUpdateTranscript: Emitter<IChatDictationTranscript>; setTranscript(text: string): void; setPreparingModel(value: boolean): void; starts: ChatDictationSurface[]; blockStop(): () => void } {
 		const onDidUpdateTranscript = store.add(new Emitter<IChatDictationTranscript>());
 		const onDidChangeState = store.add(new Emitter<ChatSpeechToTextState>());
+		const onDidChangePreparingModel = store.add(new Emitter<boolean>());
 		const starts: ChatDictationSurface[] = [];
 		let state = ChatSpeechToTextState.Idle;
 		let currentSurface: ChatDictationSurface = 'chat';
 		let finalTranscript = transcript;
+		let preparingModel = false;
 		let stopBarrier: Promise<void> | undefined;
 		const service: IChatSpeechToTextService = {
 			_serviceBrand: undefined,
 			onDidUpdateTranscript: onDidUpdateTranscript.event,
 			onDidChangeState: onDidChangeState.event,
-			onDidChangePreparingModel: store.add(new Emitter<boolean>()).event,
+			onDidChangePreparingModel: onDidChangePreparingModel.event,
 			onDidChangeDownloadingModel: store.add(new Emitter<boolean>()).event,
 			onDidChangeModelDownloadProgress: store.add(new Emitter<void>()).event,
 			get state() { return state; },
@@ -48,7 +51,7 @@ suite('DictationSession', () => {
 			get showTranscriptWhileDictating() { return showTranscriptWhileDictating; },
 			get analyserNode() { return undefined; },
 			get isConfigured() { return true; },
-			get isPreparingModel() { return false; },
+			get isPreparingModel() { return preparingModel; },
 			get isDownloadingModel() { return false; },
 			get modelDownloadProgress() { return undefined; },
 			get currentBackend() { return 'mai' as const; },
@@ -77,6 +80,10 @@ suite('DictationSession', () => {
 			service,
 			onDidUpdateTranscript,
 			setTranscript: text => { finalTranscript = text; },
+			setPreparingModel: value => {
+				preparingModel = value;
+				onDidChangePreparingModel.fire(value);
+			},
 			starts,
 			blockStop: () => {
 				const deferred = new DeferredPromise<void>();
@@ -142,6 +149,51 @@ suite('DictationSession', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('restores a placeholder changed while dictation owns the editor placeholder', async () => {
+		const { service } = createService('', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+		editor.updateOptions({ placeholder: 'Run the focused tests' });
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		const duringDictation = editor.getOption(EditorOption.placeholder);
+		editor.updateOptions({ placeholder: undefined });
+		const afterUnderlyingChange = editor.getOption(EditorOption.placeholder);
+		await stopDictation();
+
+		assert.deepStrictEqual({
+			duringDictation,
+			afterUnderlyingChange,
+			afterDictation: editor.getOption(EditorOption.placeholder),
+		}, {
+			duringDictation: 'Listening…',
+			afterUnderlyingChange: 'Listening…',
+			afterDictation: undefined,
+		});
+	});
+
+	test('captures the latest placeholder when dictation takes ownership after preparation', async () => {
+		const { service, setPreparingModel } = createService('', true);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+		editor.updateOptions({ placeholder: 'Run the focused tests' });
+		setPreparingModel(true);
+
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		editor.updateOptions({ placeholder: undefined });
+		setPreparingModel(false);
+		const duringDictation = editor.getOption(EditorOption.placeholder);
+		await stopDictation();
+
+		assert.deepStrictEqual({
+			duringDictation,
+			afterDictation: editor.getOption(EditorOption.placeholder),
+		}, {
+			duringDictation: 'Listening…',
+			afterDictation: undefined,
+		});
 	});
 
 	test('stops only when the submitted editor owns dictation', async () => {

@@ -441,6 +441,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatEntitlementContextKeys.Setup.completed.key,
 					ChatEntitlementContextKeys.Setup.hidden.key,
 					ChatEntitlementContextKeys.Setup.disabled.key,
+					ChatEntitlementContextKeys.Setup.disabledInWorkspace.key,
 					ChatEntitlementContextKeys.Setup.untrusted.key,
 					ChatEntitlementContextKeys.Setup.installed.key,
 					ChatEntitlementContextKeys.Setup.later.key,
