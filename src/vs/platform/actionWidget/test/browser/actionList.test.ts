@@ -1619,6 +1619,58 @@ suite('ActionListWidget', () => {
 		}, { footer: 'Remote footer', listHeight: '0px' });
 	});
 
+	test('refreshing parent items while removing a nested row keeps the submenu open', async () => {
+		let hidden = 0;
+		let widget: ActionListWidget<ITestActionItem>;
+		const remaining = toAction({ id: 'beta', label: 'Beta', run: () => { } });
+		const removed = Object.assign(
+			toAction({ id: 'alpha', label: 'Alpha', run: () => { } }),
+			{
+				onRemove: () => widget.updateItems([{
+					...action('remote'),
+					submenuActions: [remaining],
+					submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+				}], undefined, { preserveHover: true }),
+			},
+		);
+		widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [removed, remaining],
+				submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+			}],
+			listOptions: { showFilter: false },
+			onHide: () => hidden++,
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		filter.value = 'a';
+		filter.dispatchEvent(new Event('input'));
+		const removeButton = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'Alpha')!
+			.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.focus();
+		removeButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hidden,
+			panelDisplay: panel.style.display,
+			filterValue: filter.value,
+			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+				.map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+			focusInsidePanel: panel.contains(document.activeElement),
+		}, {
+			hidden: 0,
+			panelDisplay: '',
+			filterValue: 'a',
+			rows: ['Beta'],
+			focusInsidePanel: true,
+		});
+	});
+
 	test('a filtered submenu near the viewport bottom shifts enough to show all rows', () => withWindowInnerHeight(300, () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{

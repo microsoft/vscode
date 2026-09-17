@@ -77,6 +77,7 @@ const RESTORE_CONNECT_GRACE_MS = 5000;
  * Item type used in the action list.
  */
 export interface IWorkspacePickerItem {
+	readonly id?: string;
 	readonly folderUri?: URI;
 	readonly ariaLabel?: string;
 	/** The resolved workspace (used for unavailable-provider checks). */
@@ -115,6 +116,7 @@ export interface IWorkspacePickerNoWorkspaceOption {
 	readonly description: string;
 	readonly isSelected: boolean;
 	readonly select: () => void;
+	readonly submenuActions?: readonly IAction[];
 }
 
 export interface IWorkspacePickerTrigger {
@@ -494,7 +496,7 @@ export class WorkspacePicker extends Disposable {
 				if (this._tabbedWidget.isVisible) {
 					this._tabbedWidget.refreshActiveList();
 				} else {
-					this.actionWidgetService.updateItems(this._buildItems());
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
 				}
 			}
 		}));
@@ -1483,12 +1485,13 @@ export class WorkspacePicker extends Disposable {
 			: undefined;
 		const useRemoteSubmenu = this._useConsolidatedRemoteWorkspaces() && this._directPickerGroup === undefined;
 		const remotePickerItem: {
+			id: string;
 			folderUri?: URI;
 			providerId?: string;
 			browseAction?: ISessionWorkspaceBrowseAction;
 			run?: () => void;
 			preferDevContainer?: boolean;
-		} = {};
+		} = { id: 'workspacePicker.remote' };
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
 		let devContainerActionIndex = 0;
@@ -1879,13 +1882,16 @@ export class WorkspacePicker extends Disposable {
 			ariaDescription: noWorkspaceAriaDescription,
 			group: { title: '', icon: this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion },
 			item: {
+				id: 'workspacePicker.chat',
 				checked: noWorkspaceOption.isSelected || undefined,
-				run: () => {
+				run: noWorkspaceOption.submenuActions?.length ? undefined : () => {
 					noWorkspaceOption.select();
 					this._updateTriggerLabel();
 					this._onDidChangeSelection.fire();
 				},
 			},
+			submenuActions: noWorkspaceOption.submenuActions ? [...noWorkspaceOption.submenuActions] : undefined,
+			openSubmenuOnClick: !!noWorkspaceOption.submenuActions?.length,
 		};
 		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]

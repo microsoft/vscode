@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -571,6 +571,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		let showCount = 0;
 		let hideCount = 0;
 		const updates: Array<readonly IActionListItem<unknown>[]> = [];
+		const preserveOpenPanel: boolean[] = [];
 		const picker = createTestablePicker(
 			disposables,
 			providersService,
@@ -589,7 +590,10 @@ suite('WorkspacePicker - Connection Status', () => {
 					visible = false;
 					hideCount++;
 				},
-				updateItems: items => updates.push(items),
+				updateItems: (items, _focusItemId, options) => {
+					updates.push(items);
+					preserveOpenPanel.push(options?.preserveHover === true);
+				},
 			},
 		);
 		picker.showPicker(false, document.createElement('button'));
@@ -602,11 +606,13 @@ suite('WorkspacePicker - Connection Status', () => {
 			showCount,
 			hideCount,
 			updateCount: updates.length,
+			preserveOpenPanel,
 			remoteActions: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
 		}, {
 			showCount: 1,
 			hideCount: 0,
 			updateCount: 1,
+			preserveOpenPanel: [true],
 			remoteActions: ['Manage Provider agenthost-remote-2'],
 		});
 	});
@@ -4427,6 +4433,36 @@ suite('WorkspacePicker - Tab discovery', () => {
 				triggerLabel: 'Chat',
 				triggerAriaLabel: 'Workspace: Chat',
 			},
+		});
+	});
+
+	test('opens Chat as a host submenu when targets are provided', async () => {
+		const selectedHosts: string[] = [];
+		const picker = createTestablePicker(disposables, providersService, true, {
+			getNoWorkspaceOption: () => ({
+				description: 'Start without a backing workspace',
+				isSelected: false,
+				select: () => selectedHosts.push('default'),
+				submenuActions: [
+					toAction({ id: 'quickChat.local', label: 'Local', run: () => selectedHosts.push('local') }),
+					toAction({ id: 'quickChat.remote', label: 'Test Remote', run: () => selectedHosts.push('remote') }),
+				],
+			}),
+		}, undefined, undefined, true);
+		const chatItem = picker.getItems().find(item => item.label === 'Chat');
+
+		await picker.selectSubmenu('Chat', 'Test Remote');
+
+		assert.deepStrictEqual({
+			openSubmenuOnClick: chatItem?.openSubmenuOnClick,
+			ariaDescription: chatItem?.ariaDescription,
+			actions: chatItem?.submenuActions?.map(action => action.label),
+			selectedHosts,
+		}, {
+			openSubmenuOnClick: true,
+			ariaDescription: 'Start the session in a temporary directory.',
+			actions: ['Local', 'Test Remote'],
+			selectedHosts: ['remote'],
 		});
 	});
 

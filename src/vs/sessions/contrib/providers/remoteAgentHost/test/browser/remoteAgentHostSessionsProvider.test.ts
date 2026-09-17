@@ -408,6 +408,23 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
+	test('creates workspace-less quick chats on the remote provider', () => {
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		const session = provider.createQuickChat(provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			supportsQuickChats: provider.supportsQuickChats,
+			providerId: session.providerId,
+			workspace: session.workspace.get(),
+			isQuickChat: session.isQuickChat?.get(),
+		}, {
+			supportsQuickChats: true,
+			providerId: provider.id,
+			workspace: undefined,
+			isQuickChat: true,
+		});
+	});
+
 	test('registers provider-owned session resolution policy', () => {
 		const policies: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }> = [];
 		createProvider(disposables, connection, {
