@@ -6,6 +6,7 @@
 import { $, addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -271,6 +272,18 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		// eslint-disable-next-line no-restricted-syntax
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
+			anchor.tabIndex = 0;
+			anchor.setAttribute('role', 'button');
+			anchor.addEventListener('keydown', (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					const index = anchor.getAttribute('data-content-index');
+					if (index !== null) {
+						hintHandler.callback(index, new StandardKeyboardEvent(e));
+					}
+				}
+			});
 		}
 
 		return { hintElement, ariaLabel };
