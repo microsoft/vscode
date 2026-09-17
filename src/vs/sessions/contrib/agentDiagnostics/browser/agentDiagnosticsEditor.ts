@@ -41,6 +41,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
+import { SessionCustomizationsModel } from './sessionCustomizationsModel.js';
+import { SessionCustomizationsView } from './sessionCustomizationsView.js';
 import { SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
 import { ISessionDiagnosticsTroubleshootRequest, SessionInsightsView } from './sessionInsightsView.js';
 import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
@@ -50,6 +52,7 @@ export const AgentDiagnosticsFocusedContext = new RawContextKey<boolean>('agentD
 const enum DiagnosticsTab {
 	SessionInsights,
 	AgentDebug,
+	Customizations,
 }
 
 export class AgentDiagnosticsEditor extends EditorPane {
@@ -72,6 +75,8 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	private currentChatResource: URI | undefined;
 	private diagnosticsModel: SessionDiagnosticsModel | undefined;
 	private sessionInsightsView: SessionInsightsView | undefined;
+	private customizationsModel: SessionCustomizationsModel | undefined;
+	private customizationsView: SessionCustomizationsView | undefined;
 	private diagnosticsConfigurationButton: Button | undefined;
 	private diagnosticsConfigurationInProgress = false;
 
@@ -122,6 +127,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 
 		this.createTab(tabList, DiagnosticsTab.SessionInsights, localize('agentDiagnostics.sessionInsights', "Session Insights"), 'agent-diagnostics-session-insights');
 		this.createTab(tabList, DiagnosticsTab.AgentDebug, localize('agentDiagnostics.agentDebug', "Agent Debug"), 'agent-diagnostics-agent-debug');
+		this.createTab(tabList, DiagnosticsTab.Customizations, localize('agentDiagnostics.customizations', "Customizations"), 'agent-diagnostics-customizations');
 		this.diagnosticsConfigurationButton = this._register(new Button(tabList, { ...defaultButtonStyles, secondary: true }));
 		this.diagnosticsConfigurationButton.element.classList.add('agent-diagnostics-configure-button');
 		this._register(this.diagnosticsConfigurationButton.onDidClick(() => this.configureDiagnostics()));
@@ -143,6 +149,16 @@ export class AgentDiagnosticsEditor extends EditorPane {
 				this.notificationService.error(localize('agentDiagnostics.troubleshootError', "Failed to open Troubleshoot chat: {0}", toErrorMessage(error)));
 			});
 		}));
+		const customizationsPanel = this.createPanel(
+			content,
+			DiagnosticsTab.Customizations,
+			'agent-diagnostics-customizations',
+			localize('agentDiagnostics.customizations', "Customizations"),
+			localize('agentDiagnostics.customizations.placeholder', "Focused-session customizations will appear here.")
+		);
+		customizationsPanel.emptyState.remove();
+		this.customizationsModel = this._register(this.instantiationService.createInstance(SessionCustomizationsModel));
+		this.customizationsView = this._register(new SessionCustomizationsView(customizationsPanel.panel, this.customizationsModel));
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -174,6 +190,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			const chatResource = activeSession?.activeChat.read(reader).resource;
 			this.setDebugSession(chatResource);
 			this.diagnosticsModel?.setSession(activeSession?.resource, chatResource);
+			this.customizationsModel?.setSession(activeSession);
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
@@ -282,27 +299,29 @@ export class AgentDiagnosticsEditor extends EditorPane {
 
 	private handleTabKeyDown(event: KeyboardEvent): void {
 		const keyboardEvent = new StandardKeyboardEvent(event);
-		let target: DiagnosticsTab | undefined;
+		const tabs = [DiagnosticsTab.SessionInsights, DiagnosticsTab.AgentDebug, DiagnosticsTab.Customizations];
+		const currentIndex = tabs.indexOf(this.selectedTab);
+		let targetIndex: number | undefined;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.LeftArrow:
 			case KeyCode.UpArrow:
-				target = this.selectedTab === DiagnosticsTab.SessionInsights ? DiagnosticsTab.AgentDebug : DiagnosticsTab.SessionInsights;
+				targetIndex = (currentIndex + tabs.length - 1) % tabs.length;
 				break;
 			case KeyCode.RightArrow:
 			case KeyCode.DownArrow:
-				target = this.selectedTab === DiagnosticsTab.AgentDebug ? DiagnosticsTab.SessionInsights : DiagnosticsTab.AgentDebug;
+				targetIndex = (currentIndex + 1) % tabs.length;
 				break;
 			case KeyCode.Home:
-				target = DiagnosticsTab.SessionInsights;
+				targetIndex = 0;
 				break;
 			case KeyCode.End:
-				target = DiagnosticsTab.AgentDebug;
+				targetIndex = tabs.length - 1;
 				break;
 		}
-		if (target !== undefined) {
+		if (targetIndex !== undefined) {
 			event.preventDefault();
 			event.stopPropagation();
-			this.selectTab(target, true);
+			this.selectTab(tabs[targetIndex], true);
 		}
 	}
 
@@ -463,17 +482,25 @@ export class AgentDiagnosticsEditor extends EditorPane {
 	}
 
 	getAccessibleContent(): string {
-		return this.selectedTab === DiagnosticsTab.SessionInsights
-			? [
-				localize('agentDiagnostics.accessible.sessionInsights', "Session Insights"),
-				this.getSessionInsightsAccessibleContent(),
-			].join('\n')
-			: [
-				localize('agentDiagnostics.accessible.agentDebugView', "Agent Debug: {0}", this.getDebugViewLabel(this.selectedDebugView)),
-				this.currentChatResource
-					? localize('agentDiagnostics.accessible.agentDebugEvents', "{0} debug events for {1}.", this.chatDebugService.getEvents(this.currentChatResource).length, this.currentChatResource.toString())
-					: localize('agentDiagnostics.agentDebugPlaceholder', "Focused-chat debug events will appear here."),
-			].join('\n');
+		switch (this.selectedTab) {
+			case DiagnosticsTab.SessionInsights:
+				return [
+					localize('agentDiagnostics.accessible.sessionInsights', "Session Insights"),
+					this.getSessionInsightsAccessibleContent(),
+				].join('\n');
+			case DiagnosticsTab.AgentDebug:
+				return [
+					localize('agentDiagnostics.accessible.agentDebugView', "Agent Debug: {0}", this.getDebugViewLabel(this.selectedDebugView)),
+					this.currentChatResource
+						? localize('agentDiagnostics.accessible.agentDebugEvents', "{0} debug events for {1}.", this.chatDebugService.getEvents(this.currentChatResource).length, this.currentChatResource.toString())
+						: localize('agentDiagnostics.agentDebugPlaceholder', "Focused-chat debug events will appear here."),
+				].join('\n');
+			case DiagnosticsTab.Customizations:
+				return [
+					localize('agentDiagnostics.customizations', "Customizations"),
+					this.customizationsView?.getAccessibleContent() ?? localize('agentDiagnostics.customizations.placeholder', "Focused-session customizations will appear here."),
+				].join('\n');
+		}
 	}
 
 	private getDebugViewLabel(view: ChatDebugSessionView): string {
@@ -495,6 +522,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 
 	override layout(_dimension: Dimension): void {
 		this.sessionInsightsView?.layout();
+		this.customizationsView?.layout();
 		this.layoutDebugView();
 	}
 }

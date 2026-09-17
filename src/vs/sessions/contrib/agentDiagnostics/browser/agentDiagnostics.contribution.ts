@@ -103,7 +103,7 @@ class AgentDiagnosticsAccessibleView implements IAccessibleViewImplementation {
 		const content = this.type === AccessibleViewType.Help
 			? [
 				localize('agentDiagnostics.accessibilityHelp.overview', "The Diagnostics editor shows information for the focused Agents session and its active chat."),
-				localize('agentDiagnostics.accessibilityHelp.tabs', "Use the left and right arrow keys to switch between Session Insights and Agent Debug."),
+				localize('agentDiagnostics.accessibilityHelp.tabs', "Use the left and right arrow keys to switch between Session Insights, Agent Debug, and Customizations."),
 				localize('agentDiagnostics.accessibilityHelp.configure', "Use Configure Diagnostics to enable local session traces, captured content, Agent Debug events, and AHP logs, then restart the local Agent Host."),
 				localize('agentDiagnostics.accessibilityHelp.view', "Open the accessible view to read the selected diagnostics tab as text{0}.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n')
