@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseServiceConfigurationProvider } from './configuration';
+import { BaseServiceConfigurationProvider, NodePathInfo } from './configuration';
 
 export class BrowserServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
@@ -18,11 +18,11 @@ export class BrowserServiceConfigurationProvider extends BaseServiceConfiguratio
 	}
 
 	// On browsers, we don't run TSServer on Node
-	protected readLocalNodePath(_configuration: vscode.WorkspaceConfiguration): string | null {
+	protected readLocalNodePath(_configuration: vscode.WorkspaceConfiguration): NodePathInfo | null {
 		return null;
 	}
 
-	protected override readGlobalNodePath(_configuration: vscode.WorkspaceConfiguration): string | null {
+	protected override readGlobalNodePath(_configuration: vscode.WorkspaceConfiguration): NodePathInfo | null {
 		return null;
 	}
 }
