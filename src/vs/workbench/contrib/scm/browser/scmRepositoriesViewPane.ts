@@ -10,7 +10,7 @@ import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeElementRenderDetails } from '../../../../base/browser/ui/tree/tree.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
+import { ISCMRepository, ISCMRepositorySelectionMode, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -47,8 +47,32 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { stringHash } from '../../../../base/common/hash.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
+
+const multiSelectArtifactCommandAllowList = new Map<string, ReadonlySet<string>>([
+	['branches', new Set(['git.repositories.deleteBranch'])],
+	['tags', new Set(['git.repositories.deleteTag'])],
+	['stashes', new Set(['git.repositories.stashDrop'])],
+	['worktrees', new Set(['git.repositories.deleteWorktree'])]
+]);
+
+function disableAction(action: IAction): IAction {
+	const disabledAction = new Action(action.id, action.label, action.class ?? '', false);
+	disabledAction.tooltip = action.tooltip;
+	return disabledAction;
+}
+
+function getArtifactContextMenuActions(actions: IAction[], artifactGroupId: string, selectionSize: number): IAction[] {
+	if (selectionSize <= 1) {
+		return actions;
+	}
+
+	const allowedCommands = multiSelectArtifactCommandAllowList.get(artifactGroupId) ?? new Set<string>();
+	return actions.map(action => action instanceof Separator || allowedCommands.has(action.id) ? action : disableAction(action));
+}
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -401,6 +425,9 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 }
 
 class RepositoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
+
+	constructor(private readonly selectionMode: IObservable<ISCMRepositorySelectionMode>) { }
+
 	getId(element: TreeElement): string {
 		if (isSCMRepository(element)) {
 			return `repo:${element.provider.id}`;
@@ -410,6 +437,20 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 			return `artifact:${element.repository.provider.id}/${element.group.id}/${element.artifact.id}`;
 		} else if (isSCMArtifactNode(element)) {
 			return `artifactFolder:${element.context.repository.provider.id}/${element.context.artifactGroup.id}/${element.uri.fsPath}`;
+		} else {
+			throw new Error('Invalid tree element');
+		}
+	}
+
+	getGroupId(element: TreeElement): number {
+		if (isSCMRepository(element)) {
+			return this.selectionMode.get() === 'multiple' ? stringHash('repository', 0) : stringHash(`repository:${element.provider.id}`, 0);
+		} else if (isSCMArtifactGroupTreeElement(element)) {
+			return stringHash(`artifactGroup:${element.repository.provider.id}:${element.artifactGroup.id}`, 0);
+		} else if (isSCMArtifactTreeElement(element)) {
+			return stringHash(`artifact:${element.repository.provider.id}:${element.group.id}`, 0);
+		} else if (isSCMArtifactNode(element)) {
+			return stringHash(`artifactFolder:${element.context.repository.provider.id}:${element.context.artifactGroup.id}`, 0);
 		} else {
 			throw new Error('Invalid tree element');
 		}
@@ -552,7 +593,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
-		this.treeIdentityProvider = new RepositoryTreeIdentityProvider();
+		this.treeIdentityProvider = new RepositoryTreeIdentityProvider(this.scmViewService.selectionModeConfig);
 		this.treeDataSource = this.instantiationService.createInstance(RepositoryTreeDataSource);
 		this._register(this.treeDataSource);
 
@@ -592,7 +633,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				},
 				compressionEnabled: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-				multipleSelectionSupport: this.scmViewService.selectionModeConfig.get() === 'multiple',
+				multipleSelectionSupport: true,
 				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
@@ -614,11 +655,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement>;
 		this._register(this.tree);
-
-		this._register(autorun(reader => {
-			const selectionMode = this.scmViewService.selectionModeConfig.read(reader);
-			this.tree.updateOptions({ multipleSelectionSupport: selectionMode === 'multiple' });
-		}));
 
 		this._register(this.tree.onDidOpen(this.onTreeDidOpen, this));
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
@@ -702,18 +738,25 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		} else if (isSCMArtifactTreeElement(e.element)) {
 			// Artifact
 			const provider = e.element.repository.provider;
-			const artifact = e.element.artifact;
+			const selection = this.getSelectedArtifactsForContextMenu(e.element);
 
 			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-			const menu = menus.getArtifactMenu(e.element.group, artifact);
-			const actions = collectContextMenuActions(menu, provider);
+			const menu = menus.getArtifactMenu(e.element.group, e.element.artifact);
+			const actions = getArtifactContextMenuActions(collectContextMenuActions(menu, provider), e.element.group.id, selection.length);
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
-				getActionsContext: () => artifact
+				getActionsContext: () => selection.map(element => element.artifact)
 			});
 		}
+	}
+
+	private getSelectedArtifactsForContextMenu(element: SCMArtifactTreeElement): SCMArtifactTreeElement[] {
+		const selection = this.tree.getSelection();
+		return selection.includes(element) && selection.every(isSCMArtifactTreeElement)
+			? selection.filter(isSCMArtifactTreeElement)
+			: [element];
 	}
 
 	private onTreeSelectionChange(e: ITreeEvent<TreeElement>): void {
