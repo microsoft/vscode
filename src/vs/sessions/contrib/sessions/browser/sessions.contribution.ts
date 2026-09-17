@@ -25,7 +25,7 @@ import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.j
 import './sessionDetailsAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_SUBMIT_CHAT_REQUEST_CONFETTI_SETTING, SessionsChatTabsMode, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -96,6 +96,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			experiment: { mode: 'auto' }
 			// https://github.com/microsoft/vscode/issues/335801
+		},
+		[SESSIONS_SUBMIT_CHAT_REQUEST_CONFETTI_SETTING]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: localize('sessions.submitChatRequestConfetti', "Controls whether a confetti animation is shown after successfully submitting a chat request."),
+			default: false,
 		},
 		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
 			type: 'string',

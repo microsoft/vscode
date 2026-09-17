@@ -98,15 +98,16 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
 /**
  * Confetti: colorful particles burst upward from the element center and fall.
  */
-export function triggerConfettiAnimation(element: HTMLElement) {
+export function triggerConfettiAnimation(element: HTMLElement, options?: { readonly bounce?: boolean }) {
 	const { overlay, cx, cy } = createOverlay(element);
 
-	// Element bounce
-	bounceElement(element, {
-		scale: [1, 1.3, 1],
-		rotate: [0, -10, 10, 0],
-		duration: 350,
-	});
+	if (options?.bounce !== false) {
+		bounceElement(element, {
+			scale: [1, 1.3, 1],
+			rotate: [0, -10, 10, 0],
+			duration: 350,
+		});
+	}
 
 	// Confetti particles
 	const particleCount = 24;

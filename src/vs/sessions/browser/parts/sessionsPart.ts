@@ -20,7 +20,7 @@ import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/gr
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -35,6 +35,8 @@ import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { SESSIONS_SUBMIT_CHAT_REQUEST_CONFETTI_SETTING } from '../../common/sessionConfig.js';
 
 interface IGridSlot {
 	readonly view: SessionView;
@@ -115,6 +117,8 @@ export class SessionsPart extends Part {
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -128,6 +132,7 @@ export class SessionsPart extends Part {
 		ActiveSessionsContext.bindTo(contextKeyService);
 		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
+		this._register(sessionsManagementService.onDidSendRequest(event => this.showSubmitConfetti(event.session.sessionId, event.isNewSession)));
 	}
 
 	override create(parent: HTMLElement): void {
@@ -184,6 +189,18 @@ export class SessionsPart extends Part {
 		}
 		this.accessibilityService.status(localize('sessionsChatBackground.confetti', "Confetti!"));
 		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
+	}
+
+	private showSubmitConfetti(sessionId: string, isNewSession: boolean): void {
+		if (!this.configurationService.getValue<boolean>(SESSIONS_SUBMIT_CHAT_REQUEST_CONFETTI_SETTING) || this.accessibilityService.isMotionReduced()) {
+			return;
+		}
+
+		const slot = this._slots.find(slot => slot.boundSessionId === sessionId)
+			?? (isNewSession ? this._slots.find(slot => slot.boundSessionId === undefined) : undefined);
+		if (slot) {
+			triggerConfettiAnimation(slot.view.element, { bounce: false });
+		}
 	}
 
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {

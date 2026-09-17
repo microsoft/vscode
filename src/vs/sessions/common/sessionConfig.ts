@@ -19,6 +19,8 @@ export const USE_WORKTREE_SETTING_TREATMENT = 'agentSessionsUseWorktree';
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
+export const SESSIONS_SUBMIT_CHAT_REQUEST_CONFETTI_SETTING = 'sessions.submitChatRequestConfetti';
+
 export const enum SessionsChatTabsMode {
 	Multiple = 'multiple',
 	Single = 'single',

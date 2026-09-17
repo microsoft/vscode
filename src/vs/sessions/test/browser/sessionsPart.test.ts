@@ -44,6 +44,16 @@ interface ICodiconActivationTestHarness {
 	};
 }
 
+interface ISubmitConfettiTestHarness {
+	readonly _slots: readonly ITestGridSlot[];
+	readonly configurationService: {
+		getValue(setting: string): boolean;
+	};
+	readonly accessibilityService: {
+		isMotionReduced(): boolean;
+	};
+}
+
 class TestSessionView implements IDisposable {
 	readonly element = document.createElement('div');
 	readonly minimumWidth = 200;
@@ -60,6 +70,7 @@ suite('Sessions - Sessions Part', () => {
 
 	const createSlot = Reflect.get(SessionsPart.prototype, '_createSlot') as (this: ISessionsPartTestHarness) => ITestGridSlot;
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
+	const showSubmitConfetti = Reflect.get(SessionsPart.prototype, 'showSubmitConfetti') as (this: ISubmitConfettiTestHarness, sessionId: string, isNewSession: boolean) => void;
 
 	function assertActivation(eventFactory: () => Event): void {
 		const minimizedView = new TestSessionView();
@@ -157,6 +168,51 @@ suite('Sessions - Sessions Part', () => {
 		}, {
 			statuses: ['Confetti!'],
 			telemetryEvents: [{ name: 'vscodeAgents.codiconBackground/confetti', data: {} }],
+		});
+	});
+
+	test('shows submit confetti only when enabled and motion is allowed', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const sessionView = new TestSessionView();
+		workbench.appendChild(sessionView.element);
+		document.body.appendChild(workbench);
+		const overlaysBefore = document.querySelectorAll('.animation-overlay').length;
+		store.add({
+			dispose: () => {
+				workbench.remove();
+				Array.from(document.querySelectorAll('.animation-overlay')).slice(overlaysBefore).forEach(overlay => overlay.remove());
+			},
+		});
+
+		let enabled = false;
+		let reducedMotion = false;
+		const host: ISubmitConfettiTestHarness = {
+			_slots: [{ view: sessionView, disposables: { dispose() { } }, boundSessionId: 'session' }],
+			configurationService: {
+				getValue: () => enabled,
+			},
+			accessibilityService: {
+				isMotionReduced: () => reducedMotion,
+			},
+		};
+
+		showSubmitConfetti.call(host, 'session', false);
+		enabled = true;
+		reducedMotion = true;
+		showSubmitConfetti.call(host, 'session', false);
+		reducedMotion = false;
+		showSubmitConfetti.call(host, 'session', false);
+
+		const overlays = Array.from(document.querySelectorAll<HTMLElement>('.animation-overlay')).slice(overlaysBefore);
+		assert.deepStrictEqual({
+			overlayCount: overlays.length,
+			particleCount: overlays[0]?.querySelectorAll('.animation-confetti-particle').length,
+			targetAnimations: sessionView.element.getAnimations().length,
+		}, {
+			overlayCount: 1,
+			particleCount: 24,
+			targetAnimations: 0,
 		});
 	});
 });
