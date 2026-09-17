@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SESSION_MARK_AS_DONE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
@@ -103,7 +103,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		test(`describes the actual dismiss control and Escape for ${action}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
-				[SESSION_MARK_AS_DONE_NUDGE_SETTING]: true,
+				[SESSION_ARCHIVE_NUDGE_SETTING]: true,
 				[ChatSessionArchiveActionWordingSettingId]: wording,
 			});
 			store.add(configuration.onDidChangeConfigurationEmitter);

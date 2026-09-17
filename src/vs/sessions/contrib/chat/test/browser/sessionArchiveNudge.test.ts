@@ -45,7 +45,7 @@ import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/comm
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
 import { SESSION_ARCHIVE_TOUR_ID } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
-import { SESSION_MARK_AS_DONE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
@@ -102,7 +102,7 @@ suite('SessionArchiveNudge', () => {
 	}
 
 	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string, onboardingEnabled = false) {
-		const configuration = new TestConfigurationService({ [SESSION_MARK_AS_DONE_NUDGE_SETTING]: enabled, [ONBOARDING_ENABLED_CONFIG]: onboardingEnabled });
+		const configuration = new TestConfigurationService({ [SESSION_ARCHIVE_NUDGE_SETTING]: enabled, [ONBOARDING_ENABLED_CONFIG]: onboardingEnabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const entitlement = new TestChatEntitlementService();
 		const storage = store.add(new TestStorageService());
@@ -262,10 +262,10 @@ suite('SessionArchiveNudge', () => {
 				changed.fire(event);
 			},
 			async setEnabled(value: boolean) {
-				await configuration.setUserConfiguration(SESSION_MARK_AS_DONE_NUDGE_SETTING, value);
+				await configuration.setUserConfiguration(SESSION_ARCHIVE_NUDGE_SETTING, value);
 				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-					affectedKeys: new Set([SESSION_MARK_AS_DONE_NUDGE_SETTING]),
-					affectsConfiguration: key => key === SESSION_MARK_AS_DONE_NUDGE_SETTING,
+					affectedKeys: new Set([SESSION_ARCHIVE_NUDGE_SETTING]),
+					affectsConfiguration: key => key === SESSION_ARCHIVE_NUDGE_SETTING,
 				}));
 			},
 			setPullRequest(number: number, state: GitHubPullRequestState | undefined, owner = 'owner', repo = 'repo') {
