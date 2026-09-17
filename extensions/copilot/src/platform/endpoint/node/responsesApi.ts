@@ -32,7 +32,7 @@ import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../commo
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex, MISSING_STATEFUL_TOOL_RESULT } from '../common/statefulMarkerContainer';
-import { rawPartAsThinkingEnvelope, type IThinkingEnvelope } from '../common/thinkingDataContainer';
+import { rawPartAsThinkingEnvelope } from '../common/thinkingDataContainer';
 import { createResponsesStreamDumper } from './responsesApiDebugDump';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
@@ -653,33 +653,12 @@ function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionCont
 	return content;
 }
 
-/**
- * Encrypted reasoning is opaque protocol state, so it may only be replayed to the API that
- * issued it. Replaying a foreign payload fails the entire request with
- * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
- *
- * Provenance is recorded on the thinking envelope when a round is created, so the check is on
- * which API produced the payload rather than what its id looks like. An id-prefix test is not
- * a usable substitute: CAPI's production `/responses` endpoint issues reasoning ids that do
- * not begin with `rs`, so testing the prefix silently drops valid reasoning between tool
- * calls — the model then re-derives work it had already done.
- *
- * Rounds persisted before provenance tracking carry no origin. Those fall back to the
- * historical `rs` prefix test, which preserves the previous behavior for existing history.
- */
-function canReplayAsResponsesReasoning(envelope: IThinkingEnvelope): boolean {
-	const { thinking, originApi } = envelope;
-	if (originApi) {
-		return originApi === 'responses';
-	}
-	return typeof thinking.id === 'string' && thinking.id.startsWith('rs');
-}
-
 function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const envelope = rawPartAsThinkingEnvelope(part);
-			if (envelope?.thinking.encrypted && canReplayAsResponsesReasoning(envelope)) {
+			// Require explicit Responses provenance; provider-specific ID formats do not identify the API.
+			if (envelope?.originApi === 'responses' && envelope.thinking.encrypted) {
 				return {
 					type: 'reasoning',
 					id: envelope.thinking.id,

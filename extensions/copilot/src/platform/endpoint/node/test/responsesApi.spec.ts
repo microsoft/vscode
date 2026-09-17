@@ -379,14 +379,13 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
-	it('round-trips reasoning whose id has no "rs" prefix when it came from this model over the Responses API', () => {
+	it.each(['rs_abc123', 'CzDhIBSZ31VSyW6rYILnFerwKDkArecaC'])('round-trips Responses reasoning regardless of ID format: %s', id => {
 		// Regression: CAPI's production /responses endpoint issues reasoning ids that are long
 		// opaque blobs with no `rs` prefix. Gating the round-trip on the id silently dropped that
 		// reasoning between tool calls, so the model re-derived work it had already done.
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const id = 'CzDhIBSZ31VSyW6rYILnFerwKDkArecaC';
 		const messages = [createThinkingAssistantMessage(
 			{ id, text: 'reasoning', encrypted: 'enc_blob' },
 			'responses',
@@ -400,7 +399,7 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
-	it('drops Messages API thinking even when its id looks like a Responses reasoning id', () => {
+	it.each(['messages', 'chatCompletions'] as const)('drops %s thinking even when its id looks like a Responses reasoning id', originApi => {
 		// Provenance decides, not the id: an Anthropic signature is not a valid Responses
 		// reasoning blob regardless of what the id happens to look like.
 		const services = createPlatformServices();
@@ -408,7 +407,7 @@ describe('createResponsesRequestBody', () => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const messages = [createThinkingAssistantMessage(
 			{ id: 'rs_looks_legit', text: '', encrypted: 'sig_from_anthropic' },
-			'messages',
+			originApi,
 		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
@@ -419,7 +418,7 @@ describe('createResponsesRequestBody', () => {
 		services.dispose();
 	});
 
-	it('falls back to the "rs" id test for history persisted before provenance was tracked', () => {
+	it('drops untagged thinking regardless of ID prefix', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
@@ -430,9 +429,7 @@ describe('createResponsesRequestBody', () => {
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
-		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([
-			{ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' },
-		]);
+		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([]);
 
 		accessor.dispose();
 		services.dispose();
