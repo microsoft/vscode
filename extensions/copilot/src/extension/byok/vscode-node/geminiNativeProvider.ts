@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ApiError, GenerateContentParameters, GoogleGenAI, ThinkingLevel, Tool, Type } from '@google/genai';
+import * as l10n from '@vscode/l10n';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelDataPart, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -19,7 +21,7 @@ import { toErrorMessage } from '../../../util/common/errorMessage';
 import { buildOTelInputFromChatMessages } from './byokOTelHelpers';
 import { RecordedProgress } from '../../../util/common/progressRecorder';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
-import { BYOKKnownModels, BYOKModelCapabilities, LMResponsePart } from '../common/byokProvider';
+import { BYOKKnownModels, BYOKModelCapabilities, LMResponsePart, resolveBYOKThinkingOptions } from '../common/byokProvider';
 import { toGeminiFunction as toGeminiFunctionDeclaration, ToolJsonSchema } from '../common/geminiFunctionDeclarationConverter';
 import { apiMessageToGeminiMessage, geminiMessagesToRawMessagesForLogging } from '../common/geminiMessageConverter';
 import { AbstractLanguageModelChatProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration } from './abstractLanguageModelChatProvider';
@@ -30,6 +32,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 
 	public static readonly providerName = 'Gemini';
 	public static readonly providerId = this.providerName.toLowerCase();
+	private _discoveredModelCapabilities: Record<string, BYOKModelCapabilities> = {};
 
 	constructor(
 		knownModels: BYOKKnownModels | undefined,
@@ -38,6 +41,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(GeminiNativeBYOKLMProvider.providerId, GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
 	}
@@ -51,20 +55,34 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			const client = new GoogleGenAI({ apiKey });
 			const models = await client.models.list();
 			const modelList: Record<string, BYOKModelCapabilities> = {};
-
 			for await (const model of models) {
-				const modelId = model.name;
-				if (!modelId) {
-					continue; // Skip models without names
+				const modelId = model.name?.replace(/^models\//, '');
+				if (!modelId || !model.supportedActions?.includes('generateContent')) {
+					continue;
 				}
-
-				// Enable only known models.
-				if (this._knownModels && this._knownModels[modelId]) {
-					modelList[modelId] = this._knownModels[modelId];
-				}
+				const known = this._knownModels?.[modelId];
+				const maxInputTokens = model.inputTokenLimit ?? known?.maxInputTokens ?? 100000;
+				const maxOutputTokens = model.outputTokenLimit ?? known?.maxOutputTokens ?? 8192;
+				modelList[modelId] = {
+					toolCalling: true, vision: false, ...known,
+					name: model.displayName ?? known?.name ?? modelId,
+					maxInputTokens, maxOutputTokens,
+					contextWindow: model.inputTokenLimit !== undefined || model.outputTokenLimit !== undefined ? maxInputTokens + maxOutputTokens : known?.contextWindow,
+					thinking: model.thinking ?? known?.thinking,
+					supportsReasoningEffort: known?.supportsReasoningEffort?.filter(level => level === 'low' || level === 'high'),
+					supportsThinkingDisable: known?.minThinkingBudget === 0,
+				};
 			}
-			return byokKnownModelsToAPIInfoWithEffort(this._name, modelList);
+			this._discoveredModelCapabilities = Object.keys(modelList).length ? modelList : { ...this._knownModels };
+			if (!Object.keys(this._discoveredModelCapabilities).length) {
+				throw new Error('Gemini model discovery failed.');
+			}
+			return byokKnownModelsToAPIInfoWithEffort(this._name, this._discoveredModelCapabilities);
 		} catch (e) {
+			if (this._knownModels && Object.keys(this._knownModels).length) {
+				this._discoveredModelCapabilities = { ...this._knownModels };
+				return byokKnownModelsToAPIInfoWithEffort(this._name, this._discoveredModelCapabilities);
+			}
 			let error: Error;
 			if (e instanceof ApiError) {
 				let message = e.message;
@@ -156,11 +174,20 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				this._logService.trace('Gemini request aborted via VS Code cancellation token');
 			});
 
-			const rawEffort = options.modelConfiguration?.reasoningEffort;
-			const supportedEffortLevels = this._knownModels?.[model.id]?.supportsReasoningEffort;
-			const thinkingLevel = typeof rawEffort === 'string' && supportedEffortLevels?.includes(rawEffort)
-				? Object.values(ThinkingLevel).find(level => level.toLowerCase() === rawEffort)
-				: undefined;
+			const capabilities = this._discoveredModelCapabilities[model.id] ?? this._knownModels?.[model.id];
+			const supportedEffortLevels = capabilities?.supportsReasoningEffort?.filter(level => level === 'low' || level === 'high');
+			const internalThinking = (options.modelOptions as { _enableThinking?: boolean } | undefined)?._enableThinking;
+			const configuredThinking = options.modelConfiguration?.enableThinking;
+			const resolved = resolveBYOKThinkingOptions({ ...capabilities, supportsReasoningEffort: supportedEffortLevels }, model.family, {
+				enableThinking: internalThinking === false || configuredThinking === false ? false : internalThinking === true || configuredThinking === true ? true : undefined,
+				reasoningEffort: typeof options.modelConfiguration?.reasoningEffort === 'string' ? options.modelConfiguration.reasoningEffort : undefined,
+			}, this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride));
+			const knownThinking = resolveBYOKThinkingOptions(capabilities ?? {}, model.family, {}).enableThinking;
+			const budgetMode = Number.isFinite(capabilities?.minThinkingBudget) && Number.isFinite(capabilities?.maxThinkingBudget);
+			if (knownThinking && !resolved.enableThinking && (!budgetMode || capabilities?.minThinkingBudget !== 0)) {
+				throw new Error(l10n.t('This BYOK model does not support disabling thinking.'));
+			}
+			const thinkingLevel = resolved.reasoningEffort === 'low' ? ThinkingLevel.LOW : resolved.reasoningEffort === 'high' ? ThinkingLevel.HIGH : undefined;
 
 			const params: GenerateContentParameters = {
 				model: model.id,
@@ -169,10 +196,9 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					systemInstruction: systemInstruction,
 					tools: tools.length > 0 ? tools : undefined,
 					maxOutputTokens: model.maxOutputTokens,
-					thinkingConfig: {
-						includeThoughts: true,
-						thinkingLevel,
-					},
+					thinkingConfig: resolved.enableThinking
+						? { includeThoughts: true, ...(thinkingLevel ? { thinkingLevel } : budgetMode ? { thinkingBudget: -1 } : {}) }
+						: knownThinking ? { includeThoughts: false, thinkingBudget: 0 } : undefined,
 					abortSignal: abortController.signal
 				}
 			};

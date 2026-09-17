@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../platform/networking/common/networking';
 
 import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { BYOKModelCapabilities } from '../common/byokProvider';
+import { BYOKModelCapabilities, resolveBYOKThinkingOptions } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
@@ -22,6 +23,7 @@ interface OpenRouterModelData {
 	id: string;
 	name: string;
 	supported_parameters?: string[];
+	reasoning?: { supported_efforts?: string[] | null; default_effort?: string; default_enabled?: boolean; supports_max_tokens?: boolean; mandatory?: boolean };
 	architecture?: {
 		input_modalities?: string[];
 	};
@@ -84,12 +86,12 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
 		const openRouterModelData = modelData as OpenRouterModelData;
 		const supportedParameters = openRouterModelData.supported_parameters ?? [];
-		// OpenRouter reports reasoning support per model via `supported_parameters`. The unified `reasoning` parameter and
-		// the OpenAI-style `reasoning_effort` alias both indicate the model accepts an effort level.
-		// See https://openrouter.ai/docs/use-cases/reasoning-tokens
-		const supportsReasoningEffort = supportedParameters.includes('reasoning') || supportedParameters.includes('reasoning_effort')
-			? ['low', 'medium', 'high']
-			: undefined;
+		const reasoning = openRouterModelData.reasoning;
+		const thinking = !!reasoning || supportedParameters.includes('reasoning') || supportedParameters.includes('reasoning_effort');
+		const efforts = reasoning
+			? reasoning.supported_efforts === null ? ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'] : reasoning.supported_efforts ?? []
+			: thinking ? ['low', 'medium', 'high'] : undefined;
+		const supportsReasoningEffort = efforts ? [...new Set(efforts)].filter(effort => !reasoning?.mandatory || effort !== 'none') : undefined;
 		// Prefer the model-level `context_length` (the real capability) over
 		// `top_provider.context_length`, which only reflects OpenRouter's
 		// highest-ranked provider and can be much smaller for multi-provider models.
@@ -101,24 +103,23 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		const maxOutputTokens = Math.min(requestedMaxOutputTokens, Math.floor(contextWindow / 2));
 		return {
 			name: openRouterModelData.name,
-			toolCalling: supportedParameters.includes('tools'),
-			vision: openRouterModelData.architecture?.input_modalities?.includes('image') ?? false,
+			toolCalling: openRouterModelData.supported_parameters ? supportedParameters.includes('tools') : this._knownModels?.[openRouterModelData.id]?.toolCalling ?? false,
+			vision: openRouterModelData.architecture?.input_modalities?.includes('image') ?? this._knownModels?.[openRouterModelData.id]?.vision ?? false,
 			maxInputTokens: contextWindow - maxOutputTokens,
 			maxOutputTokens,
-			supportsReasoningEffort
+			supportsReasoningEffort,
+			thinking: thinking ? true : undefined,
+			defaultReasoningEffort: reasoning?.default_effort,
+			supportsThinkingDisable: thinking ? !reasoning?.mandatory : undefined,
 		};
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<LanguageModelChatConfiguration>): Promise<OpenAIEndpoint> {
 		const modelInfo = this.getModelInfo(model.id, model.url);
-		const isAnthropic = isAnthropicModelId(model.id);
-
-		if (isAnthropic) {
-			// Anthropic models on OpenRouter use the native Messages API which
-			// provides full cache_control, thinking, and tool support identical
-			// to the direct Anthropic API.
-			modelInfo.supported_endpoints = [ModelSupportedEndpoint.Messages];
-		}
+		const supports = modelInfo.capabilities.supports;
+		const nativeThinking = supports.adaptive_thinking === true || (Number.isFinite(supports.min_thinking_budget) && Number.isFinite(supports.max_thinking_budget) && supports.min_thinking_budget! >= 1024 && supports.max_thinking_budget! >= supports.min_thinking_budget!);
+		const isAnthropic = isAnthropicModelId(model.id) && (!supports.thinking || nativeThinking);
+		modelInfo.supported_endpoints = [isAnthropic ? ModelSupportedEndpoint.Messages : ModelSupportedEndpoint.ChatCompletions];
 
 		const url = isAnthropic
 			? `${model.url}/messages`
@@ -159,6 +160,30 @@ export class OpenRouterEndpoint extends OpenAIEndpoint {
 		@ILogService logService: ILogService,
 	) {
 		super(modelMetadata, apiKey, modelUrl, domainService, chatMLFetcher, tokenizerProvider, instantiationService, configurationService, expService, chatWebSocketService, logService);
+	}
+
+	override cloneWithTokenOverride(modelMaxPromptTokens: number): OpenRouterEndpoint {
+		const newModelInfo = {
+			...this.modelMetadata,
+			capabilities: {
+				...this.modelMetadata.capabilities,
+				limits: { ...this.modelMetadata.capabilities.limits, max_prompt_tokens: modelMaxPromptTokens },
+			},
+		};
+		return this.instantiationService.createInstance(OpenRouterEndpoint, newModelInfo, this._apiKey, this._modelUrl);
+	}
+
+	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
+		const body = super.createRequestBody(options);
+		if (!this.useMessagesApi && !this.useResponsesApi) {
+			const supports = this.modelMetadata.capabilities.supports;
+			const resolved = resolveBYOKThinkingOptions({ thinking: supports.thinking, adaptiveThinking: supports.adaptive_thinking, supportsReasoningEffort: supports.reasoning_effort, defaultReasoningEffort: this.modelMetadata.defaultReasoningEffort }, this.family, options.modelCapabilities ?? {}, this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride));
+			if (resolveBYOKThinkingOptions({ thinking: supports.thinking, supportsReasoningEffort: supports.reasoning_effort }, this.family, {}).enableThinking) {
+				body.reasoning = resolved.enableThinking ? { enabled: true, exclude: false, ...(resolved.reasoningEffort ? { effort: resolved.reasoningEffort } : {}) } : { enabled: false };
+			}
+			delete body.reasoning_effort;
+		}
+		return body;
 	}
 
 	/**

@@ -66,6 +66,10 @@ interface _CustomOAIModelConfig {
 	requestHeaders?: Record<string, string>;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
+	defaultReasoningEffort?: string;
+	supportsThinkingDisable?: boolean;
+	reasoningSummary?: 'auto' | 'concise' | 'detailed' | false;
+	thinkingToggle?: 'enable_thinking' | 'chat_template_kwargs';
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
@@ -146,12 +150,16 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
-			thinking: modelConfiguration?.thinking ?? false,
+			thinking: modelConfiguration?.thinking,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
-			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
+			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat,
+			defaultReasoningEffort: modelConfiguration?.defaultReasoningEffort,
+			supportsThinkingDisable: modelConfiguration?.supportsThinkingDisable,
+			reasoningSummary: modelConfiguration?.reasoningSummary,
+			thinkingToggle: modelConfiguration?.thinkingToggle,
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
 		if (modelCapabilities?.url?.includes('/responses')) {
@@ -185,7 +193,9 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext
 	) {
 		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext);
-		this.migrateExistingConfigs();
+		void this.migrateExistingConfigs().catch(() => {
+			this._logService.error('Custom OAI BYOK configuration migration failed; the existing configuration was retained.');
+		});
 	}
 
 	// TODO: Remove this after 6 months

@@ -965,6 +965,15 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
 		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
 		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, copilotServiceRequestId, serverExperiments, compactionThreshold);
+		const contentType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+		if (contentType === 'application/json' || (contentType?.startsWith('application/') && contentType.endsWith('+json'))) {
+			const completion = await processNonStreamingResponse(response, processor, finishCallback);
+			if (completion) {
+				sendCompletionOutputTelemetry(telemetryService, logService, completion, telemetryData);
+				feed.emitOne(completion);
+			}
+			return;
+		}
 		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
@@ -993,6 +1002,90 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 	}, async () => {
 		await response.body.destroy();
 	});
+}
+
+/** Feed a non-streaming response in output order through the same consumer contract as SSE. */
+async function processNonStreamingResponse(response: Response, processor: OpenAIResponsesProcessor, finishCallback: FinishedCallback): Promise<ChatCompletion | undefined> {
+	const text = await response.text();
+	let data: unknown;
+	try {
+		data = JSON.parse(text);
+	} catch {
+		throw new Error('Invalid non-streaming Responses API response.');
+	}
+	if (isResponsesObject(data) && data.status === undefined && isResponsesObject(data.error) && typeof data.error.message === 'string') {
+		return processor.push({ type: 'error', sequence_number: 0, code: typeof data.error.code === 'string' ? data.error.code : null, message: data.error.message, param: typeof data.error.param === 'string' ? data.error.param : null }, finishCallback);
+	}
+	if (!isNonStreamingResponse(data)) {
+		throw new Error('Invalid non-streaming Responses API response.');
+	}
+	let sequenceNumber = 0;
+	for (let outputIndex = 0; outputIndex < data.output.length; outputIndex++) {
+		const item = data.output[outputIndex];
+		processor.push({ type: 'response.output_item.added', sequence_number: sequenceNumber++, output_index: outputIndex, item }, finishCallback);
+		if (item.type === 'message') {
+			for (let contentIndex = 0; contentIndex < item.content.length; contentIndex++) {
+				const part = item.content[contentIndex];
+				processor.push({ type: 'response.output_text.delta', sequence_number: sequenceNumber++, output_index: outputIndex, content_index: contentIndex, item_id: item.id, delta: part.type === 'output_text' ? part.text : part.refusal, logprobs: [] }, finishCallback);
+			}
+		} else if (item.type === 'reasoning') {
+			for (let summaryIndex = 0; summaryIndex < item.summary.length; summaryIndex++) {
+				const part = item.summary[summaryIndex];
+				processor.push({ type: 'response.reasoning_summary_text.delta', sequence_number: sequenceNumber++, output_index: outputIndex, summary_index: summaryIndex, item_id: item.id, delta: part.text }, finishCallback);
+				processor.push({ type: 'response.reasoning_summary_part.done', sequence_number: sequenceNumber++, output_index: outputIndex, summary_index: summaryIndex, item_id: item.id, part }, finishCallback);
+			}
+		}
+		processor.push({ type: 'response.output_item.done', sequence_number: sequenceNumber++, output_index: outputIndex, item }, finishCallback);
+	}
+	const type = data.status === 'completed' ? 'response.completed' : data.status === 'incomplete' ? 'response.incomplete' : 'response.failed';
+	return processor.push({ type, sequence_number: sequenceNumber, response: data }, finishCallback);
+}
+
+function isResponsesObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Validate the fields consumed by the processor; unused provider extensions remain untouched. */
+function isNonStreamingResponse(value: unknown): value is OpenAI.Responses.Response {
+	if (!isResponsesObject(value) || typeof value.id !== 'string'
+		|| (value.status !== 'completed' && value.status !== 'incomplete' && value.status !== 'failed')
+		|| !Array.isArray(value.output) || !value.output.every(isNonStreamingOutputItem)) {
+		return false;
+	}
+	if (value.error != null && (!isResponsesObject(value.error) || typeof value.error.message !== 'string' || (value.error.code != null && typeof value.error.code !== 'string'))) {
+		return false;
+	}
+	if (value.incomplete_details != null && (!isResponsesObject(value.incomplete_details) || typeof value.incomplete_details.reason !== 'string')) {
+		return false;
+	}
+	if (value.usage != null) {
+		if (!isResponsesObject(value.usage)) {
+			return false;
+		}
+		for (const key of ['input_tokens', 'output_tokens', 'total_tokens']) {
+			if (typeof value.usage[key] !== 'number' || !Number.isFinite(value.usage[key])) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+function isNonStreamingOutputItem(value: unknown): value is OpenAI.Responses.ResponseOutputItem {
+	if (!isResponsesObject(value) || typeof value.type !== 'string' || typeof value.id !== 'string') {
+		return false;
+	}
+	switch (value.type) {
+		case 'message':
+			return Array.isArray(value.content) && value.content.every(part => isResponsesObject(part) && (part.type === 'output_text' ? typeof part.text === 'string' : part.type === 'refusal' && typeof part.refusal === 'string'));
+		case 'function_call':
+			return typeof value.call_id === 'string' && typeof value.name === 'string' && typeof value.arguments === 'string';
+		case 'reasoning':
+			return Array.isArray(value.summary) && value.summary.every(part => isResponsesObject(part) && part.type === 'summary_text' && typeof part.text === 'string')
+				&& (value.encrypted_content == null || typeof value.encrypted_content === 'string');
+		default:
+			return true;
+	}
 }
 
 export function sendCompletionOutputTelemetry(telemetryService: ITelemetryService, logService: ILogService, completion: ChatCompletion, telemetryData: TelemetryData): void {
