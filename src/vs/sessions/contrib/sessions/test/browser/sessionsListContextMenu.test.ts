@@ -210,7 +210,14 @@ suite('Sessions list context menus', () => {
 		const chatRow = chatList.container.querySelector<HTMLElement>('.session-chat-item');
 		assert.ok(chatRow);
 		dispatchContextMenu(chatRow);
-		await chatList.contextMenuService.delegate!.getActions().find(action => action.id === RENAME_SESSION_LIST_CHAT_ACTION_ID)?.run(undefined);
+		const chatRename = chatList.contextMenuService.delegate!.getActions().find(action => action.id === RENAME_SESSION_LIST_CHAT_ACTION_ID);
+		chatList.managementService.sessions = [{
+			...chatSession,
+			chats: constObservable([mainChat, peerChat]),
+			mainChat: constObservable(mainChat),
+		}];
+		chatList.list.refresh();
+		await chatRename?.run(undefined);
 		chatList.contextMenuService.delegate!.onHide?.(false);
 
 		assert.deepStrictEqual({

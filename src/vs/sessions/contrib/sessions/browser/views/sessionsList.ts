@@ -35,7 +35,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -462,9 +462,11 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly hoverService: IHoverService,
 		private readonly instantiationService: IInstantiationService,
 		private readonly sessionsManagementService: ISessionsManagementService,
+		private readonly contextViewService: IContextViewService,
 		private readonly markdownRendererService: IMarkdownRendererService | undefined,
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly approvalRowMaxLines: number,
+		private readonly onDidDoubleClickRename: (item: ISessionChatItem) => void,
 		private readonly onDidFinishRename: () => void,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
@@ -548,7 +550,9 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 			event.preventDefault();
 			event.stopPropagation();
-			this.beginRename(element);
+			if (this.beginRename(element)) {
+				this.onDidDoubleClickRename(element);
+			}
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const editing = this.editingChat.read(reader);
@@ -611,6 +615,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		const input = renderInlineRenameInput(
 			template.titleInputContainer,
+			this.contextViewService,
 			renameState,
 			localize('renameChat.inputAriaLabel', "Rename chat. Press Enter to confirm or Escape to cancel."),
 			disposables,
@@ -808,13 +813,14 @@ const SESSION_TITLE_SHIMMER_PAUSED_CLASS = 'session-title-shimmer-paused';
 
 function renderInlineRenameInput(
 	container: HTMLElement,
+	contextViewService: IContextViewService,
 	state: IInlineRenameValueState,
 	ariaLabel: string,
 	disposables: DisposableStore,
 	onFinish: (title: string | undefined, restoreListFocus: boolean) => void,
 ): InputBox {
 	DOM.clearNode(container);
-	const input = new InputBox(container, undefined, {
+	const input = new InputBox(container, contextViewService, {
 		inputBoxStyles: defaultInputBoxStyles,
 		ariaLabel,
 		validationOptions: {
@@ -960,7 +966,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; inlineRename: boolean; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidFinishRename?: () => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
@@ -1141,7 +1147,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 				event.preventDefault();
 				event.stopPropagation();
-				this.beginRename(element);
+				if (this.beginRename(element)) {
+					this.options.onDidDoubleClickRename?.(element);
+				}
 			}));
 		}
 
@@ -1512,8 +1520,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (!renameState || !isEqual(renameState.session.resource, session.resource)) {
 			return;
 		}
+		if (!this.options.contextViewService) {
+			throw new Error('Inline rename requires a context view service');
+		}
 		const input = renderInlineRenameInput(
 			template.titleInputContainer,
+			this.options.contextViewService,
 			renameState,
 			localize('renameSession.inputAriaLabel', "Rename session. Press Enter to confirm or Escape to cancel."),
 			disposables,
@@ -2708,7 +2720,7 @@ export interface ISessionsListControlOptions {
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
 	readonly findWidgetContainer?: HTMLElement;
-	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
 	 * Gate invoked before a session is opened (before mark-read, activation, and
@@ -2717,7 +2729,7 @@ export interface ISessionsListControlOptions {
 	 * omitted, opens are not gated.
 	 */
 	canOpenSession?(session: ISession): Promise<boolean>;
-	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void;
+	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
 	 * Approval model tracking pending tool confirmations for the shown sessions
@@ -2731,6 +2743,15 @@ export interface ISessionsListControlOptions {
  * @deprecated Use {@link ISessionsListControlOptions} instead.
  */
 export type ISessionsListOptions = ISessionsListControlOptions;
+
+interface IListOpenRequest {
+	readonly session: ISession;
+	readonly chat: IChat | undefined;
+	readonly sideBySide: boolean;
+	preserveFocus: boolean;
+	started: boolean;
+	invocation: number;
+}
 
 export interface ISessionsList {
 	readonly element: HTMLElement;
@@ -2797,6 +2818,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly SESSION_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
 
 	private readonly listContainer: HTMLElement;
+	private pendingOpenRequest: IListOpenRequest | undefined;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
@@ -2914,6 +2936,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -2997,6 +3020,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				aggregateChatApprovals: false,
 				toolbarMenuId: Menus.SessionItemToolbar,
 				inlineRename: true,
+				contextViewService: this.contextViewService,
+				onDidDoubleClickRename: session => this.preservePendingOpenFocus(session),
 				onDidFinishRename: () => this.tree.domFocus(),
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
@@ -3023,7 +3048,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES, () => this.tree.domFocus(), this.activeGuideSessionIds);
+		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, this.contextViewService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES, item => this.preservePendingOpenFocus(item.session, item.chat), () => this.tree.domFocus(), this.activeGuideSessionIds);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
 			this.tree.setFocus([element], event);
@@ -3266,17 +3291,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionChatItem(element)) {
-				if (this.options.canOpenSession && !(await this.options.canOpenSession(element.session))) {
-					return;
-				}
-				this.markRead(element.session);
 				const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 				const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
-				if (this.options.onChatOpen) {
-					this.options.onChatOpen(element.session, element.chat, preserveFocus, e.sideBySide);
-				} else {
-					this._sessionsService.openChat(element.session, element.chat.resource, { preserveFocus }).catch(onUnexpectedError);
-				}
+				await this.beginOpenRequest(element.session, element.chat, preserveFocus, e.sideBySide);
 				return;
 			}
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
@@ -3288,10 +3305,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				// Gate the open on workspace trust before any side effect (mark-read,
 				// activation, folder mount). A refused open leaves the current
 				// session (or empty new-session slot) untouched.
-				if (this.options.canOpenSession && !(await this.options.canOpenSession(element))) {
-					return;
-				}
-				this.markRead(element);
 				// A deliberate left mouse click on a session should move keyboard
 				// focus into the chat input so the user can start typing right
 				// away. A single click always reports `preserveFocus: true`, so
@@ -3300,7 +3313,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				// focus from it.
 				const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 				const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
-				this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
+				if (!await this.beginOpenRequest(element, undefined, preserveFocus, e.sideBySide)) {
+					return;
+				}
 				// If this session has an unheard voice response, opening it may not
 				// change the active-session observable (it can already be the active
 				// session, just not focused), so the voice controller would never
@@ -4186,12 +4201,124 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
+	private async beginOpenRequest(session: ISession, chat: IChat | undefined, preserveFocus: boolean, sideBySide: boolean): Promise<boolean> {
+		const request: IListOpenRequest = { session, chat, preserveFocus, sideBySide, started: false, invocation: 0 };
+		this.pendingOpenRequest = request;
+		try {
+			if (this.options.canOpenSession && !(await this.options.canOpenSession(session))) {
+				if (this.pendingOpenRequest === request) {
+					this.pendingOpenRequest = undefined;
+				}
+				return false;
+			}
+		} catch (error) {
+			if (this.pendingOpenRequest === request) {
+				this.pendingOpenRequest = undefined;
+			}
+			throw error;
+		}
+		if (this.pendingOpenRequest !== request) {
+			return false;
+		}
+		this.markRead(session);
+		this.invokeOpenRequest(request);
+		return true;
+	}
+
+	private invokeOpenRequest(request: IListOpenRequest): void {
+		request.started = true;
+		const invocation = ++request.invocation;
+		const finish = () => {
+			if (this.pendingOpenRequest === request && request.invocation === invocation) {
+				this.pendingOpenRequest = undefined;
+			}
+		};
+
+		let open: void | Promise<void>;
+		try {
+			if (request.chat) {
+				open = this.options.onChatOpen
+					? this.options.onChatOpen(request.session, request.chat, request.preserveFocus, request.sideBySide)
+					: this._sessionsService.openChat(request.session, request.chat.resource, { preserveFocus: request.preserveFocus }).catch(onUnexpectedError);
+			} else {
+				open = this.options.onSessionOpen(request.session.resource, request.preserveFocus, request.sideBySide);
+			}
+		} catch (error) {
+			finish();
+			throw error;
+		}
+
+		if (!open) {
+			finish();
+			return;
+		}
+		open.then(finish, error => {
+			finish();
+			onUnexpectedError(error);
+		});
+	}
+
+	private preservePendingOpenFocus(session: ISession, chat?: IChat): void {
+		const request = this.pendingOpenRequest;
+		if (!request
+			|| !this.uriIdentityService.extUri.isEqual(request.session.resource, session.resource)
+			|| (!!request.chat !== !!chat)
+			|| (request.chat && chat && !this.uriIdentityService.extUri.isEqual(request.chat.resource, chat.resource))
+		) {
+			return;
+		}
+		request.preserveFocus = true;
+		if (request.started) {
+			this.invokeOpenRequest(request);
+		}
+	}
+
 	beginRenameSession(session: ISession): boolean {
-		return this.tree.hasElement(session) && this._sessionRenderer.beginRename(session);
+		const target = this.findTreeElement((element): element is ISession => isSessionItem(element) && this.uriIdentityService.extUri.isEqual(element.resource, session.resource));
+		if (!target) {
+			return false;
+		}
+		if (this.tree.getRelativeTop(target) === null) {
+			this.tree.reveal(target, 0.5);
+		}
+		if (!this._sessionRenderer.beginRename(target)) {
+			return false;
+		}
+		return true;
 	}
 
 	beginRenameChat(item: ISessionChatItem): boolean {
-		return this.tree.hasElement(item) && this._chatRenderer.beginRename(item);
+		const target = this.findTreeElement((element): element is ISessionChatItem =>
+			isSessionChatItem(element)
+			&& this.uriIdentityService.extUri.isEqual(element.session.resource, item.session.resource)
+			&& this.uriIdentityService.extUri.isEqual(element.chat.resource, item.chat.resource)
+		);
+		if (!target) {
+			return false;
+		}
+		if (this.tree.getRelativeTop(target) === null) {
+			this.tree.reveal(target, 0.5);
+		}
+		if (!this._chatRenderer.beginRename(target)) {
+			return false;
+		}
+		return true;
+	}
+
+	private findTreeElement<T extends SessionListItem>(predicate: (element: SessionListItem) => element is T): T | undefined {
+		const visit = (nodes: readonly ITreeNode<SessionListItem | null, FuzzyScore>[]): T | undefined => {
+			for (const node of nodes) {
+				if (node.element && predicate(node.element)) {
+					return node.element;
+				}
+				const match = visit(node.children);
+				if (match) {
+					return match;
+				}
+			}
+			return undefined;
+		};
+		return visit(this.tree.getNode().children);
 	}
 
 	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {

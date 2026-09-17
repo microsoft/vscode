@@ -4273,7 +4273,9 @@ suite('Sessions - SessionsList', () => {
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
-				onSessionOpen: (resource: URI) => opened.push(resource.toString()),
+				onSessionOpen: (resource: URI) => {
+					opened.push(resource.toString());
+				},
 				canOpenSession,
 			}));
 			list.layout(300, 400);

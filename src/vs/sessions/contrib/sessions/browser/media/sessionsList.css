@@ -492,15 +492,16 @@
 				flex: 0 1 auto;
 			}
 
-			.session-compact-hover-description {
-				display: flex;
-			}
-
 			.session-title-toolbar {
 				margin-left: auto;
 			}
 		}
 
+	}
+
+	.monaco-list-row:hover .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description,
+	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description {
+		display: flex;
 	}
 
 	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
