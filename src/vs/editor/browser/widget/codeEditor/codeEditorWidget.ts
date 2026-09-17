@@ -51,6 +51,7 @@ import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
+import { FontMeasurements } from '../../config/fontMeasurements.js';
 import * as nls from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -65,6 +66,7 @@ import { TextModelEditSource, EditSources } from '../../../common/textModelEditS
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 import { isObject } from '../../../../base/common/types.js';
 import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1355,11 +1357,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
-	public getFontSizeAtPosition(position: IPosition): string | null {
+	public getFontAtPosition(position: IPosition): FontInfo | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.viewModel.getFontSizeAtPosition(position);
+		return this._modelData.viewModel.getFontAtPosition(position);
 	}
 
 	/**
@@ -1780,6 +1782,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 						this._endUpdate();
 					}
 				},
+			},
+			{
+				readFontInfo: (bareFontInfo) => FontMeasurements.readFontInfo(dom.getWindow(this._domElement), bareFontInfo),
 			}
 		);
 

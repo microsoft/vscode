@@ -2039,6 +2039,8 @@ class EditorFontInfo extends ComputedEditorOption<EditorOption.fontInfo, FontInf
 			middotWidth: 0,
 			wsmiddotWidth: 0,
 			maxDigitWidth: 0,
+			fontAscent: 0,
+			fontDescent: 0,
 		}, false));
 	}
 
