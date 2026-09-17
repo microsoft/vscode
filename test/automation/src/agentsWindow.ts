@@ -146,6 +146,15 @@ export class AgentsWindow {
 		await this.selectRemoteFolder(name, workspacePath);
 	}
 
+	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.quickaccess.runCommand('workbench.action.sessions.connectViaWSL', { keepOpen: true });
+		await page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({
+			has: page.getByText(distro, { exact: true }),
+		}).click({ timeout: 30_000 });
+		await this.selectRemoteFolder(distro, workspacePath);
+	}
+
 	private async fillQuickInput(title: string, value: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });

@@ -76,8 +76,10 @@ function main(): void {
 		process.stdin.pause();
 		process.exitCode = stopping ? 0 : code ?? 1;
 	});
-	process.stdin.resume();
-	process.stdin.on('end', stop);
+	if (!process.argv.includes('--ignore-stdin')) {
+		process.stdin.resume();
+		process.stdin.on('end', stop);
+	}
 	process.on('SIGINT', stop);
 	process.on('SIGTERM', stop);
 	process.on('exit', () => child.kill());

@@ -69,9 +69,9 @@ npm run watch
 
 ## Troubleshooting
 
-### Dev Container sessions over SSH and Tunnels
+### Dev Container sessions over SSH, Tunnels, and WSL
 
-The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. Remote-container suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.
+The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. SSH/Tunnel suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.
 
 Each selected Dev Container suite checks Docker in its first setup hook, before starting fixture resources, with a fresh `docker info` probe and a 60-second timeout. The probe runs asynchronously and logs its elapsed time and failure reason. Filtered-out suites do not probe Docker. Missing Docker fails the suite on Linux and for an explicitly requested Tunnel test; optional local runs on other platforms are skipped.
 
@@ -92,7 +92,18 @@ unset VSCODE_SMOKE_TEST_TUNNEL_TOKEN
 
 Do not use the repository-scoped GitHub Actions token as a substitute for a user token. A requested Tunnel test fails on invalid credentials or missing prerequisites rather than silently skipping. The CLI must already have accepted server-license consent, or the operator must explicitly set `VSCODE_SMOKE_TEST_TUNNEL_ACCEPT_SERVER_LICENSE_TERMS=1` to indicate agreement.
 
-Both remote suites drive host connection, remote folder selection, **Use Dev Container**, prompt submission, the rendered response, and reopening the session through the UI. Model requests use the local mock LLM server, not paid models. They also verify that container startup uses the selected SSH/Tunnel connection and that the turn travels over the nested Dev Container transport.
+The WSL suite runs on Windows with an explicitly selected WSL 2 distribution. Docker must work inside that distribution, for example through Docker Desktop WSL integration. Supply the Linux path to an extracted VS Code remote server with Dev Container capability support; the fixture uses its Linux Node runtime and native dependencies, independently of the Windows app under test:
+
+```powershell
+$env:VSCODE_SMOKE_TEST_WSL_DISTRO = 'Ubuntu'
+$env:VSCODE_SMOKE_TEST_WSL_SERVER_PATH = '/path/to/linux/server'
+npm run smoketest -- --tracing -g 'Agents Window \(WSL Dev Container AgentHost\)'
+Remove-Item Env:VSCODE_SMOKE_TEST_WSL_DISTRO, Env:VSCODE_SMOKE_TEST_WSL_SERVER_PATH
+```
+
+An explicitly selected WSL suite fails on missing prerequisites rather than skipping. It copies the test workspace into a private directory inside the distribution, starts an isolated source Agent Host through the real WSL connection flow, and removes only its own processes, containers, and temporary files. It does not install software in the distribution, change Docker integration, or stop the distribution. The Windows mock server must be reachable from WSL and Docker.
+
+All remote suites drive host connection, remote folder selection, **Use Dev Container**, prompt submission, the rendered response, and reopening the session through the UI. Model requests use the local mock LLM server, not paid models. They also verify that container startup uses the selected SSH/Tunnel/WSL connection and that the turn travels over the nested Dev Container transport.
 
 Source runs launch the compiled standalone Agent Host with the checkout's matching Electron runtime. Packaged runs launch the shipped `bootstrap-fork.js` / `agentHostMain` entrypoint with IPC, the build's NLS messages, and authenticated WebSocket configuration; they do not require the development-only standalone entrypoint. Since Code OSS does not configure tunnel authentication scopes, the Tunnel fixture creates a private source-app snapshot with only the required test product metadata; it never changes the checkout's product files. Packaged Tunnel runs require the supplied build's tunnel authentication configuration.
 
