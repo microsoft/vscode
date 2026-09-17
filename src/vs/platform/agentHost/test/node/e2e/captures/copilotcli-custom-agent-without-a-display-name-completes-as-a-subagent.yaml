@@ -1,0 +1,54 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "PARENT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: child task
+            prompt: Return the custom child sentinel.
+            agent_type: e2e-display-name-child
+            description: Run child sentinel agent
+            mode: sync
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Return the custom child sentinel.
+    response:
+      content: CUSTOM_AGENT_CHILD_OK
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "PARENT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: child task
+                prompt: Return the custom child sentinel.
+                agent_type: e2e-display-name-child
+                description: Run child sentinel agent
+                mode: sync
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: CUSTOM_AGENT_CHILD_OK
+    response:
+      content: PARENT_DONE
+      stopReason: end_turn

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as vscode from 'vscode';
-import { findBestSymbolByPath } from '../../vscode-node/findSymbol';
+import { extractQualifiedSymbolParts, findBestSymbolByPath } from '../../vscode-node/findSymbol';
 
 suite('Find symbol', () => {
 	function docSymbol(name: string, ...children: vscode.DocumentSymbol[]): vscode.DocumentSymbol {
@@ -224,5 +224,43 @@ suite('Find symbol', () => {
 			], 'a.b.c.d')?.name,
 			'c'  // Highest matchCount among available symbols
 		);
+	});
+});
+
+suite('extractQualifiedSymbolParts', () => {
+	test('splits qualified names on member access', () => {
+		assert.deepStrictEqual([
+			extractQualifiedSymbolParts('undo'),
+			extractQualifiedSymbolParts('undo()'),
+			extractQualifiedSymbolParts('TextModel.undo()'),
+			extractQualifiedSymbolParts('Foo::bar'),
+			extractQualifiedSymbolParts('foo->bar'),
+			extractQualifiedSymbolParts('symbol<T>.b'),
+			extractQualifiedSymbolParts('$a'),
+			extractQualifiedSymbolParts('#privateField'),
+		], [
+			['undo'],
+			['undo'],
+			['TextModel', 'undo'],
+			['Foo', 'bar'],
+			['foo', 'bar'],
+			['symbol', 'b'],
+			['$a'],
+			['#privateField'],
+		]);
+	});
+
+	test('yields no parts for text that is not a qualified name', () => {
+		// `mx:text` used to decompose to ['mx', 'text'] and link to an unrelated `text`
+		// declaration in an attached file.
+		assert.deepStrictEqual([
+			extractQualifiedSymbolParts('mx:text'),
+			extractQualifiedSymbolParts('sed -i'),
+			extractQualifiedSymbolParts('**/Filename.java'),
+			extractQualifiedSymbolParts('.gitignore'),
+			extractQualifiedSymbolParts('go generate ./...'),
+			extractQualifiedSymbolParts('a b'),
+			extractQualifiedSymbolParts(''),
+		], [[], [], [], [], [], [], []]);
 	});
 });

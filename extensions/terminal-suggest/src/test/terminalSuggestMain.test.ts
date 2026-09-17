@@ -123,6 +123,9 @@ suite('Terminal Suggest', () => {
 					if (testSpec.expectedResourceRequests?.cwd) {
 						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
+					if (testSpec.expectedResourceRequests?.fileNames) {
+						deepStrictEqual(result.fileNames, testSpec.expectedResourceRequests.fileNames, 'Non matching file names');
+					}
 				});
 			}
 		});

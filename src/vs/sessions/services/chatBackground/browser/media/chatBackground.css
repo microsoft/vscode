@@ -1,0 +1,84 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.sessionspart.has-chat-background .session-view,
+.monaco-workbench .part.sessionspart.has-chat-background .session-view .session-view-content,
+.monaco-workbench .part.sessionspart.has-chat-background .chat-group-view {
+	background-color: transparent;
+}
+
+.sessions-chat-background,
+.sessions-chat-background-replica-viewport,
+.sessions-chat-background-replica {
+	position: absolute;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.sessions-chat-background,
+.sessions-chat-background-replica-viewport {
+	inset: 0;
+}
+
+.sessions-chat-background[hidden],
+.sessions-chat-background-replica-viewport[hidden] {
+	display: none;
+}
+
+.sessions-chat-background-replica {
+	background-color: var(--session-view-background);
+}
+
+.sessions-chat-background > .sessions-chat-codicon-background {
+	position: absolute;
+	inset: 0;
+	color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+
+.sessions-chat-background > .sessions-chat-codicon-background[hidden] {
+	display: none;
+}
+
+.sessions-chat-background > .sessions-chat-codicon-background > .codicon,
+.sessions-chat-codicon-cell,
+.sessions-chat-codicon-hit-target {
+	position: absolute;
+}
+
+.sessions-chat-codicon-cell {
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: inherit;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+	display: grid;
+	place-items: center;
+}
+
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target {
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	z-index: 3;
+	opacity: 0;
+	pointer-events: auto;
+	transform: translate(-50%, -50%);
+}
+
+.sessions-chat-codicon-button-animation {
+	display: flex;
+	line-height: 1;
+}
+
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:hover ~ .sessions-chat-background .sessions-chat-codicon-button-active {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:focus-visible ~ .sessions-chat-background .sessions-chat-codicon-button-active {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

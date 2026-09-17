@@ -9,9 +9,17 @@ pushd %~dp0\..
 if "%VSCODE_SKIP_PRELAUNCH%"=="" (
 	node build/lib/preLaunch.ts || (
 		echo Failed to prepare VS Code for launch ^(build/lib/preLaunch.ts^). 1>&2
-		exit /b 1
+		goto :failed
 	)
 )
+goto :prelaunch_complete
+
+:failed
+popd
+endlocal
+exit /b 1
+
+:prelaunch_complete
 
 set "NAMESHORT="
 for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do if not defined NAMESHORT set "NAMESHORT=%%~a"

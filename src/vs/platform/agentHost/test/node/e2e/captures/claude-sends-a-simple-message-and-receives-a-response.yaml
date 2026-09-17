@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -10,6 +10,3 @@ exchanges:
     response:
       content: hello
       stopReason: end_turn
-      usage:
-        inputTokens: 2426
-        outputTokens: 4

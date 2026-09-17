@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { dirname, join } from '../../../base/common/path.js';
 import { ensureFoundryLocalRuntime } from './foundryLocalRuntime.js';
@@ -13,23 +13,53 @@ import {
 	ILocalTranscriptionModelStatus,
 	ILocalTranscriptionResult,
 	ILocalTranscriptionService,
+	DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
+	ILocalTranscriptionModelImportResult,
 	LocalTranscriptionModelState,
 } from '../common/localTranscription.js';
+import { importFoundryLocalModel } from './foundryLocalModelImport.js';
 
 /** PCM audio format the renderer captures and streams: mono 16 kHz signed 16-bit. */
 const SAMPLE_RATE = 16000;
 const CHANNELS = 1;
 const BITS_PER_SAMPLE = 16;
 
-/**
- * Default on-device model. `nemotron-speech-streaming-en-0.6b` is the NVIDIA
- * Nemotron streaming RNN-T model the GitHub Copilot app ships for dictation; it
- * runs through Foundry Local's native streaming ASR engine (ORT + ORT-GenAI).
- */
-const DEFAULT_MODEL = 'nemotron-speech-streaming-en-0.6b';
-
 /** Application name reported to Foundry Local for logs/telemetry and its data dir. */
 const FOUNDRY_APP_NAME = 'vscode-dictation';
+
+/**
+ * Timeouts guarding every await onto the native Foundry Local SDK that has no
+ * `AbortSignal` of its own (catalog lookup, model load, a single audio append,
+ * the result stream, and session teardown). Without these, a stalled network
+ * connection or a wedged native call leaves the corresponding promise
+ * unresolved forever — and since `start`/`pushAudio`/`stop`/`cancel` all await
+ * these calls (directly or via the serialized append chain / stream consumer),
+ * the renderer would wait indefinitely with no error ever surfacing to the
+ * user. Model *download* already reports progress and is not included here;
+ * a stalled download is instead caught by its own inactivity timeout inside
+ * `ensureFoundryLocalRuntime`.
+ */
+const MODEL_CATALOG_TIMEOUT_MS = 30_000;
+const MODEL_LOAD_TIMEOUT_MS = 120_000;
+const SESSION_START_TIMEOUT_MS = 15_000;
+const APPEND_TIMEOUT_MS = 15_000;
+const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
+const SESSION_TEARDOWN_TIMEOUT_MS = 15_000;
+
+/**
+ * Race `promise` against a `ms` timeout, rejecting with `message` if it does
+ * not settle in time. Does not cancel `promise` itself (the native SDK gives us
+ * no way to do that for these calls) — it only unblocks whichever caller is
+ * awaiting it, so a wedged native call fails fast and visibly instead of
+ * hanging every dependent operation forever.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout>;
+	const timedOut = new Promise<T>((_, reject) => {
+		timer = setTimeout(() => reject(new Error(message)), ms);
+	});
+	return Promise.race([promise, timedOut]).finally(() => clearTimeout(timer));
+}
 
 /**
  * Directory holding the on-demand Foundry Local native runtime (addon + core
@@ -61,6 +91,9 @@ type LiveAudioTranscriptionResponse = import('foundry-local-sdk').LiveAudioTrans
  */
 function classifyModelError(message: string): string {
 	const text = message.toLowerCase();
+	if (/\btimed out\b/.test(text)) {
+		return 'timeout';
+	}
 	if (/\b(404|not found|no such file|does not exist|could not locate|repository not found|unknown model)\b/.test(text)) {
 		return 'notFound';
 	}
@@ -201,6 +234,8 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	private _loadedModelId: string | undefined;
 	/** In-flight (or resolved) model download+load for the selected model. */
 	private _modelPromise: Promise<IModel> | undefined;
+	/** Cancellation source for the in-flight model download/load; aborts it when cancelled. */
+	private _modelPrepareCts: CancellationTokenSource | undefined;
 
 	/**
 	 * Where to download the native runtime from (product.dictationRuntime), or
@@ -256,11 +291,20 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		super();
 		// Tear down the active session (and its native ASR resources) when the
 		// service — and its utility process — goes away.
-		this._register(toDisposable(() => { void this._disposeSession(); }));
+		this._register(toDisposable(() => {
+			void this._disposeSession();
+			this._modelPrepareCts?.cancel();
+			this._modelPrepareCts?.dispose();
+			this._modelPrepareCts = undefined;
+		}));
 	}
 
 	async getModelStatus(): Promise<ILocalTranscriptionModelStatus> {
 		return this._status;
+	}
+
+	importModel(options: { sourcePath: string; cacheDir: string }): Promise<ILocalTranscriptionModelImportResult> {
+		return importFoundryLocalModel(options.sourcePath, options.cacheDir);
 	}
 
 	private _setStatus(status: ILocalTranscriptionModelStatus): void {
@@ -291,7 +335,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._pendingChunks = [];
 		this._runtimeError = undefined;
 
-		const model = options.model ?? DEFAULT_MODEL;
+		const model = options.model ?? DEFAULT_LOCAL_TRANSCRIPTION_MODEL;
 		const language = options.language;
 		// Do not block capture on the (possibly first-use) model download/load and
 		// session open; buffer audio until the session is ready, then flush it.
@@ -387,7 +431,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			if (language) {
 				session.settings.language = language;
 			}
-			await session.start();
+			await withTimeout(session.start(), SESSION_START_TIMEOUT_MS, `Foundry Local session start timed out after ${SESSION_START_TIMEOUT_MS}ms.`);
 
 			if (generation !== this._generation) {
 				// A newer session replaced this one while it was opening; discard.
@@ -434,13 +478,18 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	 * completed, preserving capture order. Returns a promise that rejects if this
 	 * particular append fails (for callers that must surface it); the internal
 	 * chain continues regardless so ordering is preserved for later chunks.
+	 *
+	 * Guarded with a timeout: every later chunk (and `stop()`, which awaits the
+	 * whole chain) is serialized behind this one call, so a single wedged native
+	 * `append()` would otherwise hang the entire rest of the recording — and
+	 * Stop — forever.
 	 */
 	private _enqueueAppend(session: LiveAudioTranscriptionSession, generation: number, chunk: Uint8Array): Promise<void> {
 		const result = this._appendChain.then(() => {
 			if (generation !== this._generation || this._session !== session) {
 				return; // superseded/reset; drop stale append
 			}
-			return session.append(chunk);
+			return withTimeout(session.append(chunk), APPEND_TIMEOUT_MS, `Foundry Local audio append timed out after ${APPEND_TIMEOUT_MS}ms.`);
 		});
 		this._appendChain = result.catch(() => { /* keep the chain alive after a failed append */ });
 		return result;
@@ -460,9 +509,12 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		}
 
 		this._loadedModelId = modelId;
+		const cts = new CancellationTokenSource();
+		this._modelPrepareCts = cts;
 		this._modelPromise = (async () => {
 			try {
-				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
+				// The model cache state is unknown until the catalog is queried.
+				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 
 				// Ensure the Foundry Local native runtime (N-API addon + core
 				// libraries) is available before loading the SDK. We do not ship
@@ -474,7 +526,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				// the SDK resolves its addon + core libs from node_modules, so we
 				// skip provisioning and leave the loader on its default path.
 				if (this._runtimeDownload) {
-					const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, CancellationToken.None);
+					const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, cts.token);
 					process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
 				}
 
@@ -493,26 +545,59 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					});
 				}
 
-				const model = await this._manager.catalog.getModel(modelId);
+				const model = await withTimeout(
+					this._manager.catalog.getModel(modelId),
+					MODEL_CATALOG_TIMEOUT_MS,
+					`Foundry Local model catalog lookup timed out after ${MODEL_CATALOG_TIMEOUT_MS}ms.`
+				);
 
 				let didDownload = false;
 				if (!model.isCached) {
 					didDownload = true;
-					await model.download((percent: number) => {
-						this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, Math.max(0, percent / 100)) });
-					});
+					// Only now, having confirmed a cache miss, surface the
+					// `Downloading` status. Report it up front (progress 0) so the
+					// download UI appears immediately rather than waiting for the
+					// SDK's first progress callback.
+					this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
+					// Bridge VS Code cancellation to the AbortSignal the SDK expects.
+					const ac = new AbortController();
+					const sub = cts.token.onCancellationRequested(() => ac.abort());
+					try {
+						await model.download((percent: number) => {
+							this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, Math.max(0, percent / 100)) });
+						}, ac.signal);
+					} finally {
+						sub.dispose();
+					}
 				}
 
+				// model.load() has no AbortSignal; check cancellation before starting it.
+				// It also reports no progress, so guard it with a hard timeout —
+				// otherwise a wedged native load (e.g. a driver hiccup) would hang
+				// this promise, and every caller awaiting it, forever.
+				if (cts.token.isCancellationRequested) {
+					throw new Error('cancelled');
+				}
 				this._setStatus({ state: LocalTranscriptionModelState.Loading });
-				await model.load();
+				await withTimeout(
+					model.load(),
+					MODEL_LOAD_TIMEOUT_MS,
+					`Foundry Local model load timed out after ${MODEL_LOAD_TIMEOUT_MS}ms.`
+				);
 
 				this._model = model;
 				this._setStatus({ state: LocalTranscriptionModelState.Ready, downloaded: didDownload });
+				if (this._modelPrepareCts === cts) {
+					this._modelPrepareCts = undefined;
+				}
 				return model;
 			} catch (err) {
 				this._model = undefined;
 				this._modelPromise = undefined;
 				this._loadedModelId = undefined;
+				if (this._modelPrepareCts === cts) {
+					this._modelPrepareCts = undefined;
+				}
 				throw err;
 			}
 		})();
@@ -526,10 +611,24 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	 * non-final result is the interim tail of the segment currently being spoken.
 	 * Each update fires the full cumulative transcript so the renderer can shimmer
 	 * the interim tail and solidify finalized text.
+	 *
+	 * Each `next()` call is guarded with an inactivity timeout: this loop is what
+	 * `stop()` awaits (via `_consumePromise`) before returning, so a native stream
+	 * that stops yielding results and never completes — without ever throwing —
+	 * would otherwise hang Stop forever with no error.
 	 */
 	private async _consume(session: LiveAudioTranscriptionSession, generation: number): Promise<void> {
+		const iterator = session.getStream()[Symbol.asyncIterator]();
 		try {
-			for await (const result of session.getStream()) {
+			while (true) {
+				const { value: result, done } = await withTimeout(
+					iterator.next(),
+					STREAM_INACTIVITY_TIMEOUT_MS,
+					`Foundry Local transcription stream stalled for ${STREAM_INACTIVITY_TIMEOUT_MS}ms.`
+				);
+				if (done) {
+					break;
+				}
 				if (generation !== this._generation) {
 					break;
 				}
@@ -548,15 +647,24 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				}
 			}
 		} catch (err) {
-			// A native streaming/push failure terminates the stream. If it happened
-			// while recording (not during our own teardown), record it and surface
-			// an error status so the renderer tears the session down and informs the
-			// user; stop() also rethrows it rather than reporting a false success.
+			// A native streaming/push failure (or the inactivity timeout above)
+			// terminates the stream. If it happened while recording (not during our
+			// own teardown), record it and surface an error status so the renderer
+			// tears the session down and informs the user; stop() also rethrows it
+			// rather than reporting a false success.
 			if (generation === this._generation && this._sessionActive) {
 				const error = err instanceof Error ? err : new Error(String(err));
 				this._runtimeError = error;
-				this._setStatus({ state: LocalTranscriptionModelState.Error, error: error.message, errorCode: 'runtime' });
+				const errorCode = /\btimed out\b/.test(error.message) ? 'timeout' : 'runtime';
+				this._setStatus({ state: LocalTranscriptionModelState.Error, error: error.message, errorCode });
 			}
+		} finally {
+			// Mirror `for await...of`'s implicit cleanup on early break/throw so a
+			// stream we abandoned after a timeout doesn't keep the native generator
+			// (and whatever native resources back it) alive indefinitely.
+			try {
+				await iterator.return?.(undefined);
+			} catch { /* best-effort */ }
 		}
 	}
 
@@ -637,13 +745,16 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			// Drain every queued append (buffered backlog + live chunks) so the
 			// final captured audio reaches native core before we stop — otherwise
 			// `stop()` can complete the stream while the tail append is still
-			// pending, truncating the transcript.
+			// pending, truncating the transcript. The append chain itself is
+			// already timeout-guarded per chunk, so this can't hang.
 			try {
 				await this._appendChain;
 			} catch { /* individual append failures already surfaced */ }
 			// `stop()` drains any buffered audio, emits final results into the
 			// stream, then completes it — so the consumer loop ends after this.
-			await session.stop();
+			// Guarded so a wedged native stop can't hang the user's Stop click
+			// forever; `_disposeSession` still tears the session down afterwards.
+			await withTimeout(session.stop(), SESSION_TEARDOWN_TIMEOUT_MS, `Foundry Local session stop timed out after ${SESSION_TEARDOWN_TIMEOUT_MS}ms.`);
 		} catch {
 			// Best-effort: fall through to whatever transcript we accumulated.
 		}
@@ -673,12 +784,21 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	}
 
 	async cancel(): Promise<void> {
+		this._modelPrepareCts?.cancel();
+		this._modelPrepareCts = undefined;
 		this._sessionActive = false;
 		this._generation++;
 		await this._disposeSession();
 		this._resetSessionState();
 	}
 
+	/**
+	 * Tear down the active session and wait for its stream consumer to drain.
+	 * Called from `stop()`, `cancel()`, and disposal — all paths a user or the
+	 * window shutdown can be waiting on — so `session.dispose()` is guarded with
+	 * a timeout the same way `session.stop()` is, to avoid hanging forever on a
+	 * wedged native teardown.
+	 */
 	private async _disposeSession(): Promise<void> {
 		const session = this._session;
 		this._session = undefined;
@@ -686,7 +806,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._consumePromise = undefined;
 		if (session) {
 			try {
-				await session.dispose();
+				await withTimeout(session.dispose(), SESSION_TEARDOWN_TIMEOUT_MS, `Foundry Local session dispose timed out after ${SESSION_TEARDOWN_TIMEOUT_MS}ms.`);
 			} catch { /* best-effort teardown */ }
 		}
 		if (consume) {

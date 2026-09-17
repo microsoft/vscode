@@ -165,9 +165,9 @@ export class CustomizationLocationPicker {
 			return undefined;
 		}
 
-		// if (matchingFolders.length === 1) {
-		// 	return matchingFolders[0].uri;
-		// }
+		if (matchingFolders.length === 1) {
+			return matchingFolders[0].uri;
+		}
 
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({

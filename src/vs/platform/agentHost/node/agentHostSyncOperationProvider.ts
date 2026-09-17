@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
 
@@ -32,14 +32,34 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		return store;
 	}
 
-	getOperations({ gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
-		if (!gitState?.upstreamBranchName || (gitState?.outgoingChanges ?? 0) === 0) {
+	getOperations({ sessionKey, gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+		// New Session
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.lifecycle === SessionLifecycle.Creating && (gitState?.uncommittedChanges ?? 0) > 0) {
 			return undefined;
 		}
 
+		// No upstream branch
+		if (!gitState?.upstreamBranchName) {
+			return undefined;
+		}
+
+		// No incoming/outgoing changes
+		const incomingChanges = gitState?.incomingChanges ?? 0;
+		const outgoingChanges = gitState?.outgoingChanges ?? 0;
+		if (incomingChanges === 0 && outgoingChanges === 0) {
+			return undefined;
+		}
+
+		const label = incomingChanges > 0
+			? outgoingChanges > 0
+				? localize('agentHost.changeset.syncIncomingOutgoing', "Sync Changes {0}↓ {1}↑", incomingChanges, outgoingChanges)
+				: localize('agentHost.changeset.syncIncoming', "Sync Changes {0}↓", incomingChanges)
+			: localize('agentHost.changeset.sync', "Sync Changes {0}↑", outgoingChanges);
+
 		return [{
 			id: AgentHostSyncOperationHandler.OPERATION_SYNC,
-			label: localize('agentHost.changeset.sync', "Sync Changes {0}↑", gitState.outgoingChanges),
+			label,
 			icon: 'sync',
 			group: 'sync',
 			scopes: [ChangesetOperationScope.Changeset],

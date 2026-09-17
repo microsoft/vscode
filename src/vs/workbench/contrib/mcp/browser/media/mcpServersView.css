@@ -29,7 +29,7 @@
 		.mcp-welcome-title {
 			font-size: 24px;
 			margin-top: 5px;
-			font-weight: 500;
+			font-weight: var(--vscode-fontWeight-semiBold);
 			line-height: normal;
 		}
 

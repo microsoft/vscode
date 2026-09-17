@@ -27,11 +27,10 @@ export interface IAgentCustomizationMeta {
  */
 export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCustomizationMeta {
 	const meta = agent._meta;
-	if (!meta) {
-		return {};
-	}
 	const result: Mutable<IAgentCustomizationMeta> = {};
-	if (typeof meta['userInvocable'] === 'boolean') {
+	if (agent.disableUserInvocation === true) {
+		result.userInvocable = false;
+	} else if (typeof meta?.['userInvocable'] === 'boolean') {
 		result.userInvocable = meta['userInvocable'];
 	}
 	return result;

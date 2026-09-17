@@ -19,7 +19,7 @@ import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from 
 import { Response } from '../../networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
 import { APIUsage, ChatCompletion, isApiUsage } from '../../networking/common/openai';
-import { IOTelService } from '../../otel/common/otelService';
+import { IOTelService, type OTelModelOptions } from '../../otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation } from '../../requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
@@ -28,6 +28,14 @@ import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
+
+/**
+ * Internal model options transported across VS Code's extension-contributed language model boundary.
+ */
+export interface ExtensionLanguageModelRequestOptions extends OTelModelOptions {
+	readonly _enableThinking?: boolean;
+	readonly _conversationId?: string;
+}
 
 enum ChatImageMimeType {
 	PNG = 'image/png',
@@ -170,6 +178,8 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		location,
 		source,
 		telemetryProperties,
+		modelCapabilities,
+		conversationId,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages, {
 			ignoreStatefulMarker,
@@ -192,12 +202,14 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 				description: tool.function.description,
 				inputSchema: tool.function.parameters,
 			})),
-			// Pass correlation ID and OTel trace context through modelOptions for cross-IPC restoration.
+			// Pass internal request context through modelOptions for cross-IPC restoration.
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
 				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
-			}
+				...(modelCapabilities?.enableThinking !== undefined ? { _enableThinking: modelCapabilities.enableThinking } : {}),
+				...(conversationId !== undefined ? { _conversationId: conversationId } : {}),
+			} satisfies ExtensionLanguageModelRequestOptions
 		};
 
 		// Store current CapturingToken for retrieval by BYOK providers after IPC crossing

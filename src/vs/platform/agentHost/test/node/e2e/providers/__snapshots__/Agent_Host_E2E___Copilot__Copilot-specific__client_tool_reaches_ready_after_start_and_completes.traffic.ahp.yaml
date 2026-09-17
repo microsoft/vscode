@@ -69,10 +69,6 @@ rounds:
           type: session/changesetsChanged
       - channel: ${chat_0}
         action:
-          type: chat/usage
-          turnId: ${turn_0}
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallStart
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
@@ -81,10 +77,6 @@ rounds:
           contributor:
             kind: client
             clientId: copilot-client-tool
-      - channel: ${chat_0}
-        action:
-          type: chat/usage
-          turnId: ${turn_0}
       - channel: ${session_0}
         action:
           type: session/chatUpdated
@@ -165,15 +157,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: The magic word is **XYLOPHONE**.
-      - channel: ${chat_0}
-        action:
-          type: chat/usage
-          turnId: ${turn_0}
-      - channel: ${chat_0}
-        action:
-          type: chat/usage
-          turnId: ${turn_0}
+            content: 'The magic word is: **XYLOPHONE**'
       - channel: ${session_0}
         action:
           type: session/chatUpdated

@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call send_message exactly once with session "copilotcli:/e2e-server-tools-send-self" and message "loop", then reply exactly "refused".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: send_message
+          input:
+            session: copilotcli:/e2e-server-tools-send-self
+            message: loop
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call send_message exactly once with session "copilotcli:/e2e-server-tools-send-self" and message "loop", then reply exactly "refused".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: send_message
+              input:
+                session: copilotcli:/e2e-server-tools-send-self
+                message: loop
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Invalid send_message input: refusing to send a message to the current chat.'
+    response:
+      content: refused
+      stopReason: end_turn

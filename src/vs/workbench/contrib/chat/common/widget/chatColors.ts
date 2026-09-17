@@ -5,16 +5,19 @@
 
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, badgeBackground, badgeForeground, chartsGreen, chartsYellow, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, errorForeground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorFindMatchHighlight } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
+import { COMMAND_CENTER_BACKGROUND } from '../../../../common/theme.js';
 
-// This color intentionally matches commandCenter.background but is separate so that it
-// doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
-// This allows themes to customize it while maintaining independence from debug mode changes.
+// This color inherits its default value from commandCenter.background but is registered
+// separately so that it doesn't get overridden when debugging (the debug toolbar overrides
+// commandCenter.background). This allows themes to customize it while maintaining
+// independence from debug mode changes.
 export const agentStatusIndicatorBackground = registerColor(
 	'agentStatusIndicator.background',
-	{ dark: Color.white.transparent(0.05), light: Color.black.transparent(0.05), hcDark: null, hcLight: null },
+	COMMAND_CENTER_BACKGROUND,
 	localize('agentStatusIndicator.background', 'Background color of the agent status indicator in the titlebar.')
 );
 
@@ -28,6 +31,30 @@ export const chatRequestBackground = registerColor(
 	'chat.requestBackground',
 	{ dark: transparent(editorBackground, 0.62), light: transparent(editorBackground, 0.62), hcDark: editorWidgetBackground, hcLight: null },
 	localize('chat.requestBackground', 'The background color of a chat request.')
+);
+
+export const chatStatusBackground = registerColor(
+	'chat.statusBackground',
+	{ dark: transparent(foreground, 0.08), light: transparent(foreground, 0.08), hcDark: Color.black, hcLight: Color.white },
+	localize('chat.statusBackground', 'The background color of status elements in chat.')
+);
+
+export const chatSessionInProgressBorder = registerColor(
+	'chat.sessionStateIndicator.inProgressBorder',
+	{ dark: chartsYellow, light: chartsYellow, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.inProgressBorder', "Border color of a Chat Editor with a request in progress.")
+);
+
+export const chatSessionUnvisitedBorder = registerColor(
+	'chat.sessionStateIndicator.unvisitedBorder',
+	{ dark: chartsGreen, light: chartsGreen, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.unvisitedBorder', "Border color of a Chat Editor with an unvisited completion.")
+);
+
+export const chatSessionNeedsInputBorder = registerColor(
+	'chat.sessionStateIndicator.needsInputBorder',
+	{ dark: errorForeground, light: errorForeground, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs user input.")
 );
 
 export const chatSlashCommandBackground = registerColor(
@@ -85,22 +112,62 @@ export const chatLinesRemovedForeground = registerColor(
 	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
 	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);
 
+export const chatFindMatchHighlightBackground = registerColor(
+	'chat.findMatchHighlightBackground',
+	{ dark: editorFindMatchHighlight, light: editorFindMatchHighlight, hcDark: '#EA5C0055', hcLight: '#EA5C0055' },
+	localize('chat.findMatchHighlightBackground', 'Background color of the other search matches in a chat transcript. The color must not be opaque so as not to hide underlying content.'), true);
+
+export const chatFindMatchBackground = registerColor(
+	'chat.findMatchBackground',
+	{ dark: transparent(chatFindMatchHighlightBackground, 2), light: transparent(chatFindMatchHighlightBackground, 2), hcDark: '#EA5C00AA', hcLight: '#EA5C00AA' },
+	localize('chat.findMatchBackground', 'Background color of the current search match in a chat transcript.'), true);
+
 export const chatThinkingShimmer = registerColor(
 	'chat.thinkingShimmer',
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
-	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
+	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'));
 
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',
 	{ dark: buttonBackground, light: buttonBackground, hcDark: '#FFFFFF', hcLight: '#000000' },
-	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'), true);
+	localize('chat.inputWorkingBorderColor1', 'Accent color of the animated chat input border shown while a request is in flight.'));
 
 export const chatInputWorkingBorderColor2 = registerColor(
 	'chat.inputWorkingBorderColor2',
 	{ dark: darken(buttonBackground, 0.5), light: darken(buttonBackground, 0.3), hcDark: '#A0A0A0', hcLight: '#555555' },
-	localize('chat.inputWorkingBorderColor2', 'Secondary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+	localize('chat.inputWorkingBorderColor2', 'Unused secondary chat input accent color.'), false,
+	localize('chat.inputWorkingBorderColor2.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
 
 export const chatInputWorkingBorderColor3 = registerColor(
 	'chat.inputWorkingBorderColor3',
 	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
-	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+	localize('chat.inputWorkingBorderColor3', 'Unused tertiary chat input accent color.'), false,
+	localize('chat.inputWorkingBorderColor3.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
+
+// --- Voice Mode ambient glow -------------------------------------------------
+// The listening / processing / speaking glows are derived from a single base
+// accent by hue-shifting (see `resolveVoiceGlowColors` in `voiceGlow.ts`), so the
+// glow harmonizes with whatever accent the active theme uses. Themes can pin any
+// individual state by setting its own token.
+
+export const chatVoiceGlowBaseColor = registerColor(
+	'chat.voiceGlowBaseColor',
+	focusBorder,
+	localize('chat.voiceGlowBaseColor', 'Base accent the Voice Mode ambient glow is derived from. The listening and speaking glows are hue-shifted from this color.'), true);
+
+export const chatVoiceListeningGlow = registerColor(
+	'chat.voiceListeningGlow',
+	{ dark: null, light: null, hcDark: null, hcLight: null },
+	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while listening. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+
+export const chatVoiceSpeakingGlow = registerColor(
+	'chat.voiceSpeakingGlow',
+	{ dark: null, light: null, hcDark: null, hcLight: null },
+	localize('chat.voiceSpeakingGlow', 'Accent color of the Voice Mode glow while the agent is speaking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+
+// Dictation shares Voice Mode's listening accent, so an open microphone reads the
+// same whichever feature opened it.
+export const chatDictationActiveMicGlow = registerColor(
+	'chat.dictationActiveMicGlow',
+	chatVoiceGlowBaseColor,
+	localize('chat.dictationActiveMicGlow', 'Accent color of the glow shown on the microphone while dictation is listening.'));

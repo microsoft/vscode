@@ -5,6 +5,7 @@
 
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -16,6 +17,7 @@ import { TerminalSettingId } from '../../../../../../platform/terminal/common/te
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /** Terminal settings whose change should re-resolve the agent host shell. */
@@ -39,7 +41,7 @@ const AGENT_HOST_SHELL_DEPENDENT_SETTINGS = [
  * {@link AgentHostRootConfigForwarder} (also used by
  * `AgentHostCopilotCliSettingsContribution`).
  *
- * Gated on the `chat.agentHost.enabled` setting.
+ * Gated on Agent Host runtime availability.
  */
 export class AgentHostTerminalContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostTerminal';
@@ -56,22 +58,24 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		const keys: readonly IForwardedRootConfigKey[] = [
-			{
-				key: AgentHostConfigKey.DefaultShell,
-				computeValue: () => this._resolveDefaultShell(),
-				registerTriggers: (store, push) => {
-					store.add(this._configurationService.onDidChangeConfiguration(e => {
-						if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
-							push();
-						}
-					}));
-					store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
-				},
+		const defaultShellKey: IForwardedRootConfigKey = {
+			key: AgentHostConfigKey.DefaultShell,
+			computeValue: () => this._resolveDefaultShell(),
+			registerTriggers: (store, push) => {
+				store.add(this._configurationService.onDidChangeConfiguration(e => {
+					if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
+						push();
+					}
+				}));
+				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
 			},
+		};
+		const keys: readonly IForwardedRootConfigKey[] = [
+			...(environmentService.remoteAuthority ? [] : [defaultShellKey]),
 			{
 				key: CopilotCliConfigKey.EnableCustomTerminalTool,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true,
@@ -104,11 +108,11 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
 
-		this._updateEnabled();
+		this._register(autorun(reader => this._updateEnabled(this._agentHostEnablementService.enabled.read(reader))));
 	}
 
-	private _updateEnabled(): void {
-		if (this._agentHostEnablementService.enabled) {
+	private _updateEnabled(enabled: boolean): void {
+		if (enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				// The forwarder registers its own agent-host-start listener to re-push

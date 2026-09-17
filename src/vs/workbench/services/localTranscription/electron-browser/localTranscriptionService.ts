@@ -82,6 +82,7 @@ export class LocalTranscriptionService {
 	get onDidTranscribe() { return this._getProxy().onDidTranscribe; }
 
 	getModelStatus() { return this._getProxy().getModelStatus(); }
+	importModel(options: Parameters<ILocalTranscriptionService['importModel']>[0]) { return this._getProxy().importModel(options); }
 	start(options: { cacheDir: string; model?: string; language?: string }) {
 		const { proxyUrl, noProxy, proxyStrictSSL, proxyAuthorization } = this._resolveProxyConfig();
 		const runtime = this.productService.dictationRuntime;

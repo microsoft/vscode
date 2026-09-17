@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -23,6 +24,8 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 
 	private readonly _isSessionsWindow: boolean;
+	private _initialized = false;
+	private _sessionListStore: AgentHostSessionListStore | undefined;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -31,17 +34,36 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
-		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
-		if (this._isSessionsWindow || !agentHostEnablementService.enabled) {
+		if (this._isSessionsWindow) {
 			return;
 		}
+		this._register(autorun(reader => {
+			if (this._agentHostEnablementService.enabled.read(reader)) {
+				const wasInitialized = this._initialized;
+				this._initialize();
+				const current = this._agentHostService.rootState.value;
+				if (wasInitialized && current && !(current instanceof Error) && this._sessionListStore) {
+					this._handleRootStateChange(current, this._sessionListStore);
+				}
+			} else {
+				this._agentRegistrations.clearAndDisposeAll();
+			}
+		}));
+	}
 
+	private _initialize(): void {
+		if (this._initialized) {
+			return;
+		}
+		this._initialized = true;
 		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService));
+		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(rootState, sessionListStore);
@@ -72,6 +94,9 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	}
 
 	private _handleRootStateChange(rootState: RootState, sessionListStore: AgentHostSessionListStore): void {
+		if (!this._agentHostEnablementService.enabled.get()) {
+			return;
+		}
 		const allowed = rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider));
 		const incoming = new Set(allowed.map(agent => agent.provider));
 

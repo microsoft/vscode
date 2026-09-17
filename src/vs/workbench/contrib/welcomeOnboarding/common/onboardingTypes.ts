@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
 import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 
 /**
@@ -14,7 +13,6 @@ export const enum OnboardingStepId {
 	SignIn = 'onboarding.signIn',
 	Personalize = 'onboarding.personalize',
 	AiPreference = 'onboarding.aiPreference',
-	AgentSessions = 'onboarding.agentSessions',
 }
 
 /**
@@ -28,8 +26,6 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.personalize', "Make It Yours");
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference', "Your AI Style");
-		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions', "Build with AI Agents");
 	}
 }
 
@@ -44,8 +40,6 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard mapping");
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
-		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions.subtitle', "Open Chat anytime with {0}", isMacintosh ? '\u2318\u2303I' : 'Ctrl+Alt+I');
 	}
 }
 
@@ -55,7 +49,6 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 export const ONBOARDING_STEPS: readonly OnboardingStepId[] = [
 	OnboardingStepId.SignIn,
 	OnboardingStepId.Personalize,
-	OnboardingStepId.AgentSessions,
 ];
 
 /**

@@ -46,8 +46,8 @@ const npmUserAgent = process.env.npm_config_user_agent;
 const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
 if (npmVersionMatch) {
 	const npmMajor = parseInt(npmVersionMatch[1]);
-	if (npmMajor >= 12) {
-		console.error(`\x1b[1;31m*** Please use npm version < 12.0.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
+	if (npmMajor >= 13) {
+		console.error(`\x1b[1;31m*** Please use npm version < 13.0.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
 		throw new Error();
 	}
 }
@@ -146,6 +146,8 @@ function installHeaders() {
 	// the downloaded Electron headers. This is used to work around upstream issues:
 	//   - v8-source-location.h: remove dependency on std::source_location (GCC 11+ requirement)
 	//     Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	//   - v8config.h: use compatible deprecation attribute syntax with GCC < 13
+	//     Refs https://gcc.gnu.org/bugzilla/show_bug.cgi?id=69585
 	if (local !== undefined) {
 		const localHeaderPath = getLocalHeaderPath(local.target);
 		if (localHeaderPath && fs.existsSync(localHeaderPath)) {
@@ -175,6 +177,9 @@ function getLocalHeaderPath(target: string): string | undefined {
 			return undefined;
 		}
 		return path.join(localAppData, 'node-gyp', 'Cache', target, 'include', 'node');
+	}
+	if (process.platform === 'darwin') {
+		return path.join(os.homedir(), 'Library', 'Caches', 'node-gyp', target, 'include', 'node');
 	}
 	const homedir = os.homedir();
 	const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');

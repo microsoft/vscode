@@ -62,6 +62,17 @@ suite('AgentHostHeadlessTerminal', () => {
 		assert.deepStrictEqual(responses, []);
 	});
 
+	test('does not answer OSC color queries', async () => {
+		const terminal = createTerminal();
+		const responses: string[] = [];
+		disposables.add(terminal.onResponseData(data => responses.push(data)));
+
+		await terminal.writePtyData('\x1b]10;?\x1b\\');
+		await terminal.writePtyData('\x1b]11;?\x1b\\');
+
+		assert.deepStrictEqual(responses, []);
+	});
+
 	test('does not emit response data for normal terminal output', async () => {
 		const terminal = createTerminal();
 		const responses: string[] = [];

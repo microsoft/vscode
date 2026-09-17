@@ -16,6 +16,7 @@ import * as task from './lib/gulp/task.ts';
 import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
+import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import * as crypto from 'crypto';
@@ -27,7 +28,7 @@ import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
-import { copyCodiconsTask } from './lib/compilation.ts';
+import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
@@ -44,6 +45,18 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
+	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
+};
+
+function getLockedPackageVersion(packageName: string): string {
+	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
+	if (!version) {
+		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
+	}
+
+	return version;
+}
 
 // Build
 const vscodeEntryPoints = [
@@ -94,10 +107,14 @@ const vscodeResourceIncludes = [
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'out-build/vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
 	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
+
+	// Chat Pet
+	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
@@ -186,6 +203,7 @@ task.task(task.define('core-ci-old', task.series(
 )));
 
 task.task(task.define('core-ci', task.series(
+	checkApiProposalNamesTask,
 	copyCodiconsTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,
@@ -320,9 +338,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor((json: Record<string, unknown>) => {
 				json.commit = commit;
+				json.nlsMetadataHash = computeNLSMetadataHash(path.join(import.meta.dirname, '..', out), commit);
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
+				json.copilotVersions = {
+					runtime: getLockedPackageVersion('@github/copilot'),
+					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
@@ -390,6 +413,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				// matched here — it is pure JavaScript that the agent host loads via
 				// `import` (ASAR-aware), so it stays in the archive.
 				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
+				// The Dev Container CLI is spawned as an external Node process,
+				// so its bundled entrypoint must be available outside the ASAR.
+				'**/@devcontainers/cli/**',
 				'**/@microsoft/mxc-sdk/bin/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
@@ -453,6 +479,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'resources/win32/react.ico',
 				'resources/win32/ruby.ico',
 				'resources/win32/sass.ico',
+				'resources/win32/sessions.ico',
 				'resources/win32/shell.ico',
 				'resources/win32/sql.ico',
 				'resources/win32/typescript.ico',
@@ -624,9 +651,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
-			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/computer-use-mcp.exe', { cwd }),
-			glob('**/node_modules.asar.unpacked/@github/copilot-win32-*/builtin-plugins/computer-use/*/win32-*/CopilotComputerUse.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
+			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
+			glob('**/OneAuthInterop.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));

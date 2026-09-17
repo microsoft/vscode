@@ -35,6 +35,7 @@ import type { IEditorOptions } from '../../../../platform/editor/common/editor.j
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
+import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -122,12 +123,28 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
+	readonly terminalToolSessionId: string | undefined;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
 	continueInBackground(): void;
+	didRegisterOutputSource(terminalToolSessionId: string): void;
+	markContinuedInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
+}
+
+/** A read-only output stream rendered by chat without a workbench terminal instance. */
+export interface IChatTerminalOutputSource {
+	readonly onDidChange: Event<void>;
+	readonly output: string;
+	/**
+	 * Whether the underlying command has finished. A command can exit without
+	 * reporting an {@link exitCode}, so completion must be read from here
+	 * rather than inferred from the code being present.
+	 */
+	readonly hasExited: boolean;
+	readonly exitCode: number | undefined;
 }
 
 export interface ITerminalChatService {
@@ -201,6 +218,9 @@ export interface ITerminalChatService {
 	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 
+	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable;
+	getOutputSource(terminalToolSessionId: string | undefined): IChatTerminalOutputSource | undefined;
+
 	/**
 	 * Register a chat terminal tool progress part for tracking and focus management.
 	 * @param part The progress part to register
@@ -260,6 +280,20 @@ export interface ITerminalChatService {
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+
+	/**
+	 * Generate auto-approve rule actions for a command line that was not evaluated by the
+	 * built-in run in terminal tool, such as terminal confirmations surfaced by agent host
+	 * sessions. The command line is parsed into sub-commands and evaluated against the
+	 * persisted configuration rules only (never workbench session rules, which agent hosts
+	 * do not consume) to produce the same persistent-rule suggestions the built-in tool
+	 * offers.
+	 * @param commandLine The full command line being confirmed
+	 * @param language The language to parse the command line with
+	 * @returns The actions to show in the confirmation dropdown, or undefined if the command
+	 * line could not be analyzed
+	 */
+	getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined>;
 
 	/**
 	 * Signal that a foreground terminal tool invocation should continue in the background.

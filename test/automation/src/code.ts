@@ -18,6 +18,8 @@ export interface LaunchOptions {
 	// Allows you to override the Playwright instance
 	playwright?: typeof playwright;
 	codePath?: string;
+	/** Isolated source-app metadata and bootstrap overlay; ignored for packaged builds. */
+	readonly sourceAppRoot?: string;
 	readonly workspacePath?: string;
 	userDataDir?: string;
 	readonly extensionsPath?: string;
@@ -332,6 +334,19 @@ export class Code {
 
 	async whenWorkbenchRestored(): Promise<void> {
 		await this.poll(() => this.driver.whenWorkbenchRestored(), () => true, `when workbench restored`);
+	}
+
+	/**
+	 * Triggers a window reload via `trigger` and waits until the new window is up
+	 * and its workbench restored. Awaiting {@link whenWorkbenchRestored} alone is
+	 * not enough because that call can still be answered by the old, already
+	 * restored document before the reload took effect.
+	 */
+	async reloadWindow(trigger: () => Promise<void>): Promise<void> {
+		const marker = await this.driver.markWindowForReload();
+		await trigger();
+		await this.driver.waitForWindowReload(marker);
+		await this.whenWorkbenchRestored();
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

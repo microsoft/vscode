@@ -11,6 +11,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
 import { Command, isLocation } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -48,7 +50,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
-	private decorationData: { id: string; text: string }[] = [];
+	private decorationData: { id: string; text: string; rangeOffset: number }[] = [];
 
 	private readonly _editorListener = this._register(new MutableDisposable());
 
@@ -96,12 +98,23 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 				const newText = model.getValueInRange(newRange);
 				if (newText !== data.text) {
+					const replacement = e.changes.find(change =>
+						change.rangeOffset <= data.rangeOffset
+						&& change.rangeOffset + change.rangeLength >= data.rangeOffset + data.text.length
+					);
+					const preservedRange = replacement && this.findReferenceRangeInReplacement(model, e.changes, replacement, data);
+					if (preservedRange) {
+						didChange = true;
+						return { ...ref, range: preservedRange };
+					}
 
-					this.widget.inputEditor.executeEdits(this.id, [{
-						range: newRange,
-						text: '',
-					}]);
-					this.widget.refreshParsedInput();
+					if (!replacement) {
+						this.widget.inputEditor.executeEdits(this.id, [{
+							range: newRange,
+							text: '',
+						}]);
+						this.widget.refreshParsedInput();
+					}
 
 					removed.push(ref);
 					return null;
@@ -127,6 +140,40 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			this.updateDecorations();
 		});
+	}
+
+	private findReferenceRangeInReplacement(
+		model: ITextModel,
+		changes: readonly IModelContentChange[],
+		replacement: IModelContentChange,
+		data: { text: string; rangeOffset: number }
+	): Range | undefined {
+		if (!data.text) {
+			return undefined;
+		}
+
+		const previousRelativeOffset = data.rangeOffset - replacement.rangeOffset;
+		let matchOffset = replacement.text.indexOf(data.text);
+		let closestMatchOffset = matchOffset;
+		while (matchOffset !== -1) {
+			if (Math.abs(matchOffset - previousRelativeOffset) < Math.abs(closestMatchOffset - previousRelativeOffset)) {
+				closestMatchOffset = matchOffset;
+			}
+			matchOffset = replacement.text.indexOf(data.text, matchOffset + data.text.length);
+		}
+
+		if (closestMatchOffset === -1) {
+			return undefined;
+		}
+
+		const precedingChangesDelta = changes.reduce((delta, change) =>
+			change.rangeOffset < replacement.rangeOffset ? delta + change.text.length - change.rangeLength : delta, 0);
+		const startOffset = replacement.rangeOffset + precedingChangesDelta + closestMatchOffset;
+		const range = Range.fromPositions(
+			model.getPositionAt(startOffset),
+			model.getPositionAt(startOffset + data.text.length)
+		);
+		return model.getValueInRange(range) === data.text ? range : undefined;
 	}
 
 	getInputState(contrib: Record<string, unknown>): void {
@@ -183,9 +230,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this._variables = validVariables.slice(0, decorationIds.length);
 		this.decorationData = [];
 		for (let i = 0; i < decorationIds.length; i++) {
+			const range = this._variables[i].range;
 			this.decorationData.push({
 				id: decorationIds[i],
-				text: model.getValueInRange(this._variables[i].range)
+				text: model.getValueInRange(range),
+				rangeOffset: model.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn })
 			});
 		}
 	}

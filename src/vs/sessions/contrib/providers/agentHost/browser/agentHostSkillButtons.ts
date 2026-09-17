@@ -101,7 +101,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 	},
 	{
 		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}createPR`,
-		title: localize2('agentSessions.runSkill.createPR', "Create Pull Request"),
+		title: localize2('agentSessions.runSkill.createPR', "Create PR"),
 		skill: 'create-pr',
 		icon: Codicon.gitPullRequestCreate,
 		group: 'pull_request',
@@ -116,7 +116,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 	},
 	{
 		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}createDraftPR`,
-		title: localize2('agentSessions.runSkill.createDraftPR', "Create Draft Pull Request"),
+		title: localize2('agentSessions.runSkill.createDraftPR', "Create Draft PR"),
 		skill: 'create-draft-pr',
 		icon: Codicon.gitPullRequestDraft,
 		group: 'pull_request',

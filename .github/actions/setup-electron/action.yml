@@ -1,0 +1,98 @@
+name: Setup Electron
+description: Restores cached Electron archives, validates and prepares Electron, and optionally saves the cache.
+
+inputs:
+  arch:
+    description: Target Electron architecture.
+    required: true
+  lookup-only:
+    description: When 'true', only checks whether the cache entry exists without restoring archives or preparing Electron.
+    default: 'false'
+  save-cache:
+    description: When 'true', saves the archives after successful setup on a cache miss. Ignored when lookup-only is 'true'.
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: "'true' when an exact Electron cache key match was found."
+    value: ${{ steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare Electron cache path
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          echo "ELECTRON_CACHE_PATH=$HOME/Library/Caches/electron" >> "$GITHUB_ENV"
+        else
+          echo "ELECTRON_CACHE_PATH=${XDG_CACHE_HOME:-$HOME/.cache}/electron" >> "$GITHUB_ENV"
+        fi
+
+    - name: Prepare Electron cache path
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $cacheRoot = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME 'AppData/Local' }
+        Add-Content -Path $env:GITHUB_ENV -Value "ELECTRON_CACHE_PATH=$(Join-Path $cacheRoot 'electron/Cache')"
+
+    - name: Restore Electron cache
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.ELECTRON_CACHE_PATH }}
+        key: "electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles('.npmrc', 'build/checksums/electron.txt') }}"
+        lookup-only: ${{ inputs.lookup-only }}
+
+    - name: Download Electron
+      if: inputs.lookup-only != 'true' && runner.os != 'Windows'
+      shell: bash
+      run: |
+        for i in {1..3}; do
+          if npm run electron -- "$VSCODE_ARCH"; then
+            echo "Download successful on attempt $i"
+            break
+          fi
+
+          if [ $i -eq 3 ]; then
+            echo "Download failed after 3 attempts" >&2
+            exit 1
+          fi
+
+          echo "Download failed on attempt $i, retrying..."
+          sleep 5
+        done
+      env:
+        VSCODE_ARCH: ${{ inputs.arch }}
+
+    - name: Download Electron
+      if: inputs.lookup-only != 'true' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+
+        for ($i = 1; $i -le 3; $i++) {
+          try {
+            exec { npm run electron -- $env:VSCODE_ARCH }
+            break
+          }
+          catch {
+            if ($i -eq 3) {
+              Write-Error "Download failed after 3 attempts"
+              throw
+            }
+            Write-Host "Download failed attempt $i, retrying..."
+            Start-Sleep -Seconds 2
+          }
+        }
+      env:
+        VSCODE_ARCH: ${{ inputs.arch }}
+
+    - name: Save Electron cache
+      if: inputs.lookup-only != 'true' && inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ${{ env.ELECTRON_CACHE_PATH }}
+        key: ${{ steps.restore.outputs.cache-primary-key }}

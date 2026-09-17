@@ -3148,6 +3148,23 @@ suite('Editor Controller', () => {
 		);
 	});
 
+	test('move right normalizes the cursor to the next wrapped line', () => {
+		withTestCodeEditor(
+			'text edit',
+			{
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 5,
+				wrappingIndent: 'none'
+			},
+			(editor, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+				moveRight(editor, viewModel);
+
+				assert.deepStrictEqual(viewModel.getCursorStates()[0].viewState.position, new Position(2, 1));
+			}
+		);
+	});
+
 	test('issue #123178: sticky tab in consecutive wrapped lines', () => {
 		const model = createTextModel('    aaaa        aaaa', undefined, { tabSize: 4 });
 
@@ -5476,6 +5493,109 @@ suite('Editor Controller', () => {
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
 			assertType(editor, model, viewModel, 1, 12, '"', '"', `does not over type and will not auto close`);
+		});
+	});
+
+	test('issue #6841: Auto closing brackets should balance brackets', () => {
+		const languageId = 'balancedAutoClosingLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			],
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+			],
+		}));
+
+		usingCursor({
+			text: [''],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			const testCases = [
+				{ text: '\n}', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{\n}' },
+				{ text: '', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{}' },
+				{ text: '{}', selection: new Selection(1, 2, 1, 2), type: '{', expected: '{{}}' },
+				{ text: '{\n', selection: new Selection(2, 1, 2, 1), type: '{', expected: '{\n{}' },
+				{ text: '\n]', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{}\n]' },
+				{ text: ')\n', selection: new Selection(2, 1, 2, 1), type: '(', expected: ')\n()' },
+				{ text: 'function foo() {\n\n}', selection: new Selection(2, 1, 2, 1), type: '{', expected: 'function foo() {\n{}\n}' },
+				{ text: 'someFunction);', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction();' },
+				{ text: 'someFunction;', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction();' },
+				{ text: 'someFunctionsomeParam);', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction(someParam);' },
+			];
+			const actual = testCases.map(testCase => {
+				model.setValue(testCase.text);
+				viewModel.setSelections('test', [testCase.selection]);
+				viewModel.type(testCase.type, 'keyboard');
+				return model.getValue();
+			});
+			assert.deepStrictEqual(actual, testCases.map(testCase => testCase.expected));
+		});
+
+		usingCursor({
+			text: [
+				'',
+				'}',
+				'',
+			],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 1),
+				new Selection(3, 1, 3, 1),
+			]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{\n}\n{');
+		});
+
+		usingCursor({
+			text: [
+				'',
+				')',
+			],
+			languageId,
+			editorOpts: {
+				autoClosingBrackets: 'always',
+			},
+		}, (editor, model, viewModel) => {
+			viewModel.type('(', 'keyboard');
+			assert.strictEqual(model.getValue(), '()\n)');
+		});
+
+		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			brackets: [['{', '}']],
+		}));
+		setupAutoClosingLanguageTokenization();
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"');
+		});
+
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+				'// }',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(model.getLineCount());
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"\n// }');
 		});
 	});
 

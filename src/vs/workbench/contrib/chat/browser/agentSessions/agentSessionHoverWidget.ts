@@ -15,6 +15,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatModel } from '../../common/model/chatModel.js';
@@ -86,6 +87,16 @@ export class AgentSessionHoverWidget extends Disposable {
 	}
 
 	private async loadModel() {
+		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be loaded here:
+		// loading its model subscribes/restores it on the agent host, which adopts
+		// (migrates) it. Migration must happen only on explicit open, so render the
+		// fallback tooltip from the summary instead of loading the model.
+		if (this.session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
+			this.loadingElement.remove();
+			const tooltip = this.buildFallbackTooltip(this.session);
+			this.domNode.textContent = typeof tooltip === 'string' ? tooltip : tooltip.value;
+			return;
+		}
 		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token, 'AgentSessionHoverWidget#loadModel');
 		if (this._store.isDisposed) {
 			modelRef?.dispose();

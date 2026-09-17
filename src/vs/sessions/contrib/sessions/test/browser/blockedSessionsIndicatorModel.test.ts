@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -42,6 +43,7 @@ suite('BlockedSessionsIndicatorModel', () => {
 			sessionsService as unknown as ISessionsService,
 			instantiationService,
 			productService,
+			new NullLogService(),
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));
@@ -96,6 +98,22 @@ suite('BlockedSessionsIndicatorModel', () => {
 
 		sessionsService.setVisible([]);
 		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
+	});
+
+	test('keeps an approval acknowledged when its chat model reloads', () => {
+		const { model, blockedModel, approvalModel, sessionsService } = createModel();
+		const s1 = new TestSession('s1');
+		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(1000), 'tool-call-1'));
+		blockedModel.setBlocked([needsInput(s1)]);
+		sessionsService.setVisible([s1]);
+		sessionsService.setVisible([]);
+
+		approvalModel.setApproval(s1.resource, undefined);
+		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(2000), 'tool-call-1'));
+		const afterReload = blockedIds(model);
+		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(3000), 'tool-call-2'));
+
+		assert.deepStrictEqual({ afterReload, afterNewApproval: blockedIds(model) }, { afterReload: [], afterNewApproval: ['s1'] });
 	});
 
 	test('blinks again when an additional, not-yet-visible session becomes blocked', () => {
@@ -231,6 +249,35 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.deepStrictEqual(blockedIds(model), ['s1']);
 	});
 
+	test('keeps an ignored CI failure ignored when the session drops out of the blocked set', () => {
+		// The raw blocked set drops a session whenever its pull request / CI data is
+		// momentarily unavailable (e.g. while those models reload). Nothing changed
+		// about the failure, so the acknowledgement must survive that gap.
+		const { model, blockedModel } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+		model.ignoreSession(s1 as unknown as ISession);
+
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+
+		assert.deepStrictEqual(blockedIds(model), []);
+	});
+
+	test('ignores all currently surfaced blocked sessions', () => {
+		const { model, blockedModel } = createModel();
+		const input = new TestSession('input');
+		const ci = new TestSession('ci');
+		blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha1')]);
+		model.ignoreAllSessions();
+		const ignored = blockedIds(model);
+
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha2')]);
+
+		assert.deepStrictEqual({ ignored, afterNewOccurrences: blockedIds(model) }, { ignored: [], afterNewOccurrences: ['input', 'ci'] });
+	});
+
 	test('reports nothing and never blinks when disabled (stable quality)', () => {
 		const { model, blockedModel } = createModel({ quality: 'stable' });
 		blockedModel.setBlocked([needsInput(new TestSession('s1'))]);
@@ -246,8 +293,8 @@ function failingCI(session: TestSession, headSha: string = 'sha'): IBlockedSessi
 	return { session: session as unknown as ISession, reason: BlockedSessionReason.FailingCI, occurrenceId: `${BlockedSessionReason.FailingCI}:${headSha}` };
 }
 
-function approval(kind: AgentSessionApprovalKind, since: Date = new Date()): IAgentSessionApprovalInfo {
-	return { kind, label: 'npm run build', languageId: undefined, since, confirm: () => { } };
+function approval(kind: AgentSessionApprovalKind, since: Date = new Date(), approvalId: string = `${kind}:${since.getTime()}`): IAgentSessionApprovalInfo {
+	return { approvalId, kind, label: 'npm run build', languageId: undefined, since, confirm: () => { } };
 }
 
 class TestSession {

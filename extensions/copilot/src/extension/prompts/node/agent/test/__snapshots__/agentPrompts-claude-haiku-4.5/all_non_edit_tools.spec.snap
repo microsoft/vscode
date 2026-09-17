@@ -41,6 +41,46 @@ When invoking a tool that takes a file path, always use the absolute file path. 
 You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.
 You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.
 Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
+<toolSearchInstructions>
+Use the tool_search tool to search for deferred tools before calling them.
+
+<mandatory>
+You MUST use the tool_search tool to load deferred tools BEFORE calling them directly.
+This is a BLOCKING REQUIREMENT - deferred tools are NOT available until you load them using the tool_search tool. Once a tool appears in the results, it is immediately available to call.
+
+Why this is required:
+- Deferred tools are not loaded until discovered via tool_search
+- Calling a deferred tool without first loading it will fail
+
+</mandatory>
+
+<searchQueryGuidance>
+Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.
+
+Examples:
+- "create a new file" - finds file creation tools
+- "run jupyter notebook cell" - finds notebook execution tools
+- "fetch a web page" - finds web fetching tools
+- "github pull request" - finds GitHub PR tools
+
+Prefer broad queries that cover all related tools in a single search. For example, search "github" to find all GitHub tools at once rather than making separate searches for issues and pull requests. Consult the availableDeferredTools list (provided in the initial conversation context) and use it to inform your query.
+
+</searchQueryGuidance>
+
+<incorrectUsagePatterns>
+NEVER do these:
+- Calling a deferred tool directly without loading it first with tool_search
+- Calling tool_search again for a tool that was already returned by a previous search
+- Retrying tool_search repeatedly if it fails or returns no results. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.
+
+</incorrectUsagePatterns>
+
+<dynamicToolDiscovery>
+MCP servers may add or remove tools dynamically during a conversation via tools/list_changed notifications. If you called a tool that may have enabled new tools on an MCP server, search for the new tools — they may now be discoverable even if not listed in the latest availableDeferredTools list.
+
+</dynamicToolDiscovery>
+
+</toolSearchInstructions>
 
 </toolUseInstructions>
 <communicationStyle>
@@ -172,6 +212,25 @@ Session memory (/memories/session/) is empty. No session notes have been created
 <repoMemory>
 Repository memory (/memories/repo/) is empty. No workspace-scoped notes have been created yet.
 </repoMemory>
+<availableDeferredTools>
+Available deferred tools (must be loaded with tool_search before use):
+copilot_getNotebookSummary
+create_directory
+create_new_jupyter_notebook
+create_new_workspace
+edit_notebook_file
+get_vscode_api
+github_repo
+github_text_search
+install_extension
+read_notebook_cell_output
+read_project_structure
+resolve_memory_file_uri
+run_notebook_cell
+run_vscode_command
+search_workspace_symbols
+test_search
+</availableDeferredTools>
 
 ~~~
 
@@ -183,6 +242,8 @@ Repository memory (/memories/repo/) is empty. No workspace-scoped notes have bee
 </context>
 <reminderInstructions>
 Do NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.
+
+IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search, you MUST first use tool_search to load it. Calling a deferred tool without first loading it will fail. Tools returned by tool_search are automatically expanded and immediately available - do not search for them again.
 
 </reminderInstructions>
 <userRequest>

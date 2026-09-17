@@ -26,8 +26,7 @@ suite('ToolSetsContribution', () => {
 		return store.add(instaService.createInstance(LanguageModelToolsService));
 	}
 
-	test('ClientToolSetsContribution omits removed tools from vscode-general', () => {
-		const toolsService = createToolsService();
+	test('ClientToolSetsContribution exposes only Tool Search from vscode-general in the Sessions window', () => {
 		const makeTool = (name: string): IToolData => ({
 			id: name,
 			modelDescription: name,
@@ -35,22 +34,62 @@ suite('ToolSetsContribution', () => {
 			toolReferenceName: name,
 			source: ToolDataSource.Internal,
 		});
-		const toolSearch = makeTool('toolSearch');
+		const general = ['runTests', 'testFailure', 'rename', 'usages', 'toolSearch'].map(makeTool);
 		const removed = ['extensions', 'installExtension', 'newWorkspace', 'runCommand', 'vscodeAPI'].map(makeTool);
-		for (const tool of [toolSearch, ...removed]) {
-			store.add(toolsService.registerToolData(tool));
-		}
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const tool of [...general, ...removed]) {
+				store.add(toolsService.registerToolData(tool));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
 
+		const sessionsToolsService = createContribution(true);
+		const coreToolsService = createContribution(false);
 
-		const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
-			override readonly isSessionsWindow = true;
-		}();
-		store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreMembers: Array.from(coreToolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
+		}, {
+			sessionsMembers: ['toolSearch'],
+			coreMembers: ['runTests', 'testFailure', 'rename', 'usages', 'toolSearch'],
+		});
+	});
 
-		assert.deepStrictEqual(
-			Array.from(toolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
-			['toolSearch']
-		);
+	test('ClientToolSetsContribution exposes Automations only in the Sessions window', () => {
+		const makeTool = (name: string): IToolData => ({
+			id: name,
+			modelDescription: name,
+			displayName: name,
+			toolReferenceName: name,
+			source: ToolDataSource.Internal,
+		});
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const tool of ['listAutomations', 'configureAutomation', 'runAutomation', 'deleteAutomation'].map(makeTool)) {
+				store.add(toolsService.registerToolData(tool));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		const sessionsToolsService = createContribution(true);
+		const coreToolsService = createContribution(false);
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-automations')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreHasSet: !!coreToolsService.getToolSet('vscode-automations'),
+		}, {
+			sessionsMembers: ['listAutomations', 'configureAutomation', 'runAutomation', 'deleteAutomation'],
+			coreHasSet: false,
+		});
 	});
 
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {

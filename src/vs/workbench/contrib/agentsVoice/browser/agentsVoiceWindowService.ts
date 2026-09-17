@@ -27,7 +27,11 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { resolveVoiceGlowColors } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorWidgetBorder, widgetShadow } from '../../../../platform/theme/common/colors/editorColors.js';
 import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
@@ -74,6 +78,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -136,11 +141,13 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const theme = this.themeService.getColorTheme();
 		const bgColor = theme.getColor(editorBackground)?.toString() ?? '#1e1e1e';
 		const inputBg = theme.getColor(inputBackground)?.toString() ?? '#3C3C3C';
-		const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
+		const inputBd = theme.getColor(inputBorder)?.toString() ?? theme.getColor(editorWidgetBorder)?.toString() ?? 'transparent';
+		const shadow = theme.getColor(widgetShadow)?.toString() ?? 'transparent';
 
 		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', bgColor);
 		auxiliaryWindow.container.style.backgroundColor = inputBg;
 		auxiliaryWindow.container.style.border = `1px solid ${inputBd}`;
+		auxiliaryWindow.container.style.boxShadow = `0 2px 8px ${shadow}`;
 		auxiliaryWindow.container.style.boxSizing = 'border-box';
 		auxiliaryWindow.window.document.body.style.setProperty('background-color', inputBg, 'important');
 
@@ -172,6 +179,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				this.voiceSessionController.pttDown();
 			},
 			pttUp: () => this.voiceSessionController.pttUp(),
+			toggleMute: () => this.voiceSessionController.setMuted(!this.voiceSessionController.isMuted.get()),
 			closeWindow: () => this.closeWindow(),
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
 			openSession: (resource) => {
@@ -209,6 +217,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
+			getGlowTheme: () => isDark(this.themeService.getColorTheme().type) ? 'dark' : 'light',
+			getGlowColors: () => resolveVoiceGlowColors(this.themeService.getColorTheme()),
+			isMotionReduced: () => this.accessibilityService.isMotionReduced(),
+			onDidChangeGlowTheme: Event.map(this.themeService.onDidColorThemeChange, () => undefined),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			showVoiceContextMenu: (e: MouseEvent) => {
 				const anchor = new StandardMouseEvent(getWindow(e.target as Node ?? auxiliaryWindow.container), e);

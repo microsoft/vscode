@@ -242,9 +242,9 @@ export class RepoInfoTelemetry {
 
 			if (isInternal) {
 				const { headBranchName: _, fileRelativePaths: _2, ...msftProperties } = internalProperties;
-				this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', multiplexProperties(msftProperties), data.measurements);
+				void multiplexProperties(msftProperties).then(properties => this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', properties, data.measurements)).catch(() => { /* best-effort telemetry */ });
 			}
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', multiplexProperties(internalProperties), data.measurements);
+			void multiplexProperties(internalProperties).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', properties, data.measurements)).catch(() => { /* best-effort telemetry */ });
 		}
 
 		return results;

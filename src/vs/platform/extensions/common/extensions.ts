@@ -36,6 +36,10 @@ export interface IJSONValidation {
 	url: string;
 }
 
+export interface IJSONValidationRegistry {
+	url: string;
+}
+
 export interface IKeyBinding {
 	command: string;
 	key: string;
@@ -214,6 +218,7 @@ export interface IExtensionContributions {
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
+	jsonValidationRegistry?: IJSONValidationRegistry[];
 	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
@@ -247,8 +252,10 @@ export interface IExtensionContributions {
 export interface IExtensionCapabilities {
 	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+	readonly agentsWindow?: { readonly supported: boolean };
 }
 
+export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 

@@ -1,0 +1,52 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Inspect git status. Reply with the names of the modified and untracked files only.
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll check `git status` and list only modified/untracked filenames.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: git status --porcelain
+            workdir: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Inspect git status. Reply with the names of the modified and untracked files only.
+        - role: assistant
+          content: Got it — I’ll check `git status` and list only modified/untracked filenames.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: git status --porcelain
+                workdir: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 85d91d
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 8
+                Output:
+                 M tracked.txt
+                ?? untracked.txt
+    response:
+      content: |-
+        tracked.txt
+        untracked.txt
+      stopReason: end_turn

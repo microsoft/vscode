@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
@@ -52,6 +53,7 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	const { container, disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.definePartialInstance(ITerminalChatService, {
@@ -123,6 +125,21 @@ const multiSelectQuestion: IChatQuestion = {
 	defaultValue: ['lint', 'fmt'],
 };
 
+const markdownLinksQuestion: IChatQuestion = {
+	id: 'review-results',
+	type: 'text',
+	title: 'Review results',
+	message: new MarkdownString('**Review the [VS Code documentation](https://code.visualstudio.com/docs) before continuing.**'),
+	detailedMessage: new MarkdownString([
+		'### [Related resources](https://code.visualstudio.com/docs)',
+		'',
+		'Read the [extension guide](https://code.visualstudio.com/api/get-started/your-first-extension) for more information.',
+		'',
+		'- **[VS Code repository](https://github.com/microsoft/vscode)**',
+		'- [Extension API](https://code.visualstudio.com/api)',
+	].join('\n')),
+};
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -155,6 +172,17 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	NoSkip: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([singleSelectQuestion], false)),
+	}),
+
+	MarkdownLinks: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Links use theme-provided colors. In high-contrast themes, all links in the carousel message, bold question title, detailed heading, paragraph, and list are underlined. Normal themes retain their existing link styling.'],
+		render: (context) => {
+			const carousel = createCarousel([markdownLinksQuestion]);
+			carousel.message = new MarkdownString('See **[question guidance](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode)**.');
+			renderCarousel(context, carousel);
+		},
 	}),
 
 	SubmittedSummary: defineComponentFixture({

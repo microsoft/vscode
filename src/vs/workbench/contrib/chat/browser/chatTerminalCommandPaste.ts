@@ -30,7 +30,7 @@ interface ITerminalCommandPaste {
 }
 
 /** Returns whether applying the paste would make the input start with the command prefix. */
-function isTerminalCommandPaste(paste: ITerminalCommandPaste): boolean {
+export function isTerminalCommandPaste(paste: ITerminalCommandPaste): boolean {
 	const selectionStartOffset = Math.max(0, Math.min(paste.selectionStartOffset, paste.currentValue.length));
 	const selectionEndOffset = Math.max(selectionStartOffset, Math.min(paste.selectionEndOffset, paste.currentValue.length));
 
@@ -143,4 +143,3 @@ export function handleTerminalCommandPaste(
 		}
 	});
 }
-

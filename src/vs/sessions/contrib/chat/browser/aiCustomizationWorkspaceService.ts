@@ -19,6 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -34,6 +35,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
@@ -50,6 +52,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
 
@@ -65,6 +68,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return undefined;
 			}
 			return root;
+		});
+
+		this.activeProjectLabel = derived(reader => {
+			const override = this._overrideRoot.read(reader);
+			if (override) {
+				return this.labelService.getUriBasenameLabel(override);
+			}
+			const session = this.sessionsService.activeSession.read(reader);
+			return session?.workspace.read(reader)?.folders[0]?.name;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -95,14 +107,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
-		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
-		AICustomizationManagementSection.Automations,
-		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Automations,
+		AICustomizationManagementSection.HarnessSettings,
 	];
 
 	readonly isSessionsWindow = true;
@@ -271,8 +284,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		['fix-ci', localize('skillUI.fixCi', "Used by the Fix Checks button in the Changes toolbar")],
 		['code-review', localize('skillUI.codeReview', "Used by the Run Code Review button in the Changes view")],
 		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
-		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
-		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],
+		['create-pr', localize('skillUI.createPr', "Used by the Create PR button in the Changes toolbar")],
+		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft PR button in the Changes toolbar")],
 		['update-pr', localize('skillUI.updatePr', "Used by the Update Pull Request button in the Changes toolbar")],
 		['merge-changes', localize('skillUI.mergeChanges', "Used by the Merge button in the Changes toolbar")],
 		['commit', localize('skillUI.commit', "Used by the Commit button in the Changes toolbar")],
