@@ -72,6 +72,21 @@ jobs:
           $root = Join-Path $env:GITHUB_WORKSPACE ".build\$distro"
           New-Item -ItemType Directory -Path $root | Out-Null
           "root=$root" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $kernelPackage = Join-Path $root 'wsl_update_x64.msi'
+          curl.exe --fail --location --retry 2 --connect-timeout 30 --max-time 180 --output $kernelPackage 'https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi'
+          if ($LASTEXITCODE -ne 0) {
+            throw "WSL2 kernel download failed with exit code $LASTEXITCODE."
+          }
+          $signature = Get-AuthenticodeSignature -LiteralPath $kernelPackage
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'CN=Microsoft Corporation,') {
+            throw 'WSL2 kernel package does not have a valid Microsoft signature.'
+          }
+          $installer = Start-Process msiexec.exe -ArgumentList @('/i', "`"$kernelPackage`"", '/qn', '/norestart') -Wait -PassThru
+          if ($installer.ExitCode -ne 0) {
+            throw "WSL2 kernel installation failed or requires a reboot (exit code $($installer.ExitCode)). No reboot will be attempted."
+          }
+          & $wsl --status
+          Write-Host "WSL status after kernel installation: $LASTEXITCODE"
           $archive = Join-Path $root 'ubuntu-rootfs.tar.gz'
           $install = Join-Path $root 'distro'
           $url = 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz'
