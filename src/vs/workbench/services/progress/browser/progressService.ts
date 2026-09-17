@@ -74,6 +74,10 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		if (typeof location === 'string') {
+			if (location.length === 0) {
+				console.warn(`Bad progress location: empty string`);
+				return task({ report() { } }) as Promise<R>;
+			}
 			return handleStringLocation(location);
 		}
 
