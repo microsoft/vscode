@@ -39,6 +39,7 @@ export interface IChatMLFetcherCancellationProperties {
 	requestId: string;
 	copilotServiceRequestId?: string;
 	model: string;
+	modelProvider: string | undefined;
 	apiType: string | undefined;
 	transport: string;
 	interactionType: string;
@@ -151,6 +152,7 @@ export class ChatMLFetcherTelemetrySender {
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
 				"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selection for the response" },
 				"modelInvoked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Actual model invoked for the response" },
+				"modelProvider": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Provider/vendor backing the model (e.g. for BYOK: Ollama, Azure, Anthropic, Gemini, OpenAI, OpenRouter, xAI, CustomOAI). Lets BYOK requests be attributed by provider even when the raw model id is redacted." },
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
@@ -224,6 +226,7 @@ export class ChatMLFetcherTelemetrySender {
 			conversationId: baseTelemetry?.properties.conversationId,
 			model: chatEndpointInfo?.model,
 			modelInvoked: chatCompletion.model,
+			modelProvider: chatEndpointInfo?.modelProvider,
 			apiType: chatEndpointInfo?.apiType,
 			requestId: chatCompletion.requestId.headerRequestId,
 			gitHubRequestId: chatCompletion.requestId.gitHubRequestId,
@@ -280,6 +283,7 @@ export class ChatMLFetcherTelemetrySender {
 			requestId,
 			copilotServiceRequestId,
 			model,
+			modelProvider,
 			apiType,
 			transport,
 			interactionType,
@@ -317,6 +321,7 @@ export class ChatMLFetcherTelemetrySender {
 				"owner": "digitarald",
 				"comment": "Report canceled service responses for quality.",
 				"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selection for the response" },
+				"modelProvider": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Provider/vendor backing the model (e.g. for BYOK: Ollama, Azure, Anthropic, Gemini, OpenAI, OpenRouter, xAI, CustomOAI). Lets BYOK requests be attributed by provider even when the raw model id is redacted." },
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source for why the request was made" },
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
@@ -373,6 +378,7 @@ export class ChatMLFetcherTelemetrySender {
 			requestId,
 			...(copilotServiceRequestId ? { copilotServiceRequestId } : {}),
 			model,
+			modelProvider,
 			requestKind: interactionType,
 			conversationId,
 			associatedRequestId,
@@ -434,6 +440,7 @@ export class ChatMLFetcherTelemetrySender {
 				"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Type of issue" },
 				"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason of issue" },
 				"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selection for the response" },
+				"modelProvider": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Provider/vendor backing the model (e.g. for BYOK: Ollama, Azure, Anthropic, Gemini, OpenAI, OpenRouter, xAI, CustomOAI). Lets BYOK requests be attributed by provider even when the raw model id is redacted." },
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source for why the request was made" },
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
@@ -496,6 +503,7 @@ export class ChatMLFetcherTelemetrySender {
 			gitHubRequestId: processed.serverRequestId,
 			copilotServiceRequestId: processed.copilotServiceRequestId,
 			model: chatEndpointInfo.model,
+			modelProvider: chatEndpointInfo.modelProvider,
 			apiType: chatEndpointInfo.apiType,
 			conversationId: telemetryProperties?.conversationId,
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort ?? requestBody.reasoning_effort,
