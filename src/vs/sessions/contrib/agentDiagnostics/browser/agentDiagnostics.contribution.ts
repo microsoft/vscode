@@ -28,6 +28,7 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { AgentDiagnosticsEditor, AgentDiagnosticsFocusedContext } from './agentDiagnosticsEditor.js';
 import { AgentDiagnosticsEditorInput, AgentDiagnosticsEditorSerializer } from './agentDiagnosticsEditorInput.js';
+import { AgentDiagnosticsToolsContribution } from './agentDiagnosticsTools.js';
 
 const OPEN_AGENT_DIAGNOSTICS_COMMAND_ID = 'workbench.action.agentSessions.openDiagnostics';
 
@@ -117,5 +118,6 @@ class AgentDiagnosticsAccessibleView implements IAccessibleViewImplementation {
 }
 
 registerWorkbenchContribution2(AgentDiagnosticsContribution.ID, AgentDiagnosticsContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(AgentDiagnosticsToolsContribution.ID, AgentDiagnosticsToolsContribution, WorkbenchPhase.BlockRestore);
 AccessibleViewRegistry.register(new AgentDiagnosticsAccessibleView(AccessibleViewType.Help));
 AccessibleViewRegistry.register(new AgentDiagnosticsAccessibleView(AccessibleViewType.View));
