@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { isCustomizationEnabled } from '../../../../platform/agentHost/common/customizationEnablement.js';
-import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, StateComponents, ToolCallContributorKind, type ChatState, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type ResponsePart, type StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, DEFAULT_CHAT_ID, getSessionChatResource, ResponsePartKind, StateComponents, ToolCallContributorKind, type ChatState, type ChildCustomization, type Customization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type ResponsePart, type SessionState, type StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { isAgentHostProvider, type IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { type ISession } from '../../../services/sessions/common/session.js';
@@ -32,6 +33,22 @@ export interface ISessionCustomizationEvidence {
 	readonly kind: 'agent' | 'skill' | 'mcp';
 }
 
+export const enum SessionCustomizationMetadataKind {
+	Version = 'version',
+	Model = 'model',
+	Tools = 'tools',
+	ModelInvocation = 'modelInvocation',
+	UserInvocation = 'userInvocation',
+	AlwaysApply = 'alwaysApply',
+	Globs = 'globs',
+	McpState = 'mcpState',
+}
+
+export interface ISessionCustomizationMetadata {
+	readonly kind: SessionCustomizationMetadataKind;
+	readonly value: string | boolean | readonly string[];
+}
+
 export interface ISessionCustomizationItem {
 	readonly id: string;
 	readonly section: SessionCustomizationSection;
@@ -44,6 +61,7 @@ export interface ISessionCustomizationItem {
 	readonly status: SessionCustomizationStatus;
 	readonly detail: string | undefined;
 	readonly evidence: readonly ISessionCustomizationEvidence[];
+	readonly metadata: readonly ISessionCustomizationMetadata[];
 }
 
 export interface ISessionCustomizationGroup {
@@ -72,11 +90,18 @@ export class SessionCustomizationsModel extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly providerListener = this._register(new MutableDisposable());
-	private readonly sessionChatsListener = this._register(new MutableDisposable());
-	private readonly chatSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly chatSubscriptionValues = new Map<string, IAgentSubscription<ChatState>>();
+	private readonly sessionSubscription = this._register(new MutableDisposable<DisposableStore>());
+	private readonly focusedChatSubscription = this._register(new MutableDisposable<DisposableStore>());
+	private readonly usageBySession = new Map<string, Map<string, ISessionCustomizationEvidence[]>>();
 	private session: ISession | undefined;
 	private provider: IAgentHostSessionsProvider | undefined;
+	private focusedChatResource: URI | undefined;
+	private active = false;
+	private backendSessionResource: URI | undefined;
+	private sessionConnection: IAgentConnection | undefined;
+	private sessionSubscriptionValue: IAgentSubscription<SessionState> | undefined;
+	private focusedBackendChatResource: URI | undefined;
+	private focusedChatSubscriptionValue: IAgentSubscription<ChatState> | undefined;
 	private _state: ISessionCustomizationsState | undefined;
 
 	get state(): ISessionCustomizationsState | undefined {
@@ -89,16 +114,31 @@ export class SessionCustomizationsModel extends Disposable {
 		super();
 	}
 
-	setSession(session: ISession | undefined): void {
-		if (this.session?.sessionId === session?.sessionId && this.session?.providerId === session?.providerId) {
+	setActive(active: boolean): void {
+		if (this.active === active) {
+			return;
+		}
+		this.active = active;
+		if (active) {
+			this.updateSessionSubscription();
+			this.updateFocusedChatSubscription();
+		} else {
+			this.clearSessionSubscription();
+		}
+		this.refresh();
+	}
+
+	setSession(session: ISession | undefined, focusedChatResource: URI | undefined): void {
+		if (this.session?.sessionId === session?.sessionId
+			&& this.session?.providerId === session?.providerId
+			&& isEqual(this.focusedChatResource, focusedChatResource)) {
 			return;
 		}
 		this.session = session;
+		this.focusedChatResource = focusedChatResource;
 		this.provider = undefined;
 		this.providerListener.clear();
-		this.sessionChatsListener.clear();
-		this.chatSubscriptions.clearAndDisposeAll();
-		this.chatSubscriptionValues.clear();
+		this.clearSessionSubscription();
 
 		if (!session) {
 			this._state = undefined;
@@ -119,47 +159,88 @@ export class SessionCustomizationsModel extends Disposable {
 
 		this.provider = provider;
 		this.providerListener.value = provider.onDidChangeCustomizations(() => {
-			this.refreshChatSubscriptions();
+			if (this.active) {
+				this.updateSessionSubscription();
+				this.updateFocusedChatSubscription();
+			}
 			this.refresh();
 		});
-		this.sessionChatsListener.value = autorun(reader => {
-			session.chats.read(reader);
-			this.refreshChatSubscriptions();
-			this.refresh();
-		});
+		if (this.active) {
+			this.updateSessionSubscription();
+			this.updateFocusedChatSubscription();
+		}
+		this.refresh();
 	}
 
-	private refreshChatSubscriptions(): void {
+	private updateSessionSubscription(): void {
 		const session = this.session;
 		const provider = this.provider;
-		if (!session || !provider) {
+		if (!this.active || !session || !provider) {
 			return;
 		}
-		const source = provider.getCustomizationDiagnosticsSource(session.sessionId);
-		const resources = new Set(source?.chatResources.map(resource => resource.toString()) ?? []);
-		for (const key of this.chatSubscriptions.keys()) {
-			if (!resources.has(key)) {
-				this.chatSubscriptions.deleteAndDispose(key);
-				this.chatSubscriptionValues.delete(key);
-			}
-		}
-		if (!source) {
+		const connection = provider.getDiagnosticsConnection();
+		const backendSessionResource = provider.mapAgentHostResource(session.resource);
+		if (!connection) {
 			return;
 		}
-		for (const resource of source.chatResources) {
-			const key = resource.toString();
-			if (this.chatSubscriptions.has(key)) {
-				continue;
-			}
-			const store = new DisposableStore();
-			const reference = store.add(source.connection.getSubscription(StateComponents.Chat, resource, 'SessionCustomizationsModel'));
-			store.add(reference.object.onDidChange(() => this.refresh()));
-			if (reference.object.onDidError) {
-				store.add(reference.object.onDidError(() => this.refresh()));
-			}
-			this.chatSubscriptions.set(key, store);
-			this.chatSubscriptionValues.set(key, reference.object);
+		if (isEqual(this.backendSessionResource, backendSessionResource) && this.sessionConnection === connection) {
+			return;
 		}
+		this.clearSessionSubscription();
+		const store = new DisposableStore();
+		const reference = store.add(connection.getSubscription(StateComponents.Session, backendSessionResource, 'SessionCustomizationsModel.session'));
+		store.add(reference.object.onDidChange(() => {
+			this.updateFocusedChatSubscription();
+			this.refresh();
+		}));
+		if (reference.object.onDidError) {
+			store.add(reference.object.onDidError(() => this.refresh()));
+		}
+		this.backendSessionResource = backendSessionResource;
+		this.sessionConnection = connection;
+		this.sessionSubscriptionValue = reference.object;
+		this.sessionSubscription.value = store;
+	}
+
+	private updateFocusedChatSubscription(): void {
+		const focusedChatResource = this.focusedChatResource;
+		const sessionState = this.sessionSubscriptionValue?.value;
+		const connection = this.sessionConnection;
+		if (!focusedChatResource || !sessionState || sessionState instanceof Error || !connection) {
+			return;
+		}
+		const backendChatResource = getSessionChatResource(sessionState, focusedChatResource.fragment || DEFAULT_CHAT_ID);
+		if (!backendChatResource) {
+			return;
+		}
+		const resource = URI.parse(backendChatResource.toString());
+		if (isEqual(this.focusedBackendChatResource, resource)) {
+			return;
+		}
+		this.clearFocusedChatSubscription();
+		const store = new DisposableStore();
+		const reference = store.add(connection.getSubscription(StateComponents.Chat, resource, 'SessionCustomizationsModel.focusedChat'));
+		store.add(reference.object.onDidChange(() => this.refresh()));
+		if (reference.object.onDidError) {
+			store.add(reference.object.onDidError(() => this.refresh()));
+		}
+		this.focusedBackendChatResource = resource;
+		this.focusedChatSubscriptionValue = reference.object;
+		this.focusedChatSubscription.value = store;
+	}
+
+	private clearSessionSubscription(): void {
+		this.clearFocusedChatSubscription();
+		this.sessionSubscription.clear();
+		this.backendSessionResource = undefined;
+		this.sessionConnection = undefined;
+		this.sessionSubscriptionValue = undefined;
+	}
+
+	private clearFocusedChatSubscription(): void {
+		this.focusedChatSubscription.clear();
+		this.focusedBackendChatResource = undefined;
+		this.focusedChatSubscriptionValue = undefined;
 	}
 
 	private refresh(): void {
@@ -168,24 +249,45 @@ export class SessionCustomizationsModel extends Disposable {
 		if (!session || !provider) {
 			return;
 		}
+		const sessionState = this.sessionSubscriptionValue?.value;
+		const customizations = sessionState && !(sessionState instanceof Error)
+			? sessionState.customizations ?? []
+			: provider.getCustomizations(session.sessionId);
+		const observedUsage = collectUsage(customizations, this.getChatStates());
+		const usage = mergeUsage(this.usageBySession.get(session.sessionId), observedUsage);
+		this.usageBySession.set(session.sessionId, usage);
 		this._state = {
 			sessionResource: session.resource,
 			supported: true,
-			groups: groupCustomizations(provider.getCustomizations(session.sessionId), collectUsage(provider.getCustomizations(session.sessionId), this.getChatStates())),
+			groups: groupCustomizations(customizations, usage),
 		};
 		this._onDidChange.fire();
 	}
 
 	private getChatStates(): readonly ChatState[] {
-		const states: ChatState[] = [];
-		for (const subscription of this.chatSubscriptionValues.values()) {
-			const state = subscription?.value;
-			if (state && !(state instanceof Error)) {
-				states.push(state);
+		const state = this.focusedChatSubscriptionValue?.value;
+		return state && !(state instanceof Error) ? [state] : [];
+	}
+}
+
+function mergeUsage(
+	current: ReadonlyMap<string, readonly ISessionCustomizationEvidence[]> | undefined,
+	observed: ReadonlyMap<string, readonly ISessionCustomizationEvidence[]>,
+): Map<string, ISessionCustomizationEvidence[]> {
+	const result = new Map<string, ISessionCustomizationEvidence[]>();
+	for (const [id, evidence] of current ?? []) {
+		result.set(id, [...evidence]);
+	}
+	for (const [id, evidence] of observed) {
+		const merged = result.get(id) ?? [];
+		for (const entry of evidence) {
+			if (!merged.some(candidate => candidate.chatResource.toString() === entry.chatResource.toString() && candidate.turnId === entry.turnId && candidate.kind === entry.kind)) {
+				merged.push(entry);
 			}
 		}
-		return states;
+		result.set(id, merged);
 	}
+	return result;
 }
 
 function createEmptyGroups(): ISessionCustomizationGroup[] {
@@ -227,10 +329,11 @@ function toPluginItem(plugin: PluginCustomization, evidence: readonly ISessionCu
 		uri: plugin.uri,
 		parentName: undefined,
 		parentUri: undefined,
-		description: plugin.version ? `v${plugin.version}` : undefined,
+		description: undefined,
 		status: isCustomizationEnabled(plugin) ? withUsageStatus(loadStatus.status, evidence) : 'disabled',
 		detail: loadStatus.detail,
 		evidence,
+		metadata: customizationMetadata(plugin),
 	};
 }
 
@@ -252,6 +355,7 @@ function toChildItem(child: ChildCustomization, parent: PluginCustomization | Di
 		status,
 		detail,
 		evidence,
+		metadata: customizationMetadata(child),
 	};
 }
 
@@ -268,6 +372,7 @@ function toMcpServerItem(server: McpServerCustomization, evidence: readonly ISes
 		status: isCustomizationEnabled(server) ? withUsageStatus(mcpServerStatus(server), evidence) : 'disabled',
 		detail: mcpServerDetail(server),
 		evidence,
+		metadata: customizationMetadata(server),
 	};
 }
 
@@ -338,6 +443,37 @@ function readDescription(customization: ChildCustomization): string | undefined 
 		case CustomizationType.Hook:
 		case CustomizationType.McpServer:
 			return undefined;
+	}
+}
+
+function customizationMetadata(customization: PluginCustomization | ChildCustomization): readonly ISessionCustomizationMetadata[] {
+	switch (customization.type) {
+		case CustomizationType.Plugin:
+			return customization.version
+				? [{ kind: SessionCustomizationMetadataKind.Version, value: customization.version }]
+				: [];
+		case CustomizationType.Agent:
+			return [
+				...(customization.model ? [{ kind: SessionCustomizationMetadataKind.Model, value: customization.model } as const] : []),
+				...(customization.tools?.length ? [{ kind: SessionCustomizationMetadataKind.Tools, value: customization.tools } as const] : []),
+				{ kind: SessionCustomizationMetadataKind.ModelInvocation, value: customization.disableModelInvocation !== true },
+				{ kind: SessionCustomizationMetadataKind.UserInvocation, value: customization.disableUserInvocation !== true },
+			];
+		case CustomizationType.Skill:
+			return [
+				{ kind: SessionCustomizationMetadataKind.ModelInvocation, value: customization.disableModelInvocation !== true },
+				{ kind: SessionCustomizationMetadataKind.UserInvocation, value: customization.disableUserInvocation !== true },
+			];
+		case CustomizationType.Rule:
+			return [
+				{ kind: SessionCustomizationMetadataKind.AlwaysApply, value: customization.alwaysApply === true },
+				...(customization.globs?.length ? [{ kind: SessionCustomizationMetadataKind.Globs, value: customization.globs } as const] : []),
+			];
+		case CustomizationType.McpServer:
+			return [{ kind: SessionCustomizationMetadataKind.McpState, value: customization.state.kind }];
+		case CustomizationType.Prompt:
+		case CustomizationType.Hook:
+			return [];
 	}
 }
 

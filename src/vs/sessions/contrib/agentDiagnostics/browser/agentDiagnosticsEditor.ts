@@ -17,7 +17,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -100,7 +101,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(AgentDiagnosticsEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.chatDebugService.registerSessionResourceResolver(sessionResource => {
@@ -158,7 +159,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		);
 		customizationsPanel.emptyState.remove();
 		this.customizationsModel = this._register(this.instantiationService.createInstance(SessionCustomizationsModel));
-		this.customizationsView = this._register(new SessionCustomizationsView(customizationsPanel.panel, this.customizationsModel));
+		this.customizationsView = this._register(this.instantiationService.createInstance(SessionCustomizationsView, customizationsPanel.panel, this.customizationsModel));
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -190,7 +191,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			const chatResource = activeSession?.activeChat.read(reader).resource;
 			this.setDebugSession(chatResource);
 			this.diagnosticsModel?.setSession(activeSession?.resource, chatResource);
-			this.customizationsModel?.setSession(activeSession);
+			this.customizationsModel?.setSession(activeSession, chatResource);
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAgentDebugLogEnabledSettingId)
@@ -231,7 +232,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			if (blockedSettings.length > 0) {
 				throw new Error(localize('agentDiagnostics.configurationBlocked', "These settings are disabled by effective configuration: {0}", blockedSettings.join(', ')));
 			}
-			await this.agentHostService.restartAgentHost();
+			await this.commandService.executeCommand('workbench.action.chat.restartLocalAgentHost');
 			const message = localize('agentDiagnostics.configurationComplete', "Full diagnostics are enabled. Start a new agent turn to capture Session Insights and Agent Debug logs.");
 			status(message);
 		} catch (error) {
@@ -365,6 +366,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		if (focus) {
 			this.tabs.get(tab)?.focus();
 		}
+		this.customizationsModel?.setActive(tab === DiagnosticsTab.Customizations);
 		this.updateDebugView();
 	}
 

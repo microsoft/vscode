@@ -1031,6 +1031,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					throw new CancellationError();
 				}
 				lastError = error instanceof Error ? error : new Error(String(error));
+				if (lastError.message.includes('Automations are disabled.')) {
+					return;
+				}
 				await timeout(MIGRATION_POLL_INTERVAL_MS);
 			}
 		}

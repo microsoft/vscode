@@ -12,17 +12,11 @@ import { basename } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { type ISessionCustomizationGroup, type ISessionCustomizationItem, SessionCustomizationSection, type SessionCustomizationStatus, SessionCustomizationsModel } from './sessionCustomizationsModel.js';
-
-const sectionOrder = [
-	SessionCustomizationSection.Plugins,
-	SessionCustomizationSection.Agents,
-	SessionCustomizationSection.Skills,
-	SessionCustomizationSection.Instructions,
-	SessionCustomizationSection.Hooks,
-	SessionCustomizationSection.McpServers,
-] as const;
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { type ISessionCustomizationGroup, type ISessionCustomizationItem, type ISessionCustomizationMetadata, SessionCustomizationMetadataKind, SessionCustomizationSection, type SessionCustomizationStatus, SessionCustomizationsModel } from './sessionCustomizationsModel.js';
 
 export class SessionCustomizationsView extends Disposable {
 
@@ -30,11 +24,14 @@ export class SessionCustomizationsView extends Disposable {
 	private readonly scrollable: DomScrollableElement;
 	private readonly content: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
-	private readonly expandedSections = new Set<SessionCustomizationSection>(sectionOrder);
+	private readonly expandedSections = new Set<SessionCustomizationSection>();
+	private readonly expandedItems = new Set<string>();
 
 	constructor(
 		parent: HTMLElement,
 		private readonly model: SessionCustomizationsModel,
+		@IEditorService private readonly editorService: IEditorService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super();
 		this.content = DOM.$('.agent-diagnostics-customizations-scroll');
@@ -70,15 +67,19 @@ export class SessionCustomizationsView extends Disposable {
 		}
 		const lines: string[] = [];
 		for (const group of state.groups) {
-			lines.push(`${sectionLabel(group.section)}: ${group.items.length}`);
+			lines.push(localize('agentDiagnostics.customizations.accessibleSection', "{0}: {1}", sectionLabel(group.section), group.items.length));
 			for (const item of group.items) {
-				lines.push(`  ${item.name}: ${statusLabel(item.status)}`);
+				lines.push(localize('agentDiagnostics.customizations.accessibleItem', "{0}: {1}; source {2}", item.name, statusLabel(item.status), item.uri));
+				for (const evidence of item.evidence) {
+					lines.push(localize('agentDiagnostics.customizations.accessibleEvidence', "{0}: {1}, turn {2}", evidenceLabel(evidence.kind), evidence.chatTitle, evidence.turnId));
+				}
 			}
 		}
 		return lines.join('\n');
 	}
 
 	private render(): void {
+		const scrollTop = this.scrollable.getScrollPosition().scrollTop;
 		this.renderDisposables.clear();
 		DOM.clearNode(this.content);
 		const state = this.model.state;
@@ -98,6 +99,7 @@ export class SessionCustomizationsView extends Disposable {
 			this.renderGroup(group);
 		}
 		this.scrollable.scanDomNode();
+		this.scrollable.setScrollPosition({ scrollTop });
 	}
 
 	private renderMessage(message: string): void {
@@ -112,11 +114,15 @@ export class SessionCustomizationsView extends Disposable {
 	private renderGroup(group: ISessionCustomizationGroup): void {
 		const section = DOM.append(this.content, DOM.$('section.agent-diagnostics-customization-section'));
 		const expanded = this.expandedSections.has(group.section);
+		const failedCount = group.items.filter(item => item.status === 'failed').length;
 		const header = this.renderDisposables.add(new Button(section, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		header.element.classList.add('agent-diagnostics-customization-section-header');
 		const label = localize('agentDiagnostics.customizations.section', "{0} ({1})", sectionLabel(group.section), group.items.length);
-		header.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${label}`;
-		header.setAriaLabel(label);
+		header.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${label}${failedCount > 0 ? ` $(${Codicon.error.id})` : ''}`;
+		header.setAriaLabel(failedCount > 0
+			? localize('agentDiagnostics.customizations.sectionWithErrors', "{0}, {1} failed", label, failedCount)
+			: label);
+		header.element.classList.toggle('has-error', failedCount > 0);
 		header.element.setAttribute('aria-expanded', String(expanded));
 		this.renderDisposables.add(header.onDidClick(() => {
 			if (expanded) {
@@ -148,32 +154,84 @@ export class SessionCustomizationsView extends Disposable {
 		const row = DOM.append(parent, DOM.$('.agent-diagnostics-customization-item'));
 		row.setAttribute('role', 'listitem');
 		const title = DOM.append(row, DOM.$('.agent-diagnostics-customization-item-title'));
-		const name = DOM.append(title, DOM.$('.agent-diagnostics-customization-name'));
-		name.textContent = item.name;
+		const expanded = this.expandedItems.has(item.id);
+		row.classList.toggle('expanded', expanded);
+		const button = this.renderDisposables.add(new Button(title, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		button.element.classList.add('agent-diagnostics-customization-item-button');
+		button.label = `$(${expanded ? Codicon.chevronDown.id : Codicon.chevronRight.id}) ${item.name}`;
+		button.setAriaLabel(item.name);
+		button.element.setAttribute('aria-expanded', String(expanded));
+		this.renderDisposables.add(button.onDidClick(() => {
+			if (expanded) {
+				this.expandedItems.delete(item.id);
+			} else {
+				this.expandedItems.add(item.id);
+			}
+			this.render();
+		}));
 		const status = DOM.append(title, DOM.$(`.agent-diagnostics-customization-status.${item.status}`));
 		status.textContent = statusLabel(item.status);
 
-		const metadata = DOM.append(row, DOM.$('.agent-diagnostics-customization-metadata'));
-		if (item.parentName) {
-			const parentName = DOM.append(metadata, DOM.$('span'));
-			parentName.textContent = localize('agentDiagnostics.customizations.parent', "From {0}", item.parentName);
+		const detailContainer = DOM.append(row, DOM.$('.agent-diagnostics-customization-item-detail'));
+		detailContainer.toggleAttribute('hidden', !expanded);
+		if (!expanded) {
+			row.setAttribute('aria-label', localize('agentDiagnostics.customizations.itemAriaLabel', "{0}, {1}", item.name, statusLabel(item.status)));
+			return;
 		}
-		const source = DOM.append(metadata, DOM.$('span.agent-diagnostics-customization-source'));
+		const metadata = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-metadata'));
+		metadata.textContent = item.parentName
+			? localize('agentDiagnostics.customizations.typeAndParent', "{0} from {1}", customizationTypeLabel(item), item.parentName)
+			: customizationTypeLabel(item);
+		const sourceRow = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-source-row'));
+		const sourceLabel = DOM.append(sourceRow, DOM.$('span.agent-diagnostics-customization-source-label'));
+		sourceLabel.textContent = localize('agentDiagnostics.customizations.source', "Source");
+		const source = DOM.append(sourceRow, DOM.$('span.agent-diagnostics-customization-source'));
 		source.textContent = basename(URI.parse(item.uri));
+		const openSource = this.renderDisposables.add(new Button(sourceRow, { ...defaultButtonStyles, secondary: true }));
+		openSource.element.classList.add('agent-diagnostics-customization-open-source');
+		const isPlugin = item.type === CustomizationType.Plugin;
+		openSource.label = isPlugin
+			? localize('agentDiagnostics.customizations.openFolder', "Open Folder")
+			: localize('agentDiagnostics.customizations.openSource', "Open");
+		openSource.setAriaLabel(isPlugin
+			? localize('agentDiagnostics.customizations.openFolderAriaLabel', "Open folder for {0}", item.name)
+			: localize('agentDiagnostics.customizations.openSourceAriaLabel', "Open source for {0}", item.name));
+		this.renderDisposables.add(openSource.onDidClick(async () => {
+			const resource = URI.parse(item.uri);
+			if (isPlugin) {
+				await this.nativeHostService.showItemInFolder(resource.fsPath);
+			} else {
+				await this.editorService.openEditor({ resource, options: { pinned: true } });
+			}
+		}));
 		if (item.description) {
-			const description = DOM.append(row, DOM.$('.agent-diagnostics-customization-description'));
+			const description = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-description'));
 			description.textContent = item.description;
 		}
+		if (item.metadata.length > 0) {
+			const properties = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-properties'));
+			for (const property of item.metadata) {
+				const propertyElement = DOM.append(properties, DOM.$('.agent-diagnostics-customization-property'));
+				const label = DOM.append(propertyElement, DOM.$('.agent-diagnostics-customization-property-label'));
+				label.textContent = metadataLabel(property);
+				const value = DOM.append(propertyElement, DOM.$('.agent-diagnostics-customization-property-value'));
+				value.textContent = metadataValue(property);
+			}
+		}
 		if (item.detail && item.detail !== 'ready') {
-			const detail = DOM.append(row, DOM.$('.agent-diagnostics-customization-detail'));
+			const detail = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-detail'));
 			detail.textContent = item.detail;
 		}
 		if (item.evidence.length > 0) {
-			const evidence = DOM.append(row, DOM.$('.agent-diagnostics-customization-evidence'));
-			const evidenceDetails = item.evidence.map(entry => `${entry.chatTitle} · ${entry.turnId}`).join(', ');
-			evidence.textContent = item.evidence.length === 1
-				? localize('agentDiagnostics.customizations.evidence.single', "Used in 1 chat turn: {0}", evidenceDetails)
-				: localize('agentDiagnostics.customizations.evidence.multiple', "Used in {0} chat turns: {1}", item.evidence.length, evidenceDetails);
+			const evidenceHeading = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-evidence-heading'));
+			evidenceHeading.textContent = localize('agentDiagnostics.customizations.evidenceHeading', "Use Evidence");
+			const evidenceList = DOM.append(detailContainer, DOM.$('.agent-diagnostics-customization-evidence-list'));
+			evidenceList.setAttribute('role', 'list');
+			for (const entry of item.evidence) {
+				const evidence = DOM.append(evidenceList, DOM.$('.agent-diagnostics-customization-evidence'));
+				evidence.setAttribute('role', 'listitem');
+				evidence.textContent = localize('agentDiagnostics.customizations.evidence', "{0} in {1}, turn {2}", evidenceLabel(entry.kind), entry.chatTitle, entry.turnId);
+			}
 		}
 		row.setAttribute('aria-label', localize('agentDiagnostics.customizations.itemAriaLabel', "{0}, {1}", item.name, statusLabel(item.status)));
 	}
@@ -211,4 +269,66 @@ function statusLabel(status: SessionCustomizationStatus): string {
 		case 'failed':
 			return localize('agentDiagnostics.customizations.status.failed', "Failed");
 	}
+}
+
+function customizationTypeLabel(item: ISessionCustomizationItem): string {
+	switch (item.type) {
+		case CustomizationType.Plugin:
+			return localize('agentDiagnostics.customizations.type.plugin', "Plugin");
+		case CustomizationType.Agent:
+			return localize('agentDiagnostics.customizations.type.agent', "Agent");
+		case CustomizationType.Skill:
+			return localize('agentDiagnostics.customizations.type.skill', "Skill");
+		case CustomizationType.Prompt:
+			return localize('agentDiagnostics.customizations.type.prompt', "Prompt");
+		case CustomizationType.Rule:
+			return localize('agentDiagnostics.customizations.type.rule', "Instruction");
+		case CustomizationType.Hook:
+			return localize('agentDiagnostics.customizations.type.hook', "Hook");
+		case CustomizationType.McpServer:
+			return localize('agentDiagnostics.customizations.type.mcpServer', "MCP Server");
+		case CustomizationType.Directory:
+			return localize('agentDiagnostics.customizations.type.directory', "Directory");
+	}
+}
+
+function evidenceLabel(kind: ISessionCustomizationItem['evidence'][number]['kind']): string {
+	switch (kind) {
+		case 'agent':
+			return localize('agentDiagnostics.customizations.evidence.agent', "Selected agent");
+		case 'skill':
+			return localize('agentDiagnostics.customizations.evidence.skill', "Invoked skill");
+		case 'mcp':
+			return localize('agentDiagnostics.customizations.evidence.mcp', "Called MCP tool");
+	}
+}
+
+function metadataLabel(metadata: ISessionCustomizationMetadata): string {
+	switch (metadata.kind) {
+		case SessionCustomizationMetadataKind.Version:
+			return localize('agentDiagnostics.customizations.metadata.version', "Version");
+		case SessionCustomizationMetadataKind.Model:
+			return localize('agentDiagnostics.customizations.metadata.model', "Model");
+		case SessionCustomizationMetadataKind.Tools:
+			return localize('agentDiagnostics.customizations.metadata.tools', "Tools");
+		case SessionCustomizationMetadataKind.ModelInvocation:
+			return localize('agentDiagnostics.customizations.metadata.modelInvocation', "Model Invocation");
+		case SessionCustomizationMetadataKind.UserInvocation:
+			return localize('agentDiagnostics.customizations.metadata.userInvocation', "User Invocation");
+		case SessionCustomizationMetadataKind.AlwaysApply:
+			return localize('agentDiagnostics.customizations.metadata.alwaysApply', "Always Apply");
+		case SessionCustomizationMetadataKind.Globs:
+			return localize('agentDiagnostics.customizations.metadata.globs', "File Patterns");
+		case SessionCustomizationMetadataKind.McpState:
+			return localize('agentDiagnostics.customizations.metadata.mcpState', "Server State");
+	}
+}
+
+function metadataValue(metadata: ISessionCustomizationMetadata): string {
+	if (typeof metadata.value === 'boolean') {
+		return metadata.value
+			? localize('agentDiagnostics.customizations.metadata.enabled', "Enabled")
+			: localize('agentDiagnostics.customizations.metadata.disabled', "Disabled");
+	}
+	return typeof metadata.value === 'string' ? metadata.value : metadata.value.join(', ');
 }

@@ -220,6 +220,10 @@
 	background: var(--vscode-list-hoverBackground);
 }
 
+.agent-diagnostics-customization-section-header.monaco-button.has-error {
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
 .agent-diagnostics-customization-section-header.monaco-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
@@ -242,17 +246,42 @@
 	min-width: 0;
 }
 
-.agent-diagnostics-customization-name {
+.agent-diagnostics-customization-item-title {
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.agent-diagnostics-customization-item.expanded .agent-diagnostics-customization-item-title {
+	border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+}
+
+.agent-diagnostics-customization-item-button.monaco-button {
+	justify-content: flex-start;
+	flex: 1;
 	min-width: 0;
-	overflow: hidden;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 0;
+	border-radius: 0;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	text-align: left;
+}
+
+.agent-diagnostics-customization-item-button.monaco-button:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background: transparent;
+}
+
+.agent-diagnostics-customization-item-button.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
 }
 
 .agent-diagnostics-customization-status {
 	flex: 0 0 auto;
+	margin-right: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 	color: var(--vscode-badge-foreground);
 	background: var(--vscode-badge-background);
@@ -261,8 +290,7 @@
 }
 
 .agent-diagnostics-customization-status.used {
-	color: var(--vscode-list-activeSelectionForeground);
-	background: var(--vscode-list-activeSelectionBackground);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .agent-diagnostics-customization-status.disabled,
@@ -271,20 +299,71 @@
 	background: var(--vscode-editor-background);
 }
 
-.agent-diagnostics-customization-status.degraded,
-.agent-diagnostics-customization-status.failed {
+.agent-diagnostics-customization-status.degraded {
 	color: var(--vscode-inputValidation-warningForeground);
 	background: var(--vscode-inputValidation-warningBackground);
 }
 
+.agent-diagnostics-customization-status.failed {
+	color: var(--vscode-inputValidation-errorForeground);
+	background: var(--vscode-inputValidation-errorBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-errorBorder);
+}
+
 .agent-diagnostics-customization-metadata {
-	margin-top: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-item-detail[hidden] {
+	display: none;
+}
+
+.agent-diagnostics-customization-item-detail {
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	background: var(--vscode-textCodeBlock-background);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
+}
+
+.agent-diagnostics-customization-source-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	margin-top: var(--vscode-spacing-size60);
+}
+
+.agent-diagnostics-customization-source-label {
+	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
 }
 
 .agent-diagnostics-customization-source {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
 	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-diagnostics-customization-open-source.monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	padding: 0 var(--vscode-spacing-size20);
+	color: var(--vscode-textLink-foreground);
+	background: transparent;
+	border: 0;
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-open-source.monaco-button:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background: transparent;
 }
 
 .agent-diagnostics-customization-description,
@@ -295,6 +374,48 @@
 	font-size: var(--vscode-fontSize-body2);
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+.agent-diagnostics-customization-properties {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.agent-diagnostics-customization-property {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	background: var(--vscode-badge-background);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.agent-diagnostics-customization-property-label {
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-property-value {
+	overflow: hidden;
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-diagnostics-customization-evidence-heading {
+	margin-top: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-evidence-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
 }
 
 .agent-diagnostics-customization-empty {
