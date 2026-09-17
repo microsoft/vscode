@@ -16,6 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -1593,8 +1594,8 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('preserves the archived-session banner when its remote host is unavailable', () => {
-		const { sessionsProvidersService, view } = createHarness(disposables);
+	test('preserves the archived-session banner when its remote host is unavailable', async () => {
+		const { sessionsProvidersService, configurationService, view } = createHarness(disposables);
 		const provider = new TestAgentHostProvider();
 		sessionsProvidersService.provider = provider;
 		const chat = createChat('main');
@@ -1604,10 +1605,26 @@ suite('Sessions - ChatGroupsView', () => {
 
 		view.setSession(session, options);
 
-		assert.deepStrictEqual(readBanner(view), {
-			visible: true,
-			message: 'Archived sessions are read-only.',
-			action: 'Unarchive',
+		const archived = readBanner(view);
+		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: section => section === ChatSessionArchiveActionWordingSettingId,
+			affectedKeys: new Set([ChatSessionArchiveActionWordingSettingId]),
+			change: { keys: [ChatSessionArchiveActionWordingSettingId], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+
+		assert.deepStrictEqual({ archived, done: readBanner(view) }, {
+			archived: {
+				visible: true,
+				message: 'Archived sessions are read-only.',
+				action: 'Unarchive',
+			},
+			done: {
+				visible: true,
+				message: 'Sessions marked as done are read-only.',
+				action: 'Restore',
+			},
 		});
 	});
 
