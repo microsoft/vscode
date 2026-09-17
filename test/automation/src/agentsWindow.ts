@@ -149,9 +149,14 @@ export class AgentsWindow {
 	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		await this.quickaccess.runCommand('workbench.action.sessions.connectViaWSL', { keepOpen: true });
-		await page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({
-			has: page.getByText(distro, { exact: true }),
-		}).click({ timeout: 30_000 });
+		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
+		const folderPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: `Select Folder on ${distro}` }) });
+		await distroPicker.or(folderPicker).first().waitFor({ timeout: 120_000 });
+		if (await distroPicker.isVisible()) {
+			await distroPicker.locator('.quick-input-list .monaco-list-row').filter({
+				has: page.getByText(distro, { exact: true }),
+			}).click({ timeout: 30_000 });
+		}
 		await this.selectRemoteFolder(distro, workspacePath);
 	}
 
