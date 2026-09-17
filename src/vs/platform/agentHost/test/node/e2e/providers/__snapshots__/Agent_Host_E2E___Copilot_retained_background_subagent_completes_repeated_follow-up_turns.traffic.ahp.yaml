@@ -29,6 +29,12 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: task
+      - channel: ${chat_0}
+        action:
           type: chat/toolCallComplete
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
@@ -41,6 +47,12 @@ rounds:
           part:
             kind: markdown
             content: Waiting for the background subagent to finish before continuing.
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          toolName: read_agent
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -88,11 +100,23 @@ rounds:
               kind: user
       - channel: ${chat_0}
         action:
+          type: chat/toolCallStart
+          turnId: ${turn_2}
+          toolCallId: ${toolCall_2}
+          toolName: write_agent
+      - channel: ${chat_0}
+        action:
           type: chat/toolCallComplete
           turnId: ${turn_2}
           toolCallId: ${toolCall_2}
           result:
             success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_2}
+          toolCallId: ${toolCall_3}
+          toolName: read_agent
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -153,11 +177,23 @@ rounds:
               kind: user
       - channel: ${chat_0}
         action:
+          type: chat/toolCallStart
+          turnId: ${turn_4}
+          toolCallId: ${toolCall_4}
+          toolName: write_agent
+      - channel: ${chat_0}
+        action:
           type: chat/toolCallComplete
           turnId: ${turn_4}
           toolCallId: ${toolCall_4}
           result:
             success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_4}
+          toolCallId: ${toolCall_5}
+          toolName: read_agent
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
