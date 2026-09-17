@@ -111,10 +111,12 @@ suite('ProjectBoardMetadata', () => {
 		request.response = response;
 		h.model.lastRequestObs.set(request, undefined);
 		const metadata = h.create();
-		response.setResult({ errorDetails: {
-			message: 'Interrupted',
-			confirmationButtons: [{ label: 'Keep Going', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
-		} });
+		response.setResult({
+			errorDetails: {
+				message: 'Interrupted',
+				confirmationButtons: [{ label: 'Keep Going', data: { agentHostResumeTurn: true }, resend: true, preserveRequestId: true }],
+			}
+		});
 		response.complete();
 		assert.strictEqual(metadata.actions.get()?.request, request);
 		assert.strictEqual(metadata.actions.get()?.error?.confirmationButtons?.[0].label, 'Keep Going');
@@ -436,11 +438,15 @@ suite('ProjectBoardMetadata', () => {
 
 	test('snapshots bound text and safe context while observing variable data changes', () => {
 		const { model, request, create, changed } = setup();
-		const latest = request('x'.repeat(10000), 100, { variableData: { variables: [
-			{ kind: 'generic', id: 'unsafe', name: 'Unsafe', value: URI.parse('command:workbench.action.closeWindow') },
-			{ kind: 'generic', id: 'string', name: 'Not a URI', value: 'file:///guess' },
-			...Array.from({ length: 20 }, (_, index) => ({ kind: 'file' as const, id: String(index), name: `File ${index}`, value: URI.file(`C:\\project\\${index}.ts`) })),
-		] } });
+		const latest = request('x'.repeat(10000), 100, {
+			variableData: {
+				variables: [
+					{ kind: 'generic', id: 'unsafe', name: 'Unsafe', value: URI.parse('command:workbench.action.closeWindow') },
+					{ kind: 'generic', id: 'string', name: 'Not a URI', value: 'file:///guess' },
+					...Array.from({ length: 20 }, (_, index) => ({ kind: 'file' as const, id: String(index), name: `File ${index}`, value: URI.file(`C:\\project\\${index}.ts`) })),
+				]
+			}
+		});
 		model.lastRequestObs.set(latest, undefined);
 		const metadata = create();
 		let publications = 0;
