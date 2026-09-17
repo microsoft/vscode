@@ -68,6 +68,11 @@ interface IPendingProgrammaticSelection {
 	readonly complete: (applied: boolean) => void;
 }
 
+const newSessionDefaultBaselines = new WeakMap<IIntendedModelHolder, {
+	readonly model: ILanguageModelChatMetadataAndIdentifier | undefined;
+	readonly selectedModelId: string;
+}>();
+
 /** The one implementation of "pick and remember the chat model", shared by both surfaces. */
 export class ChatInputModelSelectionController extends Disposable {
 
@@ -75,6 +80,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> = this._currentModel;
 	private _selectionReason: ModelSelectionReason | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
+	private _newSessionDefaultFrozen = false;
 
 	constructor(
 		private readonly _runtime: IChatInputModelSelectionRuntime,
@@ -92,9 +98,22 @@ export class ChatInputModelSelectionController extends Disposable {
 		return this._selectionReason;
 	}
 
+	get modelForNewConversation(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const current = this._currentModel.get();
+		const baseline = newSessionDefaultBaselines.get(this._runtime.getIntentHolder());
+		return baseline && current?.identifier === baseline.selectedModelId
+			&& !isInConversationModelChoice(this._selectionReason) && !isInConversationModelChoice(this._intendedModel?.reason)
+			? baseline.model : current;
+	}
+
+	freezeNewSessionDefault(): void {
+		this._newSessionDefaultFrozen = true;
+	}
+
 	/** Drops what spoke for the outgoing conversation, so it is not read as the incoming one's. */
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
+		this._newSessionDefaultFrozen = false;
 		this._clearPendingProgrammaticSelection();
 	}
 
@@ -301,12 +320,16 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	applyNewSessionDefault(): boolean {
+		if (this._newSessionDefaultFrozen) {
+			return false;
+		}
 		const model = this._newSessionDefaultToSeed();
 		this._reportNewSessionDefault(!!model);
 		if (model) {
 			if (model.identifier !== this._currentModel.get()?.identifier) {
 				this._applyModel(model, ModelSelectionReason.NewSessionDefault);
 			} else {
+				this._captureNewSessionDefaultBaseline(model);
 				this._selectionReason = ModelSelectionReason.NewSessionDefault;
 			}
 			return true;
@@ -337,7 +360,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	private _newSessionDefaultToSeed(): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (!this._runtime.isNewSession?.() || !this._runtime.isEmpty()
+		if (this._newSessionDefaultFrozen || !this._runtime.isNewSession?.() || !this._runtime.isEmpty()
 			|| this._runtime.hasExplicitDefaultConfiguration?.()
 			|| this._runtime.getConfiguredModelValue() !== undefined
 			|| isInConversationModelChoice(this._selectionReason)
@@ -634,9 +657,23 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * that persists reads it during `applyModel`. Pass {@link selectionReason} to carry it over.
 	 */
 	private _applyModel(model: ILanguageModelChatMetadataAndIdentifier, reason: ModelSelectionReason | undefined): void {
+		if (reason === ModelSelectionReason.NewSessionDefault) {
+			this._captureNewSessionDefaultBaseline(model);
+		}
 		this._selectionReason = reason;
 		this._display(model);
 		this._runtime.applyModel(model);
+	}
+
+	private _captureNewSessionDefaultBaseline(selectedModel: ILanguageModelChatMetadataAndIdentifier): void {
+		const holder = this._runtime.getIntentHolder();
+		if (!newSessionDefaultBaselines.has(holder)) {
+			const models = this._pool();
+			newSessionDefaultBaselines.set(holder, {
+				model: models.find(model => model.identifier === this._intendedModel?.modelId) ?? this._currentModel.get() ?? this._defaultModel(models),
+				selectedModelId: selectedModel.identifier,
+			});
+		}
 	}
 
 	private _reportInitialization(configuredModel: string | undefined, rememberedModel: string | undefined, selection: InitialModelSelectionResult): void {

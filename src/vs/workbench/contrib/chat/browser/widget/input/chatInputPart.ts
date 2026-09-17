@@ -654,6 +654,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _restorePerTypeModel = false;
 	private _newSessionDefault: ILanguageModelNewSessionDefault | undefined;
 	private _newSessionDefaultRefresh = 0;
+	private _newSessionDefaultSubmittedBeforeBind = false;
 
 	/** Whoever speaks for the intended model right now: the bound conversation, else this input part. */
 	private get _intentHolder(): IIntendedModelHolder {
@@ -1682,6 +1683,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			model.setIntendedModel(composerChoice);
 			this._unboundIntent.setIntendedModel(undefined);
 		}
+		if (this._newSessionDefaultSubmittedBeforeBind) {
+			model.markSessionStarted?.();
+			this._newSessionDefaultSubmittedBeforeBind = false;
+		}
 		this._inputModelSessionResource = forSessionResource;
 		this._modelSyncDisposables.clear();
 		const chatModes = this.chatModeService.createModes(forSessionResource);
@@ -1912,7 +1917,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._isSyncingToOrFromInputModel = true;
 		const state = this.getCurrentInputState();
 		if (this._chatSessionIsEmpty) {
-			this._emptyInputState.set(state, undefined);
+			const inheritedModel = this._modelSelectionController.modelForNewConversation;
+			this._emptyInputState.set(inheritedModel?.identifier === state.selectedModel?.identifier ? state : {
+				...state,
+				selectedModel: inheritedModel,
+				modelConfiguration: inheritedModel ? this._modelConfigStore.getModelConfiguration(inheritedModel.identifier) : undefined,
+				selectedModelReason: undefined,
+			}, undefined);
 		}
 		// Pass the actual newState and the previous state so model-identifier
 		// transitions (including transitions to/from undefined) are visible.
@@ -1934,6 +1945,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this._inputModel) {
 			this._syncInputStateToModel();
 		}
+	}
+
+	public freezeNewSessionDefault(): void {
+		this._newSessionDefaultRefresh++;
+		this._newSessionDefaultSubmittedBeforeBind = !this._inputModel;
+		this._inputModel?.markSessionStarted?.();
+		this._modelSelectionController.freezeNewSessionDefault();
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {

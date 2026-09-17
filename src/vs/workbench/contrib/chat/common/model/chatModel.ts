@@ -2134,6 +2134,7 @@ export class IntendedModelSlot implements IIntendedModelHolder {
 
 export interface IInputModel extends IIntendedModelHolder {
 	readonly isNewSession?: boolean;
+	markSessionStarted?(): void;
 	/** Observable for current input state (undefined for new/uninitialized chats) */
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
