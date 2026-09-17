@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
-import { SessionStatus, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
+import { ChatOriginKind, SessionStatus, withSessionExternal, withSessionStatusFlag, type ChatOrigin } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
 import type { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
@@ -85,9 +85,45 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			chats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: toChatOrigin(chat.origin),
+			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};
 	}
+}
+
+function toChatOrigin(origin: AgentHostCatalogRevivedData['chats'][number]['origin']): ChatOrigin | undefined {
+	if (!origin || typeof origin !== 'object' || Array.isArray(origin)) {
+		return undefined;
+	}
+	if (origin.kind === ChatOriginKind.User) {
+		return { kind: ChatOriginKind.User };
+	}
+	if (typeof origin.chat !== 'string') {
+		return undefined;
+	}
+	if (origin.kind === ChatOriginKind.Tool && typeof origin.toolCallId === 'string') {
+		return { kind: ChatOriginKind.Tool, chat: origin.chat, toolCallId: origin.toolCallId };
+	}
+	if ((origin.kind === ChatOriginKind.Fork || origin.kind === ChatOriginKind.SideChat) && typeof origin.turnId === 'string') {
+		if (origin.kind === ChatOriginKind.Fork) {
+			return { kind: ChatOriginKind.Fork, chat: origin.chat, turnId: origin.turnId };
+		}
+		const selection = origin.selection;
+		return {
+			kind: ChatOriginKind.SideChat,
+			chat: origin.chat,
+			turnId: origin.turnId,
+			...(selection && typeof selection === 'object' && !Array.isArray(selection) && typeof selection.text === 'string'
+				? { selection: { text: selection.text, ...(typeof selection.responsePartId === 'string' ? { responsePartId: selection.responsePartId } : {}) } }
+				: {}),
+		};
+	}
+	return undefined;
 }
 
 function ineligible(detail: string): AgentHostCatalogListResult {

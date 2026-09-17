@@ -107,6 +107,8 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
+Session facades may expose catalog-backed peer-chat identities and titles before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+
 ## Persistence
 
 List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section collapse, pins, custom groups, manual sort keys, and section order. Storage keys are private implementation details; other components change list state through the owning service API.

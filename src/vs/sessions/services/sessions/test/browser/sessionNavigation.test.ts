@@ -163,6 +163,8 @@ class MockSessionStore implements ISessionsManagementService {
 		return this._sessions.get(resource.toString());
 	}
 
+	hydrateSessionChats(): void { }
+
 	async resolveSessionResource(resource: URI): Promise<URI> {
 		return resource;
 	}

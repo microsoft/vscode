@@ -428,7 +428,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; status?: ProtocolSessionStatus; activity?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean; multiRoot?: { workspaceFile: string }; adoptable?: boolean; chats?: IAgentSessionMetadata['chats']; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	let _meta = opts?._meta;
 	_meta = opts?.quickChat ? withSessionWorkspaceless(_meta, true) : _meta;
 	_meta = withSessionMultiRootMetadata(_meta, opts?.multiRoot);
@@ -444,6 +444,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		activity: opts?.activity,
 		project: opts?.project,
 		workingDirectories: opts?.workingDirectory ? [opts?.workingDirectory] : undefined,
+		chats: opts?.chats,
 		_meta,
 	};
 }
@@ -5773,6 +5774,52 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return session!;
 		}
 
+		test('list metadata surfaces peer titles without subscribing and hydrates stable chats on demand', async () => {
+			const rawId = 'multi-catalog-list';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const initialPeer = session.chats.get()[1];
+			assert.deepStrictEqual({
+				titles: session.chats.get().map(chat => chat.title.get()),
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+			}, {
+				titles: ['Default', 'Catalog Peer'],
+				sessionSubscriptions: 0,
+			});
+
+			provider.hydrateSessionChats(session);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(peerChat.toString(), 'Hydrated Peer', ProtocolSessionStatus.InProgress),
+			], { defaultChat: defaultChat.toString() }));
+
+			assert.deepStrictEqual({
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+				peerIdentityPreserved: session.chats.get()[1] === initialPeer,
+				peerTitle: session.chats.get()[1].title.get(),
+				peerStatus: session.chats.get()[1].status.get(),
+			}, {
+				sessionSubscriptions: 1,
+				peerIdentityPreserved: true,
+				peerTitle: 'Hydrated Peer',
+				peerStatus: SessionStatus.InProgress,
+			});
+		});
+
 		test('default + peer catalog surfaces both chats with the default as mainChat', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-1');
@@ -5897,6 +5944,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 				subagentOrigin: ChatOriginKind.Tool,
 				subagentParentIsMain: true,
 				subagentCapabilities: { canRename: false, canDelete: false },
+			});
+		});
+
+		test('lightweight catalog updates preserve hydrated tool chats omitted from session lists', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-sub-catalog');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-sub-catalog').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const subagentChat = buildSubagentChatUri(sessionUri, 'tc-1');
+
+			agentHost.setSessionState('multi-sub-catalog', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(subagentChat, 'Code Reviewer'), origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tc-1' } },
+			], { defaultChat }));
+			const subagent = session.chats.get()[1];
+
+			fireSessionSummaryChanged(agentHost, 'multi-sub-catalog', {
+				chats: [{ resource: defaultChat, title: '' }],
+				defaultChat,
+			});
+
+			assert.deepStrictEqual({
+				chatCount: session.chats.get().length,
+				subagentIdentityPreserved: session.chats.get()[1] === subagent,
+			}, {
+				chatCount: 2,
+				subagentIdentityPreserved: true,
 			});
 		});
 

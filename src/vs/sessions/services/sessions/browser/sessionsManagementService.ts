@@ -1196,6 +1196,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 	}
 
+	hydrateSessionChats(session: ISession): void {
+		this._getProvider(session)?.hydrateSessionChats?.(session);
+	}
+
 	async cancelCurrentRequest(session: ISession): Promise<void> {
 		const resource = session.mainChat.get().resource;
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.

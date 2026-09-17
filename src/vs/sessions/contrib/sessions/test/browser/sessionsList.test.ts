@@ -60,7 +60,7 @@ import { ChatAgentService, IChatAgentService } from '../../../../../workbench/co
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
-import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
@@ -2534,7 +2534,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): { readonly container: HTMLElement; readonly list: SessionsList } {
+		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], enableMotion
 				? instantiationService => instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isMotionReduced(): boolean { return false; }
@@ -2548,7 +2548,7 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen,
 			}));
 			list.layout(300, 400);
-			return { container, list };
+			return { container, list, managementService: harness.managementService };
 		}
 
 		function renderSessionChats(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): HTMLElement {
@@ -2586,6 +2586,28 @@ suite('Sessions - SessionsList', () => {
 					{ title: 'Forked chat', last: true },
 				]
 			);
+		});
+
+		test('requests chat hydration only when a peer row is rendered', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const withPeer: ISession = {
+				...createTestSession('Session with peer').session,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const rendered = renderSessionChatsList(withPeer);
+			assert.deepStrictEqual(rendered.managementService.hydratedChatSessions, [withPeer]);
+
+			const defaultOnly: ISession = {
+				...createTestSession('Session without peer').session,
+				chats: constObservable([main]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: false }),
+			};
+			const defaultRendered = renderSessionChatsList(defaultOnly);
+			assert.deepStrictEqual(defaultRendered.managementService.hydratedChatSessions, []);
 		});
 
 		test('updates nested chat rows when the session chat catalog changes', () => {

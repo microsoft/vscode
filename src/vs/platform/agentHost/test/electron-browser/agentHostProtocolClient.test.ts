@@ -685,6 +685,11 @@ suite('AgentHostProtocolClient', () => {
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
 					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
+					chats: [
+						{ resource: 'agent-chat://copilotcli/quick-1/default', title: 'Quick Chat' },
+						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat' },
+					],
+					defaultChat: 'agent-chat://copilotcli/quick-1/default',
 					_meta: withSessionWorkspaceless(undefined, true),
 				}],
 			},
@@ -695,10 +700,15 @@ suite('AgentHostProtocolClient', () => {
 			workspaceless: readSessionWorkspaceless(s._meta),
 			workingDirectory: s.workingDirectory,
 			workingDirectories: s.workingDirectories,
+			chats: s.chats?.map(chat => ({ ...chat, chat: chat.chat.toString() })),
 		})), [{
 			workspaceless: true,
 			workingDirectory: toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234')),
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
+			chats: [
+				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined },
+			],
 		}]);
 	});
 
