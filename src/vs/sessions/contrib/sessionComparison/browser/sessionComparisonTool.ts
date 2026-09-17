@@ -428,14 +428,14 @@ export class SessionComparisonToolContribution extends Disposable implements IWo
 				return;
 			}
 			const toolSet = this._toolRegistrations.add(toolsService.createToolSet(
-			ToolDataSource.Internal,
-			'vscode_sessionComparison',
-			'sessionComparison',
-			{
-				icon: Codicon.compareChanges,
-				description: localize('sessionComparison.toolSet.description', "Compare implementation attempts"),
-				hiddenInToolsPicker: true,
-			},
+				ToolDataSource.Internal,
+				'vscode_sessionComparison',
+				'sessionComparison',
+				{
+					icon: Codicon.compareChanges,
+					description: localize('sessionComparison.toolSet.description', "Compare implementation attempts"),
+					hiddenInToolsPicker: true,
+				},
 			));
 			const readTool = instantiationService.createInstance(ReadSessionComparisonTool);
 			const readToolData = readTool.getToolData();
