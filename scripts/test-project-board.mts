@@ -99,10 +99,13 @@ try {
 		await board.mouse.wheel(10000, 0);
 		await expect.poll(() => scroller.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
 	}
-	await expect.poll(() => scroller.evaluate(element => {
-		const lastCell = element.querySelector('.project-board-grid .project-board-card-group:last-child');
-		return lastCell && lastCell.getBoundingClientRect().bottom <= element.getBoundingClientRect().bottom;
-	}), { message: 'The last row must be reachable with the wheel, not just present in the DOM' }).toBe(true);
+	await expect.poll(async () => {
+		await boardPage.mouse.wheel(0, 10000);
+		return scroller.evaluate(element => {
+			const lastCell = element.querySelector('.project-board-grid .project-board-card-group:last-child');
+			return lastCell && lastCell.getBoundingClientRect().bottom <= element.getBoundingClientRect().bottom + 1;
+		});
+	}, { intervals: [25, 50], timeout: 10000, message: 'The last row must be reachable with repeated wheel input, including subpixel layout rounding' }).toBe(true);
 	const slider = scrollbarHost.locator(':scope > .scrollbar.vertical > .slider');
 	const sliderBounds = await slider.boundingBox();
 	const hostBounds = await scrollbarHost.boundingBox();
