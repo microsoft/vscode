@@ -671,11 +671,7 @@ export class ChatView extends AbstractChatView {
 	private _updateChatBackground(): void {
 		const background = this.chatBackgroundService.getBackground();
 		this._updateChatItemHorizontalPadding(!!background);
-		const replica = this._stickyScrollBackgroundReplica.value;
-		if (replica) {
-			replica.setBackground(background);
-			replica.layout();
-		}
+		this._stickyScrollBackgroundReplica.value?.setBackground(background);
 	}
 
 	private _updateChatItemHorizontalPadding(hasBackground: boolean): void {
@@ -711,8 +707,9 @@ export class ChatView extends AbstractChatView {
 			this._stickyScrollBackgroundReplica.value = replica;
 			this._stickyScrollBackgroundContainer = stickyContainer;
 			replica.setBackground(this.chatBackgroundService.getBackground());
+		} else {
+			replica.layout();
 		}
-		replica.layout();
 	}
 
 	/**

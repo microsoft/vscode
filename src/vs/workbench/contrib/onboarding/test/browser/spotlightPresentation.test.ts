@@ -10,6 +10,7 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -329,6 +330,50 @@ suite('SpotlightPresentation', () => {
 				shown: 0,
 			});
 		});
+
+		for (const onTimeout of [undefined, 'skip', 'abort'] as const) {
+			test(`missing target waits before ${onTimeout ?? 'default skip'} (runAsSequenceStep: ${runAsSequenceStep})`, () => runWithFakedTimers({}, async () => {
+				const container = createContainer();
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+				let shown = 0;
+				const step: ISpotlightStep = {
+					id: 'missing',
+					targetId: 'test.spotlight.timeoutMissing',
+					title: 'Missing',
+					description: 'Missing target',
+					missingTarget: { kind: 'wait', timeoutMs: 100, onTimeout },
+				};
+				const context = { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => shown++ };
+				const startTime = Date.now();
+				const result = runAsSequenceStep
+					? await presentation.runStep({ id: step.id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step }, {
+						...context,
+						cancellationToken: CancellationToken.None,
+						stepIndex: 0,
+						visualStepIndex: 0,
+						visualStepCount: 1,
+						canGoBack: false,
+						isLastVisualStep: true,
+					})
+					: await presentation.run(createScenario('test.spotlight.timeoutMissing', step), context);
+
+				assert.deepStrictEqual({ elapsed: Date.now() - startTime, result, shown }, {
+					elapsed: 100,
+					result: runAsSequenceStep ? {
+						action: onTimeout === 'abort' ? 'abort' : 'skipStep',
+						shown: false,
+					} : {
+						outcome: onTimeout === 'abort' ? OnboardingOutcome.Aborted : OnboardingOutcome.Completed,
+						shown: false,
+						dismissReason: onTimeout === 'abort' ? OnboardingDismissReason.Aborted : OnboardingDismissReason.Completed,
+						lastStepIndex: 0,
+						stepCount: 1,
+					},
+					shown: 0,
+				});
+			}));
+		}
 	}
 
 	test('hides the previous step while waiting for the next target', async () => {

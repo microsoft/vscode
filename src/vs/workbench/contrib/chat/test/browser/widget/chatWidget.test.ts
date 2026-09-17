@@ -7,18 +7,22 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatListItemRendererOptions } from '../../../browser/chat.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
@@ -150,6 +154,62 @@ suite('ChatWidget', () => {
 			includeUntitled: false,
 			reason: SaveReason.EXPLICIT,
 		}]);
+	});
+
+	test('editing a steering request passes its model and configuration to the input', async () => {
+		const modelId = 'agent-host-copilot:claude-opus-4.8';
+		const modelConfiguration = { reasoningEffort: 'xhigh' };
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'input');
+		const input = mockObject<ChatInputPart>()({
+			element: mainWindow.document.createElement('div'),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'original request', getModel: () => null, focus: () => { },
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidClickOverlay: Event.None,
+		});
+		input.requestModelByIdentifier.resolves(true);
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'original request', parts: [] },
+			messageText: 'original request',
+			variables: [],
+			modelId,
+			modelConfiguration,
+			pendingKind: ChatRequestQueueKind.Steering,
+		});
+		let editing: IChatRequestViewModel | undefined;
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			_store: { value: store },
+			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+			configurationService: { value: configurationService },
+			telemetryService: { value: NullTelemetryService },
+			viewModel: {
+				value: {
+					model: { getRequests: () => [], setCheckpoint: () => { } },
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					get editing() { return editing; },
+					setEditing: (request: IChatRequestViewModel) => { editing = request; },
+				},
+			},
+			input: { value: input },
+			inputPart: { value: input },
+			contribs: { value: [] },
+			onDidChangeItems: { value: () => { } },
+			listWidget: {
+				value: {
+					getTemplateDataForRequestId: () => ({ currentElement: request }),
+					acquireAutoScrollHold: () => Disposable.None,
+				},
+			},
+		});
+
+		widget.startEditing(request.id);
+
+		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
 	});
 
 	test('confirms before cancelling changed request edits', async () => {

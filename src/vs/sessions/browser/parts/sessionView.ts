@@ -151,6 +151,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			const session = this._sessionObs.read(reader);
 			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
 				&& (session?.isCreated.read(reader) ?? false)
+				&& !this._groupsView.showChatAsSessionView.read(reader)
 				&& (session?.shouldShowChatTabs.read(reader) ?? false);
 			this._header.setVisible(!tabsReplaceHeader);
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);

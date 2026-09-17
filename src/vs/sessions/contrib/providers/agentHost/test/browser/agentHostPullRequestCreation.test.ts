@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { AgentHostPullRequestCreation } from '../../browser/agentHostPullRequestCreation.js';
 
 suite('AgentHostPullRequestCreation', () => {
@@ -31,12 +31,23 @@ suite('AgentHostPullRequestCreation', () => {
 		const creation = new AgentHostPullRequestCreation(() => connection, () => channel, (operationId, metadata) =>
 			connection.invokeChangesetOperation({ operationId, channel: channel.toString(), _meta: metadata }));
 		const chatRequest = await creation.prepareChatRequest('Create the PR', { ...options, expectedContext: context });
-		assert.deepStrictEqual(chatRequest, { query: 'Create the PR', metadata: createPullRequestOperationMeta({ ...options, expectedContext: context }) });
+		assert.deepStrictEqual(chatRequest, {
+			query: 'Create the PR',
+			metadata: { 'vscode.pullRequest': { draft: false, agentMerge: false, expectedContext: context } },
+		});
 		await creation.create({ ...options, expectedContext: context });
 		assert.deepStrictEqual(invocations, [
 			{ channel: channel.toString(), operationId: PREPARE_PULL_REQUEST_OPERATION_ID, _meta: createPullRequestValidationMeta(context) },
 			{ channel: channel.toString(), operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...options, expectedContext: context }) },
 		]);
+	});
+
+	test('prepares a chat request without waiting for generated details', async () => {
+		const creation = new AgentHostPullRequestCreation(() => assert.fail('Must not prepare details'), () => channel, async () => assert.fail('Must not create directly'));
+		const options = { draft: true, agentMerge: false };
+		assert.deepStrictEqual(await creation.prepareChatRequest('Create the PR', options), {
+			query: 'Create the PR', metadata: createPullRequestChatMeta(options),
+		});
 	});
 
 	test('reports an unavailable connection or channel', async () => {

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
 
 suite('sessionsTelemetry helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -54,5 +56,21 @@ suite('sessionsTelemetry helpers', () => {
 			'4f42482f1374bb5f11b7f1c0abbc96954bddd505',
 			'51f47747e460010ae1c437b9a269e980137d96ec',
 		]);
+	});
+
+	test('logs the compact Sessions list preference', () => {
+		const events: { name: string | undefined; data: unknown }[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName?: string, data?: unknown): void {
+				events.push({ name: eventName, data });
+			}
+		}();
+
+		logSessionsListCompactViewState(telemetryService, true);
+
+		assert.deepStrictEqual(events, [{
+			name: 'vscodeAgents.sessionsList/compactViewState',
+			data: { enabled: true },
+		}]);
 	});
 });

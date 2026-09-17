@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron, { BrowserWindowConstructorOptions, Display, screen } from 'electron';
+import electron, { BrowserWindowConstructorOptions, Display } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -33,7 +33,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -178,10 +178,14 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	private maximizedWindowState: IWindowState | undefined;
 
+	private hasWindowControlOverlay = false;
+
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
 	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
+		// Electron requires the overlay to have been enabled when the window was created.
+		this.hasWindowControlOverlay = !!options?.titleBarOverlay;
 
 		// Window Events
 		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
@@ -225,7 +229,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Update the window controls immediately based on cached or default values
-		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
+		if (this.hasWindowControlOverlay) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -274,7 +278,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// Handles the display-added event on Windows RDP multi-monitor scenarios.
 			// This helps restore maximized windows to their correct monitor after RDP reconnection.
 			// Refs https://github.com/electron/electron/issues/47016
-			this._register(Event.fromNodeEventEmitter(screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
+			this._register(Event.fromNodeEventEmitter(electron.screen, 'display-added', (event: Electron.Event, display: Display) => ({ event, display }))((e) => {
 				this.onDisplayAdded(e.display);
 			}));
 		}
@@ -486,7 +490,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Windows/Linux: update window controls via setTitleBarOverlay()
-		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
+		if (!isMacintosh && this.hasWindowControlOverlay) {
 
 			// Update dimmed state if explicitly provided
 			if (options.dimmed !== undefined) {

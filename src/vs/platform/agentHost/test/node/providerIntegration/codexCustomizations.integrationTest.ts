@@ -393,15 +393,23 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 
 			const clientId = 'codex-workspace-hook-client';
 			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+			await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+			const rootConfigClientSeq = 1;
 			client.dispatch({
 				channel: ROOT_STATE_URI,
-				clientSeq: 1,
+				clientSeq: rootConfigClientSeq,
 				action: {
 					type: ActionType.RootConfigChanged, config: {
 						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: trusted ? [URI.file(workspaceDir).toString()] : [] },
 					}
 				},
 			});
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.RootConfigChanged)
+				&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+				&& getActionEnvelope(notification).origin?.clientSeq === rootConfigClientSeq,
+				30_000,
+			);
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
 			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
 			await client.call('createSession', {

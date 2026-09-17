@@ -467,7 +467,7 @@ export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeT
 	return isAutoModeTier(tier) ? tier : undefined;
 }
 
-/** Resolves the shared Auto override independently of the picker gate, leaving concrete models unchanged. */
+/** Resolves the shared Auto override, leaving concrete models unchanged. */
 function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
 	if (model && !isAutoModel(model.id)) {
 		return undefined;
@@ -485,7 +485,7 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 	return tier;
 }
 
-/** Resolves the shared override first, then the picker preference while "Optimize for" is enabled. */
+/** Resolves the shared override first, then the picker preference. */
 export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
@@ -493,10 +493,6 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	}
 	const tier = getCopilotAutoTier(model);
 	if (tier === undefined) {
-		return undefined;
-	}
-	if (configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) !== true) {
-		logService.trace(`[Copilot:${sessionId}] Auto "Optimize for" is disabled; ignoring '${tier}'`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);

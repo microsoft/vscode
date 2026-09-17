@@ -24,6 +24,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
@@ -47,6 +48,7 @@ import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../..
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -141,6 +143,7 @@ export class SessionsView extends ViewPane {
 		@IHostService private readonly hostService: IHostService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -156,6 +159,7 @@ export class SessionsView extends ViewPane {
 			this.currentSorting = storedSorting as SessionsSorting;
 		}
 		this.currentCompact = this.storageService.getBoolean(COMPACT_STORAGE_KEY, StorageScope.PROFILE, false);
+		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
@@ -237,7 +241,7 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
-			compact: () => this.currentCompact && !isPhoneLayout(this.layoutService),
+			compact: () => this.currentCompact,
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
@@ -248,10 +252,9 @@ export class SessionsView extends ViewPane {
 				const onOpened = () => this._handleSessionOpened(session);
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
-					return;
+					return this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
 				}
-				this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
+				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
@@ -261,10 +264,9 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
-					this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
-					return;
+					return this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 				}
-				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				return this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));

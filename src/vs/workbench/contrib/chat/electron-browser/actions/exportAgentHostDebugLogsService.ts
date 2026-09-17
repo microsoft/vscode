@@ -44,42 +44,28 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		const zipFiles: INativeZipFile[] = files.map(file => {
 			return hasKey(file, { contents: true })
 				? file
-				: { path: file.path, source: file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource, size: file.size, skipSourceErrors: true };
+				: { path: file.path, source: file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource, size: file.size };
 		});
 		const zipOptions = { maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES };
-		let hostArchiveIncluded = false;
 		let temporaryHostArchive: URI | undefined;
 		try {
 			if (hostArtifact) {
-				try {
-					const { artifact, readChunk } = hostArtifact;
-					if (artifact.kind !== 'archive') {
-						throw new Error(`Expected an Agent Host debug-log archive, got ${artifact.kind}`);
-					}
-					let localHostArchive = artifact.resource;
-					if (artifact.resource.scheme !== Schemas.file) {
-						// The archive lives on a remote agent host. Stream it down in
-						// bounded chunks rather than pulling the whole thing over in a
-						// single protocol message.
-						localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
-						temporaryHostArchive = localHostArchive;
-						await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position)));
-					}
-					zipFiles.push({ sourceArchive: localHostArchive });
-					hostArchiveIncluded = true;
-				} catch (error) {
-					this.logService.warn(`[ExportAgentHostDebugLogs] Failed to save Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
+				const { artifact, readChunk } = hostArtifact;
+				if (artifact.kind !== 'archive') {
+					throw new Error(`Expected an Agent Host debug-log archive, got ${artifact.kind}`);
 				}
-			}
-			try {
-				await this.nativeHostService.createZipFile(destination, zipFiles, zipOptions);
-			} catch (error) {
-				if (!hostArchiveIncluded) {
-					throw error;
+				let localHostArchive = artifact.resource;
+				if (artifact.resource.scheme !== Schemas.file) {
+					// The archive lives on a remote agent host. Stream it down in
+					// bounded chunks rather than pulling the whole thing over in a
+					// single protocol message.
+					localHostArchive = joinPath(this.environmentService.tmpDir, `agent-host-debug-logs-${generateUuid()}.zip`);
+					temporaryHostArchive = localHostArchive;
+					await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position)));
 				}
-				this.logService.warn(`[ExportAgentHostDebugLogs] Failed to merge Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
-				await this.nativeHostService.createZipFile(destination, zipFiles.slice(0, -1), zipOptions);
+				zipFiles.push({ sourceArchive: localHostArchive });
 			}
+			await this.nativeHostService.createZipFile(destination, zipFiles, zipOptions);
 		} finally {
 			if (temporaryHostArchive) {
 				// Best-effort: the download may have failed before the file was

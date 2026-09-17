@@ -45,6 +45,8 @@ The single-pane presentation may place the Auxiliary Bar inside the Editor's gri
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
 
+Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
+
 `ISessionsService` owns:
 
 - visible-session identity and order;
