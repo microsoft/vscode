@@ -8,18 +8,18 @@ import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
-	basename, isEqual, isEqualOrParent, joinPath
+	basename, dirname, isEqual, isEqualOrParent, joinPath
 } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -234,6 +234,8 @@ interface IPluginSource {
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
+	/** Whether to keep file watchers inside this plugin and reuse its entry between discovery refreshes. */
+	readonly watchPluginContents?: boolean;
 	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
 	remove?(): Promise<boolean>;
 }
@@ -299,7 +301,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -329,14 +331,14 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
 			if (!this._isCurrentRefresh(version)) {
 				return existing.plugin;
 			}
-			if (existing.format.format !== format.format) {
+			if (!watchPluginContents || existing.format.format !== format.format) {
 				existing.store.dispose();
 				this._pluginEntries.delete(key);
 			} else {
@@ -387,10 +389,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 
 				const dirs = resolvePluginComponentDirs(uri, format, prop, defaultPath, section, repositoryUri);
-				for (const d of dirs) {
-					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
-					reader.store.add(watcher);
-					reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+				if (watchPluginContents) {
+					for (const d of dirs) {
+						const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
+						reader.store.add(watcher);
+						reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+					}
 				}
 
 				return { kind: 'dirs', dirs: dirs } as const;
@@ -455,19 +459,21 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const agentManifestUri = joinPath(uri, 'plugin.json');
-		const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
-		store.add(rootWatcher);
-		store.add(rootWatcher.onDidChange(change => {
-			if (change.affects(agentManifestUri)) {
-				void readManifest();
-			}
-		}));
+		if (watchPluginContents) {
+			const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
+			store.add(rootWatcher);
+			store.add(rootWatcher.onDidChange(change => {
+				if (change.affects(agentManifestUri)) {
+					void readManifest();
+				}
+			}));
+		}
 		store.add(this._fileService.onDidRunOperation(event => {
 			if (isEqual(event.resource, agentManifestUri)) {
 				void readManifest();
 			}
 		}));
-		if (!isEqual(manifestUri, agentManifestUri)) {
+		if (watchPluginContents && !isEqual(manifestUri, agentManifestUri)) {
 			const manifestWatcher = this._fileService.createWatcher(manifestUri, { recursive: false, excludes: [] });
 			store.add(manifestWatcher);
 			store.add(manifestWatcher.onDidChange(() => readManifest()));
@@ -911,69 +917,41 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		this._enablementModel = enablementModel;
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 
-		const watcherStore = this._register(new DisposableStore());
+		const watcher = this._register(new MutableDisposable<DisposableStore>());
+		let setupVersion = 0;
 		const setupWatchers = async () => {
-			watcherStore.clear();
-			if (this._store.isDisposed) {
-				return;
-			}
-
+			const version = ++setupVersion;
 			const root = await this._getInstalledPluginsDir();
-
-			// Walk up to the deepest existing ancestor and watch each directory
-			// from there down. Non-recursive watchers fail if the target doesn't
-			// exist, so we need to watch an existing parent (e.g. ~/.copilot or
-			// userHome) to detect the first-ever plugin install.
-			const dirsToWatch: URI[] = [];
-			let candidate: URI | undefined = root;
-			while (candidate) {
-				dirsToWatch.unshift(candidate);
-				const parent = joinPath(candidate, '..');
-				if (parent.toString() === candidate.toString()) {
-					break;
+			let watchRoot = root;
+			while (!(await this._pathExists(watchRoot))) {
+				const parent = dirname(watchRoot);
+				if (isEqual(parent, watchRoot)) {
+					return;
 				}
-				if (await this._pathExists(parent)) {
-					dirsToWatch.unshift(parent);
-					break;
-				}
-				candidate = parent;
+				watchRoot = parent;
 			}
-
-			for (const dir of dirsToWatch) {
-				if (!(await this._pathExists(dir))) {
-					continue;
-				}
-				const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
-				watcherStore.add(watcher);
-				watcherStore.add(watcher.onDidChange(() => {
-					scheduler.schedule();
-					// Re-attach watchers in case directories appeared/disappeared.
-					setupWatchers().catch(() => { /* watchers are best-effort */ });
-				}));
-			}
-
-			// Watch each marketplace bucket non-recursively for plugin
-			// install/uninstall events.
-			let rootStat;
-			try {
-				rootStat = await this._fileService.resolve(root);
-			} catch {
+			if (version !== setupVersion || this._store.isDisposed) {
 				return;
 			}
-			if (!rootStat.children) {
-				return;
-			}
-			for (const marketplaceDir of rootStat.children) {
-				if (!marketplaceDir.isDirectory) {
-					continue;
+
+			const store = new DisposableStore();
+			store.add(this._fileService.watch(watchRoot, { recursive: true, excludes: [] }));
+			store.add(this._fileService.onDidFilesChange(event => {
+				if (!event.affects(root)) {
+					return;
 				}
-				const watcher = this._fileService.createWatcher(marketplaceDir.resource, { recursive: false, excludes: [] });
-				watcherStore.add(watcher);
-				watcherStore.add(watcher.onDidChange(() => scheduler.schedule()));
-			}
+				scheduler.schedule();
+				if (!isEqual(watchRoot, root) || event.contains(root, FileChangeType.DELETED)) {
+					setupWatcherScheduler.schedule();
+				}
+			}));
+			watcher.value = store;
 		};
 
-		setupWatchers().catch(() => { /* watchers are best-effort */ });
+		const setupWatcherScheduler = this._register(new RunOnceScheduler(() => {
+			setupWatchers().catch(error => this._logService.warn('[CopilotCliAgentPluginDiscovery] Failed to watch installed plugins', error));
+		}, 0));
+		setupWatcherScheduler.schedule();
 		scheduler.schedule();
 	}
 
@@ -1001,7 +979,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		// Each immediate child is a marketplace bucket (e.g. `_direct`,
 		// `<marketplace-name>`); each grandchild is a plugin root.
 		for (const marketplaceDir of rootStat.children) {
-			if (!marketplaceDir.isDirectory) {
+			if (!marketplaceDir.isDirectory || marketplaceDir.name.startsWith('.')) {
 				continue;
 			}
 
@@ -1017,12 +995,13 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			}
 
 			for (const pluginDir of marketplaceStat.children) {
-				if (!pluginDir.isDirectory) {
+				if (!pluginDir.isDirectory || pluginDir.name.startsWith('.')) {
 					continue;
 				}
 				sources.push({
 					uri: pluginDir.resource,
 					fromMarketplace: undefined,
+					watchPluginContents: false,
 					remove: () => this._promptRemove(pluginDir.resource),
 				});
 			}
