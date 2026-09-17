@@ -2817,14 +2817,14 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('parent session row still shows NeedsInput when the main chat itself needs input', () => {
+		test('parent session row still shows NeedsInput when the main chat needs input while a hidden child is in progress', () => {
 			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
-			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed);
+			const subagent = createChat('Subagent chat', ChatOriginKind.Tool, ChatInteractivity.ReadOnly, SessionStatus.InProgress);
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
 				status: constObservable(SessionStatus.NeedsInput),
-				chats: constObservable([main, peer]),
+				chats: constObservable([main, subagent]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};

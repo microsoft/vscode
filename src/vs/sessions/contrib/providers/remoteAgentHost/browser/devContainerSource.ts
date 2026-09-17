@@ -28,7 +28,7 @@ export function getDevContainerSourceEntry(workspaceUri: URI, remoteAgentHostSer
 		return undefined;
 	}
 	return remoteAgentHostService.configuredEntries.find(entry =>
-		(entry.connection.type === RemoteAgentHostEntryType.SSH || entry.connection.type === RemoteAgentHostEntryType.Tunnel)
+		(entry.connection.type === RemoteAgentHostEntryType.SSH || entry.connection.type === RemoteAgentHostEntryType.Tunnel || entry.connection.type === RemoteAgentHostEntryType.WSL)
 		&& agentHostAuthority(getEntryAddress(entry)) === workspaceUri.authority
 	);
 }
@@ -44,7 +44,7 @@ export async function resolveDevContainerSourceConnection(
 	}
 	const entry = getDevContainerSourceEntry(workspaceUri, remoteAgentHostService);
 	if (!entry) {
-		throw new Error(localize('devContainerAgentHost.sourceUnavailable', "The SSH or Tunnel connection for this Dev Container workspace is no longer configured."));
+		throw new Error(localize('devContainerAgentHost.sourceUnavailable', "The SSH, Tunnel, or WSL connection for this Dev Container workspace is no longer configured."));
 	}
 	const address = getEntryAddress(entry);
 	let connection = remoteAgentHostService.getConnection(address);
@@ -59,7 +59,7 @@ export async function resolveDevContainerSourceConnection(
 		connection = remoteAgentHostService.getConnection(address);
 	}
 	if (!connection) {
-		throw new Error(localize('devContainerAgentHost.sourceNotConnected', "The SSH or Tunnel host could not be connected for this Dev Container workspace."));
+		throw new Error(localize('devContainerAgentHost.sourceNotConnected', "The SSH, Tunnel, or WSL host could not be connected for this Dev Container workspace."));
 	}
 	return connection;
 }

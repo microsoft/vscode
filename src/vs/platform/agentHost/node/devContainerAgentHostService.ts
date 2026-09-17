@@ -6,6 +6,7 @@
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -47,9 +48,55 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
+const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
 export function getDevContainerExecArgs(workspaceFolder: string, command: string): readonly string[] {
 	return ['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command];
+}
+
+/** Waits for the relay WebSocket to open while observing every terminal startup condition. */
+export function waitForDevContainerRelayConnection(
+	webSocket: NodeEventEmitter,
+	child: NodeEventEmitter,
+	token: CancellationToken,
+	timeoutMs = DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS,
+): Promise<void> {
+	if (token.isCancellationRequested) {
+		return Promise.reject(new CancellationError());
+	}
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const finish = (error?: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeoutHandle);
+			cancellationListener.dispose();
+			webSocket.off('open', onOpen);
+			webSocket.off('error', onError);
+			webSocket.off('close', onWebSocketClose);
+			child.off('error', onError);
+			child.off('close', onChildClose);
+			if (error) {
+				reject(error);
+			} else {
+				resolve();
+			}
+		};
+		const onOpen = () => finish();
+		const onError = (error: Error) => finish(error);
+		const onWebSocketClose = (code: number) => finish(new Error(`Dev Container relay WebSocket closed before connecting (code ${code})`));
+		const onChildClose = (code: number | null, signal: NodeJS.Signals | null) => finish(new Error(`Dev Container relay process exited before connecting (exit code ${code ?? 'unknown'}${signal ? `, signal ${signal}` : ''})`));
+		const timeoutHandle = setTimeout(() => finish(new Error(`Timed out waiting for Dev Container relay to connect after ${timeoutMs}ms`)), timeoutMs);
+		const cancellationListener = token.onCancellationRequested(() => finish(new CancellationError()));
+
+		webSocket.once('open', onOpen);
+		webSocket.once('error', onError);
+		webSocket.once('close', onWebSocketClose);
+		child.once('error', onError);
+		child.once('close', onChildClose);
+	});
 }
 
 interface IDevContainerUpResult {
@@ -475,19 +522,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		const webSocket = new WS(url, { createConnection: () => duplex });
 
 		try {
-			await new Promise<void>((resolve, reject) => {
-				const onOpen = () => {
-					webSocket.off('error', onError);
-					resolve();
-				};
-				const onError = (error: Error) => {
-					webSocket.off('open', onOpen);
-					reject(error);
-				};
-				webSocket.once('open', onOpen);
-				webSocket.once('error', onError);
-			});
+			await waitForDevContainerRelayConnection(webSocket, child, token);
 		} catch (error) {
+			webSocket.once('error', closeError => this._logService.trace(`${LOG_PREFIX} relay WebSocket close error: ${getErrorMessage(closeError)}`));
 			webSocket.close();
 			if (!child.killed) {
 				child.kill();

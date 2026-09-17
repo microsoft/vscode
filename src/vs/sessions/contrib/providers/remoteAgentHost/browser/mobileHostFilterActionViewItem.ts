@@ -63,6 +63,10 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		return false;
 	}
 
+	protected override _renderDiagnosticsButton(): void {
+		// Connection information belongs inside the Hosts sheet on phones.
+	}
+
 	protected override _showMenu(_e: Event): void {
 		if (!this.element) {
 			return;
