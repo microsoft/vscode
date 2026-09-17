@@ -130,6 +130,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatActivityChanged]: '0.5.0',
 	[ActionType.ChatWorkingDirectorySet]: '0.7.0',
 	[ActionType.ChatWorkingDirectoryRemoved]: '0.7.0',
+	[ActionType.ChatChangesetsChanged]: '0.9.0',
 	[ActionType.ChatUsage]: '0.4.0',
 	[ActionType.ChatReasoning]: '0.4.0',
 	[ActionType.ChatPendingMessageSet]: '0.4.0',

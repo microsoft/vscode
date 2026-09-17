@@ -212,6 +212,7 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>): ICha
 	return {
 		resource: chat.resource,
 		createdAt: chat.createdAt,
+		workspace: chat.workspace,
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -3818,6 +3819,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return {
 			resource: resource ?? chat.resource,
 			createdAt: chat.createdAt,
+			workspace: chat.workspace,
 			title: chat.title,
 			updatedAt: chat.updatedAt,
 			status: chat.status,

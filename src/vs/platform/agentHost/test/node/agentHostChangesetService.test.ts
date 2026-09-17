@@ -26,7 +26,7 @@ import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostCh
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -2349,12 +2349,47 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 						persisted: JSON.stringify(isolation === 'worktree' ? (primaryAvailable ? branchSummary : undefined) : { additions: 12, deletions: 6, files: 3 }),
 						sessionFiles: ['/repoA/session.ts', '/repoA/sub/session.ts', '/repoB/session.ts'].map(path => URI.file(path).toString()),
 						branchCallsBeforeRefresh: [],
-						branchCalls: ['file:///repoA'],
+						branchCalls: ['file:///repoA', 'file:///repoB'],
 						sessionCalls: ['file:///repoA', 'file:///repoB'],
 					});
 				});
 			}
 		}
+
+		test('multi-root Branch Changes combines repositories using each repository base branch', async () => {
+			const calls: { root: string; baseBranch: string | undefined }[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory;
+			git.getSessionGitState = async workingDirectory => ({
+				baseBranchName: workingDirectory.path === '/repoB' ? 'develop' : 'ignored-primary',
+			});
+			git.computeSessionFileDiffs = async (workingDirectory, options) => {
+				calls.push({ root: workingDirectory.path, baseBranch: options.baseBranch });
+				return [gitDiff(`${workingDirectory.path}/branch.ts`)];
+			};
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_DIFF_BASE_BRANCH, 'main');
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				db,
+			});
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, branchChangeset);
+
+			assert.deepStrictEqual({
+				calls,
+				files: stateManager.getChangesetState(branchChangeset)?.files.map(file => file.id),
+			}, {
+				calls: [
+					{ root: '/repoA', baseBranch: 'main' },
+					{ root: '/repoB', baseBranch: 'develop' },
+				],
+				files: ['/repoA/branch.ts', '/repoB/branch.ts'].map(path => URI.file(path).toString()),
+			});
+		});
 
 		test('multi-root Session Changes uses each repository baseline and the latest peer turn', async () => {
 			const calls: { root: string; fromRef: string; toRef: string }[] = [];

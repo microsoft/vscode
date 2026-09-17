@@ -54,6 +54,37 @@ function withActiveTurnAndToolCall(state: ChatState): ChatState {
 	return state;
 }
 
+suite('chatReducer - changesets', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('replaces and clears the chat changeset catalogue', () => {
+		const changesets = [{
+			label: 'Branch Changes',
+			uriTemplate: 'ahp-session:/test/changeset/branch',
+			changeKind: 'branch',
+		}];
+		const populated = chatReducer(makeChat(), {
+			type: ActionType.ChatChangesetsChanged,
+			changesets,
+		});
+		const cleared = chatReducer(populated, {
+			type: ActionType.ChatChangesetsChanged,
+			changesets: undefined,
+		});
+
+		assert.deepStrictEqual({
+			populated: populated.changesets,
+			cleared: cleared.changesets,
+			hasClearedProperty: Object.hasOwn(cleared, 'changesets'),
+		}, {
+			populated: changesets,
+			cleared: undefined,
+			hasClearedProperty: false,
+		});
+	});
+});
+
 suite('chatReducer – summaryStatus with tool call confirmations and input requests', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

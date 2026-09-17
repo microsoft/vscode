@@ -1020,6 +1020,27 @@ suite('AgentHostProtocolClient', () => {
 			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
 			await resultPromise;
 		});
+
+		test('forwards a chat working-directory subset', async () => {
+			const { client, transport } = createClient();
+			const workingDirectory = URI.parse('file:///workspace/other');
+
+			const resultPromise = client.createChat(sessionUri, chatUri, { workingDirectories: [workingDirectory] });
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					workingDirectories: [workingDirectory.toString()],
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
 	});
 	test('preserves JSON-RPC error code and data', async () => {
 		const { client, transport } = createClient();

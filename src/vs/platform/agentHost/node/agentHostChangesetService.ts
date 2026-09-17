@@ -1137,7 +1137,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		try {
 			let diffs: readonly ISessionFileDiff[] | undefined;
-			if (kind === 'session' && isMultiRootSession(workingDirectories)) {
+			if (kind === 'branch' && isMultiRootSession(workingDirectories)) {
+				diffs = await this._computeMultiFolderBranchDiffs(session, ref.object, workingDirectories!);
+			} else if (kind === 'session' && isMultiRootSession(workingDirectories)) {
 				const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!);
 				diffs = result.diffs;
 				usedEditTrackerFallback = result.usedFallback;
@@ -1385,6 +1387,41 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 		return bestTurnId;
+	}
+
+	/** Computes Branch Changes across every unique Git repository in the session. */
+	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<readonly ISessionFileDiff[] | undefined> {
+		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
+		const { gitRepositories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService);
+		if (gitRepositories.length === 0) {
+			return undefined;
+		}
+
+		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
+		const primaryBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+		const primaryWorkingDirectory = workingDirectoryUris[0];
+		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
+		try {
+			const perRepositoryDiffs = await Promise.all(gitRepositories.map(repository => limiter.queue(async () => {
+				const isPrimaryRepository = extUriBiasedIgnorePathCase.isEqualOrParent(primaryWorkingDirectory, repository);
+				const baseBranch = isPrimaryRepository
+					? resolveDiffBaseBranchName(persistedBaseBranch, primaryBaseBranch)
+					: (await this._gitService.getSessionGitState(repository))?.baseBranchName;
+				return this._gitService.computeSessionFileDiffs(repository, {
+					sessionUri: session,
+					baseBranch,
+				});
+			})));
+			if (perRepositoryDiffs.some(diffs => diffs === undefined)) {
+				return undefined;
+			}
+			return dedupeSessionFileDiffs(perRepositoryDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined));
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to compute multi-folder branch diffs for ${session}; preserving cached changeset.`, err);
+			return undefined;
+		} finally {
+			limiter.dispose();
+		}
 	}
 
 	/**

@@ -9,7 +9,7 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
-import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
+import { AgentSession, type AgentProvider, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
@@ -73,11 +73,11 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		relationship: {
 			type: 'string',
 			enum: [...createSessionRelationshipValues],
-			description: 'Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree.',
+			description: 'Whether this work belongs to the current session or is independently managed. Base this choice only on whether the work is related to the current session.',
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
-		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
-		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
+		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session.' },
+		worktree: { type: 'boolean', description: 'Whether to use an isolated Git worktree for the workspace. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
@@ -174,7 +174,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.',
+		description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the work is related to the current session, or to `independent` when it is not.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -225,6 +225,7 @@ interface ICreateSessionArgs {
 
 export type IResolvedCreateSessionArgs = {
 	readonly relationship: 'currentSession';
+	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly title: string;
 	readonly model?: IAgentModelInfo;
@@ -248,7 +249,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta) => Promise<void>;
-	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => Promise<void>;
+	readonly createChat: (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => Promise<void>;
+	readonly addSessionWorkingDirectory: (session: URI, directory: URI) => Promise<URI>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
 	readonly deleteSession: (session: URI) => Promise<void>;
@@ -464,9 +466,7 @@ function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMet
 
 async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<readonly IAgentSessionMetadata[]> {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
-	if (getCreateSessionRelationship(args) !== 'independent') {
-		return [];
-	}
+	getCreateSessionRelationship(args);
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	if (workspace === undefined) {
 		return [];
@@ -522,14 +522,12 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
 	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
 	if (relationship === 'currentSession') {
-		if (workspace !== undefined) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace is only valid when relationship is "independent".`);
-		}
 		if (worktree !== undefined) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree is only valid when relationship is "independent"; chats in the current session share its workspace.`);
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree is only valid when relationship is "independent".`);
 		}
 		return {
 			relationship,
+			...(workspace !== undefined ? { workspace: resolveWorkspace(workspace, sessions) } : {}),
 			prompt,
 			title,
 			...(model !== undefined ? { model } : {}),
@@ -813,11 +811,15 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
+		const workingDirectory = args.workspace !== undefined
+			? await accessor.addSessionWorkingDirectory(currentSession, args.workspace)
+			: undefined;
 		const result = await createChat(accessor, {
 			session: currentSession,
 			prompt: args.prompt,
 			title: args.title,
 			model: args.model,
+			...(workingDirectory !== undefined ? { workingDirectories: [workingDirectory] } : {}),
 		}, source, sourceTurnId);
 		return { relationship: args.relationship, ...result };
 	}
@@ -901,6 +903,7 @@ interface IResolvedCreateChatArgs {
 	readonly prompt: string;
 	readonly title?: string;
 	readonly model?: IAgentModelInfo;
+	readonly workingDirectories?: readonly URI[];
 }
 
 /**
@@ -955,7 +958,11 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chatId = generateUuid();
 	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
-	await accessor.createChat(args.session, chat, { title: args.title, model });
+	await accessor.createChat(args.session, chat, {
+		...(args.title !== undefined ? { title: args.title } : {}),
+		...(model !== undefined ? { model } : {}),
+		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
+	});
 	if (args.title !== undefined) {
 		await accessor.renameChat(args.session, chat, args.title);
 	}

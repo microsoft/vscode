@@ -649,6 +649,8 @@ export interface IChat {
 
 	// Reactive properties
 
+	/** The effective workspace available to this chat. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. */
@@ -657,6 +659,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets exposed for this chat. Providers that do not support chat-scoped changesets may omit this. */
+	readonly changesets?: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output

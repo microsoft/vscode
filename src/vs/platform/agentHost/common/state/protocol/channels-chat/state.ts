@@ -8,6 +8,7 @@
 
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -63,6 +64,8 @@ export interface ChatState {
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
+	/** Catalogue of changesets the server exposes for this chat. */
+	changesets?: Changeset[];
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */

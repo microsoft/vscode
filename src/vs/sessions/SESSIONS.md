@@ -101,7 +101,7 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 
 ### Workspaces and quick chats
 
-`ISession.workspace` describes the workspace in which a session operates. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
+`ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
 
 ### Capabilities
 

@@ -119,7 +119,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? false;
+			const activeChat = activeSession?.activeChat?.read(reader);
+			return (activeChat?.workspace ?? activeSession?.workspace)?.read(reader)?.isVirtualWorkspace ?? false;
 		});
 
 		// Active session has git repository
@@ -130,8 +131,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			}
 
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			const workspace = activeSession?.workspace.read(reader);
-			return workspace?.folders[0].gitRepository !== undefined;
+			const activeChat = activeSession?.activeChat?.read(reader);
+			const workspace = (activeChat?.workspace ?? activeSession?.workspace)?.read(reader);
+			return workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false;
 		});
 
 		// Active session review comment count by file
@@ -143,7 +145,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		// Changesets
 		const activeSessionChangesetsObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.changesets.read(reader);
+			const activeChat = activeSession?.activeChat?.read(reader);
+			return activeChat?.changesets?.read(reader) ?? activeSession?.changesets.read(reader);
 		});
 		this.activeSessionChangesetsObs = derived(reader => {
 			const changesets = activeSessionChangesetsObs.read(reader);
@@ -201,7 +204,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		const activeSessionBaseBranchProtected = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected === true;
+			const activeChat = activeSession?.activeChat?.read(reader);
+			return (activeChat?.workspace ?? activeSession?.workspace)?.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected === true;
 		});
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {
@@ -238,7 +242,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		// Reset changeset selection
 		this._register(autorun(reader => {
-			this.activeSessionResourceObs.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			activeSession?.activeChat?.read(reader);
 			this.setChangesetId(undefined);
 		}));
 		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {

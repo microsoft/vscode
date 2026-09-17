@@ -1650,6 +1650,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 				}
 			} : {}),
+			...(options?.workingDirectories !== undefined && !options.fork
+				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
+				: {}),
 		});
 	}
 

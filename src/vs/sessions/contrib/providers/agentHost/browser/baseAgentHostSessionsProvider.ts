@@ -59,7 +59,7 @@ import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../.
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
-import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
@@ -563,6 +563,8 @@ export interface IAgentHostAdapterOptions {
 	readonly backendSessionScheme?: string;
 	/** Maps a backend session URI to the client resource used by this host. */
 	readonly mapBackendSessionResource: (resource: URI) => URI;
+	/** Maps a backend working-directory URI to the client resource used by this host. */
+	readonly mapWorkingDirectoryUri?: AgentHostUriMapper;
 	/** `Changeset.changeKind` the Changes view selects by default. Defaults to `branch`. */
 	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 	/** Connection state from the backing remote provider, when there is one. */
@@ -666,6 +668,7 @@ class AdditionalChat extends Disposable {
 	private readonly _title: ISettableObservable<string>;
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _updatedAt: ISettableObservable<Date>;
+	private readonly _workingDirectories: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _modelSource: ISettableObservable<ChatModelSource | undefined>;
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -674,12 +677,13 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	constructor(resource: URI, summary: ChatSummary, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, createChangesets: (workspace: IObservable<ISessionWorkspace | undefined>) => IObservable<readonly ISessionChangeset[] | undefined>, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
 		this._updatedAt = observableValueOpts<Date>({ owner: this, debugName: 'chatUpdatedAt', equalsFn: dateEquals }, modifiedAt);
+		this._workingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'chatWorkingDirectories', equalsFn: structuralEquals }, summary.workingDirectories);
 		this._modelId = observableValue<string | undefined>('chatModelId', undefined);
 		this._modelSource = observableValue<ChatModelSource | undefined>('chatModelSource', undefined);
 		this._mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'chatMode', equalsFn: structuralEquals }, undefined);
@@ -688,13 +692,19 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
+		const workspace = derived(this, reader => buildAgentHostChatWorkspace(
+			sessionWorkspace.read(reader),
+			this._workingDirectories.read(reader)?.map(directory => mapWorkingDirectoryUri(URI.parse(directory)))
+		));
 		this.chat = {
 			resource,
 			createdAt: modifiedAt,
+			workspace,
 			title: this._title,
 			updatedAt: this._updatedAt,
 			status: toPresentedSessionStatus(this, status, connectionStatus),
 			changes: constObservable([]),
+			changesets: createChangesets(workspace),
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			checkpoints: observableValue(this, undefined),
@@ -732,6 +742,7 @@ class AdditionalChat extends Disposable {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
 			this._status.set(mapProtocolStatus(summary.status), tx);
 			this._updatedAt.set(modifiedAt, tx);
+			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
@@ -871,6 +882,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	private readonly _defaultChatWorkingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'defaultChatWorkingDirectories', equalsFn: structuralEquals }, undefined);
 	/** Whether this session was created with worktree isolation. */
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
@@ -1153,13 +1165,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._currentTurnChanges = this._createCurrentTurnChangesObservable();
 
 		const defaultChatStatus = derived(this, reader => this._defaultChatStatusOverride.read(reader) ?? this.status.read(reader));
+		const defaultChatWorkspace = derived(this, reader => buildAgentHostChatWorkspace(
+			this.workspace.read(reader),
+			this._defaultChatWorkingDirectories.read(reader)?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory))
+		));
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
+			workspace: defaultChatWorkspace,
 			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this.updatedAt,
 			status: toPresentedSessionStatus(this, defaultChatStatus, connectionStatus),
 			changes: this.changes,
+			changesets: this._createChatChangesets(this.resource, URI.parse(buildDefaultChatUri(this.backendUri)), defaultChatWorkspace),
 			lastTurnChanges: sessionOutput.getLastTurnChanges(URI.parse(buildDefaultChatUri(this.backendUri))),
 			customizations: sessionOutput.getChatCustomizations(URI.parse(buildDefaultChatUri(this.backendUri))),
 			checkpoints: observableValue(this, undefined),
@@ -1240,6 +1258,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
+		this._defaultChatWorkingDirectories.set(defaultSummary?.workingDirectories, undefined);
 
 		// Tool-origin subagents and user-created side (`/btw`) chats must reach
 		// the peer-chat catalog even when the backing session type is otherwise
@@ -1332,12 +1351,74 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 		};
-		const chat = new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, output, this._options.readOnly, this._options.connectionStatus);
+		const chat = new AdditionalChat(
+			resource,
+			summary,
+			this.workspace,
+			this._options.mapWorkingDirectoryUri ?? (uri => uri),
+			workspace => this._createChatChangesets(resource, backendUri, workspace),
+			this._newChatIds.has(chatId),
+			this._resolveParentChatResource(summary.origin),
+			this.isArchived,
+			output,
+			this._options.readOnly,
+			this._options.connectionStatus
+		);
 		const selection = this._chatModelSelections.get(chatId);
 		if (selection) {
 			chat.setModelId(selection.modelId, selection.source);
 		}
 		return chat;
+	}
+
+	private _createChatChangesets(clientChatResource: URI, backendChatResource: URI, workspace: IObservable<ISessionWorkspace | undefined>): IObservable<readonly ISessionChangeset[] | undefined> {
+		const isActiveChatObs = derived(this, reader => {
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			return !!activeSession
+				&& isEqual(activeSession.resource, this.resource)
+				&& isEqual(activeSession.activeChat.read(reader).resource, clientChatResource);
+		});
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			this._options,
+			isActiveChatObs,
+			StateComponents.Chat,
+			constObservable(backendChatResource),
+		);
+		const chatChangesetCatalog = derivedOpts<readonly Changeset[] | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const chatState = chatStateObs.read(reader).read(reader);
+			return chatState && !(chatState instanceof Error) ? chatState.changesets : undefined;
+		});
+		const workingDirectories = derivedOpts<readonly string[] | undefined>({ owner: this, equalsFn: structuralEquals }, reader =>
+			workspace.read(reader)?.folders.map(folder => folder.workingDirectory.toString()));
+
+		return derived(this, reader => {
+			const sessionChangesets = this.changesets.read(reader);
+			const chatCatalog = chatChangesetCatalog.read(reader);
+			if (chatCatalog === undefined) {
+				return sessionChangesets;
+			}
+
+			const branchChangesets = createChangesets(
+				backendChatResource,
+				this._options,
+				isActiveChatObs,
+				chatCatalog
+					.filter(changeset => changeset.changeKind === ChangesetKind.Branch)
+					.map(changeset => ({
+						...changeset,
+						workingDirectories,
+						suppressOperations: true,
+					})),
+			);
+			if (!sessionChangesets) {
+				return branchChangesets;
+			}
+
+			const branchChangeset = branchChangesets[0];
+			return sessionChangesets.flatMap(changeset => changeset.id === ChangesetKind.Branch
+				? branchChangeset ? [branchChangeset] : []
+				: [changeset]);
+		});
 	}
 
 	/**
@@ -2169,8 +2250,10 @@ class NewSession extends Disposable {
 
 		const mainChat: IChat = {
 			resource, createdAt, title, updatedAt,
+			workspace: this._workspace,
 			status: this._status,
 			changes,
+			changesets: this._changesets,
 			checkpoints,
 			modelId: this._modelId,
 			modelSource: this._modelSource,
@@ -3139,6 +3222,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
 			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
+			mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
 			connectionStatus: this.remoteConnectionStatus,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
@@ -3651,6 +3735,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				getConnection: () => this.connection,
 				agentCapabilities: this._agentCapabilities,
 				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
+				mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
 				connectionStatus: this.remoteConnectionStatus,
 				...this._adapterOptions(),
 			} satisfies IAgentHostAdapterOptions);

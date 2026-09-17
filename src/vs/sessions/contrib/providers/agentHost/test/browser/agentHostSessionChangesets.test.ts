@@ -45,7 +45,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
-import { createChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
+import { createChangesets, filterChangesToWorkingDirectories, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
 suite('AgentHostSessionChangesets', () => {
@@ -99,19 +99,21 @@ suite('AgentHostSessionChangesets', () => {
 		};
 	}
 
-	suite('filterChangesToPrimaryWorkingDirectory', () => {
-		test('(a) multi-root: keeps only changes under the primary working directory', () => {
+	suite('filterChangesToWorkingDirectories', () => {
+		test('(a) multi-root: keeps changes under every working directory', () => {
 			const changes = [
 				makeChange('file:///repo/primary/src/a.ts'),
 				makeChange('file:///repo/primary/deep/nested/b.ts'),
 				makeChange('file:///repo/other/c.ts'),
+				makeChange('file:///outside/d.ts'),
 			];
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/other']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/other']);
 
 			assert.deepStrictEqual(uris(result), [
 				'file:///repo/primary/src/a.ts',
 				'file:///repo/primary/deep/nested/b.ts',
+				'file:///repo/other/c.ts',
 			]);
 		});
 
@@ -121,19 +123,19 @@ suite('AgentHostSessionChangesets', () => {
 				makeChange('file:///repo/other/b.ts'),
 			];
 
-			assert.strictEqual(filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary']), changes);
+			assert.strictEqual(filterChangesToWorkingDirectories(changes, ['file:///repo/primary']), changes);
 		});
 
 		test('(b) undefined working directories: returns the input list unchanged', () => {
 			const changes = [makeChange('file:///repo/primary/a.ts')];
 
-			assert.strictEqual(filterChangesToPrimaryWorkingDirectory(changes, undefined), changes);
+			assert.strictEqual(filterChangesToWorkingDirectories(changes, undefined), changes);
 		});
 
 		test('(b) empty working directories: returns the input list unchanged', () => {
 			const changes = [makeChange('file:///repo/primary/a.ts')];
 
-			assert.strictEqual(filterChangesToPrimaryWorkingDirectory(changes, []), changes);
+			assert.strictEqual(filterChangesToWorkingDirectories(changes, []), changes);
 		});
 
 		test('(c) boundary: a change exactly at the primary directory is kept; a sibling with a shared prefix is excluded', () => {
@@ -143,7 +145,7 @@ suite('AgentHostSessionChangesets', () => {
 				makeChange('file:///repo/primary-sibling/y.ts'),
 			];
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/second']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/second']);
 
 			assert.deepStrictEqual(uris(result), [
 				'file:///repo/primary',
@@ -160,9 +162,12 @@ suite('AgentHostSessionChangesets', () => {
 			// Guard the fixture itself: a real deletion must omit `modifiedUri`.
 			assert.strictEqual((changes[0] as IChatSessionFileChange2).modifiedUri, undefined);
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/other']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/other']);
 
-			assert.deepStrictEqual(uris(result), ['file:///repo/primary/gone.ts']);
+			assert.deepStrictEqual(uris(result), [
+				'file:///repo/primary/gone.ts',
+				'file:///repo/other/gone.ts',
+			]);
 		});
 
 		test('compares mapped (agent-host) changes by their preserved file path', () => {
@@ -175,9 +180,12 @@ suite('AgentHostSessionChangesets', () => {
 				makeChange('agent-host://server/repo/other/b.ts'),
 			];
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/other']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/other']);
 
-			assert.deepStrictEqual(uris(result), ['agent-host://server/repo/primary/a.ts']);
+			assert.deepStrictEqual(uris(result), [
+				'agent-host://server/repo/primary/a.ts',
+				'agent-host://server/repo/other/b.ts',
+			]);
 		});
 
 		test('case-differing sibling roots are not conflated (file-path case semantics)', () => {
@@ -188,7 +196,7 @@ suite('AgentHostSessionChangesets', () => {
 			if (isLinux) {
 				const changes = [makeChange('agent-host://server/repo/app/x.ts')];
 
-				const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/App', 'file:///repo/other']);
+				const result = filterChangesToWorkingDirectories(changes, ['file:///repo/App', 'file:///repo/other']);
 
 				assert.deepStrictEqual(uris(result), []);
 			}

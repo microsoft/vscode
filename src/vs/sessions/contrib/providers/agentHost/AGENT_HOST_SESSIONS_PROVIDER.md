@@ -75,6 +75,8 @@ Agent provider names form logical session-type identifiers. Resource URI schemes
 - derives capabilities from the advertised agent and live host state;
 - updates observable state without replacing the facade when identity is stable.
 
+The session working-directory set is authoritative for the folders projected through `ISessionWorkspace`. When an agent creates a peer chat with a different folder, the host first adds that folder to the session and then records the chat's working directories as a subset of the session set. Existing chats that inherited the full set are pinned to the previous set before expansion so they do not silently gain access to the new folder. The session set and per-chat subsets are persisted in the host catalog and restored together after restart. This flow requires the agent's multiple-working-directories capability; omitting a chat subset preserves full-session inheritance.
+
 The provider cache owns adapter identity. Catalog notifications describe membership; adapter observables describe mutable state.
 
 Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.

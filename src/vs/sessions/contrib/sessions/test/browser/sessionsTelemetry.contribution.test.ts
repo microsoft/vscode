@@ -105,6 +105,7 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 const chat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),

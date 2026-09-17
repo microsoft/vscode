@@ -1090,6 +1090,37 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('session changeset catalog is exposed by existing and newly added chat states', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat);
+			const changesets = [{
+				label: 'Branch Changes',
+				uriTemplate: buildChangesetUri(sessionUri, 'branch'),
+				changeKind: 'branch',
+			}];
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			manager.setSessionChangesets(sessionUri, changesets);
+			const peer2 = buildChatUri(sessionUri, 'peer-2');
+			manager.addChat(sessionUri, peer2);
+
+			assert.deepStrictEqual({
+				defaultChangesets: manager.getDefaultChatState(sessionUri)?.changesets,
+				peerChangesets: manager.getChatState(peerChat)?.changesets,
+				newPeerChangesets: manager.getChatState(peer2)?.changesets,
+				changedChannels: envelopes
+					.filter(envelope => envelope.action.type === ActionType.ChatChangesetsChanged)
+					.map(envelope => envelope.channel)
+					.sort(),
+			}, {
+				defaultChangesets: changesets,
+				peerChangesets: changesets,
+				newPeerChangesets: changesets,
+				changedChannels: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+			});
+		});
+
 		test('catalog-only SessionChatAdded does not create chat state', () => {
 			manager.createSession(makeSessionSummary());
 			manager.dispatchServerAction(sessionUri, {

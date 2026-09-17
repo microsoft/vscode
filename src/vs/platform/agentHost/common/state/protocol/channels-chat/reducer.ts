@@ -454,6 +454,13 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			return { ...state, workingDirectories: updated };
 		}
 
+		case ActionType.ChatChangesetsChanged: {
+			const { changesets: _omit, ...stateWithoutChangesets } = state;
+			return action.changesets
+				? { ...stateWithoutChangesets, changesets: action.changesets }
+				: stateWithoutChangesets;
+		}
+
 		// ── Tool Call State Machine ───────────────────────────────────────────
 
 		case ActionType.ChatToolCallStart:

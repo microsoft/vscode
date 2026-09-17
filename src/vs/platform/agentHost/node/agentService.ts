@@ -331,6 +331,7 @@ interface ICatalogChat {
 	readonly title?: string;
 	readonly origin?: ChatOrigin;
 	readonly inheritedTurnId?: string;
+	readonly workingDirectories?: readonly string[];
 }
 
 interface ILegacyRegisteredSessionMetadata {
@@ -1019,20 +1020,26 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Host-owned first-send hook (invoked by {@link AgentSideEffects} before the
-	 * agent locks its subprocess cwd). Resolves the working directories the session
-	 * will actually run in and hands them to the agent at send time:
+	 * agent locks its subprocess cwd). Resolves the working directories the
+	 * addressed chat will actually run in and hands them to the agent at send time:
 	 *  - index 0 is the process root: for `worktree` isolation the isolated
 	 *    worktree (created here on the first send, see
 	 *    {@link _resolveWorktreeBeforeSend}); for `folder` isolation the picked
 	 *    folder; `undefined` (whole result) for workspace-less sessions.
-	 *  - the tail carries any additional session roots as-is (only index 0 is
-	 *    worktree-remapped; additional roots are passed through unchanged).
+	 *  - an explicit peer-chat subset is already resolved and must not be
+	 *    remapped through the owning session's worktree.
 	 */
 	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
 		const sessionId = AgentSession.id(params.session);
-		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.session);
+		const chatWorkingDirectories = this._stateManager.getChatState(params.chat)?.workingDirectories;
+		const pickedFolders = chatWorkingDirectories
+			?? this._configurationService.getEffectiveWorkingDirectories(params.session);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
+
+		if (!isDefaultChatUri(params.chat) && chatWorkingDirectories !== undefined) {
+			return pickedFolderUri ? [pickedFolderUri, ...tail] : undefined;
+		}
 
 		// Only worktree-isolation sessions defer directory resolution to the first
 		// send (so the prompt can name the branch); folder / workspace-less
@@ -1285,9 +1292,8 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
 			startPrompt: (session, chat, prompt, delegation) => this._startSessionPrompt(session, chat, prompt, delegation),
-			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
-				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
-				: undefined),
+			createChat: (session, chat, options) => this.createChat(session, chat, options),
+			addSessionWorkingDirectory: (session, directory) => this._addSessionWorkingDirectoryForChat(session, directory),
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
 			deleteSession: session => this.disposeSession(session),
@@ -2099,6 +2105,7 @@ export class AgentService extends Disposable implements IAgentService {
 				title: chat.title,
 				origin: chat.origin,
 				inheritedTurnId: this._stateManager.getChatInheritedTurnId(chat.resource),
+				workingDirectories: chat.workingDirectories,
 			}));
 	}
 
@@ -4177,6 +4184,12 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedSourceTitle: string | undefined;
 		const { sideChat, ...providerOptions } = options ?? {};
 		let createOptions: IAgentCreateChatOptions | undefined = providerOptions;
+		if (createOptions.workingDirectories !== undefined && !createOptions.fork) {
+			createOptions = {
+				...createOptions,
+				workingDirectories: this._resolveChatWorkingDirectories(session, provider, createOptions.workingDirectories),
+			};
+		}
 		// Persist exhaustive provenance for peer chats. Fresh user-created chats
 		// leave this undefined and default to `ChatOriginKind.User`.
 		let peerChatOrigin: ChatOrigin | undefined;
@@ -4274,6 +4287,7 @@ export class AgentService extends Disposable implements IAgentService {
 				kind: 'peer' as const,
 				...(title !== undefined ? { title } : {}),
 				...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
+				...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
 			};
 			const existingIndex = existingCatalogChats.findIndex(existing => existing.uri === newCatalogChat.uri);
 			const catalogChats = existingIndex < 0
@@ -4300,6 +4314,7 @@ export class AgentService extends Disposable implements IAgentService {
 					...(providerData !== undefined ? { providerData } : {}),
 					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
 					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
+					...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
 				});
 			} catch (error) {
 				const rollbackErrors: Error[] = [];
@@ -4785,11 +4800,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
 		const placement = this._buildChatPlacement(session);
-		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || placement)
+		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || placement)
 			? {
 				...(options?.title !== undefined ? { title: options.title } : {}),
 				...(options?.model !== undefined ? { model: options.model } : {}),
-				...(placement?.workingDirectories ? { workingDirectories: placement.workingDirectories } : {}),
+				...(options?.workingDirectories !== undefined
+					? { workingDirectories: options.workingDirectories }
+					: placement?.workingDirectories ? { workingDirectories: placement.workingDirectories } : {}),
 				...(placement?.project ? { project: placement.project } : {}),
 				...(placement?.config ? { config: placement.config } : {}),
 			}
@@ -6071,15 +6088,16 @@ export class AgentService extends Disposable implements IAgentService {
 	 * of the primary directory for a provider that pins it — so the caller can
 	 * reject the action. Returns the canonicalized action on success.
 	 */
-	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction): SessionWorkingDirectoryAction {
+	private _prepareWorkingDirectoryAction(session: string, action: SessionWorkingDirectoryAction, options?: { readonly allowMultipleChats?: boolean; readonly allowWithoutMultiRootMetadata?: boolean; readonly allowWorktreeIsolation?: boolean }): SessionWorkingDirectoryAction {
 		const state = this._stateManager.getSessionState(session);
-		if (!state || state.lifecycle !== SessionLifecycle.Ready || !state.workingDirectories?.length) {
+		const workingDirectories = this._stateManager.getSessionSummary(session)?.workingDirectories;
+		if (!state || state.lifecycle !== SessionLifecycle.Ready || !workingDirectories?.length) {
 			throw new Error(`Session is not ready for working-directory changes: ${session}`);
 		}
-		if (!readSessionMultiRootMetadata(state._meta)
+		if ((!options?.allowWithoutMultiRootMetadata && !readSessionMultiRootMetadata(state._meta))
 			|| readSessionWorkspaceless(state._meta)
-			|| state.config?.values[SessionConfigKey.Isolation] === 'worktree'
-			|| state.chats.length !== 1
+			|| (!options?.allowWorktreeIsolation && state.config?.values[SessionConfigKey.Isolation] === 'worktree')
+			|| (!options?.allowMultipleChats && state.chats.length !== 1)
 			|| !state.defaultChat
 			|| state.defaultChat !== state.chats[0].resource) {
 			throw new Error(`Session does not support dynamic working-directory changes: ${session}`);
@@ -6092,10 +6110,76 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Provider does not support dynamic working-directory changes: ${AgentSession.provider(sessionUri) ?? '(unknown)'}`);
 		}
 
-		return resolveSessionWorkingDirectoryAction(action, state.workingDirectories, {
+		return resolveSessionWorkingDirectoryAction(action, workingDirectories, {
 			immutablePrimary: capability.immutablePrimary === true,
 			primaryReplacement: capability.primaryReplacement === true,
 		});
+	}
+
+	private async _addSessionWorkingDirectoryForChat(session: URI, directory: URI): Promise<URI> {
+		const sessionKey = session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
+		if (!state || !workingDirectories?.length) {
+			throw new Error(`Session is not ready for working-directory changes: ${sessionKey}`);
+		}
+		const action = this._prepareWorkingDirectoryAction(sessionKey, {
+			type: ActionType.SessionWorkingDirectorySet,
+			directory: directory.toString(),
+		}, { allowMultipleChats: true, allowWithoutMultiRootMetadata: true, allowWorktreeIsolation: true });
+		const canonicalDirectory = URI.parse(action.directory);
+		if (workingDirectories.includes(action.directory)) {
+			return canonicalDirectory;
+		}
+
+		const inheritingChats = state.chats.filter(chat => chat.workingDirectories === undefined);
+		const resolvedChats = await Promise.all(inheritingChats.map(async chat => ({
+			summary: chat,
+			state: await this._stateManager.resolveChatState(chat.resource),
+		})));
+		const unresolvedChat = resolvedChats.find(chat => chat.state === undefined);
+		if (unresolvedChat) {
+			throw new Error(`Cannot preserve the working directories of chat ${unresolvedChat.summary.resource}.`);
+		}
+
+		for (const chat of resolvedChats) {
+			if (chat.state?.workingDirectories !== undefined) {
+				continue;
+			}
+			for (const workingDirectory of workingDirectories) {
+				this._stateManager.dispatchServerAction(chat.summary.resource, {
+					type: ActionType.ChatWorkingDirectorySet,
+					directory: workingDirectory,
+				});
+			}
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.SessionChatUpdated,
+				chat: chat.summary.resource,
+				changes: { workingDirectories: [...workingDirectories] },
+			});
+		}
+		this._stateManager.dispatchServerAction(sessionKey, action);
+		return canonicalDirectory;
+	}
+
+	private _resolveChatWorkingDirectories(session: URI, provider: IAgent, requested: readonly URI[]): readonly URI[] {
+		if (!provider.getDescriptor().capabilities?.multipleWorkingDirectories) {
+			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support chat working directories`);
+		}
+		const sessionDirectories = this._stateManager.getSessionSummary(session.toString())?.workingDirectories ?? [];
+		const resolved: URI[] = [];
+		for (const directory of requested) {
+			const match = sessionDirectories.find(candidate => isEqual(URI.parse(candidate), directory));
+			if (!match) {
+				throw new Error(`[AgentService] createChat: working directory ${directory.toString()} does not belong to session ${session.toString()}`);
+			}
+			const canonicalDirectory = URI.parse(match);
+			if (resolved.some(candidate => isEqual(candidate, canonicalDirectory))) {
+				throw new Error(`[AgentService] createChat: working directories must be unique`);
+			}
+			resolved.push(canonicalDirectory);
+		}
+		return resolved;
 	}
 
 	/**
@@ -7079,6 +7163,8 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: restoredMeta,
 		};
 
+		const cachedChats = await this._readCachedChatCatalog(session);
+		const cachedDefaultChat = cachedChats?.find(chat => chat.kind === 'default');
 		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
@@ -7104,7 +7190,11 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		this._invalidateSessionList();
-		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
+		this._stateManager.restoreSession(summary, mergedTurns, {
+			draft: restoredDraft,
+			defaultChatTitle,
+			defaultChatWorkingDirectories: cachedDefaultChat?.workingDirectories,
+		});
 		if (adoptionListVisible) {
 			const adoptionMetadata: Record<string, string> = {};
 			if (adoptionListVisible.title !== undefined) {
@@ -7138,7 +7228,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
-		promises.push(this._restorePeerChats(agent, session));
+		promises.push(this._restorePeerChats(agent, session, cachedChats));
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
@@ -7206,8 +7296,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
-	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
-		const cached = await this._readCachedChatCatalog(session);
+	private async _restorePeerChats(agent: IAgent, session: URI, cachedChats?: readonly ICatalogChat[]): Promise<void> {
+		const cached = cachedChats ?? await this._readCachedChatCatalog(session);
 		let entries: readonly IPersistedPeerChat[];
 		try {
 			entries = await this._readOrMigrateLegacyPeerChatCatalog(agent, session);
@@ -7265,6 +7355,7 @@ export class AgentService extends Disposable implements IAgentService {
 			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
 			inheritedTurnId: chat.inheritedTurnId,
+			workingDirectories: chat.workingDirectories,
 		}));
 	}
 
@@ -7328,18 +7419,19 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] Skipping malformed persisted peer chat URI '${entry.uri}': ${toErrorMessage(err)}`);
 				return undefined;
 			}
-			const cachedTitle = cachedChats?.find(chat => chat.uri === entry.uri)?.title;
+			const cachedChat = cachedChats?.find(chat => chat.uri === entry.uri);
+			const cachedTitle = cachedChat?.title;
 			const { title, draft } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
 			}, cachedTitle ? { title: cachedTitle } : {});
-			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, inheritedTurnId: entry.inheritedTurnId };
+			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, inheritedTurnId: entry.inheritedTurnId, workingDirectories: cachedChat?.workingDirectories };
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin, inheritedTurnId } = item;
+			const { chatUri, title, draft, providerData, origin, inheritedTurnId, workingDirectories } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -7349,6 +7441,7 @@ export class AgentService extends Disposable implements IAgentService {
 				providerData,
 				origin,
 				inheritedTurnId,
+				workingDirectories,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}
@@ -7691,13 +7784,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const chat = URI.parse(buildDefaultChatUri(session));
 		try {
 			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session), { activation: 'restore' });
-			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata) : undefined);
+			return await this._withPersistedSessionWorkingDirectories(session, await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata) : undefined));
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
 			}
 			try {
-				return await this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session, external));
+				return await this._withPersistedSessionWorkingDirectories(session, await this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session, external)));
 			} catch (fallbackErr) {
 				if (fallbackErr instanceof ProtocolError) {
 					const message = err instanceof Error ? err.message : String(err);
@@ -7706,6 +7799,27 @@ export class AgentService extends Disposable implements IAgentService {
 				throw fallbackErr;
 			}
 		}
+	}
+
+	private async _withPersistedSessionWorkingDirectories(session: URI, metadata: IAgentSessionMetadata | undefined): Promise<IAgentSessionMetadata | undefined> {
+		if (!metadata) {
+			return undefined;
+		}
+		const registered = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+		if (!registered) {
+			return metadata;
+		}
+		const cached = await this._catalogListReader.read(registered);
+		if (!cached.eligible || cached.data.workingDirectories.length <= 1) {
+			return metadata;
+		}
+		const workingDirectories = [...(metadata.workingDirectories ?? [])];
+		for (const directory of cached.data.workingDirectories.slice(workingDirectories.length > 0 ? 1 : 0)) {
+			if (!workingDirectories.some(candidate => isEqual(candidate, directory))) {
+				workingDirectories.push(directory);
+			}
+		}
+		return { ...metadata, workingDirectories };
 	}
 
 	/**

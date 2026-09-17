@@ -13387,7 +13387,12 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
 			const agent = disposables.add(new AdoptThenFailAgent());
 			registerTestAgentProvider(localService, agent);
 			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
@@ -17877,6 +17882,103 @@ suite('AgentService (node dispatcher)', () => {
 					},
 				},
 				chatOptions: { title: 'New Chat', model: { id: 'source-model' } },
+			});
+		});
+
+		test('create_session scopes a current-session chat to an added working directory from a worktree session', async () => {
+			class ServerToolAgent extends MockAgent {
+				readonly createdChatWorkingDirectories: (readonly URI[] | undefined)[] = [];
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				constructor() {
+					super('copilot', {
+						multipleChats: { fork: true },
+						multipleWorkingDirectories: { immutablePrimary: true },
+					});
+				}
+
+				override async createChat(): Promise<void> { }
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const result = await base.createChat(chat, context, options);
+						this.createdChatWorkingDirectories.push(options?.workingDirectories);
+						return result;
+					},
+				}));
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent());
+			registerTestAgentProvider(localService, agent);
+			const originalDirectory = URI.file('/workspace/original');
+			const addedDirectory = URI.file('/workspace/added');
+			const resumedSessionWorktree = URI.file('/workspace/resumed-session-worktree');
+			const session = await localService.createSession({
+				provider: 'copilot',
+				workingDirectories: [originalDirectory],
+				config: { [SessionConfigKey.Isolation]: 'worktree' },
+			});
+			setTestAgentHostWorktreeIsolation(localService, createTestAgentHostWorktreeIsolation({
+				isWorkingDirectoryPending: () => false,
+				resolveWorkingDirectoryForResume: async () => resumedSessionWorktree,
+			}));
+			const sourceChat = URI.parse(buildDefaultChatUri(session));
+			localService.dispatchAction(sourceChat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'source-turn',
+				startedAt: new Date().toISOString(),
+				message: { text: 'Create folder-scoped work', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+
+			const peerSendPromise = Event.toPromise(Event.filter(agent.onDidSendMessage, call => call.prompt === 'work in the added folder'));
+			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
+				relationship: 'currentSession',
+				workspace: addedDirectory.toString(),
+				prompt: 'work in the added folder',
+				title: 'Added Folder',
+			});
+			await peerSendPromise;
+
+			const state = getStateManager(localService).getSessionState(session.toString());
+			const peer = state?.chats.find(chat => chat.resource !== sourceChat.toString());
+			const peerState = peer ? getStateManager(localService).getChatState(peer.resource) : undefined;
+			const peerSend = agent.sendMessageWorkingDirectories.find(call => call.chat.toString() === peer?.resource);
+			assert.ok(peer);
+			const beforeRestart = {
+				sessionWorkingDirectories: getStateManager(localService).getSessionSummary(session.toString())?.workingDirectories,
+				sourceWorkingDirectories: getStateManager(localService).getChatState(sourceChat.toString())?.workingDirectories,
+				peerWorkingDirectories: peerState?.workingDirectories,
+				providerWorkingDirectories: agent.createdChatWorkingDirectories.at(-1)?.map(directory => directory.toString()),
+				providerTurnWorkingDirectories: peerSend?.workingDirectories?.map(directory => directory.toString()),
+				peerPrompt: peerState?.activeTurn?.message.text,
+			};
+
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+			await localService.subscribe(URI.parse(peer.resource), 'restored-peer-reader');
+
+			assert.deepStrictEqual({
+				beforeRestart,
+				restoredSessionWorkingDirectories: getStateManager(localService).getSessionSummary(session.toString())?.workingDirectories,
+				restoredSourceWorkingDirectories: getStateManager(localService).getChatState(sourceChat.toString())?.workingDirectories,
+				restoredPeerWorkingDirectories: getStateManager(localService).getChatState(peer.resource)?.workingDirectories,
+			}, {
+				beforeRestart: {
+					sessionWorkingDirectories: [originalDirectory.toString(), addedDirectory.toString()],
+					sourceWorkingDirectories: [originalDirectory.toString()],
+					peerWorkingDirectories: [addedDirectory.toString()],
+					providerWorkingDirectories: [addedDirectory.toString()],
+					providerTurnWorkingDirectories: [addedDirectory.toString()],
+					peerPrompt: 'work in the added folder',
+				},
+				restoredSessionWorkingDirectories: [originalDirectory.toString(), addedDirectory.toString()],
+				restoredSourceWorkingDirectories: [originalDirectory.toString()],
+				restoredPeerWorkingDirectories: [addedDirectory.toString()],
 			});
 		});
 

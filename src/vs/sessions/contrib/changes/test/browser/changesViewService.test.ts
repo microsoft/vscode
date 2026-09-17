@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
@@ -25,7 +25,7 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly chatChangesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
 		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
@@ -51,6 +51,11 @@ suite('ChangesViewService', () => {
 					}),
 				})],
 			});
+		const chat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
+			workspace: constObservable(workspace),
+			changesets: options?.chatChangesets ? constObservable(options.chatChangesets) : undefined,
+		});
 		return upcastPartial<IActiveSession>({
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
 			providerId: 'local-agent-host',
@@ -59,6 +64,7 @@ suite('ChangesViewService', () => {
 			changes: constObservable([]),
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
+			activeChat: constObservable(chat),
 		});
 	}
 
@@ -314,6 +320,27 @@ suite('ChangesViewService', () => {
 				changesets: ['branch'],
 				selected: 'branch',
 			},
+		});
+	});
+
+	test('uses the active chat changesets when the provider exposes them', () => {
+		const sessionBranch = createChangeset([]);
+		const chatBranch = {
+			...createChangeset([]),
+			id: 'chat-branch',
+			label: 'Chat Branch Changes',
+		};
+		const { service } = createHarness(createSession('chat-changesets', {
+			changesets: [sessionBranch],
+			chatChangesets: [chatBranch],
+		}));
+
+		assert.deepStrictEqual({
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		}, {
+			changesets: ['chat-branch'],
+			selected: 'chat-branch',
 		});
 	});
 

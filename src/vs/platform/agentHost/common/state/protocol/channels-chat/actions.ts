@@ -9,6 +9,7 @@
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, FileEdit, UsageInfo, URI } from '../common/state.js';
 import type { McpAuthRequirement } from '../channels-session/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
@@ -568,6 +569,18 @@ export interface ChatWorkingDirectoryRemovedAction {
 }
 
 /**
+ * Replaces the catalogue of changesets exposed for this chat.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatChangesetsChangedAction {
+	type: ActionType.ChatChangesetsChanged;
+	/** New catalogue, or `undefined` to clear it. */
+	changesets: Changeset[] | undefined;
+}
+
+/**
  * Token usage report for a turn.
  *
  * @category Chat Actions
@@ -833,6 +846,7 @@ export type ChatAction =
 	| ChatActivityChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
+	| ChatChangesetsChangedAction
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatTruncatedAction

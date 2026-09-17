@@ -22,6 +22,7 @@ import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
+	workspace: constObservable(undefined),
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
@@ -41,6 +42,7 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 	return {
 		resource: URI.parse(`test:///chat-${id}`),
 		createdAt: new Date(),
+		workspace: constObservable(undefined),
 		title: constObservable(`Chat ${id}`),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
