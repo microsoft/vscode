@@ -34,12 +34,14 @@ import {
 	AgentHostOTelResourceAttributesSettingId,
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
+	ArtifactToolsCompactPromptsSettingId,
 	ArtifactToolsSettingId,
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
+	AgentHostArtifactToolsCompactPromptsConfigKey,
 	AgentHostArtifactToolsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
@@ -200,6 +202,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostArtifactToolsConfigKey },
+		},
+		[ArtifactToolsCompactPromptsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.artifactTools.compactPrompts', "Uses compact artifact tool guidance instead of the original wording. Does not change tool availability or deferral. Start a new chat to compare prompt formats."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostArtifactToolsCompactPromptsConfigKey },
 		},
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
