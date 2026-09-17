@@ -2439,7 +2439,10 @@ suite('ChatListRenderer', () => {
 				const firstThoughtBounds = firstThoughtIcon.getBoundingClientRect();
 				const curveWidth = parseFloat(curve.width) + (curve.boxSizing === 'content-box' ? parseFloat(curve.borderLeftWidth) : 0);
 				const curveHeight = parseFloat(curve.height) + (curve.boxSizing === 'content-box' ? parseFloat(curve.borderBottomWidth) : 0);
-				const near = (actual: number, expected: number) => Math.abs(actual - expected) <= 0.51 / mainWindow.devicePixelRatio;
+				// Fractional zoom snaps 1px strokes to whole device pixels (0.8 → 1.25px), so a stroke's
+				// center line can sit up to half a device pixel from the unsnapped layout position.
+				const tolerance = (zoom === 1 ? 0.51 : 1.01) / mainWindow.devicePixelRatio;
+				const near = (actual: number, expected: number) => Math.abs(actual - expected) <= tolerance;
 				const rows = [...thoughtRows, ...toolRows];
 				const expanded = {
 					curveUnderHeaderIcon: near(headerBounds.left + (parseFloat(curve.left) + parseFloat(curve.borderLeftWidth) / 2) * zoom, iconBounds.left + iconBounds.width / 2),
