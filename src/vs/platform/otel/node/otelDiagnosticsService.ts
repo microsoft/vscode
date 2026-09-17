@@ -17,6 +17,7 @@ import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, 
 import { OTelSqliteStore, SpanRow } from './sqlite/otelSqliteStore.js';
 
 interface IRawMessagePart {
+	readonly id?: string;
 	readonly content?: unknown;
 	readonly name?: string;
 	readonly arguments?: unknown;
@@ -26,6 +27,22 @@ interface IRawMessagePart {
 interface IRawMessage {
 	readonly role?: string;
 	readonly parts?: readonly IRawMessagePart[];
+}
+
+interface IMessageBatch {
+	readonly span: SpanRow;
+	readonly messages: readonly IRawMessage[];
+	readonly timestamp: number;
+}
+
+interface IToolDetails {
+	readonly callId: string;
+	name?: string;
+	description?: string;
+	input?: string;
+	output?: string;
+	status?: 'success' | 'error';
+	duration?: number;
 }
 
 export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosticsService {
@@ -102,10 +119,50 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		}
 		const messages: IOTelDiagnosticsMessage[] = [];
 		const seen = new Set<string>();
+		const batches: IMessageBatch[] = [];
+		const toolDetailsByCallId = new Map<string, IToolDetails>();
 		for (const span of this.getSessionSpans(identity)) {
 			const attributes = this.getAttributes(span.span_id);
-			this.appendMessages(messages, seen, span, attributes['gen_ai.input.messages'], span.start_time_ms);
-			this.appendMessages(messages, seen, span, attributes['gen_ai.output.messages'], span.end_time_ms);
+			if (attributes['gen_ai.input.messages']) {
+				batches.push({ span, messages: JSON.parse(attributes['gen_ai.input.messages']) as IRawMessage[], timestamp: span.start_time_ms });
+			}
+			if (attributes['gen_ai.output.messages']) {
+				batches.push({ span, messages: JSON.parse(attributes['gen_ai.output.messages']) as IRawMessage[], timestamp: span.end_time_ms });
+			}
+			if (span.operation_name === 'execute_tool' && span.tool_call_id) {
+				toolDetailsByCallId.set(span.tool_call_id, {
+					callId: span.tool_call_id,
+					name: span.tool_name ?? undefined,
+					description: attributes['gen_ai.tool.description'],
+					input: attributes['gen_ai.tool.call.arguments'],
+					output: attributes['gen_ai.tool.call.result'],
+					status: span.status_code === 2 ? 'error' : 'success',
+					duration: span.end_time_ms - span.start_time_ms,
+				});
+			}
+		}
+		for (const batch of batches) {
+			for (const message of batch.messages) {
+				for (const part of message.parts ?? []) {
+					if (part.id) {
+						let details = toolDetailsByCallId.get(part.id);
+						if (!details) {
+							details = { callId: part.id };
+							toolDetailsByCallId.set(part.id, details);
+						}
+						details.name ??= part.name;
+						if (part.arguments !== undefined) {
+							details.input ??= formatMessageValue(part.arguments);
+						}
+						if (part.response !== undefined) {
+							details.output ??= formatMessageValue(part.response);
+						}
+					}
+				}
+			}
+		}
+		for (const batch of batches) {
+			this.appendMessages(messages, seen, batch, toolDetailsByCallId);
 		}
 		return messages.sort((a, b) => a.timestamp - b.timestamp);
 	}
@@ -241,28 +298,34 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		return attributes;
 	}
 
-	private appendMessages(target: IOTelDiagnosticsMessage[], seen: Set<string>, span: SpanRow, raw: string | undefined, timestamp: number): void {
-		if (!raw) {
-			return;
-		}
-		const messages = JSON.parse(raw) as IRawMessage[];
-		for (const [index, message] of messages.entries()) {
+	private appendMessages(target: IOTelDiagnosticsMessage[], seen: Set<string>, batch: IMessageBatch, toolDetailsByCallId: ReadonlyMap<string, IToolDetails>): void {
+		for (const [index, message] of batch.messages.entries()) {
 			const content = message.parts?.map(formatMessagePart).filter(value => !!value).join('\n') ?? '';
 			if (!content) {
 				continue;
 			}
+			const toolDetails = message.role === 'tool'
+				? message.parts?.map(part => part.id ? toolDetailsByCallId.get(part.id) : undefined).find(details => !!details)
+				: undefined;
 			const key = `${message.role}:${content}`;
 			if (seen.has(key)) {
 				continue;
 			}
 			seen.add(key);
 			target.push({
-				id: `${span.span_id}:${index}:${message.role ?? 'message'}`,
-				traceId: span.trace_id,
-				spanId: span.span_id,
+				id: `${batch.span.span_id}:${index}:${message.role ?? 'message'}`,
+				traceId: batch.span.trace_id,
+				spanId: batch.span.span_id,
 				role: message.role ?? 'message',
+				toolName: toolDetails?.name,
+				toolCallId: toolDetails?.callId,
+				toolDescription: toolDetails?.description,
+				toolInput: toolDetails?.input,
+				toolOutput: toolDetails?.output ?? content,
+				toolStatus: toolDetails?.status,
+				toolDuration: toolDetails?.duration,
 				content,
-				timestamp,
+				timestamp: batch.timestamp,
 			});
 		}
 	}

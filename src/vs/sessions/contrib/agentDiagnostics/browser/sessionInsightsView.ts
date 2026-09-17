@@ -341,7 +341,10 @@ export class SessionInsightsView extends Disposable {
 		const button = traceNode.detailStore.add(new Button(row, { ...defaultButtonStyles, secondary: true }));
 		button.element.classList.add('agent-diagnostics-message-pill');
 		const expanded = this.expandedMessageIds.has(message.id);
-		button.label = localize('agentDiagnostics.messagePill', "{0} {1}", formatMessageRole(message.role), expanded ? '-' : '+');
+		const roleLabel = message.toolName
+			? localize('agentDiagnostics.messageRole.namedTool', "Tool: {0}", message.toolName)
+			: formatMessageRole(message.role);
+		button.label = localize('agentDiagnostics.messagePill', "{0} {1}", roleLabel, expanded ? '-' : '+');
 		button.element.setAttribute('aria-expanded', String(expanded));
 		traceNode.detailStore.add(button.onDidClick(() => {
 			if (this.expandedMessageIds.has(message.id)) {
@@ -353,9 +356,54 @@ export class SessionInsightsView extends Disposable {
 			this.scrollable.scanDomNode();
 		}));
 		if (expanded) {
-			const content = DOM.append(row, DOM.$('.agent-diagnostics-message-content'));
-			content.textContent = message.content;
+			if (message.role === 'tool' && message.toolName) {
+				this.renderToolMessageContent(row, message);
+			} else {
+				const content = DOM.append(row, DOM.$('.agent-diagnostics-message-content'));
+				content.textContent = message.content;
+			}
 		}
+	}
+
+	private renderToolMessageContent(parent: HTMLElement, message: IOTelDiagnosticsMessage): void {
+		const content = DOM.append(parent, DOM.$('.agent-diagnostics-message-content.agent-diagnostics-tool-message-content'));
+		if (message.toolDescription || message.toolStatus || message.toolDuration !== undefined || message.toolCallId) {
+			const metadata = DOM.append(content, DOM.$('.agent-diagnostics-tool-metadata'));
+			if (message.toolDescription) {
+				const descriptionLabel = DOM.append(metadata, DOM.$('.agent-diagnostics-tool-field-label'));
+				descriptionLabel.textContent = localize('agentDiagnostics.toolDescription', "Description");
+				const description = DOM.append(metadata, DOM.$('.agent-diagnostics-tool-description'));
+				description.textContent = message.toolDescription;
+			}
+			const facts = DOM.append(metadata, DOM.$('.agent-diagnostics-tool-facts'));
+			if (message.toolStatus) {
+				const status = DOM.append(facts, DOM.$('.agent-diagnostics-tool-fact'));
+				status.textContent = message.toolStatus === 'success'
+					? localize('agentDiagnostics.toolStatus.success', "Succeeded")
+					: localize('agentDiagnostics.toolStatus.error', "Failed");
+			}
+			if (message.toolDuration !== undefined) {
+				const duration = DOM.append(facts, DOM.$('.agent-diagnostics-tool-fact'));
+				duration.textContent = formatDuration(message.toolDuration);
+			}
+			if (message.toolCallId) {
+				const callId = DOM.append(facts, DOM.$('.agent-diagnostics-tool-fact'));
+				callId.textContent = localize('agentDiagnostics.toolCallId', "Call ID: {0}", message.toolCallId);
+			}
+		}
+		this.renderToolField(content, localize('agentDiagnostics.toolInput', "Input"), message.toolInput);
+		this.renderToolField(content, localize('agentDiagnostics.toolOutput', "Output"), message.toolOutput ?? message.content);
+	}
+
+	private renderToolField(parent: HTMLElement, label: string, value: string | undefined): void {
+		if (!value) {
+			return;
+		}
+		const field = DOM.append(parent, DOM.$('.agent-diagnostics-tool-field'));
+		const heading = DOM.append(field, DOM.$('.agent-diagnostics-tool-field-label'));
+		heading.textContent = label;
+		const body = DOM.append(field, DOM.$('pre.agent-diagnostics-tool-field-value'));
+		body.textContent = value;
 	}
 
 	private renderSpan(traceNode: ITraceNode, parent: HTMLElement, trace: IOTelDiagnosticsTrace, span: IOTelDiagnosticsSpan): void {

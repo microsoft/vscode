@@ -32,6 +32,13 @@ export interface IOTelDiagnosticsMessage {
 	readonly traceId: string;
 	readonly spanId: string;
 	readonly role: string;
+	readonly toolName?: string;
+	readonly toolCallId?: string;
+	readonly toolDescription?: string;
+	readonly toolInput?: string;
+	readonly toolOutput?: string;
+	readonly toolStatus?: 'success' | 'error';
+	readonly toolDuration?: number;
 	readonly content: string;
 	readonly timestamp: number;
 }
