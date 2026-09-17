@@ -84,6 +84,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['preview'],
 			description: localize('sessions.markAsDoneConfetti', "Controls whether a confetti animation is shown when marking a session as done."),
 			default: false,
+			experiment: { mode: 'auto' }
 			// https://github.com/microsoft/vscode/issues/335801
 		},
 		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
