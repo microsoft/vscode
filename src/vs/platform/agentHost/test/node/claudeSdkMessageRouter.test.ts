@@ -109,6 +109,38 @@ suite('ClaudeSdkMessageRouter', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
+	test('MCP invocation arriving before its tool-use event receives the original turn', async () => {
+		const { router } = createRouter(disposables);
+		const original = router.getToolInvocation('tool-original');
+		await router.handle(assistantMessage([{ type: 'tool_use', id: 'tool-original', name: 'get_checkpoint', input: {} }]), 'turn-original');
+		await router.handle(assistantMessage([{ type: 'tool_use', id: 'tool-next', name: 'get_checkpoint', input: {} }]), 'turn-next');
+		assert.deepStrictEqual([await original, await router.getToolInvocation('tool-original'), await router.getToolInvocation('tool-next')], [
+			{ turnId: 'turn-original', toolCallId: 'tool-original', isSubagent: false },
+			{ turnId: 'turn-original', toolCallId: 'tool-original', isSubagent: false },
+			{ turnId: 'turn-next', toolCallId: 'tool-next', isSubagent: false },
+		]);
+	});
+
+	test('disposing the router releases unmatched invocation waits', async () => {
+		const { router } = createRouter(disposables);
+		const first = router.getToolInvocation('unmatched');
+		const duplicate = router.getToolInvocation('unmatched');
+		router.dispose();
+		assert.deepStrictEqual(await Promise.all([first, duplicate]), [undefined, undefined]);
+	});
+
+	test('never gives a subagent tool-use root invocation authority', async () => {
+		const { router } = createRouter(disposables);
+		await router.handle({
+			...assistantMessage([{ type: 'tool_use', id: 'nested-call', name: 'prove_checkpoint', input: {} }]),
+			parent_tool_use_id: 'spawn-call',
+		}, 'root-turn');
+		const invocation = router.getToolInvocation('nested-call');
+		router.dispose();
+		const original = await invocation;
+		assert.ok(original === undefined || original.isSubagent === true);
+	});
+
 	test('handle with a turnId on a text content block produces ChatResponsePart + ChatDelta signals', async () => {
 		const { router, signals } = createRouter(disposables);
 		await router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');

@@ -16,6 +16,7 @@ import { GlobalStateResourceInitializer } from './globalStateResource.js';
 import { KeybindingsResourceInitializer } from './keybindingsResource.js';
 import { TasksResourceInitializer } from './tasksResource.js';
 import { SnippetsResourceInitializer } from './snippetsResource.js';
+import { WorkflowsResourceInitializer } from './workflowsResource.js';
 import { McpResourceInitializer } from './mcpProfileResource.js';
 import { ExtensionsResourceInitializer } from './extensionsResource.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
@@ -86,6 +87,9 @@ export class UserDataProfileInitializer implements IUserDataInitializer {
 			}
 			if (profileTemplate?.snippets) {
 				promises.push(this.initialize(new SnippetsResourceInitializer(this.userDataProfileService, this.fileService, this.uriIdentityService, this.logService), profileTemplate.snippets, ProfileResourceType.Snippets));
+			}
+			if (profileTemplate?.workflows) {
+				promises.push(this.initialize(instantiationService.createInstance(WorkflowsResourceInitializer), profileTemplate.workflows, ProfileResourceType.Workflows));
 			}
 			promises.push(this.initializeInstalledExtensions(instantiationService));
 			await Promises.settled(promises);

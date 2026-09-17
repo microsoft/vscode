@@ -104,6 +104,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _tabsScrollbar: ScrollableElement;
 	private readonly _sessionActionsContainer: HTMLElement;
 	private readonly _sessionToolbar: MenuWorkbenchToolBar;
+	private readonly _sessionTrailingToolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -177,6 +178,13 @@ export class ChatCompositeBar extends Disposable {
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
 		}));
+		const trailingToolbarContainer = $('.chat-composite-bar-toolbar.chat-composite-bar-toolbar-trailing');
+		this._sessionActionsContainer.appendChild(trailingToolbarContainer);
+		this._sessionTrailingToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, trailingToolbarContainer, Menus.SessionBarToolbarTrailing, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+		}));
 
 		const preventMiddleButtonDefault = (e: MouseEvent) => {
 			if (e.button === 1 && !this._isInTabInput(e)) {
@@ -238,6 +246,7 @@ export class ChatCompositeBar extends Disposable {
 
 		this._delegate = delegate;
 		this._sessionToolbar.context = delegate?.session;
+		this._sessionTrailingToolbar.context = delegate?.session;
 
 		const store = new DisposableStore();
 		this._groupDisposables.value = store;

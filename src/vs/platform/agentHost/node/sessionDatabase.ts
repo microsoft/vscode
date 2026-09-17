@@ -158,6 +158,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			SELECT '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}', 'true'
 			WHERE EXISTS (SELECT 1 FROM turn_workspace_transition)`,
 	},
+	{
+		version: 13,
+		sql: `CREATE TABLE IF NOT EXISTS turn_request_source (
+			turn_id TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			source TEXT NOT NULL
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -521,22 +528,37 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
-	async getTurnDelegations(): Promise<Map<string, string>> {
+	getTurnDelegations(): Promise<Map<string, string>> {
+		return this._getAliasedTurnData('turn_delegation', 'delegation');
+	}
+
+	setTurnRequestSource(turnId: string, source: string): Promise<void> {
+		return this._mutate(async db => {
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_request_source (turn_id, source) VALUES (?, ?)', [turnId, source]);
+		});
+	}
+
+	getTurnRequestSources(): Promise<Map<string, string>> {
+		return this._getAliasedTurnData('turn_request_source', 'source');
+	}
+
+	private async _getAliasedTurnData(table: 'turn_delegation' | 'turn_request_source', column: 'delegation' | 'source'): Promise<Map<string, string>> {
 		await this.whenIdle();
 		const db = await this._ensureDb();
 		const rows = await dbAll(
 			db,
-			`SELECT d.turn_id AS turn_id, t.event_id AS event_id, d.delegation AS delegation
-			FROM turn_delegation d LEFT JOIN turns t ON t.id = d.turn_id`,
+			`SELECT d.turn_id AS turn_id, t.event_id AS event_id, d.${column} AS data
+			FROM ${table} d LEFT JOIN turns t ON t.id = d.turn_id`,
 			[],
 		);
 		const result = new Map<string, string>();
 		for (const row of rows) {
-			const delegation = row.delegation as string;
-			result.set(row.turn_id as string, delegation);
+			const data = row.data as string;
+			result.set(row.turn_id as string, data);
 			const eventId = row.event_id as string | null;
 			if (eventId) {
-				result.set(eventId, delegation);
+				result.set(eventId, data);
 			}
 		}
 		return result;
@@ -973,6 +995,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE turn_request_source SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);

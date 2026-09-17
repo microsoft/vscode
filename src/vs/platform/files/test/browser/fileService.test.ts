@@ -61,6 +61,39 @@ suite('File Service', () => {
 		});
 	});
 
+	for (const { name, source, target, resolvedPath } of [
+		{
+			name: 'native local paths',
+			source: URI.file('/workspace/link.txt'),
+			target: URI.file('/workspace/plan.txt'),
+			resolvedPath: URI.file('/workspace/plan.txt').fsPath,
+		},
+		{
+			name: 'native UNC authorities',
+			source: URI.file('/workspace/link.txt'),
+			target: URI.from({ scheme: 'file', authority: 'server', path: '/share/plan.txt' }),
+			resolvedPath: URI.from({ scheme: 'file', authority: 'server', path: '/share/plan.txt' }).fsPath,
+		},
+		{
+			name: 'non-file provider paths',
+			source: URI.parse('test://host/link.txt'),
+			target: URI.parse('test://host/plan.txt').with({ path: '/folder/plan\\notes.txt' }),
+			resolvedPath: '/folder/plan\\notes.txt',
+		},
+	]) {
+		test(`realpath preserves resource metadata and resolves ${name}`, async () => {
+			const service = disposables.add(new FileService(new NullLogService()));
+			const provider = new class extends NullFileSystemProvider {
+				async realpath(): Promise<string> { return resolvedPath; }
+			}();
+			provider.setCapabilities(FileSystemProviderCapabilities.FileRealpath);
+			disposables.add(service.registerProvider(source.scheme, provider));
+			const metadata = { query: 'version=1', fragment: 'line-2' };
+			const result = await service.realpath(source.with(metadata));
+			assert.strictEqual(result?.toString(), target.with(metadata).toString());
+		});
+	}
+
 	test('provider registration', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
 		const resource = URI.parse('test://foo/bar');

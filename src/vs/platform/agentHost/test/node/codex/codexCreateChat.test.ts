@@ -27,7 +27,7 @@ import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
-import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
+import type { IAgentServerToolHost, IAgentServerToolInvocation } from '../../../common/agentServerTools.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
@@ -368,7 +368,7 @@ const PEER_TEST_TOOL_NAME = 'peer_test_tool';
  * Records the exact chat channel Codex hands the server-tool host for a single
  * server tool ({@link PEER_TEST_TOOL_NAME}).
  */
-function createRecordingChatServerToolHost(calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[]): IAgentServerToolHost {
+function createRecordingChatServerToolHost(calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[], invocations?: (IAgentServerToolInvocation | undefined)[]): IAgentServerToolHost {
 	return {
 		definitions: [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' } }],
 		toolNames: [PEER_TEST_TOOL_NAME],
@@ -379,7 +379,8 @@ function createRecordingChatServerToolHost(calls: { readonly method: 'requiresCo
 			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
 			return false;
 		},
-		executeTool: (chatUri, _toolName, _rawArgs) => {
+		executeTool: (chatUri, _toolName, _rawArgs, invocation) => {
+			invocations?.push(invocation);
 			calls.push({ method: 'executeTool', chatUri: chatUri.toString() });
 			return 'tool result';
 		},
@@ -419,9 +420,11 @@ suite('CodexAgent createChat', () => {
 		assert.deepStrictEqual({
 			multipleChats: agent.getDescriptor().capabilities?.multipleChats,
 			agentHostCapabilities: agent.agentHostCapabilities,
+			meta: agent.getDescriptor()._meta,
 		}, {
 			multipleChats: { fork: true, sideChat: true },
-			agentHostCapabilities: { workspaceConversion: true },
+			agentHostCapabilities: { workspaceConversion: true, workflows: true },
+			meta: { 'vscode.workflows': true },
 		});
 	});
 
@@ -879,10 +882,12 @@ suite('CodexAgent createChat', () => {
 		const sessionUri = AgentSession.uri('codex', 'session-fresh');
 		const chat = URI.parse(buildDefaultChatUri(sessionUri));
 		const folder = URI.file('/repo/fresh');
+		const selectedAgent = { uri: 'file:///repo/fresh/reviewer.agent.md' };
 
 		const created = await createSessionBackedChat(agent, chat, { configurationResource: sessionUri, resource: chat }, {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
+			agent: selectedAgent,
 		});
 
 		assert.deepStrictEqual({
@@ -891,12 +896,14 @@ suite('CodexAgent createChat', () => {
 			resolvedWorkingDirectory: created.resolvedWorkingDirectory?.toString(),
 			boundSessionId: agent['_sessionIdByChatUri'].get(chat.toString()),
 			chatChannel: agent['_sessions'].get('session-fresh')?.chatChannel?.toString(),
+			selectedAgent: await agent.chats.getAgent!(chat, { configurationResource: sessionUri, resource: chat }),
 		}, {
 			session: sessionUri.toString(),
 			provisional: true,
 			resolvedWorkingDirectory: folder.toString(),
 			boundSessionId: 'session-fresh',
 			chatChannel: chat.toString(),
+			selectedAgent,
 		});
 	});
 
@@ -2910,7 +2917,8 @@ suite('CodexAgent exact chat routing', () => {
 	test('a peer chat\'s server-tool call uses its exact Agent Host chat channel', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const calls: { readonly method: 'requiresConfirmation' | 'executeTool'; readonly chatUri: string }[] = [];
-		agent.setServerToolHost(createRecordingChatServerToolHost(calls));
+		const invocations: (IAgentServerToolInvocation | undefined)[] = [];
+		agent.setServerToolHost(createRecordingChatServerToolHost(calls, invocations));
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
 
@@ -2943,6 +2951,9 @@ suite('CodexAgent exact chat routing', () => {
 			peer.push({ id: peerStart.id, result: { thread: { id: 'peer-thread', cwd: folder.fsPath } } });
 			await creatingPeer;
 			const peerEntry = agent['_sessions'].get('peer-thread')!;
+			peerEntry.currentTurnId = 'new-host-turn';
+			peerEntry.hostTurnIdByAppTurnId.set('original-native-turn', 'new-host-turn');
+			peerEntry.mapState.itemToToolCall.set('call-1', { turnId: 'original-host-turn', toolCallId: 'call-1', toolName: PEER_TEST_TOOL_NAME, output: '' });
 
 			// Simulate the codex app-server invoking the host's server tool on
 			// the peer runtime's own thread.
@@ -2950,20 +2961,31 @@ suite('CodexAgent exact chat routing', () => {
 			peer.push({
 				id: 9001,
 				method: 'item/tool/call',
-				params: { threadId: 'peer-thread', turnId: 'turn-irrelevant', callId: 'call-1', namespace: null, tool: PEER_TEST_TOOL_NAME, arguments: {} },
+				params: { threadId: 'peer-thread', turnId: 'original-native-turn', callId: 'call-1', namespace: null, tool: PEER_TEST_TOOL_NAME, arguments: {} },
 			});
 			const response = await responding;
+			const lateResponse = readNextMessage(peer.outbound);
+			peer.push({
+				id: 9002,
+				method: 'item/tool/call',
+				params: { threadId: 'peer-thread', turnId: 'original-native-turn', callId: 'unknown-call', namespace: null, tool: PEER_TEST_TOOL_NAME, arguments: {} },
+			});
+			await lateResponse;
 
 			assert.deepStrictEqual({
 				peerRuntimeUri: peerEntry.sessionUri.toString(),
 				calls,
+				invocations,
 				toolSucceeded: response.result?.success,
 			}, {
 				// The bug this guards against: the peer runtime's own
 				// `codex:/<threadId>` identity — neither the addressed AH
 				// session nor the chat channel — must never reach the host.
 				peerRuntimeUri: AgentSession.uri('codex', 'peer-thread').toString(),
+				invocations: [{ turnId: 'original-host-turn', toolCallId: 'call-1' }, undefined],
 				calls: [
+					{ method: 'requiresConfirmation', chatUri: peerChat.toString() },
+					{ method: 'executeTool', chatUri: peerChat.toString() },
 					{ method: 'requiresConfirmation', chatUri: peerChat.toString() },
 					{ method: 'executeTool', chatUri: peerChat.toString() },
 				],

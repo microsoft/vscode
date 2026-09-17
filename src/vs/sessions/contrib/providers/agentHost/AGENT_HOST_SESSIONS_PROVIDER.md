@@ -52,6 +52,20 @@ Imported prompts retain Automation provenance through `MessageKind.Automation`. 
 
 The browser fallback and host-owned executor both create sessions from this template. A draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
 
+## Workflows
+
+`AgentHostWorkflowRuntime` adapts the shared workflow runtime to the owning `IAgentConnection`. Workflow execution requires support from both the host's initialization metadata and the selected agent's `AgentInfo` metadata; root support alone is insufficient. Support is never inferred from a provider name or registration. The Agent Host owns run snapshots, proof validation, continuation, durable waits, and recovery; the provider maps identity and presentation and publishes client-owned rollout enablement.
+
+The provider mirrors the workflow rollout and AI-disable settings to its owning connection only after that host advertises the root-config key. It republishes after reconnection and enqueues the current value before explicit start or continuation requests. Disabling pauses execution; re-enabling does not resume it. This transient mirror is neither a permission grant nor a substitute for runtime-managed settings. Inspection remains available while execution is disabled.
+
+The shared extension-source projection uses normal extension enablement decisions. The adapter publishes complete source snapshots before enabling workflow execution, serializes later source changes, and rejects stale connection results. Absent extension IDs are unavailable, including packages removed while disconnected. Source publication failures disable new workflow execution and surface diagnostics; explicit start/resume must reconcile successfully. Pause and cancel never wait for source discovery. Source re-enablement does not resume paused runs.
+
+Lightweight progress arrives with session metadata. Full records are read on demand and observed only while a workflow view holds a reference-counted watch. Reconnection waits for capability negotiation before refreshing those watches. Display resource URIs are mapped to the client, while canonical proof and validator output remain host-native.
+
+An initial workflow uses `IAgentHostChatSession.prepareMessageContext` to reuse normal trust, authentication, model configuration, attachments, active-client setup, and server-initiated turn observation without creating a synthetic chat request. The provider submits that context with the immutable workflow snapshot and waits for durable acceptance. A first checkpoint that waits still commits the session without needing a model turn. Host-assigned turn IDs remain the chat request IDs used by checkpoint navigation.
+
+Once a workflow start is issued, abandoning its composer draft must not delete potentially accepted host work. An unconfirmed response is not evidence that nothing started; durable host state must be inspected before retrying. This exception changes backend ownership, not normal permissions or the user's stopping point.
+
 ## Identity
 
 The local provider uses:
@@ -93,7 +107,7 @@ create draft
     -> publish or replace the committed session facade
 ```
 
-The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
+The first send waits for tracked draft configuration. Cancelling an unsubmitted draft disposes it; submitted workflow ownership follows the contract above. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
 
 Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. Agent Host providers advertise Automation configuration support, restore the initial template before configuration resolution, and capture it asynchronously after pending resolution. Capture rechecks draft identity, omits transient, permission-grant, target-owned, and host-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
 

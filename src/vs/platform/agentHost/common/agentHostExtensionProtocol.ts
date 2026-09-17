@@ -7,6 +7,16 @@ import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../.
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import { AgentWorkflowCapabilityMetaKey } from './meta/agentWorkflowMeta.js';
+import type { WorkflowControl, WorkflowRun } from '../../workflow/common/workflow.js';
+import type { IAgentHostWorkflowStartOptions } from './agentHostWorkflow.js';
+
+export const GetWorkflowRunExtensionMethod = 'vscode/getWorkflowRun';
+export const StartWorkflowExtensionMethod = 'vscode/startWorkflow';
+export const ControlWorkflowExtensionMethod = 'vscode/controlWorkflow';
+export const SetWorkflowSourceEnabledExtensionMethod = 'vscode/setWorkflowSourceEnabled';
+export const SetWorkflowExtensionSourcesExtensionMethod = 'vscode/setWorkflowExtensionSources';
+export const WorkflowRunChangedExtensionMethod = 'vscode/workflowRunChanged';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
@@ -28,17 +38,19 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
+	readonly [AgentWorkflowCapabilityMetaKey]?: true;
 }
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, workflows = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		...(workflows ? { [AgentWorkflowCapabilityMetaKey]: true as const } : {}),
 	};
 }
 
@@ -66,6 +78,11 @@ export const removeSessionArtifactParamsValidator = vObj({
 });
 
 export interface IAgentHostExtensionCommandMap {
+	[GetWorkflowRunExtensionMethod]: { params: { session: string }; result: { run?: WorkflowRun } };
+	[StartWorkflowExtensionMethod]: { params: IAgentHostWorkflowStartOptions; result: WorkflowRun };
+	[ControlWorkflowExtensionMethod]: { params: WorkflowControl; result: WorkflowRun };
+	[SetWorkflowSourceEnabledExtensionMethod]: { params: { sourceId: string; enabled: boolean }; result: void };
+	[SetWorkflowExtensionSourcesExtensionMethod]: { params: { sources: Readonly<Record<string, boolean>> }; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;

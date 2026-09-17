@@ -1,0 +1,40 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"$schema": "vscode://schemas/workflow-checkpoint/v1",
+	"id": "microsoft.vscode/write-release-notes",
+	"version": 1,
+	"label": "Write Release Notes",
+	"description": "Reported VS Code team release notes, eligible the following Monday at 09:00 in the user's saved timezone.",
+	"instructions": "Write or update the VS Code release notes for the bound merged pull request, using the checked test plan issue for validation context and installed release-note guidance when available. Use available approved file or repository tools and the team's existing release-note location and conventions; do not invent a destination or publish without existing permission. Save the notes and report their resource URI and a concise summary of what was written. The host waits until Monday at 09:00 following the intended test-plan Friday, in the same saved timeZone. Both dates come from the actual checked merge time, not when the test plan ran or completed. Overdue work is immediately eligible; do not choose a later week or sleep inside a turn. This completion is agent-reported: it does not independently verify that the notes exist, are accurate, or have been published. Missing tooling, access, or a known destination is a blocker, not success.",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"repository": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"pullRequest": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"mergedAt": { "type": "string", "minLength": 20, "maxLength": 35 },
+			"timeZone": { "type": "string", "format": "iana-time-zone", "minLength": 1, "maxLength": 256 },
+			"testPlanItem": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["repository", "pullRequest", "mergedAt", "timeZone", "testPlanItem"],
+		"additionalProperties": false
+	},
+	"startCondition": {
+		"check": "vscode.calendar/weekday-on-or-after@1",
+		"inputs": {
+			"anchor": { "input": "mergedAt" },
+			"timeZone": { "input": "timeZone" }
+		},
+		"options": { "weekday": 5, "hour": 9, "minute": 0, "offsetDays": 3 }
+	},
+	"proofSchema": {
+		"type": "object",
+		"properties": {
+			"summary": { "type": "string", "minLength": 1, "maxLength": 8192 },
+			"uri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["summary", "uri"],
+		"additionalProperties": false
+	},
+	"completion": { "kind": "reported" }
+}

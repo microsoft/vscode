@@ -9,9 +9,10 @@ import * as os from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkflowsEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
@@ -344,6 +345,26 @@ suite('AgentConfigurationService', () => {
 			permissions: { allow: [], deny: [] },
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('workflow rollout defaults off and does not restore a stale client enablement', async () => {
+		const directory = join(process.cwd(), '.build', `workflow-rollout-${generateUuid()}`);
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		try {
+			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const first = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+			first.updateRootConfig({ [AgentHostWorkflowsEnabledConfigKey]: true });
+			await first.whenIdle();
+			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restarted = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+			assert.deepStrictEqual({
+				defaultValue: platformRootSchema.definition[AgentHostWorkflowsEnabledConfigKey].protocol.default,
+				beforeRestart: first.getRootValue(platformRootSchema, AgentHostWorkflowsEnabledConfigKey),
+				afterRestart: restarted.getRootValue(platformRootSchema, AgentHostWorkflowsEnabledConfigKey),
+			}, { defaultValue: false, beforeRestart: true, afterRestart: undefined });
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('seeds provider configuration into the initial root snapshot', () => {

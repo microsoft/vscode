@@ -118,6 +118,81 @@ suite('SessionGroupsService', () => {
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), ['s1']);
 	});
 
+	test('workflow creates groups only when applying a completion and reuses existing groups', () => {
+		const session = createSession('workflow');
+		const existing = service.createGroup('Review');
+		const groupsBefore = service.getGroups().map(group => group.name);
+		service.applyWorkflowGroup(session, 'Review', 'run', 1);
+		const reused = service.getGroupOfSession(session.sessionId);
+		service.applyWorkflowGroup(session, 'Experiments', 'run', 2);
+
+		assert.deepStrictEqual({
+			groupsBefore,
+			reused,
+			groupsAfter: service.getGroups().map(group => group.name).sort(),
+			current: service.getGroup(service.getGroupOfSession(session.sessionId)!)?.name,
+		}, {
+			groupsBefore: ['Review'],
+			reused: existing.id,
+			groupsAfter: ['Experiments', 'Review'],
+			current: 'Experiments',
+		});
+	});
+
+	test('workflow hints are idempotent and stale hints stay inert across reload', () => {
+		const session = createSession('workflow');
+		service.applyWorkflowGroup(session, 'Experiments', 'run', 4);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const duplicate = reloaded.applyWorkflowGroup(session, 'Experiments', 'run', 4);
+		const stale = reloaded.applyWorkflowGroup(session, 'Review', 'run', 3);
+
+		assert.deepStrictEqual({
+			duplicate,
+			stale,
+			groups: reloaded.getGroups().map(group => group.name),
+		}, { duplicate: false, stale: false, groups: ['Experiments'] });
+	});
+
+	test('workflow does not override manual grouping even when the user reselects the same group', () => {
+		const session = createSession('workflow');
+		service.applyWorkflowGroup(session, 'Experiments', 'run', 1);
+		const groupId = service.getGroupOfSession(session.sessionId)!;
+		service.addToGroup(session.sessionId, groupId);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		reloaded.applyWorkflowGroup(session, 'Results', 'run', 2);
+
+		assert.deepStrictEqual({
+			group: reloaded.getGroupOfSession(session.sessionId),
+			groups: reloaded.getGroups().map(group => group.name),
+		}, { group: groupId, groups: ['Experiments'] });
+	});
+
+	test('workflow preserves manual groups, explicit ungrouping and archive without creating unused groups', () => {
+		const manual = createSession('manual');
+		const ungrouped = createSession('ungrouped');
+		const archived = createSession('archived', true);
+		const group = service.createGroup('Personal', [manual.sessionId, ungrouped.sessionId]);
+		service.removeFromGroup(ungrouped.sessionId);
+		for (const session of [manual, ungrouped, archived]) {
+			service.applyWorkflowGroup(session, 'Experiments', 'run', 1);
+		}
+
+		assert.deepStrictEqual({
+			groups: service.getGroups().map(group => group.name),
+			memberships: [manual, ungrouped, archived].map(session => service.getGroupOfSession(session.sessionId)),
+		}, { groups: ['Personal'], memberships: [group.id, undefined, undefined] });
+	});
+
+	test('workflow default placement survives transient provider disappearance', () => {
+		const session = createSession('workflow');
+		service.applyWorkflowGroup(session, 'Review', 'run', 1);
+		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
+		service.applyWorkflowGroup(session, 'Experiments', 'run', 2);
+
+		assert.strictEqual(service.getGroup(service.getGroupOfSession(session.sessionId)!)?.name, 'Experiments');
+	});
+
 	test('copies the creator group once when a created session is added', () => {
 		const creator = createSession('creator');
 		const createdSession = createSession('created', false, creator.resource);

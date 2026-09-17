@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostWorkflowService } from '../../node/workflow/agentHostWorkflowService.js';
+import { createTestWorkflowService, workflowStoreRun } from './testWorkflowService.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -22,6 +24,7 @@ import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributi
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readWorkflowMessagePresentation, toWorkflowMessageMeta } from '../../common/meta/agentWorkflowMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -789,7 +792,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string; readonly workflows: IAgentHostWorkflowService } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -860,8 +863,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		sendTurnMessage: () => observed?.push('queueDrain'),
 	};
 	disposables.add(service.registerHost(host));
+	const workflows = createTestWorkflowService({ onTurnEnd: () => observed?.push('workflow') });
+	services.set(IAgentHostWorkflowService, workflows);
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test' };
+	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test', workflows };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1308,7 +1313,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, observed);
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
-		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'workflow', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
 	test('reconciles GitHub references after every started turn outcome', () => {
@@ -1626,6 +1631,77 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd(turnEnd('throwing'));
 
 		assert.deepStrictEqual(calls, ['following']);
+	});
+
+	test('persists workflow presentation without changing the provider prompt and restores provider turn aliases', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const presentation = { kind: 'workflow', workflowLabel: 'Feature', checkpointLabel: 'Draft PR Ready', reason: 'repair' } as const;
+		const message: Message = {
+			text: '[Checkpoint instructions]\n\nFull original instructions',
+			origin: { kind: MessageKind.SystemNotification },
+			_meta: toWorkflowMessageMeta({ runId: 'run', assignmentId: 'assignment', turnId: 'host-turn' }, presentation),
+		};
+		const outgoing = await contributions.service.outgoingTurn({ session: contributions.session, chat, turnId: 'host-turn', message });
+		await contributions.database.setTurnEventId('host-turn', 'provider-turn');
+		contributions.workflows.getWorkflowRun = async () => { throw new Error('Runtime recovery failed'); };
+		const turns = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat },
+			['host-turn', 'provider-turn', 'ordinary-user'].map(id => ({
+				...hydrationTurn(id),
+				message: { text: message.text, origin: { kind: MessageKind.User }, _meta: { unrelated: true } },
+			})),
+		);
+		assert.deepStrictEqual({
+			prompt: outgoing.message.text,
+			turns: turns.map(turn => ({
+				id: turn.id, text: turn.message.text, origin: turn.message.origin.kind,
+				presentation: readWorkflowMessagePresentation(turn.message), unrelated: turn.message._meta?.unrelated,
+			})),
+		}, {
+			prompt: message.text,
+			turns: [
+				{ id: 'host-turn', text: message.text, origin: MessageKind.SystemNotification, presentation, unrelated: true },
+				{ id: 'provider-turn', text: message.text, origin: MessageKind.SystemNotification, presentation, unrelated: true },
+				{ id: 'ordinary-user', text: message.text, origin: MessageKind.User, presentation: undefined, unrelated: true },
+			],
+		});
+	});
+
+	test('backfills only recorded legacy checkpoint turns in the owning chat', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const run = { ...workflowStoreRun(contributions.session), firstTurns: { plan: 'first-turn' } };
+		contributions.workflows.getWorkflowRun = async () => run;
+		await contributions.database.setTurnEventId('first-turn', 'provider-turn');
+		const input = ['provider-turn', 'ordinary-user'].map(hydrationTurn);
+		const restored = await contributions.service.hydrateTurns({ session: run.session, chat: run.chat }, input);
+		const peer = await contributions.service.hydrateTurns({ session: run.session, chat: buildChatUri(run.session, 'peer') }, input);
+		assert.deepStrictEqual({
+			restored: restored.map(turn => ({ origin: turn.message.origin.kind, presentation: readWorkflowMessagePresentation(turn.message) })),
+			peer: peer.map(turn => ({ origin: turn.message.origin.kind, presentation: readWorkflowMessagePresentation(turn.message) })),
+		}, {
+			restored: [
+				{ origin: MessageKind.SystemNotification, presentation: { kind: 'workflow', workflowLabel: run.snapshot.label, checkpointLabel: run.snapshot.checkpoints[0].label } },
+				{ origin: MessageKind.User, presentation: undefined },
+			],
+			peer: [
+				{ origin: MessageKind.User, presentation: undefined },
+				{ origin: MessageKind.User, presentation: undefined },
+			],
+		});
+	});
+
+	test('does not persist workflow-looking user messages as automated requests', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		await contributions.service.outgoingTurn({
+			session: contributions.session, chat: buildDefaultChatUri(contributions.session), turnId: 'user-turn',
+			message: {
+				text: 'Work on the Plan checkpoint',
+				origin: { kind: MessageKind.User },
+				_meta: toWorkflowMessageMeta(undefined, { kind: 'workflow', workflowLabel: 'Feature', checkpointLabel: 'Plan' }),
+			},
+		});
+		assert.deepStrictEqual([...(await contributions.database.getTurnRequestSources()).entries()], []);
 	});
 
 	test('isolates a throwing action contribution', () => {

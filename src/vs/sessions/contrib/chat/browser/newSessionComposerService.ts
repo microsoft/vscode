@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, SessionWorkflowSelection } from '../../../services/sessions/common/sessionsProvider.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 
@@ -66,6 +66,9 @@ export interface INewSessionComposer {
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly hasInput?: boolean;
 	readonly canApplyWorkspaceDefault?: boolean;
+	readonly supportsWorkflows?: boolean;
+	selectWorkflow?(selection?: SessionWorkflowSelection): Promise<void>;
+	setWorkflowSelection?(selection: SessionWorkflowSelection): void;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
 	setPromptOptionsController?(controller: INewSessionPromptOptionsController): void;

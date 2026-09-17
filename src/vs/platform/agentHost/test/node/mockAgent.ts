@@ -3,13 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../base/common/async.js';
+import { raceCancellationError, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { toAgentWorkflowCapabilityMeta } from '../../common/meta/agentWorkflowMeta.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { WorkflowObject } from '../../../workflow/common/workflow.js';
+import { validateWorkflowObject } from '../../../workflow/common/workflowValidation.js';
+import { WorkflowToolName } from '../../node/workflow/workflowServerTools.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
@@ -30,8 +38,8 @@ function uriKey(session: URI): string {
 	return `${session.scheme}://${session.authority}${session.path}${session.query ? '?' + session.query : ''}${session.fragment ? '#' + session.fragment : ''}`;
 }
 
-function mockProject(provider: AgentProvider) {
-	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
+function mockProject(provider: AgentProvider, workspacePath?: string) {
+	return { uri: workspacePath ? URI.file(workspacePath) : URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
 }
 
 function mockWorkspacePath(relativePath: string): string {
@@ -147,7 +155,10 @@ export class MockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: this._capabilities };
+		return {
+			provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: this._capabilities,
+			...(this.agentHostCapabilities.workflows ? { _meta: toAgentWorkflowCapabilityMeta(true) } : {}),
+		};
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -498,13 +509,16 @@ export class MockAgent implements IAgent {
  */
 export const PRE_EXISTING_SESSION_URI = AgentSession.uri('mock', 'pre-existing-session');
 
-export class ScriptedMockAgent implements IAgent {
-	private readonly _discoveredChatsEmitter = new Emitter<readonly IAgentDiscoveredChat[]>();
+/** A single-line task suffix containing {"proofs":{"checkpointId":{...}},"delayMs":0} exercises real host workflow tools. */
+export const MOCK_WORKFLOW_TASK_PREFIX = 'mock-workflow:';
+
+export class ScriptedMockAgent extends Disposable implements IAgent {
+	private readonly _discoveredChatsEmitter = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
 	readonly onDidDiscoverChats = this._discoveredChatsEmitter.event;
 	readonly id: AgentProvider = 'mock';
-	readonly agentHostCapabilities = { workspaceConversion: false } as const;
+	readonly agentHostCapabilities = { workspaceConversion: false, workflows: true } as const;
 
-	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
+	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	readonly onDidMaterializeChat = Event.None;
 	readonly onDidChangeChatData = Event.None;
@@ -513,6 +527,8 @@ export class ScriptedMockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
+	private readonly _workflowTasks = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private _serverToolHost: IAgentServerToolHost | undefined;
 
 	/**
 	 * Message history for the pre-existing session: a single user→assistant
@@ -532,7 +548,8 @@ export class ScriptedMockAgent implements IAgent {
 	// Track pending abort callbacks for slow responses
 	private readonly _pendingAborts = new Map<string, () => void>();
 
-	constructor() {
+	constructor(private readonly _workspacePath: string | undefined = process.env['VSCODE_AGENT_HOST_MOCK_WORKSPACE']) {
+		super();
 		// Seed the pre-existing session so it appears in listSessions()
 		this._sessions.set(AgentSession.id(PRE_EXISTING_SESSION_URI), PRE_EXISTING_SESSION_URI);
 		queueMicrotask(() => {
@@ -560,7 +577,14 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+		return {
+			provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent',
+			_meta: toAgentWorkflowCapabilityMeta(this.agentHostCapabilities.workflows),
+		};
+	}
+
+	setServerToolHost(host: IAgentServerToolHost): void {
+		this._serverToolHost = host;
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -576,7 +600,7 @@ export class ScriptedMockAgent implements IAgent {
 			chat: URI.parse(buildDefaultChatUri(session)),
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
-			project: mockProject(this.id),
+			project: mockProject(this.id, this._workspacePath),
 			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
 		}));
 	}
@@ -594,7 +618,7 @@ export class ScriptedMockAgent implements IAgent {
 			session,
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
-			project: mockProject(this.id),
+			project: mockProject(this.id, this._workspacePath),
 			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
 		}));
 	}
@@ -609,20 +633,20 @@ export class ScriptedMockAgent implements IAgent {
 			chat,
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
-			project: mockProject(this.id),
+			project: mockProject(this.id, this._workspacePath),
 			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
 		};
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		return this._sessions.has(AgentSession.id(session))
-			? { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined }
+			? { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id, this._workspacePath), summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined }
 			: undefined;
 	}
 
 	private _createSessionRecord(session: URI): IAgentCreateChatResult {
 		this._sessions.set(AgentSession.id(session), session);
-		return { project: mockProject(this.id) };
+		return { project: mockProject(this.id, this._workspacePath) };
 	}
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
@@ -679,6 +703,13 @@ export class ScriptedMockAgent implements IAgent {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 			this._activeTurnIds.set(uriKey(chat), turnId);
+		}
+		if (prompt.startsWith('[Checkpoint instructions]\n\n') || prompt.includes(MOCK_WORKFLOW_TASK_PREFIX)) {
+			if (!turnId) {
+				throw new Error('Scripted workflows require a host-issued turn identity');
+			}
+			await this._sendWorkflowScript(session, chat, turnId);
+			return;
 		}
 		const { sessionStr, turnId: tid } = this._ctx(chat);
 		switch (prompt) {
@@ -1074,11 +1105,77 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async abortSession(session: URI): Promise<void> {
+		this._workflowTasks.get(session.toString())?.cancel();
 		const callback = this._pendingAborts.get(session.toString());
 		if (callback) {
 			this._pendingAborts.delete(session.toString());
 			callback();
 		}
+	}
+
+	private async _sendWorkflowScript(session: URI, chat: URI, turnId: string): Promise<void> {
+		const key = session.toString();
+		this._workflowTasks.get(key)?.cancel();
+		const cancellation = new CancellationTokenSource();
+		this._workflowTasks.set(key, cancellation);
+		try {
+			const context = await this._executeWorkflowTool(session, chat, turnId, WorkflowToolName.GetCheckpoint, {}, cancellation.token);
+			if (typeof context.task !== 'string' || !context.task.startsWith(MOCK_WORKFLOW_TASK_PREFIX)) {
+				throw new Error('Scripted workflows require a mock-workflow task from get_checkpoint');
+			}
+			const scenario: unknown = JSON.parse(context.task.slice(MOCK_WORKFLOW_TASK_PREFIX.length));
+			validateWorkflowObject(scenario);
+			validateWorkflowObject(scenario.proofs);
+			const delayMs = scenario.delayMs;
+			if (Object.keys(scenario).some(key => key !== 'proofs' && key !== 'delayMs')
+				|| delayMs !== undefined && (typeof delayMs !== 'number' || !Number.isSafeInteger(delayMs) || delayMs < 0 || delayMs > 60_000)) {
+				throw new Error('Scripted workflows accept proofs and an optional delayMs between 0 and 60000');
+			}
+			validateWorkflowObject(context.checkpoint);
+			if (typeof context.checkpoint.id !== 'string') {
+				throw new Error('The host did not return an assigned workflow checkpoint');
+			}
+			const proof = scenario.proofs[context.checkpoint.id];
+			validateWorkflowObject(proof);
+			await timeout(delayMs ?? 0, cancellation.token);
+			const result = await this._executeWorkflowTool(session, chat, turnId, WorkflowToolName.ProveCheckpoint, { proof }, cancellation.token);
+			if (typeof result.kind !== 'string' || !['accepted', 'waiting', 'rejected', 'blocked', 'stale_assignment'].includes(result.kind)) {
+				throw new Error('The host returned an invalid workflow proof result');
+			}
+			this._onDidChatProgress.fire(_markdown(chat, key, turnId, `Mock checkpoint proof: ${result.kind}.`));
+			this._onDidChatProgress.fire(_idle(chat, key, turnId));
+		} finally {
+			if (this._workflowTasks.get(key) === cancellation) {
+				this._workflowTasks.deleteAndDispose(key);
+			}
+		}
+	}
+
+	private async _executeWorkflowTool(session: URI, chat: URI, turnId: string, name: string, args: WorkflowObject, token: CancellationToken): Promise<WorkflowObject> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const host = this._serverToolHost;
+		if (!host) {
+			throw new Error('Scripted workflow tools are unavailable');
+		}
+		const invocation = { turnId, toolCallId: `${turnId}-${name}` };
+		if (host.requiresConfirmation(chat.toString(), name, invocation)) {
+			throw new Error('Scripted workflows cannot bypass tool confirmation');
+		}
+		for (const signal of _toolStart(chat, session.toString(), turnId, invocation.toolCallId, name, name, name, { toolInput: JSON.stringify(args) })) {
+			this._onDidChatProgress.fire(signal);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const text = await raceCancellationError(Promise.resolve(host.executeTool(chat.toString(), name, args, invocation)), token);
+		const result: unknown = JSON.parse(text);
+		validateWorkflowObject(result);
+		this._onDidChatProgress.fire(_toolComplete(chat, session.toString(), turnId, invocation.toolCallId, {
+			pastTenseMessage: name, content: [{ type: ToolResultContentType.Text, text }], success: true,
+		}));
+		return result;
 	}
 
 	async changeModel(_session: URI, _model: ModelSelection): Promise<void> {
@@ -1171,9 +1268,11 @@ export class ScriptedMockAgent implements IAgent {
 
 	async shutdown(): Promise<void> { }
 
-	dispose(): void {
-		this._discoveredChatsEmitter.dispose();
-		this._onDidChatProgress.dispose();
+	override dispose(): void {
+		for (const cancellation of this._workflowTasks.values()) {
+			cancellation.cancel();
+		}
+		super.dispose();
 	}
 
 	/**

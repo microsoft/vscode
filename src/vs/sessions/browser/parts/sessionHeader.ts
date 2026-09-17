@@ -44,6 +44,7 @@ export class SessionHeader extends Disposable {
 	private readonly _titleEl: HTMLElement;
 	private readonly _titleTextEl: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
+	private readonly _trailingToolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
 
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -133,6 +134,13 @@ export class SessionHeader extends Disposable {
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
+		}));
+		const trailingToolbarContainer = $('.chat-composite-bar-toolbar.chat-composite-bar-toolbar-trailing');
+		titleActions.appendChild(trailingToolbarContainer);
+		this._trailingToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, trailingToolbarContainer, Menus.SessionBarToolbarTrailing, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
 		}));
 
 		// Report height changes so the host can re-layout.
@@ -227,6 +235,7 @@ export class SessionHeader extends Disposable {
 		this._cancelTitleEditing();
 		this._session = session;
 		this._toolbar.context = session;
+		this._trailingToolbar.context = session;
 		this._statusIcon.reset();
 
 		const store = new DisposableStore();
@@ -426,6 +435,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
+	private readonly _trailingToolbar: MenuWorkbenchToolBar;
 	private _session: IActiveSession | undefined;
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
 
@@ -449,6 +459,13 @@ export class SessionViewFloatingToolbar extends Disposable {
 			highlightToggledItems: true,
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
+		const trailingToolbar = $('.chat-composite-bar-toolbar.chat-composite-bar-toolbar-trailing');
+		this._container.appendChild(trailingToolbar);
+		this._trailingToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, trailingToolbar, Menus.SessionBarToolbarTrailing, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { shouldForwardArgs: true },
+			highlightToggledItems: true,
+		}));
 
 		this._setVisible(false);
 	}
@@ -459,6 +476,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
+		this._trailingToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;

@@ -28,6 +28,7 @@ import { EditSuggestionId } from '../../../../../editor/common/textModelEditSour
 import { localize } from '../../../../../nls.js';
 import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
+import type { WorkflowMessagePresentation } from '../../../../../platform/workflow/common/workflowMessage.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
@@ -120,7 +121,7 @@ export namespace IChatRequestVariableData {
 }
 
 /** A feature that submits a chat request on the user's behalf. */
-export type ChatRequestSource = 'agentMerge';
+export type ChatRequestSource = 'agentMerge' | WorkflowMessagePresentation;
 
 /** Backfills the source of legacy Agent Merge requests when restoring history. */
 export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'requestSource' | 'isSystemInitiated' | 'systemInitiatedLabel'>, messageText: string): ChatRequestSource | undefined {

@@ -133,6 +133,8 @@ import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PR
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
+import { SessionWorkflowSelection } from '../../../services/sessions/common/sessionsProvider.js';
+import { validateWorkflowSnapshot } from '../../../../platform/workflow/common/workflowValidation.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -445,7 +447,30 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	get hasInput(): boolean {
-		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0;
+		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0
+			|| !!this.options.workflow?.selection.get() || !!this.options.workflow?.error?.get();
+	}
+
+	get supportsWorkflows(): boolean {
+		return this.options.workflow?.enabled.get() ?? false;
+	}
+
+	async selectWorkflow(selection?: SessionWorkflowSelection): Promise<void> {
+		if (!this.options.workflow?.enabled.get()) {
+			throw new Error(localize('workflowUnavailable', "This composer does not support workflows."));
+		}
+		await this.options.workflow.select(selection);
+	}
+
+	setWorkflowSelection(selection: SessionWorkflowSelection): void {
+		if (!this.options.workflow?.enabled.get()) {
+			throw new Error(localize('workflowUnavailable', "This composer does not support workflows."));
+		}
+		validateWorkflowSnapshot(selection.snapshot);
+		if (!selection.snapshot.checkpoints.some(checkpoint => checkpoint.id === selection.stopAfter)) {
+			throw new Error(localize('workflowUnknownStop', "The selected stopping point does not belong to this workflow."));
+		}
+		this.options.workflow.setSelection(selection);
 	}
 
 	get canApplyWorkspaceDefault(): boolean {
@@ -477,6 +502,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Send button
 	private _sendButton: Button | undefined;
+	private _sendButtonHover = '';
 	private _sending = false;
 
 	// Loading state
@@ -514,6 +540,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			session: IObservable<IActiveSession | undefined>;
 			getContextFolderUri: () => URI | undefined;
 			getContextPickerActions?: () => readonly IWorkspacePickerContextAction[];
+			workflow?: {
+				readonly enabled: IObservable<boolean>;
+				readonly selection: IObservable<SessionWorkflowSelection | undefined>;
+				readonly error?: IObservable<string | undefined>;
+				readonly unavailableReason?: IObservable<string | undefined>;
+				readonly select: (selection?: SessionWorkflowSelection) => Promise<void>;
+				readonly setSelection: (selection: SessionWorkflowSelection) => void;
+				readonly clear: () => void;
+			};
 			getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
 			getWorkspaceSelection?: () => IWorkspaceSelectionSnapshot;
 			onDidChangeWorkspaceSelection?: Event<void>;
@@ -574,6 +609,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		super();
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {}));
 		this._canSendRequest = derived(this, reader => {
+			if (this.options.workflow?.error?.read(reader)
+				|| this.options.workflow?.selection.read(reader) && !this.options.workflow.enabled.read(reader)) {
+				return false;
+			}
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
 			}
@@ -609,6 +648,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 		this._register(autorun(reader => {
 			this._canSendRequest.read(reader);
+			this._modelSelection.state.read(reader);
+			this.options.workflow?.selection.read(reader);
+			this.options.workflow?.error?.read(reader);
+			this.options.workflow?.unavailableReason?.read(reader);
 			this.options.hasAdditionalSendContent?.read(reader);
 			const isLoading = this.options.loading.read(reader);
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
@@ -726,6 +769,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
+		const updateAttachmentRowVisibility = () => attachRow.classList.toggle('empty', attachedContextContainer.childElementCount === 0);
+		this._register(this._contextAttachments.onDidChangeContext(updateAttachmentRowVisibility));
+		updateAttachmentRowVisibility();
 		const updateAttachmentOffset = () => {
 			if (isPhoneLayout(this.layoutService)) {
 				parent.style.removeProperty('top');
@@ -1135,14 +1181,21 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		attachButton.tabIndex = 0;
 		attachButton.role = 'button';
 		attachButton.ariaLabel = attachButtonLabel;
-		this._register(this.hoverService.setupDelayedHover(attachButton, {
+		this._register(this.hoverService.setupDelayedHover(attachButton, () => ({
 			content: attachButtonLabel,
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
-		}));
+		})));
 		dom.append(attachButton, renderIcon(Codicon.addCompact));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._showContextPicker();
+		}));
+		this._register(dom.addDisposableListener(attachButton, dom.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				event.stopPropagation();
+				this._showContextPicker();
+			}
 		}));
 	}
 
@@ -1238,12 +1291,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
 			const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
 				secondary: true,
-				title: this.options.supportsBackground
-					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-					: localize('send', "Send"),
+				title: false,
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
+			this._register(this.hoverService.setupDelayedHover(sendButtonContainer, () => ({ content: this._sendButtonHover })));
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
@@ -1577,7 +1629,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		notifyDictationSubmitted(this._editor);
 
 		const session = this.options.session.get();
-		if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
+		if (!hasAdditionalSendContent && !this.options.workflow?.selection.get() && session && await this.chatSubmitRequestHandlerService.tryHandle({
 			sessionResource: session.resource,
 			providerId: session.providerId,
 			sessionId: session.sessionId,
@@ -1597,7 +1649,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
 		}
-		this._clearDraftState();
+		const startsWorkflow = !!this.options.workflow?.selection.get();
+		if (!startsWorkflow) {
+			this._clearDraftState();
+		}
 
 		this._sending = true;
 		this._editor.updateOptions({ readOnly: true });
@@ -1609,6 +1664,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sent = await this.options.sendRequest({ query: request, attachments: attachedContext, background });
 			if (!sent) {
 				return false;
+			}
+			if (startsWorkflow) {
+				this._clearDraftState();
 			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
 			this._contextAttachments.clear();
@@ -1645,9 +1703,60 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
+		const hasWorkflow = !!this.options.workflow?.selection.get() || !!this.options.workflow?.error?.get();
+		this._sendButton.element.classList.toggle('workflow-start', hasWorkflow);
+		this._sendButton.element.parentElement?.classList.toggle('has-workflow', hasWorkflow);
+		this._sendButton.label = hasWorkflow ? localize('startWorkflow', "Start Workflow") : '';
+		if (hasWorkflow) {
+			this._sendButton.element.classList.remove(...ThemeIcon.asClassNameArray(Codicon.arrowUpCompact));
+		} else {
+			this._sendButton.icon = Codicon.arrowUpCompact;
+		}
+		this._sendButton.element.setAttribute('aria-label', hasWorkflow ? localize('startWorkflow', "Start Workflow") : localize('send', "Send"));
+		const hasContent = hasSendableNewChatContent(this._editor?.getModel()?.getValue() ?? '', this._contextAttachments.attachments, hasAdditionalSendContent);
 		this._sendButton.enabled = !this._sending
-			&& hasSendableNewChatContent(this._editor?.getModel()?.getValue() ?? '', this._contextAttachments.attachments, hasAdditionalSendContent)
+			&& hasContent
 			&& this._canSendRequest.get();
+		if (hasWorkflow && !this._sendButton.enabled) {
+			this._sendButton.element.tabIndex = 0;
+		}
+		this._sendButtonHover = hasWorkflow
+			? this._sendButton.enabled
+				? localize('startWorkflowHint', "Start the workflow. Adjust its stopping point and provide any missing inputs in the checkpoint list.")
+				: this._getWorkflowStartDisabledReason(hasContent)
+			: this.options.supportsBackground ? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)") : localize('send', "Send");
+		this._sendButton.element.setAttribute('aria-description', this._sendButtonHover);
+	}
+
+	private _getWorkflowStartDisabledReason(hasContent: boolean): string {
+		const error = this.options.workflow?.error?.get();
+		if (error) {
+			return error;
+		}
+		if (this._sending) {
+			return localize('workflowStarting', "The workflow is starting.");
+		}
+		if (!hasContent) {
+			return localize('workflowTaskRequired', "Enter a prompt or add context to describe the workflow task.");
+		}
+		if (this.options.loading.get()) {
+			return localize('workflowSessionLoading', "The session is still initializing. Start Workflow will be available when it is ready.");
+		}
+		const unavailable = this.options.workflow?.unavailableReason?.get();
+		if (unavailable) {
+			return unavailable;
+		}
+		if (!this.options.workflow?.enabled.get()) {
+			return localize('workflowDisabled', "Workflows are disabled. Remove the workflow to send a regular message.");
+		}
+		const modelState = this._modelSelection.state.get();
+		if (modelState.pendingSelection) {
+			return localize('workflowModelPending', "The selected model is not available yet. Wait for it to load or choose another model.");
+		}
+		if (!hasSendableModelSelection(modelState)) {
+			return localize('workflowModelRequired', "Choose an available model to start the workflow.");
+		}
+		return localize('workflowSessionNotReady', "The selected session is not ready. Choose an available workspace and provider.");
 	}
 
 	private _restoreState(): void {

@@ -100,7 +100,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),
 			},
 		];
-		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
+		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService, agentHostService.onAgentHostStart));
 
 		this._register(autorun(reader => {
 			if (this._agentHostEnablementService.enabled.read(reader)) {

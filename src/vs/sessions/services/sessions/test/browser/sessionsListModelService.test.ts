@@ -15,6 +15,7 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/s
 import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { WorkflowProgress } from '../../../../../platform/workflow/common/workflow.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI }): ISession {
 	return {
@@ -83,6 +84,28 @@ suite('SessionsListModelService', () => {
 			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
 			read: { id: Codicon.gitPullRequest.id, color: undefined },
 		});
+	});
+
+	test('workflow progress stays quiet while explicit user activity advances updated sorting', () => {
+		const workflow = observableValue<WorkflowProgress | undefined>('workflow', {
+			runId: 'run', label: 'Feature', checkpointId: 'experiment', checkpointLabel: 'Experiment started',
+			position: 9, total: 10, completed: 8, status: 'waiting', needsAttention: false, revision: 1,
+			activityAt: 100,
+		});
+		const updatedAt = observableValue('updatedAt', new Date(200));
+		const session: ISession = { ...createSession('workflow'), updatedAt, workflow };
+		const initial = service.getNaturalSortKey(session, 'updated');
+		updatedAt.set(new Date(500), undefined);
+		workflow.set({ ...workflow.get()!, revision: 2, reason: 'Waiting for a release' }, undefined);
+		const afterAutomaticProgress = service.getNaturalSortKey(session, 'updated');
+		workflow.set({ ...workflow.get()!, activityAt: 600, revision: 3 }, undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			afterAutomaticProgress,
+			afterUserActivity: service.getNaturalSortKey(session, 'updated'),
+			providerTimestamp: updatedAt.get().getTime(),
+		}, { initial: 100, afterAutomaticProgress: 100, afterUserActivity: 600, providerTimestamp: 500 });
 	});
 
 	// -- Pinning --

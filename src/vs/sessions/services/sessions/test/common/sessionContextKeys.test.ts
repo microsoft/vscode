@@ -12,11 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionHasWorkflowContext, SessionIsActiveContext, SessionSupportsSideChatContext, SessionSupportsWorkflowsContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { WorkflowProgress } from '../../../../../platform/workflow/common/workflow.js';
 
 function createSession(hasGitRepository: ISettableObservable<boolean>): ISession {
 	return upcastPartial<ISession>({
@@ -81,6 +82,27 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId'>)
 
 suite('Session Context Keys', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('workflow availability and attachment are scoped independently of the active session', () => {
+		const progress = observableValue<WorkflowProgress | undefined>('workflow', undefined);
+		const supported = stubSession({
+			sessionId: 'supported', capabilities: constObservable({ supportsMultipleChats: true, supportsWorkflows: true }), workflow: progress,
+		});
+		const unsupported = stubSession({ sessionId: 'unsupported' });
+		const firstContext = new MockContextKeyService();
+		const secondContext = new MockContextKeyService();
+		store.add(autorun(reader => setSessionContextKeys(supported, firstContext, reader)));
+		store.add(autorun(reader => setSessionContextKeys(unsupported, secondContext, reader)));
+		progress.set({
+			runId: 'run', label: 'Feature', checkpointId: 'plan', checkpointLabel: 'Plan',
+			position: 1, total: 2, completed: 0, status: 'running', needsAttention: false, revision: 1, activityAt: 1,
+		}, undefined);
+
+		assert.deepStrictEqual([firstContext, secondContext].map(context => ({
+			supported: context.getContextKeyValue(SessionSupportsWorkflowsContext.key),
+			attached: context.getContextKeyValue(SessionHasWorkflowContext.key),
+		})), [{ supported: true, attached: true }, { supported: false, attached: false }]);
+	});
 
 	test('publishes Git availability independently to scoped context key services', () => {
 		const firstHasGit = observableValue('firstHasGit', false);

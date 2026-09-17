@@ -22,6 +22,10 @@ import { AgentHostChatCompletionProvider } from './agentHostChatCompletionProvid
 import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from './chatContributions/builtInChatContributions.js';
+import { IAgentService } from '../common/agentService.js';
+import { IAgentHostWorkflowService } from './workflow/agentHostWorkflowService.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ActionType } from '../common/state/sessionActions.js';
 
 export function activateAgentHostContributions(accessor: ServicesAccessor, instantiationService: IInstantiationService): DisposableStore {
 	const store = new DisposableStore();
@@ -47,6 +51,22 @@ export function activateAgentHostContributions(accessor: ServicesAccessor, insta
 			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
 		)));
 		store.add(registerBuiltInChatContributions(accessor.get(IAgentHostChatContributions)));
+		const agentService = accessor.get(IAgentService);
+		const workflowClientId = generateUuid();
+		let workflowClientSequence = 0;
+		store.add(accessor.get(IAgentHostWorkflowService).activate({
+			restore: async (_session, chat) => {
+				const subscriber = generateUuid();
+				try {
+					await agentService.subscribe(chat, subscriber);
+				} finally {
+					agentService.unsubscribe(chat, subscriber);
+				}
+			},
+			cancel: (chat, turnId) => agentService.dispatchAction(chat, {
+				type: ActionType.ChatTurnCancelled, turnId, duration: 0,
+			}, workflowClientId, ++workflowClientSequence),
+		}));
 		return store;
 	} catch (error) {
 		store.dispose();

@@ -47,6 +47,8 @@ Bootstrap creates the pre-DI foundation, awaits telemetry, registers lazy descri
 
 Tests use the same synchronous foundation, core registrations, and composition, but supply telemetry directly, apply typed overrides after registering core defaults, skip production host services, and use a mutable worktree seam whose default delegate is `NullAgentHostWorktreeIsolation`.
 
+The foundation owns the global `IAgentHostDatabase`. Services consume its facets through DI rather than opening another connection or owning the database themselves. Workflow runs share its session registry, migrations, revision-checked writes, and atomic session tombstones.
+
 ## Where does a new object go?
 
 | If the object... | Put it in | Construction |
@@ -57,7 +59,8 @@ Tests use the same synchronous foundation, core registrations, and composition, 
 | needs a back-reference to `AgentService` | `agentServiceComposition.ts` | explicit callback seam |
 | observes or enriches chat turns, actions, hydration, or outgoing messages | `chatContributions/` | implement `IAgentHostChatContribution` and register it in `registerBuiltInChatContributions` |
 | registers non-chat providers, handlers, listeners, or other disposable behavior after construction | `agentHostContributions.ts` | create and immediately register in its returned store |
-| starts transports, providers, recurring schedulers, or process listeners | entry point | activation after runtime creation |
+| starts transports, providers, or process listeners | entry point | activation after runtime creation |
+| schedules feature-specific background work using the completed chat graph | `agentHostContributions.ts` | explicit activation with a disposable lifetime |
 
 `IAgentHostProviderService` is the core service that owns provider registration, routing, lifetime, and provider-wide diagnostics aggregation. A successful `registerProvider` call transfers disposal ownership to that service.
 
@@ -91,6 +94,18 @@ Dynamic feature registration belongs in a service-owned registry or the contribu
 | entry point | transports, process listeners, providers, schedulers |
 
 Never add a descriptor-created service to another `DisposableStore`. `AgentHostRuntime` tears phases down explicitly: contributions, composition, instantiation service, then foundation. Entry-point resources and logging are disposed outside the runtime.
+
+Workflow scheduling activates after all built-in chat contributions have registered. Its activation is stopped before the service graph and database are disposed. Waiting runs retain only durable workflow state and lightweight projections, not provider sessions or chat transcripts; dispatch restores the addressed chat on demand. Workflow and Agent Merge cannot both own a session's automatic continuation, including at a stopped workflow boundary.
+
+Workflow source changes are serialized. Disabling a source revokes tool authority before asynchronous persistence and pausing; failed preference writes do not restore that authority. Re-enabling a source never resumes its runs.
+
+The host's workflow start options add normal message model/configuration, custom-agent, and attachment selections to the portable engine contract. These are saved atomically with the run and claimed by its first dispatch, including when the first checkpoint waits across a restart. Later assignments use the provider's normal model and persisted custom-agent selection. Durable workflow ownership marks the session used and publishes the ordinary `SessionAdded` notification before the first condition is checked, so draft GC cannot delete a waiting run and clients can complete normal draft graduation without a synthetic turn. SDK initialization remains lazy; a later materialization refreshes the committed catalog entry without adding it again.
+
+For a session committed before any SDK turn, the workflow facet also saves its host-owned initial summary and configuration. This metadata supplies the cold catalog and permits the normal session restorer to recreate the provisional backing on demand; listing and scheduling alone do not restore a transcript or SDK session. A claimed workflow send, an admitted user turn, or SDK materialization prevents replaying that bootstrap. Restore preserves newer persisted session configuration, and never grants filesystem scope from client-supplied workflow inputs. All cold catalog entries receive the current workflow progress projection without changing provider timestamps.
+
+Workflow ordering uses the durable `activityAt` projection, not provider modification timestamps. The workflow contribution observes admitted user turns from every client, including provider-promoted turns, and records the host arrival time through `WorkflowRunner.recordUserActivity`. Rejected requests, workflow turns, polling, and attention transitions do not advance that clock; ordinary chat timestamps are left intact.
+
+The experimental editor setting `chat.workflows.enabled` is mirrored to the host root key `workflowsEnabled`. This host-owned orchestration gate defaults off and is not restored from a stale client settings snapshot. Until an owner republishes it, recovery only indexes saved runs. Explicitly disabling it immediately revokes dispatch and proof authority, then durably pauses runs; re-enabling does not resume those paused runs. The `vscode.workflows` capability describes protocol support independently of the rollout setting. Clients require it on both initialize-result metadata and the selected `AgentInfo._meta`; descriptor metadata flows through ordinary `RootAgentsChanged` actions. SDK permissions remain authoritative.
 
 A descriptor that is never resolved is never constructed and therefore never disposed. `InstantiationService` disposes only instances it creates.
 

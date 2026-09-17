@@ -1,0 +1,30 @@
+{
+	"name": "workflow-experiments",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"categories": [
+		"Other"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	},
+	"contributes": {
+		"workflowCheckpointTypes": [
+			"./checkpoints/test-plan-item.checkpoint.jsonc",
+			"./checkpoints/write-release-notes.checkpoint.jsonc",
+			"./checkpoints/setup.checkpoint.jsonc",
+			"./checkpoints/started.checkpoint.jsonc",
+			"./checkpoints/analysed.checkpoint.jsonc"
+		],
+		"workflowTemplates": [
+			"./workflows/feature-with-experiment.workflow.jsonc"
+		]
+	}
+}

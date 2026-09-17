@@ -341,6 +341,10 @@
 	line-height: var(--vscode-spacing-size160);
 }
 
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot.empty .workflow-draft-picker {
+	border-style: dashed;
+}
+
 /* Re-assert the opaque surface, which the generic picker-slot hover below would
  * otherwise replace, and keep the tint on the background-image layer so it
  * composites over that surface. */
@@ -361,7 +365,8 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron,
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .workflow-draft-chevron {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 

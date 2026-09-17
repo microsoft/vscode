@@ -60,7 +60,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostChatSession, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -1302,6 +1302,100 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
 		});
 
+	});
+
+	suite('workflow message context', () => {
+		test('prepares normal model, agent and attachments without sending a turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-workflow-context' });
+			const chat = disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			assert.ok(isAgentHostChatSession(chat));
+			const file = URI.file('/workspace/feature.ts');
+			const image = VSBuffer.fromString('workflow screenshot');
+			const context = await chat.prepareMessageContext({
+				userSelectedModelId: 'agent-host-copilot:gpt-4o',
+				modelConfiguration: { thinkingLevel: 'high', contextSize: 272000 },
+				agent: { uri: 'file:///agents/planner.agent.md' },
+				attachments: [
+					upcastPartial({
+						kind: 'file', id: 'selection', name: 'feature.ts',
+						value: { uri: file, range: { startLineNumber: 3, startColumn: 2, endLineNumber: 4, endColumn: 7 } },
+						range: { start: 0, endExclusive: 4 },
+					}),
+					convertBufferToScreenshotVariable(image),
+				],
+			}, CancellationToken.None);
+			assert.deepStrictEqual({ context, sentTurns: agentHostService.turnActions.length, history: chat.history }, {
+				context: {
+					model: { id: 'gpt-4o', config: { thinkingLevel: 'high', contextSize: 272000 } },
+					agent: { uri: 'file:///agents/planner.agent.md' },
+					attachments: [
+						{
+							type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'feature.ts', displayKind: 'selection',
+							selection: { range: { start: { line: 2, character: 1 }, end: { line: 3, character: 6 } } },
+						},
+						{
+							type: MessageAttachmentKind.EmbeddedResource, label: 'Screenshot', displayKind: 'image',
+							data: encodeBase64(image), contentType: 'image/png',
+						},
+					],
+				},
+				sentTurns: 0, history: [],
+			});
+		});
+
+		test('observes the first host-assigned turn after context-only initialization', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-workflow-first-turn' });
+			const chat = disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			assert.ok(isAgentHostChatSession(chat));
+			await chat.prepareMessageContext({ attachments: [] }, CancellationToken.None);
+			const requests: string[] = [];
+			disposables.add(chat.onDidStartServerRequest!(request => requests.push(request.id)));
+			const channel = buildDefaultChatUri(AgentSession.uri('copilot', 'new-workflow-first-turn'));
+			agentHostService.fireAction({
+				channel,
+				action: {
+					type: ActionType.ChatTurnStarted, turnId: 'checkpoint-first-turn', startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'Complete the plan checkpoint', origin: { kind: MessageKind.SystemNotification } },
+				},
+				serverSeq: 1, origin: undefined,
+			});
+			await timeout(0);
+			assert.deepStrictEqual({ requests, sentTurns: agentHostService.turnActions.length }, { requests: ['checkpoint-first-turn'], sentTurns: 0 });
+		}));
+
+		test('does not initialize a workflow context when workspace trust is declined', async () => {
+			const { sessionHandler, agentHostService, trustController } = createContribution(disposables);
+			trustController.result = false;
+			const chat = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/new-workflow-untrusted' }), CancellationToken.None));
+			assert.ok(isAgentHostChatSession(chat));
+			await assert.rejects(chat.prepareMessageContext({ attachments: [] }, CancellationToken.None), { name: 'Canceled' });
+			assert.deepStrictEqual({ created: agentHostService.createSessionCalls.length, sent: agentHostService.turnActions.length }, { created: 0, sent: 0 });
+		});
+
+		test('preserves request configuration when using an eagerly-created workflow session', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'workflow-eager');
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState({
+					resource: backend.toString(), provider: 'copilot', title: 'Workflow',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			const chat = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/workflow-eager' }), CancellationToken.None));
+			assert.ok(isAgentHostChatSession(chat));
+			await chat.prepareMessageContext({
+				attachments: [], agentHostSessionConfig: { isolation: 'folder', autoApprove: 'default' },
+			}, CancellationToken.None);
+			assert.deepStrictEqual({
+				created: agentHostService.createSessionCalls.length, sent: agentHostService.turnActions.length,
+				config: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.SessionConfigChanged ? [entry.action.config] : []),
+			}, {
+				created: 0, sent: 0, config: [{ isolation: 'folder', autoApprove: 'default' }],
+			});
+		});
 	});
 
 	suite('response resource links', () => {

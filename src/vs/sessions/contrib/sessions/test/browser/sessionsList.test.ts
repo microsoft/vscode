@@ -30,6 +30,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { WorkflowProgress } from '../../../../../platform/workflow/common/workflow.js';
+import { getWorkflowProgress } from '../../../../../platform/workflow/common/workflowProgress.js';
+import { testWorkflowRun } from '../../../../../workbench/contrib/workflows/test/common/workflowTestData.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -1665,6 +1668,44 @@ suite('Sessions - SessionsList', () => {
 				healthy: 'codicon-git-pull-request',
 			});
 		});
+	});
+
+	suite('workflow checkpoint captions', () => {
+		for (const flat of [false, true]) {
+			test(`names only the last dispatched checkpoint in ${flat ? 'flat' : 'main'} rows`, () => {
+				const progress = getWorkflowProgress(testWorkflowRun());
+				const workflow = observableValue<WorkflowProgress | undefined>('workflow', progress);
+				const testSession = createTestSession('Workflow');
+				const session: ISession = { ...testSession.session, workflow };
+				const harness = createListHarness(disposables, [session]);
+				const container = harness.createContainer();
+				const list = flat
+					? harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }))
+					: harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+					}));
+				if (list instanceof SessionsFlatList) {
+					list.setSessions([session]);
+				}
+				list.layout(300, 400);
+				const caption = () => container.querySelector('.session-description')?.textContent;
+				const captions = [caption()];
+				workflow.set({ ...progress, checkpointLabel: 'Implementation', status: 'waiting' }, undefined);
+				testSession.status.set(SessionStatus.NeedsInput, undefined);
+				captions.push(caption());
+				workflow.set({ ...progress, lastDispatchedCheckpointLabel: 'Implementation' }, undefined);
+				captions.push(caption());
+				const needsInput = container.querySelector('.session-item')?.classList.contains('needs-input');
+				workflow.set({ ...progress, lastDispatchedCheckpointLabel: undefined, firstTurnId: undefined }, undefined);
+				captions.push(caption());
+				workflow.set(undefined, undefined);
+				testSession.status.set(SessionStatus.Completed, undefined);
+				captions.push(caption());
+				assert.deepStrictEqual({ captions, needsInput }, {
+					captions: ['Plan', 'Plan', 'Implementation', undefined, undefined], needsInput: true,
+				});
+			});
+		}
 	});
 
 	suite('session row spacing', () => {

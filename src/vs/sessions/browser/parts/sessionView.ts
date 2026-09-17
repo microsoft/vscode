@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, Dimension, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
@@ -33,6 +33,13 @@ import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactor
  */
 export interface ISessionViewOptions extends IChatViewOptions { }
 
+/** Contributed content beside the chat grid, owned by the currently displayed session view. */
+export interface ISessionViewSidebar {
+	render(container: HTMLElement): IDisposable;
+	layout(dimension: Dimension): void;
+	onHide(): void;
+}
+
 /**
  * A stable single-slot grid leaf for the Sessions Part. `SessionsPart`
  * delegates `openSession(...)` to this host so it no longer needs to remove/add
@@ -46,6 +53,9 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
+	private static readonly SIDEBAR_WIDTH = 360;
+	private static readonly MIN_SIDEBAR_WIDTH = 280;
+	private static readonly MIN_CHAT_WIDTH = 360;
 
 	readonly element: HTMLElement = $('.session-view.modern-ui-editor-tab-group');
 
@@ -62,7 +72,11 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _standaloneView = this._register(new MutableDisposable<AbstractChatView>());
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _centeredContentContainer: HTMLElement;
+	private readonly _bodyContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
+	private readonly _sidebarContainer: HTMLElement;
+	private readonly _sidebarDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _sidebar: ISessionViewSidebar | undefined;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
@@ -119,8 +133,13 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._header = this._register(this._scopedInstantiationService.createInstance(SessionHeader));
 		this._centeredContentContainer.appendChild(this._header.element);
 
+		this._bodyContainer = $('.session-view-body');
+		this.element.appendChild(this._bodyContainer);
 		this._contentContainer = $('.session-view-content');
-		this.element.appendChild(this._contentContainer);
+		this._bodyContainer.appendChild(this._contentContainer);
+		this._sidebarContainer = $('.session-view-sidebar');
+		this._sidebarContainer.style.display = 'none';
+		this._bodyContainer.appendChild(this._sidebarContainer);
 
 		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView));
 		this._contentContainer.appendChild(this._groupsView.element);
@@ -162,6 +181,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
+		this._sidebarDisposables.clear();
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
@@ -223,6 +243,34 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._layoutChildren();
 	}
 
+	/** Shows one in-flow sidebar until closed, replaced, or the view changes session. */
+	showSidebar(sidebar: ISessionViewSidebar): IDisposable {
+		this._sidebarDisposables.clear();
+		const store = new DisposableStore();
+		this._sidebarDisposables.value = store;
+		this._sidebar = sidebar;
+		this._sidebarContainer.style.display = '';
+		store.add(toDisposable(() => {
+			this._sidebar = undefined;
+			this._sidebarContainer.replaceChildren();
+			this._sidebarContainer.style.display = 'none';
+			this._layoutChildren();
+			sidebar.onHide();
+		}));
+		try {
+			store.add(sidebar.render(this._sidebarContainer));
+			this._layoutChildren();
+		} catch (error) {
+			this._sidebarDisposables.clear();
+			throw error;
+		}
+		return toDisposable(() => {
+			if (this._sidebarDisposables.value === store) {
+				this._sidebarDisposables.clear();
+			}
+		});
+	}
+
 	private _layoutChildren(): void {
 		if (!this._lastLayout) {
 			return;
@@ -243,16 +291,24 @@ export class SessionView extends Disposable implements ISerializableView {
 		// Cap the host's height to the header so the chat groups grid sits below it.
 		size(this._centeredContentContainer, width, barHeight);
 
-		// Lay out the chat groups grid at full width so its scrollbar reaches the
-		// right edge; the chat rows and input center themselves via CSS.
-		const contentHeight = height - barHeight;
+		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
+		const stacked = !!this._sidebar && width < SessionView.MIN_CHAT_WIDTH + SessionView.MIN_SIDEBAR_WIDTH;
+		const sidebarWidth = this._sidebar ? stacked ? width : Math.min(SessionView.SIDEBAR_WIDTH, width - SessionView.MIN_CHAT_WIDTH) : 0;
+		const sidebarHeight = this._sidebar ? stacked ? Math.min(SessionView.SIDEBAR_WIDTH, Math.floor(contentHeight / 2)) : contentHeight : 0;
+		const chatWidth = stacked ? width : width - sidebarWidth;
+		const chatHeight = stacked ? contentHeight - sidebarHeight : contentHeight;
+		this._bodyContainer.classList.toggle('sidebar-stacked', stacked);
+		size(this._bodyContainer, width, contentHeight);
+		size(this._contentContainer, chatWidth, chatHeight);
+		size(this._sidebarContainer, sidebarWidth, sidebarHeight);
 		const standaloneView = this._standaloneView.value;
 		if (standaloneView) {
-			standaloneView.layout(width, contentHeight, contentTop, left);
+			standaloneView.layout(chatWidth, chatHeight, contentTop, left);
 		} else {
-			this._groupsView.layout(width, contentHeight, contentTop, left);
+			this._groupsView.layout(chatWidth, chatHeight, contentTop, left);
 		}
+		this._sidebar?.layout(new Dimension(this._sidebarContainer.clientWidth, this._sidebarContainer.clientHeight));
 	}
 
 	toJSON(): object {
@@ -410,5 +466,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _applyActiveSessionStyles(): void {
 		this.element.classList.toggle('modern-ui-editor-tab-group-active', this._isActive);
 		applySessionViewThemeColors(this.element, this.themeService.getColorTheme(), this._isActive);
+	}
+
+	override dispose(): void {
+		this._sidebarDisposables.clear();
+		super.dispose();
 	}
 }

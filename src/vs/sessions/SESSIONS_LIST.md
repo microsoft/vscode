@@ -83,9 +83,13 @@ List-owned state is removed only when:
 
 Stale entries that match no current session are inert and may be compacted by their owning service.
 
+Workflow completion may suggest a named custom group through the group service. The service records ownership of automatic placement, applies each completed-checkpoint hint idempotently, and creates a missing group only when a move actually occurs. Existing non-workflow placement, manual grouping or ungrouping, pinning, and archiving take precedence; a user move relinquishes workflow placement ownership.
+
 ## Sorting and filtering
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
+
+Workflow sessions sort by meaningful activity rather than background polling or automatic repair. Placement, attention, and unread state are independent: a workflow's stopping point, blocker, or normal permission request can need attention in its existing section without promoting the session. Routine progress must not reorder or expand quiet groups.
 
 Filters compose across session type, status, archive/read state, and provider. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
 

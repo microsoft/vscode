@@ -19,6 +19,27 @@ suite('getChatRequestText', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('summarizes workflow checkpoints without reclassifying ordinary requests', () => {
+		const requestSource = { kind: 'workflow', workflowLabel: 'Feature', checkpointLabel: 'Draft PR Ready', reason: 'repair' } as const;
+		const text = '[Checkpoint instructions]\n\nFull agent instructions and proof schema';
+		const requests = [
+			request(text, { isSystemInitiated: true, requestSource }),
+			request(text, { isSystemInitiated: true, requestSource: { ...requestSource, reason: 'missing_proof' } }),
+			request(text, { isSystemInitiated: true, requestSource: { ...requestSource, reason: 'resume' } }),
+			request(text, { isSystemInitiated: true, requestSource: { ...requestSource, reason: undefined } }),
+			request(text, { requestSource }),
+			request(text, { isSystemInitiated: true }),
+			request(text, { isSystemInitiated: true, requestSource, systemInitiatedLabel: 'Another notification' }),
+		];
+		assert.deepStrictEqual(requests.map(getChatRequestText), [
+			'Repair: Draft PR Ready, Workflow Feature',
+			'Proof Needed: Draft PR Ready, Workflow Feature',
+			'Continue: Draft PR Ready, Workflow Feature',
+			'Draft PR Ready, Workflow Feature',
+			text, text, text,
+		]);
+	});
+
 	test('names a request by its own text, an Agent Merge request by its summary', () => {
 		const agentMergePrompt = buildAgentMergePrompt(['addressReviews'], {
 			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',

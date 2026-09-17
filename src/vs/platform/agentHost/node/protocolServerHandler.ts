@@ -6,7 +6,7 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
-import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
+import { isJsonRpcResponse, type IJsonRpcNotification } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -21,7 +21,9 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, ControlWorkflowExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, GetWorkflowRunExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetWorkflowExtensionSourcesExtensionMethod, SetWorkflowSourceEnabledExtensionMethod, StartWorkflowExtensionMethod, WorkflowRunChangedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { isWorkflowExtensionSources, type IAgentHostWorkflowStartOptions } from '../common/agentHostWorkflow.js';
+import type { WorkflowControl } from '../../workflow/common/workflow.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -320,6 +322,8 @@ export interface IProtocolServerConfig {
 	 * Defaults to `true` for existing remote listeners.
 	 */
 	readonly allowExtensionMethods?: boolean;
+	/** Allows the workflow extension independently; defaults to {@link allowExtensionMethods}. */
+	readonly allowWorkflowMethods?: boolean;
 	/**
 	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
 	 * cause the client to issue a `completions` request. Announced to
@@ -372,6 +376,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+	private readonly _allowWorkflowMethods: boolean;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
 
@@ -392,6 +397,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
+		this._allowWorkflowMethods = this._config.allowWorkflowMethods ?? this._config.allowExtensionMethods !== false;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._register(this._clientConnections.registerSource(this));
 
@@ -428,6 +434,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._register(this._agentService.onMcpNotification(notification => {
 			this._broadcastMcpNotification(notification);
 		}));
+		if (this._allowWorkflowMethods && this._agentService.onDidChangeWorkflowRun) {
+			this._register(this._agentService.onDidChangeWorkflowRun(change => {
+				// Namespaced extension notifications deliberately sit outside the generated AHP union.
+				const notification: IJsonRpcNotification = { jsonrpc: '2.0', method: WorkflowRunChangedExtensionMethod, params: change };
+				for (const record of this._clients.values()) {
+					this._getActiveClientFromRecord(record)?.transport.send(notification as unknown as AhpServerNotification);
+				}
+			}));
+		}
 
 		if (this._config.otlpLogEmitter) {
 			this._register(this._config.otlpLogEmitter.onDidLog(record => this._broadcastOtlpLog(record)));
@@ -679,7 +694,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact),
+				_meta: getAgentHostExtensionInitializeResultMeta(
+					this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact,
+					this._allowWorkflowMethods && !!this._agentService.getWorkflowRun && !!this._agentService.startWorkflow && !!this._agentService.controlWorkflow && !!this._agentService.setWorkflowSourceEnabled && !!this._agentService.setWorkflowExtensionSources && !!this._agentService.onDidChangeWorkflowRun,
+				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -1856,16 +1874,69 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return promise;
 	}
 
-	/**
-	 * Handle VS Code extension methods that are not yet part of the typed
-	 * protocol. Returns a Promise if the method was recognized, undefined
-	 * otherwise.
-	 */
-	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
-		if (this._config.allowExtensionMethods === false) {
+	private _handleWorkflowRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		if (!this._allowWorkflowMethods) {
 			return undefined;
 		}
 
+		switch (method) {
+			case GetWorkflowRunExtensionMethod:
+				if (!this._agentService.getWorkflowRun) {
+					return undefined;
+				}
+				if (!isParamsObject(params) || typeof params.session !== 'string' || !AgentSession.provider(params.session)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+				}
+				return this._agentService.getWorkflowRun(URI.parse(params.session)).then(run => run ? { run } : {});
+			case StartWorkflowExtensionMethod:
+				if (!this._agentService.startWorkflow) {
+					return undefined;
+				}
+				if (!isParamsObject(params) || typeof params.session !== 'string' || !AgentSession.provider(params.session)
+					|| typeof params.chat !== 'string' || typeof params.task !== 'string' || typeof params.stopAfter !== 'string' || !isParamsObject(params.snapshot)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid workflow start options'));
+				}
+				return this._agentService.startWorkflow(params as unknown as IAgentHostWorkflowStartOptions);
+			case ControlWorkflowExtensionMethod:
+				if (!this._agentService.controlWorkflow) {
+					return undefined;
+				}
+				if (!isParamsObject(params) || typeof params.runId !== 'string' || typeof params.revision !== 'number' || !Number.isSafeInteger(params.revision) || params.revision < 0
+					|| !['pause', 'resume', 'cancel', 'setStopAfter', 'provideInputs'].includes(String(params.kind))
+					|| (params.kind === 'setStopAfter' && typeof params.checkpointId !== 'string')
+					|| (params.kind === 'provideInputs' && !isParamsObject(params.inputs))) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid workflow control'));
+				}
+				return this._agentService.controlWorkflow(params as unknown as WorkflowControl);
+			case SetWorkflowSourceEnabledExtensionMethod:
+				if (!this._agentService.setWorkflowSourceEnabled) {
+					return undefined;
+				}
+				if (!isParamsObject(params) || typeof params.sourceId !== 'string' || typeof params.enabled !== 'boolean') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid workflow source enablement'));
+				}
+				return this._agentService.setWorkflowSourceEnabled(params.sourceId, params.enabled);
+			case SetWorkflowExtensionSourcesExtensionMethod:
+				if (!this._agentService.setWorkflowExtensionSources) {
+					return undefined;
+				}
+				if (!isParamsObject(params) || !isWorkflowExtensionSources(params.sources)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid workflow extension source snapshot'));
+				}
+				return this._agentService.setWorkflowExtensionSources(params.sources);
+		}
+		return undefined;
+	}
+
+	/** Returns a promise for a recognized VS Code extension method. */
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+		const workflowRequest = this._handleWorkflowRequest(method, params);
+		if (workflowRequest) {
+			return workflowRequest;
+		}
+		if (this._config.allowExtensionMethods === false) {
+			return undefined;
+		}
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();

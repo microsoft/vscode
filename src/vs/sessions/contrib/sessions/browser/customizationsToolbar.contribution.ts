@@ -25,7 +25,7 @@ import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hook
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -35,6 +35,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { WorkflowCatalogViewModel } from '../../../../workbench/contrib/workflows/browser/workflowCatalogViewModel.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -46,6 +47,7 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	readonly isWorkflows?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 }
@@ -122,6 +124,14 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: Codicon.openai,
 		section: AICustomizationManagementSection.HarnessSettings,
 	},
+	{
+		id: 'sessions.customization.workflows',
+		label: localize('workflows', "Workflows"),
+		icon: Codicon.listTree,
+		section: AICustomizationManagementSection.Workflows,
+		isWorkflows: true,
+		when: ContextKeyExpr.equals('config.chat.workflows.enabled', true),
+	},
 ];
 
 async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
@@ -163,6 +173,8 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 	private readonly _viewItemDisposables: DisposableStore;
 	private _button: Button | undefined;
 	private _countContainer: HTMLElement | undefined;
+	private readonly _workflowModel: WorkflowCatalogViewModel | undefined;
+	private readonly _workflowChanged: IObservable<void> | undefined;
 
 	constructor(
 		action: IAction,
@@ -172,9 +184,14 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
+		if (_config.isWorkflows) {
+			this._workflowModel = this._register(instantiationService.createInstance(WorkflowCatalogViewModel));
+			this._workflowChanged = observableSignalFromEvent(this, this._workflowModel.onDidChange);
+		}
 	}
 
 	protected override getTooltip(): string | undefined {
@@ -216,6 +233,10 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 	}
 
 	private _readCount(reader: Parameters<Parameters<typeof autorun>[0]>[0]): number {
+		if (this._workflowModel) {
+			this._workflowChanged?.read(reader);
+			return this._workflowModel.getCount();
+		}
 		if (this._config.modelSection) {
 			return this._itemsModel.getCount(this._config.modelSection).read(reader);
 		}

@@ -747,6 +747,40 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	suite('turn request sources', () => {
+		test('restores sources by host and provider identity after reopen', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'workflow-message-db-'));
+			try {
+				const path = join(directory, 'session.db');
+				db = disposables.add(await SessionDatabase.open(path));
+				await db.setTurnRequestSource('host-turn', '{"kind":"workflow"}');
+				await db.setTurnEventId('host-turn', 'provider-turn');
+				await db.close();
+				db2 = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual([...(await db2.getTurnRequestSources()).entries()], [
+					['host-turn', '{"kind":"workflow"}'],
+					['provider-turn', '{"kind":"workflow"}'],
+				]);
+			} finally {
+				await Promise.all([db?.close(), db2?.close()]);
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('remapping and truncation retain only the surviving turn sources', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnRequestSource('old-1', '{"checkpoint":"Plan"}');
+			await db.setTurnRequestSource('old-2', '{"checkpoint":"Implement"}');
+			await db.remapTurnIds(new Map([['old-1', 'new-1'], ['old-2', 'new-2']]));
+			await db.deleteTurnsAfter('new-1');
+			const remaining = [...(await db.getTurnRequestSources()).entries()];
+			await db.deleteTurn('new-1');
+			assert.deepStrictEqual({ remaining, deleted: [...(await db.getTurnRequestSources()).entries()] }, {
+				remaining: [['new-1', '{"checkpoint":"Plan"}']], deleted: [],
+			});
+		});
+	});
+
 	// ---- Workspace transitions -----------------------------------------
 
 	suite('workspace transitions', () => {

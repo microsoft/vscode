@@ -1,0 +1,53 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"$schema": "vscode://schemas/workflow-checkpoint/v1",
+	"id": "microsoft.vscode/test-plan-item",
+	"version": 1,
+	"label": "Test Plan Item",
+	"description": "A VS Code team test plan issue, eligible Friday at 09:00 in the user's saved timezone; issue existence is checked.",
+	"instructions": "Create or reuse a VS Code team test plan issue for the bound merged pull request using available approved GitHub tools and installed test-plan-item guidance. Include the pull request reference and actionable validation instructions. The host waits for the first Friday on or after the actual merge's local date at 09:00 in the saved timeZone. A Friday merge after 09:00 is already eligible; overdue work keeps the original Friday. Do not wait inside a tool or chat turn, choose a new week, or supply a merge date. Submit the issue URI. The check confirms only that the issue exists in the bound repository, not the test plan's content, quality, or relationship to the pull request. Missing tooling or access is a blocker, not success.",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"repository": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"pullRequest": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"mergedAt": { "type": "string", "minLength": 20, "maxLength": 35 },
+			"timeZone": { "type": "string", "format": "iana-time-zone", "minLength": 1, "maxLength": 256 }
+		},
+		"required": ["repository", "pullRequest", "mergedAt", "timeZone"],
+		"additionalProperties": false
+	},
+	"startCondition": {
+		"check": "vscode.calendar/weekday-on-or-after@1",
+		"inputs": {
+			"anchor": { "input": "mergedAt" },
+			"timeZone": { "input": "timeZone" }
+		},
+		"options": { "weekday": 5, "hour": 9, "minute": 0, "offsetDays": 0 }
+	},
+	"proofSchema": {
+		"type": "object",
+		"properties": {
+			"uri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["uri"],
+		"additionalProperties": false
+	},
+	"outputSchema": {
+		"type": "object",
+		"properties": {
+			"repository": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"issue": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["repository", "issue"],
+		"additionalProperties": false
+	},
+	"completion": {
+		"kind": "checked",
+		"check": {
+			"check": "vscode.github/issue-exists@1",
+			"inputs": { "repository": { "input": "repository" } }
+		}
+	}
+}

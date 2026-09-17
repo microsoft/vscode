@@ -19,6 +19,9 @@ import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
+import type { WorkflowControl, WorkflowRun } from '../../workflow/common/workflow.js';
+import type { IAgentHostWorkflowStartOptions } from './agentHostWorkflow.js';
+import type { IAgentWorkflowRunChange } from './meta/agentWorkflowMeta.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
@@ -805,6 +808,12 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
 export interface IAgentService {
+	readonly onDidChangeWorkflowRun?: Event<IAgentWorkflowRunChange>;
+	getWorkflowRun?(session: URI): Promise<WorkflowRun | undefined>;
+	startWorkflow?(options: IAgentHostWorkflowStartOptions): Promise<WorkflowRun>;
+	controlWorkflow?(control: WorkflowControl): Promise<WorkflowRun>;
+	setWorkflowSourceEnabled?(sourceId: string, enabled: boolean): Promise<void>;
+	setWorkflowExtensionSources?(sources: Readonly<Record<string, boolean>>): Promise<void>;
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -1058,6 +1067,12 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	readonly onDidChangeWorkflowRun?: Event<IAgentWorkflowRunChange>;
+	getWorkflowRun?(session: URI): Promise<WorkflowRun | undefined>;
+	startWorkflow?(options: IAgentHostWorkflowStartOptions): Promise<WorkflowRun>;
+	controlWorkflow?(control: WorkflowControl): Promise<WorkflowRun>;
+	setWorkflowSourceEnabled?(sourceId: string, enabled: boolean): Promise<void>;
+	setWorkflowExtensionSources?(sources: Readonly<Record<string, boolean>>): Promise<void>;
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;

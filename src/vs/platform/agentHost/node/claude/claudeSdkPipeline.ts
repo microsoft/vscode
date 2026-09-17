@@ -189,6 +189,10 @@ export class ClaudeSdkPipeline extends Disposable {
 		return query;
 	}
 
+	getToolInvocation(toolUseId: string) {
+		return this._router.getToolInvocation(toolUseId);
+	}
+
 	/**
 	 * The SDK stream bound to the current {@link _warm} subprocess, or
 	 * `undefined` before the first bind. Health is tracked separately by

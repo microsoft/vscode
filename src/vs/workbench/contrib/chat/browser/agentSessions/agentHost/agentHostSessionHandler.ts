@@ -84,7 +84,7 @@ import {
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IAgentHostChatSession, IAgentHostMessageContextOptions, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -703,7 +703,7 @@ function snapshotInvocationToAdopt(opts: IObserveTurnOptions, toolCallId: string
 // Chat session
 // =============================================================================
 
-class AgentHostChatSession extends Disposable implements IChatSession {
+class AgentHostChatSession extends Disposable implements IAgentHostChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
 	readonly isReadOnly: IObservable<boolean>;
@@ -737,6 +737,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		historySubagentObservations: IDisposable,
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
+		readonly prepareMessageContext: IAgentHostChatSession['prepareMessageContext'],
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -1711,6 +1712,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					});
 					return true;
 				},
+				(options, token) => this._prepareMessageContext(sessionResource, options, token),
 			);
 		} catch (err) {
 			historySubagentObservations.dispose();
@@ -1829,14 +1831,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `undefined` and skips the gate entirely: its only cwd is an internal
 		// scratch dir, not a user workspace. If the user declines, abort without
 		// starting a session.
-		const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
-		if (cancellationToken.isCancellationRequested) {
-			return {};
-		}
-		if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders)) {
-			return {};
-		}
-		if (cancellationToken.isCancellationRequested) {
+		if (!await this._ensureRequestTrusted(request.sessionResource, cancellationToken)) {
 			return {};
 		}
 
@@ -1850,94 +1845,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 
 		try {
-			failureStage = 'provisionalSession';
-			// The chat-input picker may have pre-created a provisional session
-			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
-			// In that case the agent already has the session + the user's chip
-			// selections in `state.config.values`; ensure we hold a refcounted
-			// subscription on it so the rest of the handler observes those.
-			await raceCancellation(this._provisionalService.waitForPending(request.sessionResource), cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
+			const resolvedSession = await this._prepareSessionForRequest(request, cancellationToken, stage => failureStage = stage, () => {
+				preparingStatus.value = disposableTimeout(() => {
+					progress([{ kind: 'progressMessage', content: new MarkdownString(localize('agentHost.preparingSession', "Preparing session…")), shimmer: true }]);
+				}, 500);
+			});
+			if (!resolvedSession) {
 				return {};
-			}
-			const resolvedSession = this._resolveSessionUri(request.sessionResource);
-			const sessionKey = resolvedSession.toString();
-			const provisionalBackend = this._provisionalService.get(request.sessionResource);
-			if (provisionalBackend) {
-				this._ensureSessionSubscription(sessionKey);
-			}
-
-			failureStage = 'sessionState';
-			// The sessions provider may have eagerly created this session at
-			// folder-pick time and is holding the connection-level subscription
-			// open with hydrated state. Use the unmanaged accessor to peek
-			// without taking a fresh subscription, which would trigger a
-			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
-			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
-			if (cancellationToken.isCancellationRequested) {
-				return {};
-			}
-
-			if (!existingState) {
-				// Eager-create did not produce server-side state (e.g. no
-				// sessions provider involved, agent host not connected at
-				// folder-pick time, or this session was created via a legacy/
-				// test path). Fall back to the original create-then-subscribe
-				// flow.
-				//
-				// If a conversation was imported ("Continue in…") into this
-				// session, seed it as real editable history at creation time.
-				const imported = this._importConversationStore.take(request.sessionResource);
-				if (imported) {
-					// Migration case: materializing the imported conversation is the
-					// slow, visually-blank phase — arm the "Preparing session…" status.
-					preparingStatus.value = disposableTimeout(() => {
-						progress([{ kind: 'progressMessage', content: new MarkdownString(localize('agentHost.preparingSession', "Preparing session…")), shimmer: true }]);
-					}, 500);
-				}
-				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-				const initialConfig = {
-					...this._provisionalService.getInitialSessionConfig(),
-					...request.agentHostSessionConfig,
-				};
-				await this._createAndSubscribe(
-					request.sessionResource,
-					model,
-					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
-					imported ? { turns: imported.turns, model: imported.model } : undefined,
-					stage => failureStage = stage,
-				);
-			} else {
-				failureStage = 'authentication';
-				await this._ensureRequiredAuthentication(this._createModelSelection(request.userSelectedModelId, request.modelConfiguration));
-
-				failureStage = 'subscribeSession';
-				// Eager-created session: take a refcounted subscription so the
-				// handler observes state changes for the duration of the chat
-				// session, then wire up the per-turn machinery that
-				// `_createAndSubscribe` would normally set up.
-				const sessionSub = this._ensureSessionSubscription(sessionKey);
-				const chatURI = this._resolveChatUriFromState(request.sessionResource, existingState);
-				this._setChatURI(request.sessionResource, chatURI);
-				const chatSub = this._ensureChatSubscription(sessionKey, chatURI);
-				this._activeSessions.get(request.sessionResource)?.setStateSubscriptions(sessionSub, chatSub);
-				this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
-				this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
-
-				// In the Agents window, the sessions provider supplies per-request
-				// config via `request.agentHostSessionConfig` (e.g. the user's
-				// permission level). Push it to the agent so its provisional record
-				// materializes with those values. Workbench defaults (`isolation`,
-				// `autoApprove`) are seeded upstream at provisional `createSession`
-				// time, so we don't need to merge them here. Picker selections
-				// already live in `existingState.config?.values` and don't need to
-				// be re-dispatched.
-				if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
-					this._dispatchAction(resolvedSession, {
-						type: ActionType.SessionConfigChanged,
-						config: request.agentHostSessionConfig,
-					});
-				}
 			}
 
 			// Measure turn timings so the core `interactiveSessionProviderInvoked`
@@ -1974,6 +1888,93 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// so a stale status can never fire after the invocation has ended.
 			preparingStatus.dispose();
 		}
+	}
+
+	private async _ensureRequestTrusted(sessionResource: URI, token: CancellationToken): Promise<boolean> {
+		const folders = await this._resolveSessionTrustFolders(sessionResource, token);
+		if (token.isCancellationRequested || (folders !== undefined && !await this._ensureFoldersTrusted(folders))) {
+			return false;
+		}
+		return !token.isCancellationRequested;
+	}
+
+	private async _prepareSessionForRequest(
+		request: Pick<IChatAgentRequest, 'sessionResource' | 'userSelectedModelId' | 'modelConfiguration' | 'agentHostSessionConfig'>,
+		token: CancellationToken,
+		onFailureStage?: (stage: AgentHostInvocationFailureStage) => void,
+		onImportConversation?: () => void,
+	): Promise<URI | undefined> {
+		onFailureStage?.('provisionalSession');
+		await raceCancellation(this._provisionalService.waitForPending(request.sessionResource), token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const resolvedSession = this._resolveSessionUri(request.sessionResource);
+		const sessionKey = resolvedSession.toString();
+		if (this._provisionalService.get(request.sessionResource)) {
+			this._ensureSessionSubscription(sessionKey);
+		}
+
+		onFailureStage?.('sessionState');
+		const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		if (!existingState) {
+			const imported = this._importConversationStore.take(request.sessionResource);
+			if (imported) {
+				onImportConversation?.();
+			}
+			const initialConfig = { ...this._provisionalService.getInitialSessionConfig(), ...request.agentHostSessionConfig };
+			await this._createAndSubscribe(
+				request.sessionResource,
+				imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration),
+				Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
+				imported ? { turns: imported.turns, model: imported.model } : undefined,
+				onFailureStage,
+			);
+		} else {
+			onFailureStage?.('authentication');
+			await this._ensureRequiredAuthentication(this._createModelSelection(request.userSelectedModelId, request.modelConfiguration));
+			onFailureStage?.('subscribeSession');
+			const sessionSub = this._ensureSessionSubscription(sessionKey);
+			const chatURI = this._resolveChatUriFromState(request.sessionResource, existingState);
+			this._setChatURI(request.sessionResource, chatURI);
+			const chatSub = this._ensureChatSubscription(sessionKey, chatURI);
+			this._activeSessions.get(request.sessionResource)?.setStateSubscriptions(sessionSub, chatSub);
+			this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
+			this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
+			if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
+				this._dispatchAction(resolvedSession, {
+					type: ActionType.SessionConfigChanged,
+					config: request.agentHostSessionConfig,
+				});
+			}
+		}
+		return resolvedSession;
+	}
+
+	private async _prepareMessageContext(sessionResource: URI, options: IAgentHostMessageContextOptions, token: CancellationToken): Promise<Pick<Message, 'model' | 'agent' | 'attachments'>> {
+		if (!await this._ensureRequestTrusted(sessionResource, token)) {
+			throw new CancellationError();
+		}
+		const session = await this._prepareSessionForRequest({ sessionResource, ...options }, token);
+		if (!session || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		this._shellInitSynchronizer.reconcile(session);
+		await this._workingDirectorySynchronizer.reconcile(session, token);
+		await this._ensureActiveClient(sessionResource, session, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const attachments = this._variableEntriesToAttachments(options.attachments, sessionResource);
+		this._appendActiveEditorAttachments(attachments, { sessionResource, variables: { variables: [...options.attachments] } });
+		return {
+			model: this._createModelSelection(options.userSelectedModelId, options.modelConfiguration),
+			agent: options.agent,
+			attachments: attachments.length > 0 ? attachments : undefined,
+		};
 	}
 
 	private _reportInvocationFailure(request: IChatAgentRequest, failureStage: AgentHostInvocationFailureStage, error: unknown): void {
@@ -6288,7 +6289,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * {@link ChatConfiguration.ImplicitContextActiveEditor} (on by default, off in the Agents window).
 	 * Unsaved handling lives in {@link _convertVariableToAttachment}.
 	 */
-	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
+	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: Pick<IChatAgentRequest, 'sessionResource' | 'variables'> & { readonly message?: string }): void {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditor)) {
 			return;
 		}

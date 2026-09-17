@@ -20,6 +20,30 @@ import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessi
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const enabled of [false, true]) {
+		test(`workflow discovery and explicit start help respects enablement (${enabled})`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.workflows.enabled': enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+			const content = provider.provideContent();
+			assert.deepStrictEqual({
+				discovery: content.includes('Workflow picker beside the workspace controls'),
+				deferredInputs: content.includes('provide missing inputs in the checkpoint that needs them'),
+				explicitStart: content.includes('Selecting a workflow does not start it'),
+				apply: content.includes('Moving the stopping point requires Apply'),
+				messageDetails: content.includes('Expanding a message does not start or continue work'),
+				agentMessage: content.includes('Tab to Agent Message'),
+				sidebar: content.includes('checkpoint sidebar beside the chat, or below it in a narrow view, without covering messages'),
+				closeSidebar: content.includes('press Escape in the sidebar to close it and return focus'),
+			}, { discovery: enabled, deferredInputs: enabled, explicitStart: enabled, apply: enabled, messageDetails: enabled, agentMessage: enabled, sidebar: enabled, closeSidebar: enabled });
+		});
+	}
+
 	for (const { wording, action, dismiss } of [
 		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion' },
 		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion' },

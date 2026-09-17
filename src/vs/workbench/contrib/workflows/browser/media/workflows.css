@@ -1,0 +1,757 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.workflow-editor-pane {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workflow-run,
+.monaco-workflow-editor,
+.monaco-workflow-catalog {
+	box-sizing: border-box;
+	min-width: 0;
+	min-height: 0;
+	width: 100%;
+	height: 100%;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.monaco-workflow-editor,
+.monaco-workflow-catalog {
+	display: flex;
+	flex-direction: column;
+}
+
+.workflow-run-content {
+	padding: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+}
+
+.workflow-run-header,
+.workflow-editor-header,
+.workflow-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.workflow-run-header,
+.workflow-editor-header {
+	justify-content: space-between;
+}
+
+.workflow-actions {
+	flex-wrap: wrap;
+}
+
+.workflow-run-header {
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.monaco-workflow-run h2,
+.monaco-workflow-editor h2,
+.monaco-workflow-catalog h2 {
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: 0;
+}
+
+.monaco-workflow-editor h3,
+.monaco-workflow-catalog h3 {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: 0 0 var(--vscode-spacing-size80);
+}
+
+.monaco-workflow-run p,
+.monaco-workflow-editor p,
+.monaco-workflow-catalog p {
+	margin: var(--vscode-spacing-size80) 0;
+	overflow-wrap: anywhere;
+}
+
+.workflow-secondary {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.workflow-ellipsis {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-workflow-run .monaco-button,
+.monaco-workflow-editor .monaco-button,
+.monaco-workflow-catalog .monaco-button,
+.monaco-workflow-draft .monaco-button {
+	width: auto;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.monaco-workflow-run {
+	background: var(--vscode-sideBar-background);
+}
+
+.monaco-workflow-run .workflow-run-header h2 {
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.monaco-workflow-run .workflow-run-header > .workflow-secondary {
+	margin-left: auto;
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.monaco-workflow-run .workflow-checkpoints {
+	list-style: none;
+	padding: 0;
+	margin: var(--vscode-spacing-size160) 0;
+}
+
+.monaco-workflow-run .workflow-checkpoint {
+	position: relative;
+	padding-bottom: var(--vscode-spacing-size60);
+}
+
+.monaco-workflow-run .workflow-checkpoint:not(.expanded)::before {
+	content: '';
+	position: absolute;
+	left: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
+	top: 0;
+	bottom: var(--vscode-spacing-size60);
+	width: var(--vscode-strokeThickness);
+	background: var(--vscode-tree-inactiveIndentGuidesStroke);
+}
+
+.monaco-workflow-run .workflow-checkpoint:first-child::before {
+	top: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
+}
+
+.monaco-workflow-run .workflow-checkpoint.last::before {
+	bottom: auto;
+	height: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
+}
+
+.monaco-workflow-run .workflow-checkpoint:not(.last)::after {
+	content: '';
+	position: absolute;
+	left: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
+	bottom: 0;
+	height: var(--vscode-spacing-size60);
+	width: var(--vscode-strokeThickness);
+	background: var(--vscode-tree-inactiveIndentGuidesStroke);
+}
+
+.monaco-workflow-run .workflow-checkpoint-enclosure {
+	position: relative;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workflow-run .workflow-checkpoint.expanded .workflow-checkpoint-enclosure {
+	border-color: var(--vscode-contrastBorder, var(--vscode-widget-border));
+	background: var(--vscode-editor-background);
+}
+
+.monaco-workflow-run .workflow-checkpoint-header {
+	display: grid;
+	grid-template-columns: var(--vscode-spacing-size200) minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workflow-run .workflow-checkpoint-title {
+	justify-content: flex-start;
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	padding: 0;
+	border: 0;
+	min-height: var(--vscode-spacing-size240);
+}
+
+.monaco-workflow-run .workflow-checkpoint.within-stop .workflow-checkpoint-header,
+.monaco-workflow-run .workflow-checkpoint.completed .workflow-checkpoint-header {
+	color: var(--vscode-foreground);
+}
+
+.monaco-workflow-run .workflow-checkpoint.expanded .workflow-checkpoint-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-workflow-run .workflow-checkpoint-header:hover,
+.monaco-workflow-run .workflow-checkpoint.proposed .workflow-checkpoint-header {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.monaco-workflow-run .workflow-checkpoint-marker {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	background: var(--vscode-sideBar-background);
+}
+
+.monaco-workflow-run .workflow-checkpoint-marker > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: inherit;
+}
+
+.monaco-workflow-run .workflow-checkpoint.expanded .workflow-checkpoint-marker {
+	background: var(--vscode-editor-background);
+}
+
+.monaco-workflow-run .workflow-checkpoint.current:not(.completed) .workflow-checkpoint-marker {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-foreground);
+}
+
+.monaco-workflow-run .workflow-checkpoint.completed .workflow-checkpoint-marker {
+	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
+.monaco-workflow-run .workflow-checkpoint-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+}
+
+.monaco-workflow-run .workflow-icon-button.monaco-button {
+	flex: 0 0 var(--vscode-spacing-size240);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workflow-run .workflow-icon-button > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.monaco-workflow-run .workflow-secondary-action {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.monaco-workflow-run .workflow-checkpoint-enclosure:hover .workflow-secondary-action,
+.monaco-workflow-run .workflow-checkpoint-enclosure:focus-within .workflow-secondary-action {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.monaco-workflow-run .workflow-checkpoint-proof-list {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	margin: 0;
+	padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size360);
+}
+
+.workflow-message,
+.workflow-editor-diagnostics {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.monaco-workflow-run .workflow-evidence {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	gap: var(--vscode-spacing-size80);
+	margin: 0;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	background: transparent;
+	border: 0;
+}
+
+.monaco-workflow-run .workflow-github-evidence .monaco-icon-label::before {
+	color: var(--vscode-icon-foreground);
+}
+
+.workflow-evidence .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.workflow-evidence-label {
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	text-align: left;
+}
+
+.workflow-evidence-hover {
+	padding: var(--vscode-spacing-size80);
+	max-width: 40em;
+	overflow-wrap: anywhere;
+}
+
+.workflow-editor-header,
+.workflow-catalog-header {
+	padding: var(--vscode-spacing-size160);
+}
+
+.workflow-editor-identity {
+	flex: 1;
+	min-width: 0;
+}
+
+.monaco-workflow-editor .workflow-editable-title,
+.monaco-workflow-editor .workflow-title-input input {
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-workflow-editor .workflow-editable-title {
+	margin: 0;
+	margin-inline-start: calc(-1 * (var(--vscode-spacing-size60) + var(--vscode-strokeThickness)));
+	min-width: 0;
+	flex: 1;
+	line-height: 1.4;
+}
+
+.monaco-workflow-editor .workflow-title-button.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	background: transparent;
+	color: var(--vscode-foreground);
+	border: var(--vscode-strokeThickness) solid transparent;
+	font: inherit;
+	width: 100%;
+}
+
+.monaco-workflow-editor .workflow-title-button:not(.disabled) {
+	cursor: text;
+}
+
+.monaco-workflow-editor .workflow-title-button[hidden] {
+	display: none;
+}
+
+.monaco-workflow-editor .workflow-title-text {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-workflow-editor .workflow-title-input {
+	width: 100%;
+	min-width: 0;
+	line-height: inherit;
+}
+
+.monaco-workflow-editor .workflow-title-input > .ibwrapper > .input {
+	display: block;
+	height: calc(1lh + 2 * var(--vscode-spacing-size40));
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	font: inherit;
+}
+
+.workflow-editor-body,
+.workflow-catalog-body {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	min-width: 0;
+}
+
+.workflow-editor-outline {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 36%;
+	max-width: 280px;
+	min-width: 0;
+	min-height: 0;
+	background: var(--vscode-sideBar-background);
+	padding: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.workflow-outline-list {
+	flex: 1;
+	min-height: 0;
+}
+
+.workflow-editor-outline > .workflow-actions {
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size80);
+}
+
+.monaco-workflow-editor .workflow-outline-row {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: 100%;
+	line-height: normal;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workflow-editor .workflow-outline-row::before {
+	content: '';
+	position: absolute;
+	left: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size100) - var(--vscode-strokeThickness) / 2);
+	top: calc(-1 * var(--vscode-strokeThickness));
+	bottom: calc(-1 * var(--vscode-strokeThickness));
+	width: var(--vscode-strokeThickness);
+	background: var(--vscode-tree-inactiveIndentGuidesStroke);
+}
+
+.monaco-workflow-editor .workflow-outline-row.root::before {
+	top: 50%;
+}
+
+.monaco-workflow-editor .workflow-outline-row.last::before {
+	bottom: 50%;
+}
+
+.monaco-workflow-editor .workflow-outline-marker {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 var(--vscode-spacing-size200);
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-sideBar-background);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workflow-editor .workflow-outline-row.root .workflow-outline-marker {
+	border-color: transparent;
+}
+
+.monaco-workflow-editor .workflow-outline-marker > .codicon,
+.monaco-workflow-editor .workflow-outline-actions .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.monaco-workflow-editor .workflow-outline-label {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workflow-editor .monaco-list-row.selected .workflow-outline-row {
+	background: var(--vscode-editor-background);
+	border-color: var(--vscode-widget-border);
+}
+
+.monaco-workflow-editor .workflow-outline-list .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workflow-editor .monaco-list-row.selected .workflow-outline-marker {
+	background: var(--vscode-editor-background);
+}
+
+.monaco-workflow-editor .workflow-outline-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	flex-shrink: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.monaco-workflow-editor .workflow-outline-row:hover .workflow-outline-actions,
+.monaco-workflow-editor .workflow-outline-row:focus-within .workflow-outline-actions,
+.monaco-workflow-editor .monaco-list-row.focused .workflow-outline-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.monaco-workflow-editor .workflow-outline-toolbar .action-label {
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workflow-editor .workflow-outline-gripper {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	cursor: grab;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workflow-editor .workflow-outline-add.monaco-button {
+	background: transparent;
+	border-color: transparent;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size80);
+	width: 100%;
+}
+
+.monaco-workflow-editor .workflow-detail-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+}
+
+.monaco-workflow-editor .workflow-detail-scope {
+	display: inline-block;
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.workflow-detail-scrollable,
+.workflow-catalog-detail {
+	flex: 1;
+	min-width: 0;
+}
+
+.workflow-editor-detail,
+.workflow-catalog-detail {
+	padding: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+}
+
+.workflow-detail-section {
+	margin-top: var(--vscode-spacing-size240);
+	display: grid;
+	grid-template-columns: minmax(96px, 24%) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size160);
+	align-items: start;
+}
+
+.workflow-detail-section-body {
+	min-width: 0;
+}
+
+.workflow-detail-section-body > p:first-child {
+	margin-top: 0;
+}
+
+.monaco-workflow-editor.narrow .workflow-detail-section {
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--vscode-spacing-size80);
+}
+
+.workflow-field {
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.workflow-field > label {
+	display: block;
+	margin-bottom: var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.monaco-workflow-editor .workflow-editor-back.monaco-button {
+	display: none;
+}
+
+.monaco-workflow-editor.narrow .workflow-editor-back.monaco-button {
+	display: flex;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+}
+
+.workflow-editor-diagnostics:not(:empty) {
+	max-height: 5em;
+	overflow: auto;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	color: var(--vscode-editorError-foreground);
+}
+
+.workflow-list-row {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	box-sizing: border-box;
+	height: 100%;
+	line-height: normal;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.workflow-catalog-header .workflow-actions {
+	margin: var(--vscode-spacing-size120) 0;
+}
+
+.workflow-catalog-list {
+	flex: 0 0 48%;
+	min-width: 0;
+	min-height: 0;
+}
+
+.workflow-catalog-detail {
+	overflow: auto;
+}
+
+.monaco-workflow-catalog > .workflow-message:not(:empty) {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.monaco-workflow-editor.narrow .workflow-editor-header {
+	align-items: stretch;
+	flex-direction: column;
+}
+
+.monaco-workflow-editor.narrow .workflow-editor-outline {
+	flex: 1;
+	max-width: none;
+}
+
+.monaco-workflow-editor.narrow .workflow-detail-scrollable,
+.monaco-workflow-editor.narrow.show-detail .workflow-editor-outline {
+	display: none;
+}
+
+.monaco-workflow-editor.narrow.show-detail .workflow-detail-scrollable {
+	display: block;
+}
+
+.monaco-workflow-catalog.narrow .workflow-catalog-body {
+	flex-direction: column;
+}
+
+.monaco-workflow-catalog.narrow .workflow-catalog-list {
+	flex: 1;
+}
+
+.monaco-workflow-catalog.narrow .workflow-catalog-detail {
+	flex: 0 1 auto;
+	max-height: 60%;
+}
+
+.monaco-workflow-draft {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.monaco-workflow-draft .monaco-button {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-workflow-draft .workflow-draft-picker {
+	gap: var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workflow-draft .workflow-draft-picker:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.monaco-workflow-draft.empty .workflow-draft-picker {
+	border-style: dashed;
+}
+
+.monaco-workflow-draft .workflow-draft-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-workflow-draft .workflow-draft-chevron {
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.monaco-workflow-draft.workflow-error .workflow-draft-picker {
+	border-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.monaco-workflow-run .workflow-checkpoint-inputs {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size360);
+}
+
+.monaco-workflow-run .workflow-input-field {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--vscode-spacing-size40);
+}
+
+.monaco-workflow-run .workflow-input-field label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-workflow-run .workflow-input-field .monaco-inputbox {
+	width: 100%;
+}
+
+.monaco-workflow-run .workflow-input-select .monaco-select-box {
+	min-height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+}
+
+.monaco-workflow-run .workflow-checkpoint-inputs > .monaco-button {
+	align-self: flex-start;
+}
+
+.monaco-workflow-run :focus-visible,
+.monaco-workflow-editor :focus-visible,
+.monaco-workflow-catalog :focus-visible,
+.monaco-workflow-draft :focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

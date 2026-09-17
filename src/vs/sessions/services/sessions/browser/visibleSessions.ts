@@ -245,6 +245,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get isExternal() { return this._session.isExternal; }
 	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
+	get workflow() { return this._session.workflow; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
@@ -297,6 +298,7 @@ class ResourceOverrideSession implements ISession {
 	get isExternal() { return this._session.isExternal; }
 	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
+	get workflow() { return this._session.workflow; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }

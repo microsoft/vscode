@@ -23,6 +23,38 @@
 	box-sizing: border-box;
 }
 
+.session-view-body {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+}
+
+.session-view-body.sidebar-stacked {
+	flex-direction: column;
+}
+
+.session-view-content,
+.session-view-sidebar {
+	flex: none;
+	min-width: 0;
+	min-height: 0;
+}
+
+.session-view-sidebar {
+	box-sizing: border-box;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-sideBar-border, var(--vscode-widget-border));
+	background: var(--vscode-sideBar-background);
+}
+
+.session-view-body.sidebar-stacked > .session-view-sidebar {
+	border-left: none;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-sideBar-border, var(--vscode-widget-border));
+}
+
+:is(.hc-black, .hc-light) .session-view-sidebar {
+	border-color: var(--vscode-contrastBorder);
+}
+
 /* Transitions apply to both active and inactive states so controls fade
  * smoothly in either direction. Only declared when the user has not requested
  * reduced motion so we never need to unset them. */

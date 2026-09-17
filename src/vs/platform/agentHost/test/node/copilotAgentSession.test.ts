@@ -74,7 +74,7 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/san
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
-import { type IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { type IAgentServerToolDefinition, IAgentServerToolHost, type IAgentServerToolInvocation } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
@@ -12075,6 +12075,7 @@ Use the attached image as context.
 			readonly toolNames: readonly string[];
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+			readonly invocations: (IAgentServerToolInvocation | undefined)[] = [];
 			readonly confirmationToolNames = new Set<string>();
 			readonly sessionConfirmationToolNames = new Set<string>();
 			result = 'ok';
@@ -12094,7 +12095,8 @@ Use the attached image as context.
 
 			requiresConfirmation(_sessionUri: string, toolName: string): boolean { return this.sessionConfirmationToolNames.has(toolName); }
 
-			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
+			executeTool(sessionUri: string, toolName: string, rawArgs: unknown, invocation?: IAgentServerToolInvocation): string {
+				this.invocations.push(invocation);
 				this.executions.push({ sessionUri, toolName, rawArgs });
 				if (this.error) {
 					throw this.error;
@@ -12141,6 +12143,23 @@ Use the attached image as context.
 			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
+		});
+
+		test('server tools preserve issuing-turn identity across late execution events', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime, session, mockSession } = await createAgentSession(disposables, { serverToolHost });
+			const tool = runtime.createServerSdkTools()[0];
+			session.resetTurnState('original-turn');
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'original-call', toolName: tool.name, inputDelta: '{}' });
+			session.resetTurnState('new-turn');
+			mockSession.fire('tool.execution_start', { toolCallId: 'original-call', toolName: tool.name, arguments: {} });
+			await invokeClientToolHandler(tool, 'original-call');
+			mockSession.fire('tool.execution_start', { toolCallId: 'unknown-call', toolName: tool.name, arguments: {} });
+			await invokeClientToolHandler(tool, 'unknown-call');
+			assert.deepStrictEqual(serverToolHost.invocations, [
+				{ turnId: 'original-turn', toolCallId: 'original-call', isSubagent: false },
+				undefined,
+			]);
 		});
 
 		test('server tool handler surfaces host failures as a failure result', async () => {

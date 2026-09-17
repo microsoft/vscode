@@ -1,0 +1,37 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"$schema": "vscode://schemas/workflow-checkpoint/v1",
+	"id": "microsoft.exp/analysed",
+	"version": 1,
+	"label": "Experiment analysed",
+	"description": "Reported experiment analysis and evidence, not automatic ExP verification or rollout.",
+	"instructions": "Analyse the bound Microsoft ExP experiment using available approved tooling and the installed ab-experiment-analysis or analyze-scorecard guidance. Reuse the existing experiment and scorecard. Check assignment health, sample-ratio mismatch, exposure and duration, guardrails, primary metrics, and uncertainty before interpreting effects. Cite the actual scorecard or analysis references and clearly distinguish observed results from a recommendation. Report inconclusive when evidence is insufficient; do not invent metrics, service calls, or credentials. Report the same experiment identifier, URI, a bounded summary, analysis references, and a recommendation to roll out, iterate, stop, or remain inconclusive. Do not perform a rollout or change allocations as part of this analysis checkpoint. Report a blocker if access or required analysis tooling is unavailable. This completion is agent-reported and does not mean that ExP independently verified the analysis.",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"experimentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+			"experimentUri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["experimentId", "experimentUri"],
+		"additionalProperties": false
+	},
+	"proofSchema": {
+		"type": "object",
+		"properties": {
+			"summary": { "type": "string", "minLength": 1, "maxLength": 8192 },
+			"experimentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+			"uri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"decision": { "type": "string", "enum": ["rollout", "iterate", "stop", "inconclusive"] },
+			"analysisReferences": {
+				"type": "array",
+				"items": { "type": "string", "minLength": 1, "maxLength": 2048 },
+				"minItems": 1,
+				"maxItems": 16
+			}
+		},
+		"required": ["summary", "experimentId", "uri", "decision", "analysisReferences"],
+		"additionalProperties": false
+	},
+	"completion": { "kind": "reported" }
+}

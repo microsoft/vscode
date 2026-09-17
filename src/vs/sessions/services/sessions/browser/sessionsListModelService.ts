@@ -10,7 +10,7 @@ import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.j
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { getSessionActivityTime, ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
@@ -282,7 +282,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	}
 
 	getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
-		return mode === 'updated' ? session.updatedAt.get().getTime() : session.createdAt.getTime();
+		return mode === 'updated' ? getSessionActivityTime(session).getTime() : session.createdAt.getTime();
 	}
 
 	getSortKey(session: ISession, mode: SessionSortMode): number {

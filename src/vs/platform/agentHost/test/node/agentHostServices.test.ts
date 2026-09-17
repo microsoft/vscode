@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -183,6 +184,7 @@ suite('Agent Host service registrations', () => {
 			IRequestService,
 			IInstantiationService,
 			IAgentHostStateManager,
+			IAgentHostDatabase,
 			IAgentConfigurationService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
@@ -207,6 +209,7 @@ suite('Agent Host service registrations', () => {
 			IRequestService,
 			IInstantiationService,
 			IAgentHostStateManager,
+			IAgentHostDatabase,
 			IAgentConfigurationService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,

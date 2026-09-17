@@ -75,7 +75,7 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolHost, IAgentServerToolInvocation } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
@@ -821,6 +821,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
+	private readonly _serverToolInvocations = new LRUCache<string, IAgentServerToolInvocation>(2048);
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	/**
@@ -1211,6 +1212,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
+			this._serverToolInvocations.clear();
 			this._observedUsageEventIds.clear();
 		}));
 		this._abortCts.value = new CancellationTokenSource();
@@ -2273,9 +2275,10 @@ export class CopilotAgentSession extends Disposable {
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 			defer: 'never' as const,
-			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
+			handler: async (args: Record<string, unknown>, invocation): Promise<ToolResultObject> => {
 				try {
-					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
+					const original = this._serverToolInvocations.get(invocation.toolCallId);
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, original);
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -3886,14 +3889,13 @@ export class CopilotAgentSession extends Disposable {
 				// now poses no question to the user, so it runs without prompting
 				// even under managed approval.
 				if (canRequireConfirmation
-					&& !serverToolHost.requiresConfirmation(this._chatChannelUri.toString(), serverToolName)
+					&& !serverToolHost.requiresConfirmation(this._chatChannelUri.toString(), serverToolName, request.toolCallId ? this._serverToolInvocations.get(request.toolCallId) : undefined)
 				) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName} because it has nothing to confirm`);
 					return { kind: 'approve-once' };
 				}
-				// Server tools that never confirm only read or mutate the
-				// session's own server-held state and never touch the workspace,
-				// shell, or network, so prompting for them is redundant noise.
+				// Server tools use their owner's authorization and state
+				// validation. Managed approval remains authoritative.
 				if (!canRequireConfirmation && !managedApprovalRequired) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName}`);
 					return { kind: 'approve-once' };
@@ -5041,6 +5043,11 @@ export class CopilotAgentSession extends Disposable {
 				|| e.data.chunkIndex === e.data.chunkCount - 1;
 			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			for (const request of e.data.toolRequests ?? []) {
+				if (this._serverToolHost?.toolNames.includes(request.name) && !this._serverToolInvocations.has(request.toolCallId)) {
+					this._serverToolInvocations.set(request.toolCallId, { turnId: this._turnId, toolCallId: request.toolCallId, isSubagent: !!e.agentId || !!parentToolCallId });
+				}
+			}
 			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
 				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
 			}
@@ -5162,6 +5169,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.tool_call_delta')) {
 				return;
+			}
+			if (!this._serverToolInvocations.has(e.data.toolCallId)) {
+				this._serverToolInvocations.set(e.data.toolCallId, { turnId: this._turnId, toolCallId: e.data.toolCallId, isSubagent: !!e.agentId });
 			}
 
 			const existing = this._streamingToolCalls.get(e.data.toolCallId);

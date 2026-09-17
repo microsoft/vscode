@@ -17,7 +17,7 @@ import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, 
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, clientOwnedRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -417,10 +417,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	 */
 	private _loadPersistedPlatformRootConfig(parsed: Record<string, unknown>): Record<string, unknown> {
 		const values: Record<string, unknown> = { ...platformRootSchema.validateOrDefault(parsed, {}) };
-		// Approval and policy values are a snapshot of one client's settings and
-		// are re-pushed on every connect, so restoring them could re-grant an
-		// approval that was tightened while the host was stopped.
-		for (const key of clientOwnedApprovalRootConfigKeys) {
+		// Client-owned approvals and rollout gates are republished on connect;
+		// stale saved values must not re-enable behavior before that happens.
+		for (const key of clientOwnedRootConfigKeys) {
 			delete values[key];
 		}
 		return values;

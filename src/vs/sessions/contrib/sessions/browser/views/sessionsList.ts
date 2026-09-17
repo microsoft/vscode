@@ -48,7 +48,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionActivityTime, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { getWorkflowCheckpointCaption, getWorkflowProgressDescription } from '../../../../../platform/workflow/common/workflowProgress.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -1041,17 +1042,20 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Details row — reactive: badge · diff stats · time · status description
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
+		const workflowHover = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = getSessionRowStatus(element, reader, !!this.options.deriveStatusFromMainChat);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
+			const workflow = element.workflow?.read(reader);
+			workflowHover.clear();
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 
 			// Compact quick chats have no details row.
-			if (isQuickChat && this.options.useCompactQuickChatRows) {
+			if (isQuickChat && this.options.useCompactQuickChatRows && !workflow) {
 				descriptionDisposable.clear();
 				timeDisposable.clear();
 				return;
@@ -1064,7 +1068,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
 			if (!hideDetails) {
-				timeDate = element.updatedAt.read(reader);
+				timeDate = getSessionActivityTime(element, reader);
 			}
 
 			const parts: HTMLElement[] = [];
@@ -1111,7 +1115,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(diffEl);
 			}
 
-			const statusMessage = getSessionStatusMessage(sessionStatus, description);
+			const statusMessage = workflow
+				? getWorkflowCheckpointCaption(workflow)
+				: getSessionStatusMessage(sessionStatus, description);
 			if (statusMessage !== undefined) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -1120,6 +1126,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				if (typeof statusMessage === 'string') {
 					descriptionDisposable.clear();
 					statusEl.textContent = statusMessage;
+					if (workflow) {
+						const workflowDescription = getWorkflowProgressDescription(workflow);
+						statusEl.setAttribute('aria-label', localize('workflowCheckpointDescription', "{0}. {1}", statusMessage, workflowDescription));
+						workflowHover.value = this.hoverService.setupDelayedHover(statusEl, { content: workflowDescription });
+					}
 				} else {
 					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				}
@@ -1859,7 +1870,7 @@ class SessionsAccessibilityProvider {
 		}
 		return derived(this, reader => {
 			const title = element.title.read(reader);
-			const updated = fromNow(element.updatedAt.read(reader), true);
+			const updated = fromNow(getSessionActivityTime(element, reader), true);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
@@ -1871,6 +1882,10 @@ class SessionsAccessibilityProvider {
 			const status = getSessionRowStatus(element, reader, !!this.options?.deriveStatusFromMainChat);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			const workflow = element.workflow?.read(reader);
+			if (workflow) {
+				label = localize('sessionItemWorkflowAria', "{0}, {1}", label, getWorkflowProgressDescription(workflow));
 			}
 			const workspace = element.workspace.read(reader);
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;

@@ -1,0 +1,31 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"$schema": "vscode://schemas/workflow-checkpoint/v1",
+	"id": "microsoft.exp/set-up",
+	"version": 1,
+	"label": "Experiment set up",
+	"description": "Reported Microsoft ExP experiment setup; no ExP server verification.",
+	"instructions": "Set up or reuse the Microsoft ExP experiment for the bound repository, integrated commit, and test plan issue. Use the available approved Microsoft ExP tooling and its installed manage-experiments and exp-access guidance; do not invent an API, server, or credential flow. In an existing exp-sync-vscode project, use the documented experiment helpers, the appropriate VscodeExpGroup, valid setting minimum versions, control/treatment variants, targeting, and metrics. Keep the experiment staged (created), not running. Preview only the relevant experiment file with the documented sync-preview workflow before applying any approved setup changes. Do not widen exp-sync's managed scope or create a duplicate experiment. Report the existing experiment identifier, its URI, and a setup summary. If tooling, access, configuration, or a safe targeting decision is missing, report a blocker. Never put credentials in proof. This completion is agent-reported and does not assert ExP server verification.",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"repository": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"integratedCommit": { "type": "string", "minLength": 40, "maxLength": 64 },
+			"testPlanItem": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["repository", "integratedCommit", "testPlanItem"],
+		"additionalProperties": false
+	},
+	"proofSchema": {
+		"type": "object",
+		"properties": {
+			"summary": { "type": "string", "minLength": 1, "maxLength": 8192 },
+			"experimentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+			"uri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["summary", "experimentId", "uri"],
+		"additionalProperties": false
+	},
+	"completion": { "kind": "reported" }
+}

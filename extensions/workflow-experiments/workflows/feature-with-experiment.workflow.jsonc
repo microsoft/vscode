@@ -1,0 +1,107 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"$schema": "vscode://schemas/workflow/v1",
+	"id": "microsoft.exp/feature-with-experiment",
+	"version": 1,
+	"label": "Feature with Experiment",
+	"description": "A VS Code team feature through Friday test planning, Monday release notes, and reported Microsoft ExP setup, release-gated start, and analysis.",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"repository": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"timeZone": { "type": "string", "format": "iana-time-zone", "minLength": 1, "maxLength": 256 }
+		},
+		"required": ["repository", "timeZone"],
+		"additionalProperties": false
+	},
+	"checkpoints": [
+		{ "id": "plan", "type": "vscode.workflow/plan@1" },
+		{
+			"id": "implementation",
+			"type": "vscode.workflow/implementation@1",
+			"inputs": {
+				"plan": { "checkpoint": "plan", "outputPointer": "/uri" }
+			}
+		},
+		{
+			"id": "draft-pr",
+			"type": "vscode.workflow/draft-pr@1",
+			"inputs": {
+				"repository": { "input": "repository" }
+			}
+		},
+		{
+			"id": "draft-pr-ready",
+			"type": "vscode.workflow/draft-pr-ready@1",
+			"inputs": {
+				"repository": { "checkpoint": "draft-pr", "outputPointer": "/repository" },
+				"pullRequest": { "checkpoint": "draft-pr", "outputPointer": "/pullRequest" }
+			}
+		},
+		{
+			"id": "pr-open",
+			"type": "vscode.workflow/pr-open@1",
+			"inputs": {
+				"repository": { "checkpoint": "draft-pr-ready", "outputPointer": "/repository" },
+				"pullRequest": { "checkpoint": "draft-pr-ready", "outputPointer": "/pullRequest" }
+			}
+		},
+		{
+			"id": "pr-merged",
+			"type": "vscode.workflow/pr-merged@2",
+			"inputs": {
+				"repository": { "checkpoint": "pr-open", "outputPointer": "/repository" },
+				"pullRequest": { "checkpoint": "pr-open", "outputPointer": "/pullRequest" }
+			}
+		},
+		{
+			"id": "test-plan-item",
+			"type": "microsoft.vscode/test-plan-item@1",
+			"inputs": {
+				"repository": { "checkpoint": "pr-merged", "outputPointer": "/repository" },
+				"pullRequest": { "checkpoint": "pr-merged", "outputPointer": "/pullRequest" },
+				"mergedAt": { "checkpoint": "pr-merged", "outputPointer": "/mergedAt" },
+				"timeZone": { "input": "timeZone" }
+			}
+		},
+		{
+			"id": "write-release-notes",
+			"type": "microsoft.vscode/write-release-notes@1",
+			"inputs": {
+				"repository": { "checkpoint": "pr-merged", "outputPointer": "/repository" },
+				"pullRequest": { "checkpoint": "pr-merged", "outputPointer": "/pullRequest" },
+				"mergedAt": { "checkpoint": "pr-merged", "outputPointer": "/mergedAt" },
+				"timeZone": { "input": "timeZone" },
+				"testPlanItem": { "checkpoint": "test-plan-item", "outputPointer": "/issue" }
+			}
+		},
+		{
+			"id": "experiment-set-up",
+			"type": "microsoft.exp/set-up@1",
+			"inputs": {
+				"repository": { "checkpoint": "pr-merged", "outputPointer": "/repository" },
+				"integratedCommit": { "checkpoint": "pr-merged", "outputPointer": "/integratedCommit" },
+				"testPlanItem": { "checkpoint": "test-plan-item", "outputPointer": "/issue" }
+			}
+		},
+		{
+			"id": "experiment-started",
+			"type": "microsoft.exp/started@1",
+			"inputs": {
+				"repository": { "checkpoint": "pr-merged", "outputPointer": "/repository" },
+				"integratedCommit": { "checkpoint": "pr-merged", "outputPointer": "/integratedCommit" },
+				"experimentId": { "checkpoint": "experiment-set-up", "outputPointer": "/experimentId" },
+				"experimentUri": { "checkpoint": "experiment-set-up", "outputPointer": "/uri" }
+			}
+		},
+		{
+			"id": "experiment-analysed",
+			"type": "microsoft.exp/analysed@1",
+			"inputs": {
+				"experimentId": { "checkpoint": "experiment-started", "outputPointer": "/experimentId" },
+				"experimentUri": { "checkpoint": "experiment-started", "outputPointer": "/uri" }
+			}
+		}
+	]
+}

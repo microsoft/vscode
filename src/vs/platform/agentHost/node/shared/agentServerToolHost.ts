@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost, IAgentServerToolInvocation } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
@@ -54,6 +54,7 @@ export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
 	readonly turnId?: string;
+	readonly invocation?: IAgentServerToolInvocation;
 }
 
 /**
@@ -233,18 +234,18 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		return group?.isEnabled(name) === true && (group.canRequireConfirmation?.(name) ?? false);
 	}
 
-	requiresConfirmation(chatUri: URI, toolName: string): boolean {
+	requiresConfirmation(chatUri: URI, toolName: string, invocation?: IAgentServerToolInvocation): boolean {
 		const group = this._groupByToolName.get(toolName);
 		const name = this._currentToolName(toolName);
 		if (group && !this._isEnabledForSession(group, chatUri, name, toolName)) {
 			return false;
 		}
-		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri), name)
+		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri, invocation), name)
 			?? group?.canRequireConfirmation?.(name)
 			?? false;
 	}
 
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, invocation?: IAgentServerToolInvocation): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
@@ -253,14 +254,15 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri, invocation), name, rawArgs);
 	}
 
-	private _executionContext(chatUri: URI): IServerToolExecutionContext {
+	private _executionContext(chatUri: URI, invocation?: IAgentServerToolInvocation): IServerToolExecutionContext {
 		return {
 			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
 			chatUri,
-			turnId: this._stateManager.getActiveTurnId(chatUri),
+			turnId: invocation?.turnId ?? this._stateManager.getActiveTurnId(chatUri),
+			invocation,
 		};
 	}
 

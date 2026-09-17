@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IWorkflowRuntime, WorkflowStartOptions } from '../../../../platform/workflow/common/workflow.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
@@ -47,7 +48,11 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+	/** Starts a workflow with this request as its task, instead of sending an ordinary first turn. */
+	readonly workflow?: SessionWorkflowSelection;
 }
+
+export type SessionWorkflowSelection = Pick<WorkflowStartOptions, 'snapshot' | 'stopAfter' | 'inputs' | 'origin'>;
 
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
@@ -167,6 +172,9 @@ export interface IDeleteChatOptions {
  * serve the same session type (e.g., one per remote agent host).
  */
 export interface ISessionsProvider {
+	/** Optional workflow execution adapter; unsupported providers never receive automatic assignments. */
+	readonly workflows?: IWorkflowRuntime;
+
 	/**
 	 * Unique identifier for the provider.
 	 */

@@ -428,7 +428,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/** Permanently marks a session as used, so it is never auto-collected. */
-	private _markSessionUsed(session: URI): void {
+	markSessionUsed(session: URI): void {
 		const entry = this._sessionStates.get(session);
 		if (entry) {
 			entry.use = SessionUse.Used;
@@ -555,7 +555,7 @@ export class AgentHostStateManager extends Disposable {
 				entry.state = { ...createChatState(entry.summary), turns: restored.turns, draft: restored.draft ?? entry.draft };
 				entry.resolver = undefined;
 				if (restored.turns.length > 0) {
-					this._markSessionUsed(entry.session);
+					this.markSessionUsed(entry.session);
 				}
 			}
 			return entry.state;
@@ -595,7 +595,7 @@ export class AgentHostStateManager extends Disposable {
 			chatState.turns = turns;
 		}
 		if (turns.length > 0) {
-			this._markSessionUsed(session);
+			this.markSessionUsed(session);
 		}
 	}
 
@@ -613,12 +613,11 @@ export class AgentHostStateManager extends Disposable {
 	 * has materialized (lifecycle !== {@link SessionLifecycle.Creating}) — this
 	 * covers the transient-drop case where a provider briefly omits a
 	 * just-materialized session — or if it is still provisional but has had any
-	 * turn activity (an in-flight turn, or a completed turn whose materialize
-	 * event has not landed yet; the first turn can start before materialization
-	 * completes). Idle provisional sessions (created but not yet materialized
-	 * and with no turn activity, e.g. the new-session composer's eagerly-created
-	 * session before its first message) are excluded so they don't leak into
-	 * the session list (#321269).
+	 * durable host activity or turn activity (an in-flight turn, or a completed
+	 * turn whose materialize event has not landed yet; the first turn can start
+	 * before materialization completes). Uncommitted idle provisional sessions
+	 * (e.g. the new-session composer's eagerly-created session before its first
+	 * message) are excluded so they don't leak into the session list (#321269).
 	 */
 	getOverlaySessionSummaries(): SessionSummary[] {
 		const summaries: SessionSummary[] = [];
@@ -633,9 +632,10 @@ export class AgentHostStateManager extends Disposable {
 
 	/**
 	 * Whether a session is created but not yet materialized ({@link SessionLifecycle.Creating})
-	 * with no turn activity — e.g. the new-session composer's eagerly-created
-	 * session before its first message. Such sessions must not leak into the
-	 * session list (#321269). Returns `false` if the session has no tracked state.
+	 * with no durable host activity or turn activity — e.g. the new-session
+	 * composer's eagerly-created session before its first message. Such sessions
+	 * must not leak into the session list (#321269). Returns `false` if the
+	 * session has no tracked state.
 	 */
 	isIdleProvisionalSession(session: string): boolean {
 		const entry = this._sessionStates.get(session);
@@ -658,7 +658,7 @@ export class AgentHostStateManager extends Disposable {
 		// Turn activity lives on the session's default chat after the multi-chat
 		// protocol move, so consult that chat's turns/activeTurn.
 		const chat = this._chatEntries.get(buildDefaultChatUri(session))?.state;
-		return lifecycle === SessionLifecycle.Creating && !chat?.activeTurn && (chat?.turns.length ?? 0) === 0;
+		return lifecycle === SessionLifecycle.Creating && !this._addedSessionSummaries.has(session) && !chat?.activeTurn && (chat?.turns.length ?? 0) === 0;
 	}
 
 	/**
@@ -845,7 +845,8 @@ export class AgentHostStateManager extends Disposable {
 	 * (`title`, `status`, `activity`) is intentionally NOT copied back — the live
 	 * state is authoritative for those. Project remains catalog-only while the
 	 * resolved working directories are synchronized session state. No-ops for
-	 * sessions that were already announced (idempotent).
+	 * sessions that were already announced unless `force` refreshes their
+	 * materialized fields. Refreshes emit summary changes, not a duplicate addition.
 	 */
 	markSessionPersisted(session: URI, summary: SessionSummary, force = false): void {
 		const key = session.toString();
@@ -854,14 +855,14 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] markSessionPersisted: unknown session ${key}`);
 			return;
 		}
-		if (!force && this._addedSessionSummaries.has(key)) {
+		const alreadyAdded = this._addedSessionSummaries.has(key);
+		if (!force && alreadyAdded) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
 		// `getSessionSummary` sees the resolved project and both state and
-		// summary see the resolved working directory. We don't need to schedule a
-		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
-		// notification carries the complete summary already.
+		// summary see the resolved working directory. A previously committed
+		// session is refreshed through the ordinary summary notification.
 		const workingDirectoriesChanged = !equals(entry.state.workingDirectories, summary.workingDirectories);
 		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories, _meta: summary._meta };
 		if (workingDirectoriesChanged) {
@@ -870,8 +871,11 @@ export class AgentHostStateManager extends Disposable {
 		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
-		const full = this._toSummary(key, entry);
-		this._emitSessionAdded(full);
+		if (alreadyAdded) {
+			this._summaryNotifier.flush(key);
+		} else {
+			this._emitSessionAdded(this._toSummary(key, entry));
+		}
 	}
 
 	/**
@@ -1890,7 +1894,7 @@ export class AgentHostStateManager extends Disposable {
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.
 		if (next.turns.length > 0 || next.activeTurn) {
-			this._markSessionUsed(sessionKey);
+			this.markSessionUsed(sessionKey);
 		}
 		// Active turn tracking — derive from the reducer's view of state,
 		// never from raw action turn-ids, so out-of-order lifecycle actions

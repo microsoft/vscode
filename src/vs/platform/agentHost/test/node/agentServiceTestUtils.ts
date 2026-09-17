@@ -177,6 +177,7 @@ export function createTestAgentService(
 		logService,
 		productService,
 		rootConfigResource,
+		orchestratorDatabase,
 		providerConfigurations,
 		transientProxyConfiguration: false,
 		proxyResolver,

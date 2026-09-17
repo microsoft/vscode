@@ -96,12 +96,13 @@ suite('ChatModel', () => {
 		assert.strictEqual(model.customTitle, 'My Chat');
 	});
 
-	test('Agent Merge identity survives JSON and operation log roundtrips', () => {
+	test('automated request identity survives JSON and operation log roundtrips', () => {
+		const workflow = { kind: 'workflow', workflowLabel: 'Original Workflow Name', checkpointLabel: 'Plan', reason: 'start' } as const;
 		const exportedData: IExportableChatData = {
 			initialLocation: ChatAgentLocation.Chat,
 			responderUsername: 'bot',
-			requests: ([undefined, 'agentMerge'] as const).map(requestSource => ({
-				requestId: requestSource ? 'merge' : 'legacy',
+			requests: ([undefined, 'agentMerge', workflow] as const).map(requestSource => ({
+				requestId: typeof requestSource === 'object' ? 'workflow' : requestSource ? 'merge' : 'legacy',
 				message: { text: 'Repair the pull request', parts: [] },
 				variableData: { variables: [] },
 				response: [],
@@ -127,8 +128,8 @@ suite('ChatModel', () => {
 				requestSource: request.requestSource,
 			}));
 		}), [
-			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
-			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }, { id: 'workflow', requestSource: workflow }],
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }, { id: 'workflow', requestSource: workflow }],
 		]);
 	});
 

@@ -60,6 +60,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.Workflows,
 		AICustomizationManagementSection.HarnessSettings,
 	];
 

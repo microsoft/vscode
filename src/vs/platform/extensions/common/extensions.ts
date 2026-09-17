@@ -244,6 +244,10 @@ export interface IExtensionContributions {
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
 	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
 	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
+	/** Packaged checkpoint declaration paths, relative to the extension root. */
+	readonly workflowCheckpointTypes?: readonly string[];
+	/** Packaged workflow template paths, relative to the extension root. */
+	readonly workflowTemplates?: readonly string[];
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;

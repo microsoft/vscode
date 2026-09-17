@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { computePullRequestIcon, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
+import { computeIssueIcon } from '../../../../workbench/common/chatIssue.js';
 
-export { computePullRequestIcon, type IPullRequestIconStatus };
+export { computeIssueIcon, computePullRequestIcon, type IPullRequestIconStatus };
 
 export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
 export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
@@ -205,21 +206,6 @@ export interface IGitHubIssue {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly closedAt: string | undefined;
-}
-
-/**
- * Compute the issue status icon, mirroring how github.com colors issues: open is
- * green, closed-as-completed is purple, and closed as not planned or duplicate is
- * muted (the work was never done).
- */
-export function computeIssueIcon(state: GitHubIssueState, stateReason: GitHubIssueStateReason | undefined): ThemeIcon {
-	if (state === GitHubIssueState.Open) {
-		return { ...Codicon.issueOpened, color: themeColorFromId('charts.green') };
-	}
-	if (stateReason === GitHubIssueStateReason.NotPlanned || stateReason === GitHubIssueStateReason.Duplicate) {
-		return { ...Codicon.issueClosed, color: themeColorFromId('descriptionForeground') };
-	}
-	return { ...Codicon.issueClosed, color: themeColorFromId('charts.purple') };
 }
 
 /**

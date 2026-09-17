@@ -720,6 +720,10 @@ function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
 	const repository = objectProperty(base, 'repo');
 	const repositoryNameWithOwner = requiredString(repository, 'full_name');
 	const merged = booleanProperty(item, 'merged') === true || stringProperty(item, 'state') === 'merged';
+	const draft = booleanProperty(item, 'draft');
+	if (draft === undefined) {
+		throw new GitHubRequestError('GitHub pull request draft state was not provided', 'malformedResponse');
+	}
 	return {
 		id: idProperty(item, 'node_id'),
 		repositoryId: idProperty(repository, 'node_id') ?? idProperty(repository, 'id'),
@@ -729,7 +733,7 @@ function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
 		body: nullableStringProperty(item, 'body'),
 		url: requiredString(item, 'html_url'),
 		state: merged ? 'merged' : stringProperty(item, 'state') === 'open' ? 'open' : 'closed',
-		draft: booleanProperty(item, 'draft') ?? false,
+		draft,
 		headSha: requiredString(head, 'sha'),
 		headRef: requiredString(head, 'ref'),
 		headRepositoryNameWithOwner: optionalObjectProperty(head, 'repo') ? stringProperty(objectProperty(head, 'repo'), 'full_name') : undefined,
@@ -741,6 +745,7 @@ function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {
 		updatedAt: stringProperty(item, 'updated_at'),
 		closedAt: nullableStringProperty(item, 'closed_at'),
 		mergedAt: nullableStringProperty(item, 'merged_at'),
+		...(merged && stringProperty(item, 'merge_commit_sha') ? { mergeCommitSha: stringProperty(item, 'merge_commit_sha') } : {}),
 	};
 }
 
@@ -942,8 +947,12 @@ function nextLink(link: string | undefined): string | undefined {
 
 function pageInfoFrom(connection: object): { readonly hasNextPage: boolean; readonly endCursor?: string } {
 	const pageInfo = objectProperty(connection, 'pageInfo');
+	const hasNextPage = booleanProperty(pageInfo, 'hasNextPage');
+	if (hasNextPage === undefined) {
+		throw new GitHubRequestError('GitHub pagination completeness was not provided', 'malformedResponse');
+	}
 	return {
-		hasNextPage: booleanProperty(pageInfo, 'hasNextPage') ?? false,
+		hasNextPage,
 		endCursor: nullableStringProperty(pageInfo, 'endCursor'),
 	};
 }

@@ -439,6 +439,9 @@ import '../workbench/contrib/scrollLocking/browser/scrollLocking.contribution.js
 // Inline Completions
 import '../workbench/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
 
+// Workflows
+import '../workbench/contrib/workflows/browser/workflows.contribution.js';
+
 // Drop or paste into
 import '../workbench/contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 
@@ -480,6 +483,7 @@ import './services/sessions/browser/sessionGroupsService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
+import './contrib/workflows/browser/workflows.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';

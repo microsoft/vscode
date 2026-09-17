@@ -18,7 +18,9 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { getAgentHostExtensionInitializeResultMeta, GetWorkflowRunExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StartWorkflowExtensionMethod, WorkflowRunChangedExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostWorkflowStartOptions } from '../../common/agentHostWorkflow.js';
+import { workflowStoreRun } from '../common/workflowTestUtils.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -408,6 +410,45 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('workflow transport fails closed for older hosts without sending an unsupported request', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const before = transport.sentMessages.length;
+		await assert.rejects(client.getWorkflowRun(URI.parse('copilot:/workflow')), /does not support workflows/);
+		assert.strictEqual(transport.sentMessages.length, before);
+	});
+
+	test('workflow extension transports lightweight changes and exact session requests', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+		const changes: string[] = [];
+		disposables.add(client.onDidChangeWorkflowRun(change => changes.push(change.session)));
+		transport.fireMessage({ jsonrpc: '2.0', method: WorkflowRunChangedExtensionMethod, params: { session: 'copilot:/workflow' } } as unknown as ProtocolMessage);
+		transport.fireMessage({ jsonrpc: '2.0', method: WorkflowRunChangedExtensionMethod, params: { session: 'copilot:/workflow', progress: {} } } as unknown as ProtocolMessage);
+		const result = client.getWorkflowRun(URI.parse('copilot:/workflow'));
+		await Promise.resolve();
+		const request = transport.sentMessages.find(message => hasKey(message, { method: true }) && String(message.method) === GetWorkflowRunExtensionMethod) as JsonRpcRequest;
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { run: undefined } });
+		assert.deepStrictEqual({ changes, params: request.params, run: await result }, { changes: ['copilot:/workflow'], params: { session: 'copilot:/workflow' }, run: undefined });
+	});
+
+	test('workflow start transports the selected model configuration, agent and context intact', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+		const run = workflowStoreRun();
+		const options: IAgentHostWorkflowStartOptions = {
+			...run, model: { id: 'picked-model', config: { reasoning: 'high', fast: false } }, agent: { uri: 'file:///reviewer.agent.md' },
+			attachments: [{ type: MessageAttachmentKind.Simple, label: 'Context', modelRepresentation: 'Keep this context' }],
+		};
+		const result = client.startWorkflow(options);
+		await Promise.resolve();
+		const request = transport.sentMessages.find(message => hasKey(message, { method: true }) && String(message.method) === StartWorkflowExtensionMethod) as JsonRpcRequest;
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: run });
+		assert.deepStrictEqual({ params: request.params, run: await result }, { params: options, run });
+	});
 
 	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234', 'vscode-remote://ssh-remote+test'] as const) {
 		test(`workspace trust forwards only the target host's trusted roots (${String(identity)})`, async () => {

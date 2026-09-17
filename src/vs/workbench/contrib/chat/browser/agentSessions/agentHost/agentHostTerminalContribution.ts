@@ -106,7 +106,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				},
 			},
 		];
-		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
+		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService, this._agentHostService.onAgentHostStart));
 
 		this._register(autorun(reader => this._updateEnabled(this._agentHostEnablementService.enabled.read(reader))));
 	}

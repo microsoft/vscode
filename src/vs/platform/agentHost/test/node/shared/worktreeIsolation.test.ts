@@ -15,10 +15,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../log/common/log.js';
 import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildDefaultChatUri, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeAnnouncementText, buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
@@ -1040,6 +1040,33 @@ suite('WorktreeIsolation', () => {
 			meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
 		});
 	});
+
+	for (const failed of [false, true]) {
+		test(`a locally persisted worktree announcement is not repeated on the first agent turn (${failed})`, async () => {
+			const isolation = createIsolation(disposables);
+			if (failed) {
+				await isolation.persistCreationFailure(sessionUri, sessionId, 'Worktree unavailable');
+			} else {
+				await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+			}
+			const turn: Turn = { id: 'workflow', message: { text: 'Plan the feature', origin: { kind: MessageKind.SystemNotification } }, responseParts: [], state: TurnState.Complete, usage: undefined };
+			const local: Turn = {
+				...turn, id: 'initial-user', message: { text: 'Build a feature', origin: { kind: MessageKind.User } },
+				responseParts: [failed ? buildWorktreeFailureNotification('Worktree unavailable') : { kind: ResponsePartKind.Markdown, id: 'worktree', content: buildWorktreeAnnouncementText(branchName) }],
+			};
+			await db.insertLocalTurn({ turnId: local.id, chatUri: buildDefaultChatUri(sessionUri.toString()), anchorTurnId: undefined, seq: 1, payload: JSON.stringify(local) });
+			const restored = await isolation.applyRestoreAnnouncement(sessionUri, [turn]);
+			await db.deleteLocalTurns([local.id]);
+			const withoutLocal = await isolation.applyRestoreAnnouncement(sessionUri, [turn]);
+			assert.deepStrictEqual({
+				restored,
+				fallback: withoutLocal[0].responseParts.map(part => part.kind),
+			}, {
+				restored: [turn],
+				fallback: [failed ? ResponsePartKind.SystemNotification : ResponsePartKind.Markdown],
+			});
+		});
+	}
 
 	test('applyRestoreAnnouncement restores a worktree failure only for its originating session', async () => {
 		const isolation = createIsolation(disposables);

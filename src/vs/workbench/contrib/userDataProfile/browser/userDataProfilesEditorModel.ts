@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IProfileResourceChildTreeItem, IProfileTemplateInfo, isProfileURL, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as arrays from '../../../../base/common/arrays.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -22,6 +22,7 @@ import { SettingsResource, SettingsResourceTreeItem } from '../../../services/us
 import { KeybindingsResource, KeybindingsResourceTreeItem } from '../../../services/userDataProfile/browser/keybindingsResource.js';
 import { TasksResource, TasksResourceTreeItem } from '../../../services/userDataProfile/browser/tasksResource.js';
 import { SnippetsResource, SnippetsResourceTreeItem } from '../../../services/userDataProfile/browser/snippetsResource.js';
+import { WorkflowsResource, WorkflowsResourceTreeItem } from '../../../services/userDataProfile/browser/workflowsResource.js';
 import { McpProfileResource, McpResourceTreeItem } from '../../../services/userDataProfile/browser/mcpProfileResource.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -47,6 +48,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { WorkflowSettingId } from '../../workflows/common/workflowConfiguration.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -62,6 +64,7 @@ export type ChangeEvent = {
 	readonly profile?: boolean;
 	readonly extensions?: boolean;
 	readonly snippets?: boolean;
+	readonly workflows?: boolean;
 	readonly disabled?: boolean;
 	readonly newWindowProfile?: boolean;
 };
@@ -101,6 +104,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.doSave(), 500));
+	private readonly workflowsWatch = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		name: string,
@@ -117,6 +121,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		@IFileService protected readonly fileService: IFileService,
 		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._name = name;
@@ -129,6 +134,12 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				this.validate();
 			}
 			this.save();
+		}));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(WorkflowSettingId.Enabled) || e.affectsConfiguration('chat.disableAIFeatures')) {
+				this.watchWorkflows(this.getProfileToWatch());
+				this._onDidChange.fire({ workflows: true });
+			}
 		}));
 		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(results => {
 			const profile = this.getProfileToWatch();
@@ -148,6 +159,21 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				this._onDidChange.fire({ extensions: true });
 			}
 		}));
+	}
+
+	private get workflowsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(WorkflowSettingId.Enabled) === true
+			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
+	}
+
+	protected watchWorkflows(profile: IUserDataProfile | undefined): void {
+		this.workflowsWatch.clear();
+		if (profile && this.workflowsEnabled) {
+			const store = new DisposableStore();
+			this.workflowsWatch.value = store;
+			const watcher = store.add(this.fileService.createWatcher(profile.workflowsHome, { recursive: false, excludes: [] }));
+			store.add(watcher.onDidChange(() => this._onDidChange.fire({ workflows: true })));
+		}
 	}
 
 	private _name = '';
@@ -239,6 +265,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		}
 		if (
 			this.flags && this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.snippets && this.flags.extensions
+			&& (!this.workflowsEnabled || this.flags.workflows)
 		) {
 			this.message = localize('invalid configurations', "The profile should contain at least one configuration.");
 			return;
@@ -254,6 +281,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				ProfileResourceType.Tasks,
 				ProfileResourceType.Mcp,
 				ProfileResourceType.Snippets,
+				...(this.workflowsEnabled ? [ProfileResourceType.Workflows] : []),
 				ProfileResourceType.Extensions
 			];
 			return Promise.all(resourceTypes.map<Promise<IProfileResourceTypeElement>>(async r => {
@@ -295,6 +323,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				break;
 			case ProfileResourceType.Snippets:
 				children = (await this.instantiationService.createInstance(SnippetsResourceTreeItem, profile).getChildren()) ?? [];
+				break;
+			case ProfileResourceType.Workflows:
+				children = await this.instantiationService.createInstance(WorkflowsResourceTreeItem, profile).getChildren();
 				break;
 			case ProfileResourceType.Tasks:
 				children = await this.instantiationService.createInstance(TasksResourceTreeItem, profile).getChildren();
@@ -414,7 +445,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		readonly titleButtons: [Action[], Action[]],
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
@@ -440,6 +471,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			fileService,
 			extensionManagementService,
 			instantiationService,
+			configurationService,
 		);
 		this._isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -453,11 +485,13 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			const profile = updated.find(p => p.id === this.profile.id);
 			if (profile) {
 				this._profile = profile;
+				this.watchWorkflows(profile);
 				this.reset();
 				this._onDidChange.fire({ profile: true });
 			}
 		}));
 		this._register(fileService.watch(this.profile.snippetsHome));
+		this.watchWorkflows(this.profile);
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.affects(this.profile.snippetsHome)) {
 				this._onDidChange.fire({ snippets: true });
@@ -577,6 +611,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IFileService fileService: IFileService,
 		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(
 			'',
@@ -593,6 +628,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			fileService,
 			extensionManagementService,
 			instantiationService,
+			configurationService,
 		);
 		this.name = this.defaultName = this.getNewProfileName();
 		this._copyFrom = copyFrom;
@@ -639,6 +675,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			this._previewProfile = profile;
 			this._onDidChange.fire({ preview: true });
 			this.previewProfileWatchDisposables.clear();
+			this.watchWorkflows(profile);
 			if (this._previewProfile) {
 				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.snippetsHome));
 				this.previewProfileWatchDisposables.add(this.fileService.onDidFilesChange(e => {
@@ -662,6 +699,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			settings: true,
 			keybindings: true,
 			snippets: true,
+			workflows: true,
 			tasks: true,
 			extensions: true,
 			mcp: true
@@ -685,6 +723,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
 					this.setCopyFlag(ProfileResourceType.Snippets, !!this.template.snippets);
+					this.setCopyFlag(ProfileResourceType.Workflows, !!this.template.workflows);
 					this.setCopyFlag(ProfileResourceType.Extensions, !!this.template.extensions);
 					this.setCopyFlag(ProfileResourceType.Mcp, !!this.template.mcp);
 					this._onDidChange.fire({ copyFromInfo: true });
@@ -703,6 +742,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
 				this.setCopyFlag(ProfileResourceType.Snippets, true);
+				this.setCopyFlag(ProfileResourceType.Workflows, true);
 				this.setCopyFlag(ProfileResourceType.Extensions, true);
 				this.setCopyFlag(ProfileResourceType.Mcp, true);
 				this._onDidChange.fire({ copyFromInfo: true });
@@ -761,6 +801,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 					return !!this.template.keybindings;
 				case ProfileResourceType.Snippets:
 					return !!this.template.snippets;
+				case ProfileResourceType.Workflows:
+					return !!this.template.workflows;
 				case ProfileResourceType.Tasks:
 					return !!this.template.tasks;
 				case ProfileResourceType.Extensions:
@@ -833,6 +875,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			case ProfileResourceType.Snippets:
 				if (profileTemplate.snippets) {
 					await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
+				}
+				return [];
+			case ProfileResourceType.Workflows:
+				if (profileTemplate.workflows) {
+					await this.instantiationService.createInstance(WorkflowsResource).apply(profileTemplate.workflows, profile);
 					return this.getChildrenFromProfile(profile, resourceType);
 				}
 				return [];

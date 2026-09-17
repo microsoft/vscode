@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { canceled } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -16,7 +17,8 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider, SessionWorkflowSelection } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IWorkflowRuntime } from '../../../../../platform/workflow/common/workflow.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -28,6 +30,10 @@ import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browse
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IWorkflowAccessibilityService, WorkflowAccessibilityService } from '../../../../../workbench/contrib/workflows/browser/workflowAccessibility.js';
+import { testWorkflowSnapshot } from '../../../../../workbench/contrib/workflows/test/common/workflowTestData.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -159,6 +165,10 @@ interface ISessionCountHarness {
 interface ISendHarness {
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
+	readonly _workflow: IObservable<SessionWorkflowSelection | undefined>;
+	readonly _workflowsEnabled?: IObservable<boolean>;
+	readonly _workflowDraft?: { setSelection(selection: SessionWorkflowSelection | undefined): void };
+	readonly _pendingBackgroundSends?: DisposableMap<ISendRequestOptions, IDisposable>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
@@ -169,7 +179,9 @@ interface ISendHarness {
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
 	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
+	readonly sessionsProvidersService?: { getProvider(providerId: string): Pick<ISessionsProvider, 'workflows'> | undefined };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
+	readonly notificationService?: { error(message: string): void };
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 }
 
@@ -182,6 +194,14 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
+	readonly instantiationService: IInstantiationService;
+	readonly _workflow: IObservable<SessionWorkflowSelection | undefined>;
+	readonly _workflowsEnabled: IObservable<boolean>;
+	readonly _workflowDraft: { readonly error: IObservable<string | undefined>; setSelection(selection: SessionWorkflowSelection | undefined): void };
+	readonly chatEntitlementService: { readonly sentimentObs: IObservable<{ readonly hidden: boolean }> };
+	readonly notificationService: { error(error: Error): void };
+	_selectWorkflow(): Promise<void>;
+	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & { focus(): void };
 	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
 	readonly _workspacePicker: {
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
@@ -256,11 +276,24 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('workspace row hosts the workspace picker before the multiple-harness and context pickers', () => {
+	test('workspace row hosts one workflow picker last and keeps it available for clearing when rollout is disabled', () => {
 		const container = document.createElement('div');
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IWorkflowAccessibilityService, instantiationService.createInstance(WorkflowAccessibilityService));
+		const selection = observableValue<SessionWorkflowSelection | undefined>('workflow', undefined);
+		const error = observableValue<string | undefined>('workflowError', undefined);
+		const enabled = observableValue('workflowEnabled', true);
+		const sentiment = observableValue('sentiment', { hidden: false });
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
+			instantiationService,
+			_workflow: selection,
+			_workflowsEnabled: enabled,
+			_workflowDraft: { error, setSelection: value => selection.set(value, undefined) },
+			chatEntitlementService: { sentimentObs: sentiment },
+			notificationService: { error: error => { throw error; } },
+			_selectWorkflow: async () => { },
 			_workspacePickerVisibleKey: { set: () => { } },
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
@@ -276,6 +309,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_newChatInput: {
+				focus: () => { },
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {
@@ -302,11 +336,31 @@ suite('NewChatWidget', () => {
 			[
 				{ label: 'Workspace', className: '' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
+				{ label: 'Workflow', className: 'monaco-workflow-draft empty sessions-chat-picker-slot sessions-workspace-category-picker-slot' },
 			],
 		);
 		assert.deepStrictEqual(workspaceTriggers, [
 			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
 		]);
+		selection.set({ snapshot: testWorkflowSnapshot(), stopAfter: 'plan' }, undefined);
+		enabled.set(false, undefined);
+		assert.deepStrictEqual({
+			label: container.querySelector('.workflow-draft-label')?.textContent,
+			pickerDisabled: container.querySelector('.workflow-draft-picker')?.getAttribute('aria-disabled'),
+			separateRemove: !!container.querySelector('.workflow-draft-remove'),
+			popup: container.querySelector('.workflow-draft-picker')?.getAttribute('aria-haspopup'),
+			expanded: container.querySelector('.workflow-draft-picker')?.getAttribute('aria-expanded'),
+			inAttachments: !!container.querySelector('.sessions-chat-attach-row .monaco-workflow-draft'),
+		}, { label: 'Feature delivery', pickerDisabled: 'false', separateRemove: false, popup: 'listbox', expanded: 'false', inAttachments: false });
+		selection.set(undefined, undefined);
+		error.set('The saved workflow is invalid', undefined);
+		assert.deepStrictEqual({
+			label: container.querySelector('.workflow-draft-label')?.textContent,
+			pickerDisabled: container.querySelector('.workflow-draft-picker')?.getAttribute('aria-disabled'),
+			separateRemove: !!container.querySelector('.workflow-draft-remove'),
+		}, { label: 'Workflow could not be restored', pickerDisabled: 'false', separateRemove: false });
+		sentiment.set({ hidden: true }, undefined);
+		assert.strictEqual(container.querySelector('.monaco-workflow-draft'), null);
 	});
 
 	test('restores workspace, harness, context DOM and tab order after quick chat', () => {
@@ -943,6 +997,7 @@ suite('NewChatWidget', () => {
 
 		const result = await send.call({
 			_session: constObservable(session),
+			_workflow: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
 				selectedFolderUri: primaryFolder,
@@ -1008,6 +1063,7 @@ suite('NewChatWidget', () => {
 
 		const result = await send.call({
 			_session: constObservable(undefined),
+			_workflow: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
 				selectedFolderUri: undefined,
@@ -1032,6 +1088,73 @@ suite('NewChatWidget', () => {
 			sendCount: 0,
 		});
 	});
+
+	for (const scenario of [
+		{ name: 'unconfirmed startup', enabled: true, failure: new Error('Connection lost'), notified: true, sent: 1, result: false },
+		{ name: 'disabled workflows', enabled: false, failure: undefined, notified: true, sent: 0, result: false },
+		{ name: 'cancelled startup', enabled: true, failure: canceled(), notified: false, sent: 1, result: false },
+		{ name: 'confirmed startup', enabled: true, failure: undefined, notified: false, sent: 1, result: true },
+	]) {
+		test(`handles ${scenario.name} without consuming the workflow draft before confirmation`, async () => {
+			const folder = URI.file('/workflow-workspace');
+			const selection: SessionWorkflowSelection = {
+				snapshot: {
+					id: 'feature', version: 1, label: 'Feature',
+					checkpoints: [{
+						id: 'plan', label: 'Plan', instructions: 'Write a plan.', inputs: {},
+						type: { id: 'plan', version: 1, label: 'Plan', instructions: 'Write a plan.', proofSchema: { type: 'object' }, completion: { kind: 'reported' } },
+					}],
+				},
+				stopAfter: 'plan',
+			};
+			const workflow = observableValue<SessionWorkflowSelection | undefined>('workflow', selection);
+			const session = upcastPartial<ISession>({
+				providerId: 'test-provider',
+				capabilities: constObservable({ supportsMultipleChats: false, supportsWorkflows: true }),
+			});
+			const notifications: string[] = [];
+			let sent = 0;
+			let prepared = 0;
+			let clearedContext = 0;
+			const result = await send.call({
+				_session: constObservable(session),
+				_workflow: workflow,
+				_workflowsEnabled: constObservable(scenario.enabled),
+				_workflowDraft: { setSelection: value => workflow.set(value, undefined) },
+				_pendingBackgroundSends: disposables.add(new DisposableMap<ISendRequestOptions, IDisposable>()),
+				_feedbackItems: constObservable([]),
+				_workspacePicker: {
+					selectedFolderUri: folder,
+					clearAttachedContext: () => clearedContext++,
+					showPicker: () => { },
+				},
+				_isQuickChatComposer: constObservable(false),
+				agentFeedbackService: { removeFeedback: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => prepared++ },
+				sessionsManagementService: {
+					sendNewChatRequest: async () => {
+						sent++;
+						if (scenario.failure) {
+							throw scenario.failure;
+						}
+					},
+				},
+				sessionsProvidersService: { getProvider: () => ({ workflows: upcastPartial<IWorkflowRuntime>({}) }) },
+				logService: { error: () => { } },
+				notificationService: { error: message => notifications.push(message) },
+				_getWorkspaceRoots: () => [folder],
+			}, 'Keep this task');
+
+			assert.deepStrictEqual({
+				result, sent, prepared, clearedContext, selection: workflow.get(),
+				notifications: notifications.map(message => message.startsWith('Workflow start was not confirmed. Your draft has been kept.')),
+			}, {
+				result: scenario.result, sent: scenario.sent, prepared: scenario.sent,
+				clearedContext: scenario.result ? 1 : 0, selection: scenario.result ? undefined : selection,
+				notifications: scenario.notified ? [true] : [],
+			});
+		});
+	}
 
 	for (const origin of [
 		WorkspaceSelectionOrigin.None, WorkspaceSelectionOrigin.CheckedWorkspace, WorkspaceSelectionOrigin.AgentsRecent,

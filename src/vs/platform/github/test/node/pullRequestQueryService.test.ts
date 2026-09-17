@@ -155,6 +155,40 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	test('exposes only the post-merge integrated commit, including squash and rebase results', async () => {
+		await withServer(async server => {
+			const head = 'a'.repeat(40);
+			const integrated = 'b'.repeat(40);
+			const { query, ref, credential } = setup(server);
+			const result = [];
+			for (const merged of [false, true]) {
+				server.enqueue(gitHubRestStep({
+					path: '/repos/octo/repo/pulls/7',
+					response: gitHubJsonResponse({ ...rawCore(head), merged, state: merged ? 'closed' : 'open', merge_commit_sha: integrated }),
+				}));
+				const value = await query.fetch('core', ref, undefined, { priority: 'background' }, credential, new AbortController().signal);
+				result.push(value.fragment === 'core' ? { state: value.value.state, head: value.value.headSha, integrated: value.value.mergeCommitSha, repository: value.value.repositoryNameWithOwner } : undefined);
+			}
+			assert.deepStrictEqual(result, [
+				{ state: 'open', head, integrated: undefined, repository: 'new-owner/new-repo' },
+				{ state: 'merged', head, integrated, repository: 'new-owner/new-repo' },
+			]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not infer a non-draft pull request when the draft state is missing', async () => {
+		await withServer(async server => {
+			const response = rawCore('head-1');
+			Reflect.deleteProperty(response, 'draft');
+			server.enqueue(gitHubRestStep({ path: '/repos/octo/repo/pulls/7', response: gitHubJsonResponse(response) }));
+			const { query, ref, credential } = setup(server);
+			await assert.rejects(query.fetch('core', ref, undefined, { priority: 'background' }, credential, new AbortController().signal),
+				error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
+			server.assertSatisfied();
+		});
+	});
+
 	test('fully paginates review threads and nested comments', async () => {
 		await withServer(async server => {
 			server.enqueue(
@@ -255,6 +289,21 @@ suite('PullRequestQueryService', () => {
 				complete: true,
 				headSha: 'head-1',
 			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not consider review pagination complete when GitHub omits page completeness', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'AgentHostPullRequestReviewThreads',
+				response: gitHubGraphQLResponse({
+					repository: { pullRequest: { headRefOid: 'head-1', reviewThreads: { nodes: [], pageInfo: { endCursor: null } } } },
+				}),
+			}));
+			const { query, ref, credential } = setup(server);
+			await assert.rejects(query.fetch('reviewThreads', ref, core('head-1'), { priority: 'background', conversation: { reviewThreads: true } }, credential, new AbortController().signal),
+				error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
 			server.assertSatisfied();
 		});
 	});

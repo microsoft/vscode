@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { emptyTestWorkflowStore } from './testWorkflowService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
@@ -11,6 +12,7 @@ import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
+	readonly workflows = emptyTestWorkflowStore;
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
 	readonly agentMergeEnabled = new Set<string>();
 	backfilled = false;

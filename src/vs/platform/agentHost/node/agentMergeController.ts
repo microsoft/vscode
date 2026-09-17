@@ -32,6 +32,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { IAgentHostWorkflowService } from './workflow/agentHostWorkflowService.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
@@ -132,10 +133,16 @@ export class AgentMergeController extends Disposable {
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
+		@IAgentHostWorkflowService private readonly _workflows: IAgentHostWorkflowService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._logService.debug('[AgentMergeController] Initialized');
+		this._register(this._workflows.onDidChangeOwnership(session => {
+			for (const resource of session ? [session] : this._stateManager.getSessionUris()) {
+				this._syncSession(resource);
+			}
+		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(event => {
 			const previous = readAgentMergeSessionState(event.previous?.values);
 			const current = readAgentMergeSessionState(event.current?.values);
@@ -225,6 +232,9 @@ export class AgentMergeController extends Disposable {
 	 * the runtime that is about to claim it.
 	 */
 	private _shouldHoldSession(session: string): boolean {
+		if (this._workflows.ownsContinuation(session)) {
+			return false;
+		}
 		if (this._runtimes.has(session)) {
 			return true;
 		}
@@ -268,6 +278,13 @@ export class AgentMergeController extends Disposable {
 	private _doSyncSession(session: string): void {
 		const state = this._stateManager.getSessionState(session);
 		const agentMerge = readAgentMergeSessionState(state?.config?.values);
+		if (this._workflows.ownsContinuation(session)) {
+			if (agentMerge?.injectedConfiguration) {
+				this._restoreInjectedConfiguration(session, agentMerge, true);
+			}
+			this._stopRuntime(session);
+			return;
+		}
 		if (!state || !agentMerge?.enabled) {
 			if (this._runtimes.has(session) || agentMerge?.injectedConfiguration) {
 				this._logService.info(`[AgentMergeController] Stopping disabled session: session=${session}`);

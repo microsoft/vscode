@@ -533,6 +533,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private toolsContentContainer: HTMLElement | undefined;
 	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
 	private readonly contributedSectionWidgets = new Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>();
+	private readonly contributedSectionData = this._register(new DisposableStore());
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -624,6 +625,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
 	private readonly allSections: ISectionItem[] = [];
+	private readonly contributedSectionContextKeys = new Set<string>();
 	private selectedSection: AICustomizationManagementSection | undefined;
 	private contentNavigationGeneration = 0;
 
@@ -662,7 +664,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly sectionContextKeyService: IContextKeyService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
@@ -690,9 +692,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
-		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
-		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
-		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
+		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(sectionContextKeyService);
+		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(sectionContextKeyService);
+		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(sectionContextKeyService);
 		this.updateTargetLabelPresentation();
 
 		// Track workspace changes for embedded editor
@@ -870,10 +872,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
 		this.sections.length = 0;
+		this.contributedSectionContextKeys.clear();
 		for (const s of this.allSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
-			if (!hidden.has(s.id) && (!contributed || !!contribution)) {
+			for (const key of contribution?.when?.keys() ?? []) {
+				this.contributedSectionContextKeys.add(key);
+			}
+			if (!hidden.has(s.id) && (!contributed || !!contribution) && (!contribution?.when || this.sectionContextKeyService.contextMatchesRules(contribution.when))) {
 				this.sections.push(contribution ? { ...s, label: contribution.label, icon: contribution.icon, description: contribution.description } : s);
 			}
 		}
@@ -882,6 +888,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.sectionsList) {
 			this.sectionsList.splice(0, this.sectionsList.length, this.sections);
 			this.layoutSidebar(this.sidebarWidth, this.sidebarHeight);
+			this.refreshContributedSectionCounts();
 		}
 
 		// Rebuild welcome cards to reflect new visible sections
@@ -964,6 +971,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this._previousActiveHarnessId = activeId;
 		}));
 
+		this.editorDisposables.add(this.sectionContextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this.contributedSectionContextKeys)) {
+				this.rebuildVisibleSections();
+			}
+		}));
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
@@ -3214,10 +3226,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
 		this.editorDisposables.add(widget);
+		if (widget.onDidChangeItemCount) {
+			this.editorDisposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
+			widget.fireItemCount?.();
+		}
 		if (this.dimension) {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
+	}
+
+	private refreshContributedSectionCounts(): void {
+		this.contributedSectionData.clear();
+		for (const section of this.sections) {
+			const contribution = aiCustomizationManagementSectionRegistry.get(section.id, this.harnessService.activeHarness.get());
+			const data = contribution?.createData?.(this.instantiationService);
+			if (data) {
+				this.contributedSectionData.add(data);
+				this.updateSectionCount(section.id, data.getCount());
+				this.contributedSectionData.add(data.onDidChange(() => this.updateSectionCount(section.id, data.getCount())));
+			}
+		}
 	}
 
 	/**

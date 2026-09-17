@@ -7,7 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -43,6 +43,11 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../commo
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
 import { toAgentMergeMessageMeta } from '../common/meta/agentMergeMessageMeta.js';
+import { IAgentHostWorkflowService } from './workflow/agentHostWorkflowService.js';
+import type { WorkflowControl, WorkflowRun } from '../../workflow/common/workflow.js';
+import type { IAgentHostWorkflowStartOptions } from '../common/agentHostWorkflow.js';
+import type { IAgentWorkflowRunChange } from '../common/meta/agentWorkflowMeta.js';
+import { equals } from '../../../base/common/arrays.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -70,7 +75,8 @@ import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.j
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 
-import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { IAgentHostWorkingDirectoryService } from './agentHostWorkingDirectoryService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -621,6 +627,8 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
+		@IAgentHostWorkflowService private readonly _workflowService: IAgentHostWorkflowService,
+		@IAgentHostWorkingDirectoryService private readonly _workingDirectoryService: IAgentHostWorkingDirectoryService,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -927,38 +935,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return { ...request, config: omitHostOwnedSessionConfig(request.config) };
 	}
 
-	/**
-	 * Host-owned first-send hook (invoked by {@link AgentSideEffects} before the
-	 * agent locks its subprocess cwd). Resolves the working directories the session
-	 * will actually run in and hands them to the agent at send time:
-	 *  - index 0 is the process root: for `worktree` isolation the isolated
-	 *    worktree (created here on the first send, see
-	 *    {@link _resolveWorktreeBeforeSend}); for `folder` isolation the picked
-	 *    folder; `undefined` (whole result) for workspace-less sessions.
-	 *  - the tail carries any additional session roots as-is (only index 0 is
-	 *    worktree-remapped; additional roots are passed through unchanged).
-	 */
-	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
-		const sessionId = AgentSession.id(params.session);
-		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.session);
-		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
-		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
-
-		// Only worktree-isolation sessions defer directory resolution to the first
-		// send (so the prompt can name the branch); folder / workspace-less
-		// sessions run directly in the picked folder.
-		if (!this._worktree.isWorkingDirectoryPending(sessionId)) {
-			if (!pickedFolderUri) {
-				return undefined;
-			}
-			const resolved = await this._worktree.resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
-			return [resolved, ...tail];
-		}
-
-		// Fall back to the picked folder when worktree creation failed so the
-		// session still materializes in the user's folder rather than nowhere.
-		const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri }) ?? pickedFolderUri;
-		return resolved ? [resolved, ...tail] : undefined;
+	private _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
+		return this._workingDirectoryService.resolve(params);
 	}
 
 	private async _resolveChatAttachmentTurns(resource: string): Promise<readonly Turn[]> {
@@ -992,70 +970,6 @@ export class AgentService extends Disposable implements IAgentService {
 			return resolved;
 		}
 		return [];
-	}
-
-	/**
-	 * Creates the session's isolated worktree on the first send (deferred so the
-	 * user's prompt can name the branch), reports creation progress as the chat's
-	 * activity, surfaces the "Created isolated worktree" announcement as the first
-	 * markdown response part or a durable fallback warning, and returns the created worktree URI.
-	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
-	 * worktree creation failed. Only invoked for sessions whose worktree is still
-	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
-	 */
-	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
-		const { sessionId, pickedFolderUri } = params;
-		const worktree = this._worktree;
-		let reportedActivity = false;
-		let failureDiagnostic: string | undefined;
-		try {
-			await worktree.resolveOnFirstSend({
-				sessionUri: URI.parse(params.session),
-				sessionId,
-				workingDirectory: pickedFolderUri,
-				config: this._configurationService.getSessionConfigValues(params.session),
-				prompt: params.prompt,
-				githubToken: this._authService.getAuthToken({
-					resource: this._gitHubEndpointService.getCopilotResource().resource,
-					scopes: this._gitHubEndpointService.getCopilotResource().scopes_supported,
-				}),
-				onProgress: activity => {
-					reportedActivity = true;
-					this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity });
-				},
-			});
-		} catch (err) {
-			failureDiagnostic = toErrorMessage(err);
-			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${failureDiagnostic}`);
-		}
-		// Clear on every exit path so a failed creation can't strand the chat
-		// on a stale "Creating isolated worktree" activity.
-		if (reportedActivity) {
-			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
-		}
-		const resolvedWorktree = worktree.getResolvedWorktree(sessionId);
-		if (!resolvedWorktree) {
-			try {
-				await worktree.persistCreationFailure(URI.parse(params.session), sessionId, failureDiagnostic);
-			} catch (err) {
-				this._logService.warn(`[AgentService] failed to persist worktree creation failure for ${params.session}: ${toErrorMessage(err)}`);
-			}
-			this._stateManager.dispatchServerAction(params.chat, {
-				type: ActionType.ChatResponsePart,
-				turnId: params.turnId,
-				part: buildWorktreeFailureNotification(failureDiagnostic),
-			});
-			return undefined;
-		}
-		const announcement = worktree.takePendingAnnouncement(sessionId);
-		if (announcement !== undefined) {
-			this._stateManager.dispatchServerAction(params.chat, {
-				type: ActionType.ChatResponsePart,
-				turnId: params.turnId,
-				part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
-			});
-		}
-		return resolvedWorktree;
 	}
 
 	private _initializeProvider(provider: IAgent): IDisposable {
@@ -2255,9 +2169,8 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			results = await Promise.all(registered.map(registeredSession => metadataLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
 				const { session, provider, external } = registeredSession;
-				// Idle provisional sessions stay hidden until they materialize or gain
-				// turn activity (#321269). The state-manager overlay below re-surfaces
-				// them then.
+				// Uncommitted provisional sessions stay hidden until they gain
+				// durable host activity or turn activity (#321269).
 				if (this._stateManager.isIdleProvisionalSession(session.toString())) {
 					return undefined;
 				}
@@ -2438,8 +2351,8 @@ export class AgentService extends Disposable implements IAgentService {
 		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
 		// an empty array right after `session/turnComplete`), and a provisional
 		// session (created but not yet materialized — see `createSession`) that
-		// has had any turn activity must stay visible until it materializes.
-		// Idle provisional sessions are deliberately *not* overlaid so the
+		// has durable host activity or turn activity must stay visible until it
+		// materializes. Uncommitted idle provisional sessions are not overlaid so the
 		// new-session composer's eagerly-created session doesn't leak into the
 		// list before its first message (#321269).
 		const known = new Set(hiddenExternal);
@@ -2477,7 +2390,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 			});
 		}
-		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+		const combined = await this._workflowService.projectSessions(additions.length > 0 ? [...withStatus, ...additions] : withStatus);
 		const now = Date.now();
 		const recentSessionKeys = mode === AgentHostExternalSessionsMode.Recent
 			? this._getRecentSessionKeys(combined, now)
@@ -3897,15 +3810,17 @@ export class AgentService extends Disposable implements IAgentService {
 		this._persistWorkspaceless(session, readSessionWorkspaceless(summary._meta));
 		this._persistMultiRoot(session, readSessionMultiRootMetadata(summary._meta));
 		this._persistFolderPickerDecision(session, readSessionFolderPickerDecision(summary._meta));
-		// `markSessionPersisted` writes the summary into state and fires
-		// the deferred `SessionAdded` notification atomically so subscribers
-		// see consistent state through both paths.
+		// Refresh materialization fields even when durable host work already
+		// committed this session. The state manager adds an unpublished session
+		// or updates its existing catalog entry without adding it again.
 		const previousWorkingDirectory = currentSummary.workingDirectories?.[0];
 		const materializedWorkingDirectory = summary.workingDirectories?.[0];
 		const workingDirectoryReplacement = previousWorkingDirectory && materializedWorkingDirectory && previousWorkingDirectory !== materializedWorkingDirectory
 			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
 			: undefined;
-		this._stateManager.markSessionPersisted(sessionKey, summary);
+		const materializationChanged = !equals(currentSummary.workingDirectories, summary.workingDirectories)
+			|| currentSummary.project?.uri !== summary.project?.uri || currentSummary.project?.displayName !== summary.project?.displayName;
+		this._stateManager.markSessionPersisted(sessionKey, summary, state.lifecycle !== SessionLifecycle.Ready || materializationChanged);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		if (workingDirectoryReplacement) {
 			this._stateManager.dispatchServerAction(sessionKey, {
@@ -4192,6 +4107,30 @@ export class AgentService extends Disposable implements IAgentService {
 
 	get automationCapabilities(): AutomationCapabilities | undefined {
 		return this._automationService.capabilities;
+	}
+
+	get onDidChangeWorkflowRun(): Event<IAgentWorkflowRunChange> {
+		return this._workflowService.onDidChangeWorkflowRun;
+	}
+
+	getWorkflowRun(session: URI): Promise<WorkflowRun | undefined> {
+		return this._workflowService.getWorkflowRun(session);
+	}
+
+	startWorkflow(options: IAgentHostWorkflowStartOptions): Promise<WorkflowRun> {
+		return this._workflowService.startWorkflow(options);
+	}
+
+	controlWorkflow(control: WorkflowControl): Promise<WorkflowRun> {
+		return this._workflowService.controlWorkflow(control);
+	}
+
+	setWorkflowSourceEnabled(sourceId: string, enabled: boolean): Promise<void> {
+		return this._workflowService.setWorkflowSourceEnabled(sourceId, enabled);
+	}
+
+	setWorkflowExtensionSources(sources: Readonly<Record<string, boolean>>): Promise<void> {
+		return this._workflowService.setWorkflowExtensionSources(sources);
 	}
 
 	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
@@ -5593,7 +5532,46 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], awaitCatalogReadable: () => Promise<boolean>, sessionKnownToRegistry: boolean, adoptionWorktree: IAgentAdoptedWorktree | undefined): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
 		this._logService.trace(`[AgentService] restore: reading provider metadata for ${sessionStr}`);
-		let meta = await this._getSessionMetadataForRestore(agent, session, external);
+		const bootstrap = await this._workflowService.getSessionBootstrap(session);
+		if (bootstrap) {
+			if (bootstrap.config.provider !== agent.id || await this._sessionRegistry.isTombstoned(session)) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is no longer available for initialization: ${sessionStr}`);
+			}
+			// A committed host session can predate any provider transcript. Recreate
+			// only its provisional backing using the original host-owned settings;
+			// the ordinary restore path below still owns hydration and admission.
+			let config = bootstrap.config;
+			const ref = await this._sessionDataService.tryOpenDatabase(session);
+			if (ref) {
+				try {
+					const saved = await ref.object.getMetadata('configValues');
+					if (saved) {
+						const values = JSON.parse(saved) as IAgentCreateSessionConfig['config'];
+						if (!values || typeof values !== 'object' || Array.isArray(values)) {
+							throw new Error(`Invalid saved session configuration: ${sessionStr}`);
+						}
+						config = { ...config, config: omitTransientSessionConfigValues(values) };
+					}
+				} finally {
+					ref.dispose();
+				}
+			}
+			await this._createProviderSession(agent, config, config.config?.[SessionConfigKey.Isolation] === 'worktree');
+			const metadata: Record<string, string> = {
+				configValues: JSON.stringify(config.config ?? {}),
+				[AH_META_WORKSPACELESS_DB_KEY]: readSessionWorkspaceless(bootstrap.metadata._meta) ? 'true' : 'false',
+			};
+			const multiRoot = readSessionMultiRootMetadata(bootstrap.metadata._meta);
+			const folderPicker = readSessionFolderPickerDecision(bootstrap.metadata._meta);
+			if (multiRoot) {
+				metadata[SESSION_META_MULTI_ROOT_KEY] = JSON.stringify(multiRoot);
+			}
+			if (folderPicker) {
+				metadata[SESSION_META_FOLDER_PICKER_KEY] = JSON.stringify(folderPicker);
+			}
+			await persistSessionMetadataValues(this._sessionDataService, sessionStr, metadata);
+		}
+		let meta = bootstrap?.metadata ?? await this._getSessionMetadataForRestore(agent, session, external);
 		if (!meta) {
 			// Only a miss needs the catalogue: it decides whether the session is
 			// genuinely absent, and warming it may enumerate thousands of sessions.

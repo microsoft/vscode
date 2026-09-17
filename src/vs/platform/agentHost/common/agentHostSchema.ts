@@ -452,6 +452,12 @@ export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 /** Whether extension-provided BYOK models are enabled. */
 export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
 
+/** Editor rollout setting mirrored by each connected workflow owner. */
+export const WORKFLOWS_ENABLED_SETTING_ID = 'chat.workflows.enabled';
+
+/** Host-owned workflow orchestration gate; does not change SDK permissions. */
+export const AgentHostWorkflowsEnabledConfigKey = 'workflowsEnabled';
+
 /**
  * Root config key forwarded from the renderer carrying the experiment-aware
  * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
@@ -885,6 +891,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
+	[AgentHostWorkflowsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.workflowsEnabled.title', "Workflows"),
+		description: localize('agentHost.config.workflowsEnabled.description', "Whether experimental host-managed workflows may start or continue. Ordinary agent permissions remain authoritative."),
+		default: false,
+	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
@@ -981,4 +993,10 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostEditAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
 	AgentHostWorkspaceTrustConfigKey,
+]);
+
+/** Client mirrors must be republished before a restarted host enables their behavior. */
+export const clientOwnedRootConfigKeys: ReadonlySet<string> = new Set([
+	...clientOwnedApprovalRootConfigKeys,
+	AgentHostWorkflowsEnabledConfigKey,
 ]);

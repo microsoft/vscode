@@ -8,6 +8,10 @@ import type { Database, RunResult } from '@vscode/sqlite3';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AgentProvider } from '../common/agent.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { type IAgentHostWorkflowStore, WorkflowStore } from './workflow/workflowStore.js';
+
+export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -50,6 +54,7 @@ export interface IAgentHostDatabaseModifiedTimeUpdate {
 }
 
 export interface IAgentHostDatabase extends IDisposable {
+	readonly workflows: IAgentHostWorkflowStore;
 	/**
 	 * Records a session with source-aware provenance. When requested, the
 	 * tombstone check and registration are atomic.
@@ -128,6 +133,31 @@ const migrations = [
 			'UPDATE sessions SET modified_time = start_time',
 		].join(';\n'),
 	},
+	{
+		version: 5,
+		sql: [
+			`CREATE TABLE workflow_runs (
+				run_id TEXT PRIMARY KEY NOT NULL,
+				session_uri TEXT NOT NULL UNIQUE,
+				chat_uri TEXT NOT NULL,
+				revision INTEGER NOT NULL,
+				next_wake_at INTEGER,
+				data TEXT NOT NULL
+			)`,
+			'CREATE INDEX workflow_runs_due ON workflow_runs(next_wake_at) WHERE next_wake_at IS NOT NULL',
+		].join(';\n'),
+	},
+	{
+		version: 6,
+		sql: [
+			'ALTER TABLE workflow_runs ADD COLUMN initial_context TEXT',
+			'ALTER TABLE workflow_runs ADD COLUMN initial_turn_id TEXT',
+		].join(';\n'),
+	},
+	{
+		version: 7,
+		sql: 'ALTER TABLE workflow_runs ADD COLUMN initial_session TEXT',
+	},
 ] as const;
 
 function openDatabase(path: string): Promise<Database> {
@@ -200,6 +230,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private _databasePromise: Promise<Database> | undefined;
 	private _closed: Promise<void> | true | undefined;
+	readonly workflows = new WorkflowStore({
+		get: async (sql, parameters) => get(await this._ensureDatabase(), sql, parameters),
+		all: async (sql, parameters) => all(await this._ensureDatabase(), sql, parameters),
+		run: async (sql, parameters) => runReturningChanges(await this._ensureDatabase(), sql, parameters),
+	});
 
 	constructor(private readonly _path: string) { }
 
@@ -238,6 +273,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await exec(
 				database,
 				`BEGIN IMMEDIATE;
+				DELETE FROM workflow_runs WHERE session_uri = ${quoteSqlString(session)};
 				DELETE FROM sessions WHERE session_uri = ${quoteSqlString(session)};
 				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
 				COMMIT;`,
@@ -263,6 +299,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				INSERT INTO metadata (key, value) VALUES (${tombstoneValue}, 'true')
 					ON CONFLICT(key) DO UPDATE SET value = excluded.value;
 				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
+				DELETE FROM workflow_runs WHERE session_uri = ${sessionValue};
 				DELETE FROM sessions WHERE session_uri = ${sessionValue};
 				COMMIT;`,
 			);

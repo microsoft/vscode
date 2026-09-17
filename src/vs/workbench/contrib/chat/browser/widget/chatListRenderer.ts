@@ -81,6 +81,7 @@ import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAgentMergeContentPart, getAgentMergeRequestSummary } from './chatContentParts/chatAgentMergeContentPart.js';
+import { ChatWorkflowContentPart, getWorkflowRequestPresentation } from './chatContentParts/chatWorkflowContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
@@ -2560,6 +2561,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const label = element.systemInitiatedLabel ?? element.messageText;
+		const workflow = getWorkflowRequestPresentation(element);
+		if (workflow) {
+			const workflowPart = templateData.elementDisposables.add(this.instantiationService.createInstance(
+				ChatWorkflowContentPart, workflow, element.messageText, element.requestTimestamp));
+			templateData.value.appendChild(workflowPart.domNode);
+			return;
+		}
+
 		const notificationPart = this.instantiationService.createInstance(
 			ChatSystemNotificationContentPart,
 			{ kind: 'systemNotification', content: new MarkdownString(label) },

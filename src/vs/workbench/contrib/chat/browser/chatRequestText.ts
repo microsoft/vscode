@@ -5,6 +5,7 @@
 
 import { IChatRequestViewModel } from '../common/model/chatViewModel.js';
 import { getAgentMergeRequestLabel } from './widget/chatContentParts/chatAgentMergeContentPart.js';
+import { getWorkflowRequestLabel, getWorkflowRequestPresentation } from './widget/chatContentParts/chatWorkflowContentPart.js';
 
 /**
  * Text that stands for a request wherever its row is described rather than
@@ -17,6 +18,10 @@ export function getChatRequestText(item: IChatRequestViewModel): string {
 	const agentMergeLabel = getAgentMergeRequestLabel(item);
 	if (agentMergeLabel !== undefined) {
 		return agentMergeLabel;
+	}
+	const workflow = getWorkflowRequestPresentation(item);
+	if (workflow) {
+		return getWorkflowRequestLabel(workflow);
 	}
 	return item.messageText;
 }

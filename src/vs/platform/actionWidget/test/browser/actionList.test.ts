@@ -858,6 +858,33 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('long details keep their ellipsis inside the action row', async () => {
+		const list = createActionListWidget(disposables, {
+			items: [
+				{ ...action('detail'), detail: 'A description that is intentionally long enough to overflow a compact picker row' },
+				...Array.from({ length: 30 }, (_, index) => action(`filler-${index}`)),
+			],
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		wrapper.style.width = '240px';
+		list.domNode.parentElement?.insertBefore(wrapper, list.domNode);
+		wrapper.appendChild(list.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+		list.layout(200, 240);
+		await settleLayout();
+		const row = list.domNode.querySelector<HTMLElement>('.monaco-list-row.has-detail')!;
+		const title = row.querySelector<HTMLElement>('.title')!;
+		const detail = row.querySelector<HTMLElement>('.detail')!;
+		const scrollbar = list.domNode.querySelector<HTMLElement>('.scrollbar.vertical')!;
+		assert.deepStrictEqual({
+			secondLine: detail.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+			clearsScrollbar: detail.getBoundingClientRect().right <= scrollbar.getBoundingClientRect().left,
+			truncated: detail.scrollWidth > detail.clientWidth,
+			textOverflow: mainWindow.getComputedStyle(detail).textOverflow,
+		}, { secondLine: true, clearsScrollbar: true, truncated: true, textOverflow: 'ellipsis' });
+	});
+
 	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

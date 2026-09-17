@@ -9,8 +9,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { equals } from '../../../../base/common/objects.js';
 import { basename } from '../../../../base/common/path.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -20,11 +22,11 @@ import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
 import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { getWorktreesRoot } from '../../common/worktreePaths.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildDefaultChatUri, ResponsePart, ResponsePartKind, StringOrMarkdown, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 
 export const IAgentHostWorktreeIsolation = createDecorator<IAgentHostWorktreeIsolation>('agentHostWorktreeIsolation');
@@ -1499,7 +1501,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				ref.object.getMetadata(WORKTREE_META_CREATION_FAILURE),
 			]);
 			if (branchName) {
-				return { kind: 'success', branchName };
+				return await this._hasLocalAnnouncement(ref.object, sessionUri, ResponsePartKind.Markdown, buildWorktreeAnnouncementText(branchName))
+					? undefined : { kind: 'success', branchName };
 			}
 			if (!failureRaw) {
 				return undefined;
@@ -1512,13 +1515,45 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			if (raw['sessionId'] !== AgentSession.id(sessionUri)) {
 				return undefined;
 			}
+			const diagnostic = typeof raw['diagnostic'] === 'string' ? normalizeWorktreeFailureDiagnostic(raw['diagnostic']) : undefined;
+			if (await this._hasLocalAnnouncement(ref.object, sessionUri, ResponsePartKind.SystemNotification, buildWorktreeFailureNotification(diagnostic).content)) {
+				return undefined;
+			}
 			return {
 				kind: 'failure',
-				diagnostic: typeof raw['diagnostic'] === 'string' ? normalizeWorktreeFailureDiagnostic(raw['diagnostic']) : undefined,
+				diagnostic,
 			};
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private async _hasLocalAnnouncement(database: ISessionDatabase, session: URI, kind: ResponsePartKind, content: StringOrMarkdown): Promise<boolean> {
+		const chat = buildDefaultChatUri(session.toString());
+		for (const record of await database.getLocalTurns()) {
+			if (record.chatUri !== chat || record.anchorTurnId !== undefined) {
+				continue;
+			}
+			try {
+				const turn: unknown = JSON.parse(record.payload);
+				if (!isObject(turn)) {
+					continue;
+				}
+				const parts = (turn as Record<string, unknown>)['responseParts'];
+				if (Array.isArray(parts) && parts.some((part: unknown) => {
+					if (!isObject(part)) {
+						return false;
+					}
+					const raw = part as Record<string, unknown>;
+					return raw['kind'] === kind && equals(raw['content'], content);
+				})) {
+					return true;
+				}
+			} catch (error) {
+				this._logService.warn(`[${this._logLabel}] Failed to read local worktree announcement for ${session.toString()}`, error);
+			}
+		}
+		return false;
 	}
 
 	private async _isSessionArchived(sessionUri: URI): Promise<boolean> {

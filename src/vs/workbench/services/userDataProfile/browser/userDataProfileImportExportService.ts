@@ -21,6 +21,7 @@ import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, Pr
 import { SettingsResource, SettingsResourceTreeItem } from './settingsResource.js';
 import { KeybindingsResource, KeybindingsResourceTreeItem } from './keybindingsResource.js';
 import { SnippetsResource, SnippetsResourceTreeItem } from './snippetsResource.js';
+import { WorkflowsResource, WorkflowsResourceTreeItem } from './workflowsResource.js';
 import { TasksResource, TasksResourceTreeItem } from './tasksResource.js';
 import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceTreeItem } from './extensionsResource.js';
 import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceTreeItem } from './globalStateResource.js';
@@ -48,6 +49,7 @@ interface IUserDataProfileTemplate {
 	readonly keybindings?: string;
 	readonly tasks?: string;
 	readonly snippets?: string;
+	readonly workflows?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
 }
@@ -60,6 +62,7 @@ function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTem
 		&& (isUndefined(candidate.icon) || typeof candidate.icon === 'string')
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
+		&& (isUndefined(candidate.workflows) || typeof candidate.workflows === 'string')
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
 }
 
@@ -202,6 +205,13 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (profileTemplate.snippets && (options.resourceTypeFlags?.snippets ?? true) && !profile.useDefaultFlags?.snippets) {
 			reportProgress(localize('create snippets', "Creating Snippets..."));
 			await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (profileTemplate.workflows && (options.resourceTypeFlags?.workflows ?? true) && !profile.useDefaultFlags?.workflows) {
+			reportProgress(localize('create workflows', "Creating Workflows..."));
+			await this.instantiationService.createInstance(WorkflowsResource).apply(profileTemplate.workflows, profile);
 		}
 		if (token.isCancellationRequested) {
 			return;
@@ -353,6 +363,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (options?.resourceTypeFlags?.snippets === false) {
 			profileTemplate.snippets = undefined;
 		}
+		if (options?.resourceTypeFlags?.workflows === false) {
+			profileTemplate.workflows = undefined;
+		}
 
 		if (options?.resourceTypeFlags?.tasks === false) {
 			profileTemplate.tasks = undefined;
@@ -390,6 +403,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (profileTemplate.snippets && !profile.useDefaultFlags?.snippets) {
 			progress(localize('progress snippets', "Applying Snippets..."));
 			await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
+		}
+		if (profileTemplate.workflows && !profile.useDefaultFlags?.workflows) {
+			progress(localize('progress workflows', "Applying Workflows..."));
+			await this.instantiationService.createInstance(WorkflowsResource).apply(profileTemplate.workflows, profile);
 		}
 		if (profileTemplate.globalState && !profile.useDefaultFlags?.globalState) {
 			progress(localize('progress global state', "Applying State..."));
@@ -612,6 +629,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		let keybindings: string | undefined;
 		let tasks: string | undefined;
 		let snippets: string | undefined;
+		let workflows: string | undefined;
 		let extensions: string | undefined;
 		let globalState: string | undefined;
 		for (const root of roots) {
@@ -626,6 +644,8 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 				tasks = await root.getContent();
 			} else if (root instanceof SnippetsResourceTreeItem) {
 				snippets = await root.getContent();
+			} else if (root instanceof WorkflowsResourceTreeItem) {
+				workflows = await root.getContent();
 			} else if (root instanceof ExtensionsResourceTreeItem) {
 				extensions = await root.getContent();
 			} else if (root instanceof GlobalStateResourceTreeItem) {
@@ -640,6 +660,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			keybindings,
 			tasks,
 			snippets,
+			workflows,
 			extensions,
 			globalState
 		};
@@ -707,6 +728,15 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			}
 		}
 
+		if (this.exportFlags?.workflows ?? true) {
+			const workflowsResource = this.instantiationService.createInstance(WorkflowsResource);
+			await workflowsResource.apply(await workflowsResource.getContent(this.profile), exportPreviewProfle);
+			const workflowsResourceTreeItem = this.instantiationService.createInstance(WorkflowsResourceTreeItem, exportPreviewProfle);
+			if (await workflowsResourceTreeItem.hasContent()) {
+				roots.push(workflowsResourceTreeItem);
+			}
+		}
+
 		if (this.exportFlags?.tasks ?? true) {
 			const tasksResource = this.instantiationService.createInstance(TasksResource);
 			const tasksContent = await tasksResource.getContent(this.profile);
@@ -754,6 +784,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			languageModelsResource: profile.languageModelsResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			promptsHome: profile.promptsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			workflowsHome: profile.workflowsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
 			cacheHome: profile.cacheHome,
 			agentPluginsHome: profile.agentPluginsHome,

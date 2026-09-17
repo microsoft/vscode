@@ -806,7 +806,7 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 			return true;
 		}
 		if ((<IProfileResourceTypeElement>element.element).resourceType) {
-			if ((<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Extensions && (<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Snippets) {
+			if ((<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Extensions && (<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Snippets && (<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Workflows) {
 				return false;
 			}
 			if (element.root instanceof NewProfileElement) {
@@ -884,6 +884,8 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 				return localize('keybindings', "Keyboard Shortcuts");
 			case ProfileResourceType.Snippets:
 				return localize('snippets', "Snippets");
+			case ProfileResourceType.Workflows:
+				return localize('workflows', "Workflows");
 			case ProfileResourceType.Tasks:
 				return localize('tasks', "Tasks");
 			case ProfileResourceType.Mcp:
@@ -1496,7 +1498,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}
 				profilesContentTree.setInput(profileElement.root);
 				elementDisposables.add(profileElement.root.onDidChange(e => {
-					if (e.copyFrom || e.copyFlags || e.flags || e.extensions || e.snippets || e.preview) {
+					if (e.copyFrom || e.copyFlags || e.flags || e.extensions || e.snippets || e.workflows || e.preview) {
 						profilesContentTree.updateChildren(element.root);
 					}
 					if (e.copyFromInfo) {

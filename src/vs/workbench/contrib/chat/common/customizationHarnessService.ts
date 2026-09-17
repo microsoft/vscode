@@ -87,6 +87,8 @@ export interface IHarnessDescriptor {
 	 * section is hidden.
 	 */
 	readonly hiddenSections?: readonly string[];
+	/** Sources available to declarative workflow discovery in this harness. Omitted means all sources. */
+	readonly workflowSources?: readonly AICustomizationSource[];
 	/**
 	 * When `true`, the "Generate with AI" sparkle button is hidden and replaced
 	 * with a plain "New X" manual-creation button (like sessions).

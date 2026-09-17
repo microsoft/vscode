@@ -200,10 +200,10 @@ function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtur
 	container.appendChild(part.domNode);
 
 	if (options.expanded) {
-		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header-disclosure')?.click();
+		part.domNode.querySelector<HTMLElement>('.chat-automated-request-header-disclosure')?.click();
 	}
 	if (options.agentMessageVisible) {
-		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-toggle')?.click();
+		part.domNode.querySelector<HTMLElement>('.chat-automated-request-message-toggle')?.click();
 	}
 }
 

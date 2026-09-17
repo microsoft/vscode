@@ -49,6 +49,7 @@ import { ISessionsProvidersService } from '../../browser/sessionsProvidersServic
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { IWorkflowRuntime, WorkflowCheckpointType } from '../../../../../platform/workflow/common/workflow.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -167,6 +168,21 @@ class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagement
 		this.requestedUris.push(uri);
 		return { uri, trusted: this.trusted };
 	}
+}
+
+function createWorkflowSelection(): NonNullable<ISendRequestOptions['workflow']> {
+	const type: WorkflowCheckpointType = {
+		id: 'test.plan', version: 1, label: 'Plan', instructions: 'Write a plan.',
+		proofSchema: { type: 'object' },
+		completion: { kind: 'reported' },
+	};
+	return {
+		snapshot: {
+			id: 'test.feature', version: 1, label: 'Feature',
+			checkpoints: [{ id: 'plan', type, label: 'Plan', instructions: type.instructions, inputs: {} }],
+		},
+		stopAfter: 'plan',
+	};
 }
 
 class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
@@ -1608,6 +1624,65 @@ suite('SessionsManagementService', () => {
 		// follows the send and never resets the active slot).
 		await service.sendNewChatRequest(session, { query: 'hi' });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
+	});
+
+	test('workflow send fails before creating a chat on an unsupported provider', async () => {
+		const session = stubSession({ sessionId: 'workflow', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		let chatCreated = false;
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				chatCreated = true;
+				return stubChat;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await assert.rejects(service.sendNewChatRequest(session, {
+			query: 'Plan a feature', workflow: createWorkflowSelection(),
+		}), /does not support workflows/);
+		assert.strictEqual(chatCreated, false);
+	});
+
+	test('background workflow send awaits durable acceptance and forwards the complete selection', async () => {
+		const session = stubSession({ sessionId: 'workflow', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		const accepted = new DeferredPromise<void>();
+		const sending = new DeferredPromise<void>();
+		let received: ISendRequestOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override readonly workflows = new class extends mock<IWorkflowRuntime>() { }();
+			override async sendRequest(_id: string, _chat: URI, options: ISendRequestOptions): Promise<ISession> {
+				received = options;
+				await sending.complete();
+				await accepted.p;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const workflow = createWorkflowSelection();
+		let settled = false;
+		const send = service.sendNewChatRequest(session, { query: 'Plan a feature', workflow, background: true })
+			.then(() => { settled = true; });
+		await sending.p;
+		const settledBeforeAcceptance = settled;
+		await accepted.complete();
+		await send;
+
+		assert.deepStrictEqual({ settledBeforeAcceptance, settled, selectionPreserved: received?.workflow === workflow }, {
+			settledBeforeAcceptance: false, settled: true, selectionPreserved: true,
+		});
+	});
+
+	test('background workflow start failures are returned to the composer instead of reporting success', async () => {
+		const session = stubSession({ sessionId: 'workflow', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		const provider = new class extends TestSessionsProvider {
+			override readonly workflows = new class extends mock<IWorkflowRuntime>() { }();
+			override async sendRequest(): Promise<ISession> {
+				throw new Error('Workflow start rejected');
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await assert.rejects(service.sendNewChatRequest(session, {
+			query: 'Plan a feature', workflow: createWorkflowSelection(), background: true,
+		}), /Workflow start rejected/);
 	});
 
 	test('sendNewChatRequest routes a prepared draft through its replacement provider', async () => {

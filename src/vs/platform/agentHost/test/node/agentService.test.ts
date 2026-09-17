@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { emptyTestWorkflowStore } from './testWorkflowService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -232,6 +233,7 @@ class TestCopilotApiService implements ICopilotApiService {
 }
 
 class TransientRegistryWriteDatabase implements IAgentHostDatabase {
+	readonly workflows = emptyTestWorkflowStore;
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
 	private _backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
@@ -394,6 +396,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	readonly workflows = emptyTestWorkflowStore;
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
 	private readonly _providerBackfilled = new Set<string>();
 	private readonly _tombstones = new Set<string>();

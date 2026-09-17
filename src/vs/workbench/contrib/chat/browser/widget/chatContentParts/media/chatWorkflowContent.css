@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-workflow .chat-workflow-instructions {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	line-height: 1.5;
+}
+
+.chat-workflow .chat-workflow-proof {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.chat-workflow .chat-workflow-proof-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-workflow .chat-workflow-proof-schema {
+	margin: 0;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}

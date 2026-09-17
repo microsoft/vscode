@@ -121,7 +121,7 @@ suite('ChatAgentMergeContentPart file labels', () => {
 
 	test('keeps the Agent Message toggle name stable while reporting its state', () => {
 		const part = store.add(createPart(summary({ agentMessage: 'Merge agent details.' })));
-		const button = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-toggle');
+		const button = part.domNode.querySelector<HTMLElement>('.chat-automated-request-message-toggle');
 		assert.ok(button);
 
 		const getAccessibleState = () => ({
@@ -143,7 +143,7 @@ suite('ChatAgentMergeContentPart file labels', () => {
 
 	test('reveals secondary actions for touch input while suppressing mouse focus', () => {
 		const part = store.add(createPart(summary()));
-		const button = part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header-disclosure');
+		const button = part.domNode.querySelector<HTMLElement>('.chat-automated-request-header-disclosure');
 		assert.ok(button);
 		dom.getWindow(button).document.body.append(part.domNode);
 		store.add(toDisposable(() => part.domNode.remove()));
@@ -178,27 +178,30 @@ suite('ChatAgentMergeContentPart file labels', () => {
 	});
 
 	test('attaches the status hover to the interactive disclosure', () => {
-		let hoverTarget: HTMLElement | undefined;
+		const hoverTargets: HTMLElement[] = [];
 		const part = store.add(createPart(summary(), {
 			hoverService: upcastPartial<IHoverService>({
 				setupDelayedHover: target => {
-					hoverTarget = target;
+					hoverTargets.push(target);
 					return toDisposable(() => { });
 				},
 			}),
 		}));
 
-		assert.strictEqual(hoverTarget, part.domNode.querySelector('.chat-agent-merge-header-disclosure'));
+		assert.deepStrictEqual(hoverTargets, [
+			part.domNode.querySelector('.chat-automated-request-header-disclosure'),
+			part.domNode.querySelector('.chat-automated-request-participant'),
+		]);
 	});
 
 	test('renders the request timestamp and participant below the card', () => {
 		const timestamp = new Date().setHours(15, 33, 0, 0);
 		const part = store.add(createPart(summary(), { timestamp }));
-		const metadata = part.domNode.querySelector('.chat-agent-merge-metadata');
+		const metadata = part.domNode.querySelector('.chat-automated-request-metadata');
 		const time = metadata?.querySelector('time');
 
 		assert.deepStrictEqual({
-			cardParent: part.domNode.querySelector('.chat-agent-merge-card')?.parentElement,
+			cardParent: part.domNode.querySelector('.chat-automated-request-card')?.parentElement,
 			metadataParent: metadata?.parentElement,
 			metadataText: metadata?.textContent,
 			dateTime: time?.dateTime,

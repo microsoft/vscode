@@ -90,6 +90,11 @@ export interface AgentInfo {
 	 * id.
 	 */
 	capabilities?: AgentCapabilities;
+	/**
+	 * Additional implementation-defined metadata about this agent.
+	 * Keys SHOULD be namespaced; clients MUST ignore unknown keys.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**

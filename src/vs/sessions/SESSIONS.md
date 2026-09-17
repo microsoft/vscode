@@ -123,6 +123,14 @@ Sessions may expose the artifacts and references recorded by the agent. Both sha
 
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
+### Workflows
+
+Providers may expose lightweight `ISession.workflow` progress and a provider-neutral workflow runtime. The owning runtime persists execution, verifies checkpoint proofs, and assigns the next checkpoint only within the user's inclusive stopping point. Checkpoints do not encode a human owner or require approval; ordinary tool permissions, authentication, and workspace trust remain independent.
+
+The Sessions workflow contribution owns entry, draft selection, runtime registration, and overlay composition. Shared workbench widgets and view models present the platform model. The list, session header, and open workflow use the same progress projection; listing dormant workflows does not load their chat histories or full run records.
+
+One live workflow belongs to one session and one chat. Each checkpoint retains its first assigned turn for navigation, including after repairs or restoration. A linked workflow starts in its own session with its own explicitly chosen stopping point, rather than inheriting its parent's execution authority.
+
 ## Provider contract
 
 `ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
@@ -145,7 +153,7 @@ A provider that must establish backend state before presenting a session may imp
 
 ### Drafts
 
-`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
+`createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent or its workflow is durably admitted. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
@@ -192,9 +200,13 @@ user chooses a workspace and session type
 
 On first send, the provider creates or selects the chat, sends the request, and commits the session. Providers may preserve the draft facade or notify the management service through the separate replacement lifecycle. Consumers follow that lifecycle rather than assuming one strategy or a replacement field on a catalog event.
 
+A workflow selection is a persisted, non-executing composer draft, separate from attachments and the task text. Selecting or editing it does not send a request. Explicit workflow submission uses the task as workflow context instead of an ordinary first turn and awaits durable runtime acceptance before clearing the selection. Invalid saved selections remain visible and block submission until explicitly corrected or removed.
+
 ### Existing session
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
+
+Attaching a workflow retains the existing conversation and workspace and requires an explicit task and stopping point. Starting after an active turn is an explicit choice. Inspection and checkpoint navigation do not start or resume execution; extending a stopping point requires Apply. Archiving pauses execution, restoring does not resume it, and deletion revokes the owning runtime's work.
 
 ### Multiple chats
 

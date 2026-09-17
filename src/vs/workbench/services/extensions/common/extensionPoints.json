@@ -57,5 +57,7 @@
 	"views",
 	"viewsContainers",
 	"viewsWelcome",
-	"walkthroughs"
+	"walkthroughs",
+	"workflowCheckpointTypes",
+	"workflowTemplates"
 ]

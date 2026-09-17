@@ -331,6 +331,33 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('durably committed provisional sessions remain visible before SDK materialization', () => {
+		const ordinary = URI.from({ scheme: 'copilot', path: '/ordinary-draft' }).toString();
+		const summary = makeSessionSummary();
+		manager.createSession(summary, { emitNotification: false });
+		manager.createSession(makeSessionSummary(ordinary), { emitNotification: false });
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		manager.markSessionUsed(sessionUri);
+		manager.markSessionPersisted(sessionUri, summary);
+		manager.markSessionPersisted(sessionUri, summary);
+		const resolved = { ...summary, workingDirectories: ['file:///resolved-worktree'] };
+		manager.markSessionPersisted(sessionUri, resolved, true);
+		assert.deepStrictEqual({
+			visible: manager.getOverlaySessionSummaries().map(entry => entry.resource),
+			idle: manager.isIdleProvisionalSession(sessionUri),
+			lifecycle: manager.getSessionState(sessionUri)?.lifecycle,
+			ordinaryIdle: manager.isIdleProvisionalSession(ordinary),
+			ordinaryUnused: manager.isUnusedDraft(ordinary),
+			workingDirectories: manager.getSessionSummary(sessionUri)?.workingDirectories,
+			notifications: notifications.map(notification => notification.type),
+		}, {
+			visible: [sessionUri], idle: false, lifecycle: SessionLifecycle.Creating,
+			ordinaryIdle: true, ordinaryUnused: true, workingDirectories: resolved.workingDirectories,
+			notifications: [NotificationType.SessionAdded, NotificationType.SessionSummaryChanged],
+		});
+	});
+
 	test('listed provisional session still applies the materialization upsert', () => {
 		const provisional = { ...makeSessionSummary(), workingDirectories: ['file:///provisional'] };
 		manager.createSession(provisional, { emitNotification: false });

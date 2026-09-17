@@ -8,7 +8,7 @@ import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -17,8 +17,14 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -58,6 +64,14 @@ import { NewChatView } from '../../browser/chatView.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { IWorkflowAccessibilityService, WorkflowAccessibilityService } from '../../../../../workbench/contrib/workflows/browser/workflowAccessibility.js';
+import { IWorkflowUIService } from '../../../../../workbench/contrib/workflows/browser/workflowUIService.js';
+import { WorkflowUIService } from '../../../../../workbench/contrib/workflows/browser/workflowUIServiceImpl.js';
+import { IWorkflowCatalogService, WorkflowTemplateEntry } from '../../../../../workbench/contrib/workflows/common/workflowCatalog.js';
+import { IWorkflowService, WorkflowService } from '../../../../../workbench/contrib/workflows/common/workflowService.js';
+import { testWorkflowDefinition, testWorkflowSnapshot } from '../../../../../workbench/contrib/workflows/test/common/workflowTestData.js';
+import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
+import { SessionWorkflowPickOptions } from '../../../workflows/browser/sessionWorkflowService.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/sessionView.css';
@@ -65,6 +79,24 @@ import '../../../../browser/parts/mobile/mobileChatShell.css';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
+
+class WorkflowPickerFixtureCommandService extends TestCommandService {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkflowUIService private readonly workflows: IWorkflowUIService,
+	) {
+		super(instantiationService);
+	}
+
+	override executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+		if (id === 'sessions.workflows.pick') {
+			const [options] = args as [SessionWorkflowPickOptions];
+			return this.workflows.selectWorkflow(options.workspace, options.selection, options.anchor) as Promise<T>;
+		}
+		return super.executeCommand<T>(id, ...args);
+	}
+}
+
 const ATTACHED_FOLDER_URI = URI.file('/Code/docs');
 const ATTACHED_REPOSITORY_URI = URI.parse('https://github.com/microsoft/typescript');
 const ATTACHED_REPOSITORY_ROOT = URI.parse('vscode-vfs://github/microsoft/typescript/HEAD');
@@ -78,6 +110,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly selectedOptionIndex?: number;
 	readonly editedInput?: string;
 	readonly withWorkspace?: boolean;
+	readonly workflowState?: 'empty' | 'selected' | 'unsupported';
 	readonly withRemoteWorkspace?: boolean;
 	readonly openWorkspacePicker?: boolean;
 	readonly openGitHubContextPicker?: boolean;
@@ -164,6 +197,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		selectedOptionIndex,
 		editedInput,
 		withWorkspace = false,
+		workflowState,
 		withRemoteWorkspace = false,
 		openWorkspacePicker = false,
 		openGitHubContextPicker = false,
@@ -186,8 +220,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}));
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
-	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : []);
-	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
+	const supportsWorkflows = !!workflowState && workflowState !== 'unsupported';
+	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [], supportsWorkflows);
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext || workflowState ? createFixtureActiveSession(workspace, sessionTypes[0], supportsWorkflows) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
 	const sessionsService = new class extends mock<ISessionsService>() {
@@ -198,6 +233,35 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			if (workflowState) {
+				reg.define(IWorkflowAccessibilityService, WorkflowAccessibilityService);
+				reg.define(IWorkflowUIService, WorkflowUIService);
+				reg.define(IWorkflowService, WorkflowService);
+				reg.define(ICommandService, WorkflowPickerFixtureCommandService);
+				reg.define(IActionWidgetService, ActionWidgetService);
+				reg.define(IContextViewService, ContextViewService);
+				const workflows: WorkflowTemplateEntry[] = ([
+					{ kind: 'workspace', id: 'fixture/project', label: 'Project Validation', description: 'Plan and verify a change in this workspace.' },
+					{ kind: 'user', id: 'fixture/user', label: 'My Workflow', description: 'Follow your saved planning and implementation steps.' },
+					{ kind: 'builtin', id: testWorkflowDefinition().id, label: testWorkflowSnapshot().label, description: 'Plan and implement a feature with proof at each checkpoint.' },
+					{ kind: 'extension', id: 'fixture/team', label: 'Team Release', description: 'Prepare and verify a release with your team.' },
+				] as const).map(({ kind, id, label, description }) => ({
+					key: id, label,
+					source: { kind, id: `fixture-${kind}` },
+					definition: { ...testWorkflowDefinition(), id, label, description },
+					readOnly: kind === 'builtin' || kind === 'extension',
+					diagnostics: [],
+				}));
+				reg.defineInstance(IWorkflowCatalogService, new class extends mock<IWorkflowCatalogService>() {
+					override readonly onDidChange = Event.None;
+					override async getCatalog() { return { workflows, checkpointTypes: [], diagnostics: [] }; }
+					override watch() { return Disposable.None; }
+					override async resolve(entry: WorkflowTemplateEntry) {
+						assert(!!entry.definition);
+						return { ...testWorkflowSnapshot(), id: entry.definition.id, label: entry.label, source: entry.source };
+					}
+				}());
+			}
 			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
 			}
@@ -221,8 +285,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onHide = Event.None;
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+				override readonly activeContainer = container;
 				override readonly mainContainer = container;
 				override readonly mainContainerDimension = { width, height };
+				override readonly onDidLayoutContainer = Event.None;
 				override getContainer() { return container; }
 			}());
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
@@ -347,6 +413,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
+	if (workflowState) {
+		container.style.position = 'relative';
+	}
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
@@ -367,6 +436,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.allowAll', title: 'Allow All' }, group: 'navigation', order: 10 });
 	}
 
+	if (workflowState) {
+		const configuration = instantiationService.get(IConfigurationService);
+		assert(configuration instanceof TestConfigurationService);
+		await configuration.setUserConfiguration('chat.workflows.enabled', true);
+	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
 	}));
@@ -376,6 +450,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
+	if (workflowState && workflowState !== 'empty') {
+		composerService.activeComposer.get()?.setWorkflowSelection?.({ snapshot: testWorkflowSnapshot(), stopAfter: 'plan' });
+		view.prefillInput('Plan a keyboard navigation improvement. Do not make external changes.');
+		await nextFrame();
+	}
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		assert(!!content);
@@ -434,6 +513,22 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	WorkflowPicker: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { workflowState: 'empty', withAutoModel: true }),
+	}),
+	WorkflowSelected: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { workflowState: 'selected', withAutoModel: true }),
+	}),
+	WorkflowSelectedNarrow: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { workflowState: 'selected', withAutoModel: true, width: 420, height: 650 }),
+	}),
+	WorkflowUnavailable: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { workflowState: 'unsupported', withAutoModel: true }),
+	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
@@ -585,7 +680,7 @@ function createFixtureSessionTypes(): readonly ISessionType[] {
 	];
 }
 
-function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: readonly ISessionType[], models: readonly ILanguageModelChatMetadataAndIdentifier[]): ISessionsProvider {
+function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: readonly ISessionType[], models: readonly ILanguageModelChatMetadataAndIdentifier[], supportsWorkflows = false): ISessionsProvider {
 	return new class extends mock<ISessionsProvider>() {
 		override readonly id = 'fixture-provider';
 		override readonly label = 'Fixture Provider';
@@ -595,6 +690,12 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override readonly onDidChangeSessionTypes = Event.None;
 		override readonly onDidChangeSessions = Event.None;
 		override readonly onDidChangeModels = Event.None;
+		override readonly workflows = supportsWorkflows ? {
+			onDidChangeRun: Event.None,
+			getSessionRun: async () => undefined,
+			start: async () => { throw new Error('Fixtures do not start workflows'); },
+			control: async () => { throw new Error('Fixtures do not control workflows'); },
+		} : undefined;
 		override readonly browseActions = [
 			{
 				label: 'Repository...',
@@ -773,7 +874,7 @@ function createAttachedRepositoryWorkspace(): ISessionWorkspace {
 	};
 }
 
-function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType): IActiveSession {
+function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType, supportsWorkflows = false): IActiveSession {
 	const activeChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('fixture-chat://new-session');
 		// Read by model selection: an untitled chat with no model of its own.
@@ -789,6 +890,7 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly isCreated = constObservable(false);
 		override readonly loading = constObservable(false);
+		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsWorkflows });
 		override readonly workspace = constObservable(workspace);
 		override readonly modelId = constObservable<string | undefined>(undefined);
 		override readonly activeChat = constObservable(activeChat);

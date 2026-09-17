@@ -1,0 +1,115 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.workflow-stop-line {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-height: var(--vscode-spacing-size320);
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: normal;
+	cursor: ns-resize;
+	touch-action: none;
+	user-select: none;
+}
+
+.workflow-stop-line::before,
+.workflow-stop-line::after {
+	content: '';
+	flex: 1;
+	min-width: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid currentColor;
+}
+
+.workflow-stop-line.proposed,
+.workflow-stop-line:not(.readonly):hover,
+.workflow-stop-line:focus-within {
+	color: var(--vscode-textLink-foreground);
+}
+
+.workflow-stop-line.proposed::before,
+.workflow-stop-line.proposed::after {
+	border-top-style: dashed;
+}
+
+.workflow-stop-handle,
+.workflow-stop-confirmation,
+.workflow-stop-movement {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.workflow-stop-handle {
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.workflow-stop-handle > span:not(.codicon) {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.workflow-stop-handle:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.workflow-stop-movement {
+	display: none;
+}
+
+.workflow-stop-line:not(.dragging):hover .workflow-stop-movement,
+.workflow-stop-line:not(.dragging):focus-within .workflow-stop-movement {
+	display: flex;
+}
+
+.workflow-stop-toolbar {
+	flex-shrink: 0;
+}
+
+.workflow-stop-line .workflow-stop-toolbar .action-label {
+	align-items: center;
+	justify-content: center;
+	height: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-textLink-foreground);
+}
+
+.workflow-stop-line .workflow-stop-movement .action-label {
+	width: var(--vscode-spacing-size240);
+}
+
+.workflow-stop-line .workflow-stop-confirmation .action-label {
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.workflow-stop-line .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.workflow-stop-confirmation[hidden],
+.workflow-stop-movement[hidden] {
+	display: none;
+}
+
+.workflow-stop-line.dragging {
+	z-index: 1;
+}
+
+.workflow-stop-line.dragging .workflow-stop-handle {
+	background: var(--vscode-sideBar-background);
+}
+
+.workflow-stop-line.readonly {
+	cursor: default;
+}

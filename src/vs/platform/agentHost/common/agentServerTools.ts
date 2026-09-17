@@ -5,6 +5,13 @@
 
 import type { ToolDefinition, URI } from './state/sessionState.js';
 
+/** Provider-captured identity of the original tool request, never inferred from the active turn. */
+export interface IAgentServerToolInvocation {
+	readonly turnId: string;
+	readonly toolCallId: string;
+	readonly isSubagent?: boolean;
+}
+
 /**
  * A server tool definition plus agent-host-local metadata that is not part of
  * the wire protocol.
@@ -61,7 +68,7 @@ export interface IAgentServerToolHost {
 	 *
 	 * Providers must consult this before prompting or executing the tool.
 	 */
-	requiresConfirmation(chatUri: URI, toolName: string): boolean;
+	requiresConfirmation(chatUri: URI, toolName: string, invocation?: IAgentServerToolInvocation): boolean;
 	/**
 	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
@@ -69,5 +76,5 @@ export interface IAgentServerToolHost {
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, invocation?: IAgentServerToolInvocation): string | Promise<string>;
 }

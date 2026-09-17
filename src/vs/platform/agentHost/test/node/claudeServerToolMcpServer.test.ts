@@ -7,7 +7,7 @@ import assert from 'assert';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolHost, IAgentServerToolInvocation } from '../../common/agentServerTools.js';
 import { buildChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import {
@@ -45,6 +45,7 @@ class FakeServerToolHost implements IAgentServerToolHost {
 	readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
 	readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
 	readonly executions: Array<{ chatUri: string; toolName: string; rawArgs: unknown }> = [];
+	readonly invocations: (IAgentServerToolInvocation | undefined)[] = [];
 	result = 'ok';
 	error: Error | undefined;
 
@@ -56,7 +57,8 @@ class FakeServerToolHost implements IAgentServerToolHost {
 
 	requiresConfirmation(_sessionUri: string, _toolName: string): boolean { return false; }
 
-	executeTool(chatUri: string, toolName: string, rawArgs: unknown): string {
+	executeTool(chatUri: string, toolName: string, rawArgs: unknown, invocation?: IAgentServerToolInvocation): string {
+		this.invocations.push(invocation);
 		this.executions.push({ chatUri, toolName, rawArgs });
 		if (this.error) {
 			throw this.error;
@@ -110,6 +112,18 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 
 		const result = await recorded[0]!.handler({}, undefined);
 		assert.deepStrictEqual(result, { content: [{ type: 'text', text: 'boom' }], isError: true });
+	});
+
+	test('resolves original tool-use identity and never derives it from tool arguments', async () => {
+		const { sdk, recorded } = makeSdk();
+		const host = new FakeServerToolHost();
+		const original = { turnId: 'original-turn', toolCallId: 'original-call', isSubagent: false };
+		await buildServerToolMcpServer(host, chatUri, sdk, host.definitions, async id => id === original.toolCallId ? original : undefined);
+		const handler = recorded[0].handler;
+		await handler({ turnId: 'forged-turn' }, { _meta: { 'claudecode/toolUseId': 'original-call' } });
+		await handler({ turnId: 'original-turn' }, { _meta: { 'claudecode/toolUseId': 'late-or-unknown' } });
+		await handler({ toolCallId: 'original-call' }, undefined);
+		assert.deepStrictEqual(host.invocations, [original, undefined, undefined]);
 	});
 
 	test('serverToolAllowList prefixes the given tool names for the SDK', () => {

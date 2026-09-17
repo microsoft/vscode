@@ -493,8 +493,41 @@
 	padding: 4px 6px 0 6px;
 }
 
-.sessions-chat-attach-row:has(.sessions-chat-attached-context:empty) {
+.sessions-chat-attach-row.empty {
 	display: none;
+}
+
+.sessions-chat-workflow-selection {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.sessions-chat-workflow-selection.workflow-error {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-errorForeground);
+}
+
+.sessions-chat-workflow-selection .workflow-error-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.agent-sessions-workbench .sessions-chat-send-button.has-workflow {
+	width: auto;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .sessions-chat-send-button.has-workflow .monaco-button.workflow-start {
+	width: auto;
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	font-family: inherit;
+	border-radius: var(--vscode-cornerRadius-small);
+	white-space: nowrap;
 }
 
 /* Attach context button */

@@ -21,6 +21,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
 	private readonly _turnUsages = new Map<string, string>();
 	private readonly _turnDelegations = new Map<string, string>();
+	private readonly _turnRequestSources = new Map<string, string>();
 	private readonly _turnWorkspaceTransitions = new Map<string, string>();
 	private readonly _turnEventIds = new Map<string, string>();
 
@@ -40,6 +41,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async deleteTurn(turnId: string): Promise<void> {
 		this._turnDelegations.delete(turnId);
+		this._turnRequestSources.delete(turnId);
 		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
 		for (let i = this._edits.length - 1; i >= 0; i--) {
@@ -165,11 +167,23 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async getTurnDelegations(): Promise<Map<string, string>> {
-		const result = new Map(this._turnDelegations);
+		return this._withEventIds(this._turnDelegations);
+	}
+
+	async setTurnRequestSource(turnId: string, source: string): Promise<void> {
+		this._turnRequestSources.set(turnId, source);
+	}
+
+	async getTurnRequestSources(): Promise<Map<string, string>> {
+		return this._withEventIds(this._turnRequestSources);
+	}
+
+	private _withEventIds(values: ReadonlyMap<string, string>): Map<string, string> {
+		const result = new Map(values);
 		for (const [turnId, eventId] of this._turnEventIds) {
-			const delegation = this._turnDelegations.get(turnId);
-			if (delegation) {
-				result.set(eventId, delegation);
+			const value = values.get(turnId);
+			if (value !== undefined) {
+				result.set(eventId, value);
 			}
 		}
 		return result;
@@ -215,6 +229,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this.deleteAllTurnsCalls++;
 		this._edits.length = 0;
 		this._turnDelegations.clear();
+		this._turnRequestSources.clear();
 		this._turnWorkspaceTransitions.clear();
 		this._metadata.delete(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY);
 		this._turnEventIds.clear();
@@ -234,6 +249,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 	async remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
+		const requestSources = [...this._turnRequestSources];
+		this._turnRequestSources.clear();
+		for (const [turnId, source] of requestSources) {
+			const newId = mapping.get(turnId);
+			if (newId !== undefined) {
+				this._turnRequestSources.set(newId, source);
+			}
+		}
 		for (const turnId of [...this._turnDelegations.keys()]) {
 			if (!mapping.has(turnId)) {
 				this._turnDelegations.delete(turnId);

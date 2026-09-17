@@ -94,17 +94,27 @@ export interface ISessionGroupsService {
 	 * group does not exist.
 	 */
 	setPendingNewSessionGroup(groupId: string): void;
+
+	/** Applies a completed checkpoint's default placement without overriding user placement. */
+	applyWorkflowGroup(session: ISession, name: string, runId: string, revision: number): boolean;
 }
 
 export const ISessionGroupsService = createDecorator<ISessionGroupsService>('sessionGroupsService');
 
 const EXPLICITLY_UNGROUPED_FIELD = 'explicitlyUngroupedSessionIds';
 
+interface IWorkflowGroupPlacement {
+	readonly runId: string;
+	readonly revision: number;
+	readonly groupId: string;
+}
+
 interface ISerializedState {
 	readonly groups: readonly ISessionGroup[];
 	/** sessionId -> groupId */
 	readonly membership: Readonly<Record<string, string>>;
 	readonly [EXPLICITLY_UNGROUPED_FIELD]?: readonly string[];
+	readonly workflowPlacements?: Readonly<Record<string, IWorkflowGroupPlacement>>;
 }
 
 export class SessionGroupsService extends Disposable implements ISessionGroupsService {
@@ -120,6 +130,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	/** sessionId -> groupId */
 	private readonly _membership = new Map<string, string>();
 	private readonly _explicitlyUngroupedSessionIds = new Set<string>();
+	private readonly _workflowPlacements = new Map<string, IWorkflowGroupPlacement>();
 
 	/**
 	 * Group that the composer's in-progress new session should join once sent,
@@ -175,7 +186,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
 			const membershipDeleted = this._membership.delete(session.sessionId);
 			const ungroupedDeleted = this._explicitlyUngroupedSessionIds.delete(session.sessionId);
-			if (membershipDeleted || ungroupedDeleted) {
+			const workflowPlacementDeleted = this._workflowPlacements.delete(session.sessionId);
+			if (membershipDeleted || ungroupedDeleted || workflowPlacementDeleted) {
 				this.save();
 			}
 			if (membershipDeleted) {
@@ -266,12 +278,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	createGroup(name: string, memberSessionIds?: Iterable<string>): ISessionGroup {
-		const group: ISessionGroup = { id: generateUuid(), name, createdAt: Date.now() };
-		this._groups.set(group.id, group);
+		const group = this.createGroupEntry(name);
 
 		const membershipChanged = new Set<string>();
 		if (memberSessionIds) {
 			for (const sessionId of memberSessionIds) {
+				this._workflowPlacements.delete(sessionId);
 				this.setMembership(sessionId, group.id, membershipChanged);
 			}
 		}
@@ -322,11 +334,13 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		const sessionIds = typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds;
 		const membershipChanged = new Set<string>();
+		let workflowPlacementChanged = false;
 		for (const sessionId of sessionIds) {
+			workflowPlacementChanged = this._workflowPlacements.delete(sessionId) || workflowPlacementChanged;
 			this.setMembership(sessionId, groupId, membershipChanged);
 		}
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), membershipChanged);
-		if (membershipChanged.size === 0) {
+		if (membershipChanged.size === 0 && !workflowPlacementChanged) {
 			return;
 		}
 		this.save();
@@ -360,7 +374,42 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
 	}
 
+	applyWorkflowGroup(session: ISession, name: string, runId: string, revision: number): boolean {
+		name = name.trim();
+		if (!name || !runId || !Number.isSafeInteger(revision) || revision < 0) {
+			throw new Error('Invalid workflow group placement.');
+		}
+		if (session.isArchived.get() || this._explicitlyUngroupedSessionIds.has(session.sessionId)) {
+			return false;
+		}
+		const previous = this._workflowPlacements.get(session.sessionId);
+		const currentGroup = this._membership.get(session.sessionId);
+		if (currentGroup && currentGroup !== previous?.groupId) {
+			return false;
+		}
+		if (previous?.runId === runId && previous.revision >= revision) {
+			return false;
+		}
+
+		const existing = this.getGroups().find(group => group.name === name);
+		const group = existing ?? this.createGroupEntry(name);
+		const changed = new Set<string>();
+		this.setMembership(session.sessionId, group.id, changed);
+		this._workflowPlacements.set(session.sessionId, { runId, revision, groupId: group.id });
+		this.save();
+		if (!existing || changed.size > 0) {
+			this._onDidChange.fire({ groupsChanged: !existing, membershipChanged: changed });
+		}
+		return changed.size > 0;
+	}
+
 	// -- Helpers --
+
+	private createGroupEntry(name: string): ISessionGroup {
+		const group: ISessionGroup = { id: generateUuid(), name, createdAt: Date.now() };
+		this._groups.set(group.id, group);
+		return group;
+	}
 
 	private setMembership(sessionId: string, groupId: string, changed: Set<string>): void {
 		if (this._explicitlyUngroupedSessionIds.delete(sessionId) || this._membership.get(sessionId) !== groupId) {
@@ -370,6 +419,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	private markExplicitlyUngrouped(sessionId: string): boolean {
+		this._workflowPlacements.delete(sessionId);
 		const size = this._explicitlyUngroupedSessionIds.size;
 		this._explicitlyUngroupedSessionIds.add(sessionId);
 		return this._explicitlyUngroupedSessionIds.size !== size;
@@ -432,6 +482,15 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 						this._explicitlyUngroupedSessionIds.add(sessionId);
 					}
 				}
+				if (parsed.workflowPlacements && typeof parsed.workflowPlacements === 'object') {
+					for (const [sessionId, placement] of Object.entries(parsed.workflowPlacements)) {
+						if (placement && typeof placement.runId === 'string' && typeof placement.groupId === 'string'
+							&& Number.isSafeInteger(placement.revision) && placement.revision >= 0
+							&& this._membership.get(sessionId) === placement.groupId) {
+							this._workflowPlacements.set(sessionId, placement);
+						}
+					}
+				}
 			}
 		} catch {
 			// ignore corrupt data
@@ -447,6 +506,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			groups: [...this._groups.values()],
 			membership: Object.fromEntries(this._membership),
 			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
+			workflowPlacements: Object.fromEntries(this._workflowPlacements),
 		};
 		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}

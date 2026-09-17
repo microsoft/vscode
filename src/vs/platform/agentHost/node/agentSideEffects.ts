@@ -444,6 +444,7 @@ export class AgentSideEffects extends Disposable {
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
 				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
+				...(d._meta ? { _meta: { ...d._meta } } : {}),
 			};
 		});
 		if (equals(this._lastAgentInfos, infos)) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { createTestWorkflowService } from './testWorkflowService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -88,6 +89,7 @@ suite('AgentMergeController', () => {
 				[SessionConfigKey.Mode]: 'autopilot',
 				[SessionConfigKey.AutoApprove]: 'assisted',
 			})),
+			createTestWorkflowService(),
 			logService,
 		));
 		const session = 'copilot:/agent-merge-controller';
@@ -339,6 +341,7 @@ suite('AgentMergeController', () => {
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			createProviderService(() => ({})),
+			createTestWorkflowService(),
 			logService,
 		));
 		stateManager.createSession(summary(session));
@@ -406,6 +409,7 @@ suite('AgentMergeController', () => {
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			createProviderService(() => ({})),
+			createTestWorkflowService(),
 			logService,
 		));
 		stateManager.createSession(summary(session));
@@ -459,6 +463,7 @@ suite('AgentMergeController', () => {
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			createProviderService(() => ({})),
+			createTestWorkflowService(),
 			logService,
 		));
 		for (const [session, gitState] of [
@@ -548,6 +553,7 @@ suite('AgentMergeController', () => {
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'assisted',
 				}),
+			createTestWorkflowService(),
 			logService,
 		));
 		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
@@ -641,6 +647,7 @@ suite('AgentMergeController', () => {
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
 			createProviderService(() => ({})),
+			createTestWorkflowService(),
 			logService,
 		));
 		stateManager.createSession(summary(session));

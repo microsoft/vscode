@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
-import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost, IAgentServerToolInvocation } from '../../common/agentServerTools.js';
 import type { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { jsonSchemaToZodRawShape } from './clientTools/claudeJsonSchemaToZod.js';
+import { extractToolUseId } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Name of the single in-process MCP server that surfaces the agent host's
@@ -59,14 +60,17 @@ export async function buildServerToolMcpServer(
 	chatUri: string,
 	sdk: IClaudeAgentSdkService,
 	definitions: readonly IAgentServerToolDefinition[] = host.definitions,
+	getInvocation?: (toolUseId: string) => IAgentServerToolInvocation | undefined | Promise<IAgentServerToolInvocation | undefined>,
 ): Promise<McpSdkServerConfigWithInstance> {
 	const tools = await Promise.all(definitions.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
 		jsonSchemaToZodRawShape(def.inputSchema),
-		async args => {
+		async (args, extra) => {
 			try {
-				const text = await host.executeTool(chatUri, def.name, args);
+				const toolUseId = extractToolUseId(extra);
+				const invocation = toolUseId === undefined ? undefined : await getInvocation?.(toolUseId);
+				const text = await host.executeTool(chatUri, def.name, args, invocation);
 				return { content: [{ type: 'text' as const, text }] };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

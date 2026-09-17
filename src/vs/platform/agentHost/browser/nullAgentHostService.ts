@@ -19,6 +19,8 @@ import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.j
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
+import type { WorkflowControl, WorkflowRun } from '../../workflow/common/workflow.js';
+import type { IAgentHostWorkflowStartOptions } from '../common/agentHostWorkflow.js';
 
 const notSupported = () => { throw new Error('Local agent host is not supported in the browser.'); };
 
@@ -36,6 +38,7 @@ export class NullAgentHostService implements IAgentHostService {
 	readonly onDidNotification: Event<INotification> = Event.None;
 	readonly onDidAction: Event<ActionEnvelope> = Event.None;
 	readonly onMcpNotification = Event.None;
+	readonly onDidChangeWorkflowRun = Event.None;
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
@@ -60,6 +63,11 @@ export class NullAgentHostService implements IAgentHostService {
 	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind, _chat?: URI): Promise<IAgentHostDebugLogsArtifact> { return notSupported(); }
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
+	async getWorkflowRun(_session: URI): Promise<WorkflowRun | undefined> { return notSupported(); }
+	async startWorkflow(_options: IAgentHostWorkflowStartOptions): Promise<WorkflowRun> { return notSupported(); }
+	async controlWorkflow(_control: WorkflowControl): Promise<WorkflowRun> { return notSupported(); }
+	async setWorkflowSourceEnabled(_sourceId: string, _enabled: boolean): Promise<void> { return notSupported(); }
+	async setWorkflowExtensionSources(_sources: Readonly<Record<string, boolean>>): Promise<void> { return notSupported(); }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async removeSessionArtifact(_session: URI, _artifactId: string): Promise<void> { return notSupported(); }
 	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }

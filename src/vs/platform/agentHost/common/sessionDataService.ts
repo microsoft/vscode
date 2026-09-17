@@ -183,6 +183,12 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	getTurnDelegations(): Promise<Map<string, string>>;
 
+	/** Persists the JSON-serialized display source of a host-initiated request. */
+	setTurnRequestSource(turnId: string, source: string): Promise<void>;
+
+	/** Returns request sources keyed by both the host turn id and its provider event id. */
+	getTurnRequestSources(): Promise<Map<string, string>>;
+
 	/**
 	 * Persists the JSON-serialized successful workspace transition for a turn.
 	 * Idempotent — last writer wins per turn.

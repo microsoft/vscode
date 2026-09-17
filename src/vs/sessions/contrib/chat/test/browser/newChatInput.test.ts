@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -24,6 +25,9 @@ import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/new
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { EMPTY_MODEL_SELECTION_STATE, ISessionModelSelectionState } from '../../browser/sessionModelPickerState.js';
+import { SessionWorkflowSelection } from '../../../../services/sessions/common/sessionsProvider.js';
+import { testWorkflowSnapshot } from '../../../../../workbench/contrib/workflows/test/common/workflowTestData.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -46,6 +50,7 @@ const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_upda
 const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
 const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
+const getWorkflowStartDisabledReason = Reflect.get(NewChatInputWidget.prototype, '_getWorkflowStartDisabledReason') as (this: IWorkflowSendButtonHarness, hasContent: boolean) => string;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
@@ -104,7 +109,7 @@ interface IAttachTextContextHarness {
 }
 
 interface IUpdateSendButtonStateHarness {
-	readonly _sendButton: { enabled: boolean } | undefined;
+	readonly _sendButton: Button | undefined;
 	readonly _sending: boolean;
 	readonly _editor: {
 		getModel(): { getValue(): string } | null;
@@ -116,6 +121,19 @@ interface IUpdateSendButtonStateHarness {
 		readonly hasAdditionalSendContent?: { get(): boolean };
 	};
 	readonly _canSendRequest: { get(): boolean };
+}
+
+interface IWorkflowSendButtonHarness extends IUpdateSendButtonStateHarness {
+	readonly options: IUpdateSendButtonStateHarness['options'] & {
+		readonly loading: { get(): boolean };
+		readonly workflow: {
+			readonly enabled: { get(): boolean };
+			readonly selection: { get(): SessionWorkflowSelection };
+			readonly unavailableReason: { get(): string | undefined };
+		};
+	};
+	readonly _modelSelection: { readonly state: { get(): ISessionModelSelectionState } };
+	_getWorkflowStartDisabledReason(hasContent: boolean): string;
 }
 
 interface IAttachmentRenderingHarness {
@@ -395,7 +413,8 @@ suite('NewChatInputWidget', () => {
 	});
 
 	test('enables send after restoring an unchanged retained input model', () => {
-		const sendButton = { enabled: false };
+		const sendButton = disposables.add(new Button(document.createElement('div'), {}));
+		sendButton.enabled = false;
 		const harness: IRestoreStateHarness & IUpdateSendButtonStateHarness = {
 			_getDraftState: () => ({ inputText: 'Fix this', attachments: [] }),
 			_sendButton: sendButton,
@@ -422,6 +441,38 @@ suite('NewChatInputWidget', () => {
 
 		assert.strictEqual(sendButton.enabled, true);
 	});
+
+	for (const scenario of [
+		{ name: 'missing prompt', query: '', canSend: true, loading: false, model: true, reason: undefined, expected: /Enter a prompt/ },
+		{ name: 'session initialization', query: 'Fix this', canSend: false, loading: true, model: true, reason: undefined, expected: /still initializing/ },
+		{ name: 'unsupported provider', query: 'Fix this', canSend: false, loading: false, model: true, reason: 'Choose a workflow-capable provider.', expected: /workflow-capable provider/ },
+		{ name: 'missing model', query: 'Fix this', canSend: false, loading: false, model: false, reason: undefined, expected: /Choose an available model/ },
+		{ name: 'ready workflow', query: 'Fix this', canSend: true, loading: false, model: true, reason: undefined, expected: /Adjust its stopping point/ },
+	]) {
+		test(`Start Workflow explains ${scenario.name} and is reachable by keyboard`, () => {
+			const button = disposables.add(new Button(document.createElement('div'), {}));
+			const harness: IWorkflowSendButtonHarness = {
+				_sendButton: button, _sending: false,
+				_editor: { getModel: () => ({ getValue: () => scenario.query }) },
+				_contextAttachments: { attachments: [] },
+				_canSendRequest: { get: () => scenario.canSend },
+				options: {
+					loading: { get: () => scenario.loading },
+					workflow: {
+						enabled: { get: () => true }, selection: { get: () => ({ snapshot: testWorkflowSnapshot(), stopAfter: 'plan' }) },
+						unavailableReason: { get: () => scenario.reason },
+					},
+				},
+				_modelSelection: { state: { get: () => ({ ...EMPTY_MODEL_SELECTION_STATE, hasSelectableModel: scenario.model }) } },
+				_getWorkflowStartDisabledReason: getWorkflowStartDisabledReason,
+			};
+			updateSendButtonState.call(harness);
+			assert.deepStrictEqual({
+				enabled: button.enabled, label: button.element.textContent, keyboard: button.element.tabIndex,
+				explained: scenario.expected.test(button.element.getAttribute('aria-description') ?? ''),
+			}, { enabled: scenario.canSend && !!scenario.query, label: 'Start Workflow', keyboard: 0, explained: true });
+		});
+	}
 
 	test('synchronizes GitHub context attachments with issue and pull request links in the input', () => {
 		let input = 'Fix https://github.com/microsoft/vscode/issues/333845 and review https://www.github.com/microsoft/vscode/pull/333575#discussion.';

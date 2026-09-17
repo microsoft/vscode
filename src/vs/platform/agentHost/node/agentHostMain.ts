@@ -245,6 +245,7 @@ async function startAgentHost(): Promise<void> {
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 			allowExtensionMethods: false,
+			allowWorkflowMethods: true,
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.

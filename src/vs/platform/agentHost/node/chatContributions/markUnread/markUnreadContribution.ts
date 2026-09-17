@@ -8,6 +8,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { SessionStatus } from '../../../common/state/sessionState.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostWorkflowService } from '../../workflow/agentHostWorkflowService.js';
 
 /** Marks a read session unread after a terminal turn outcome. */
 export class MarkUnreadContribution extends Disposable implements IAgentHostChatContribution {
@@ -20,6 +21,7 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostWorkflowService private readonly _workflows: IAgentHostWorkflowService,
 	) {
 		super();
 	}
@@ -27,6 +29,9 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 	onTurnEnd(turn: ITurnEnd): void {
 		// Rejected requests never ran; marking an archived session unread would resurface it. Local commands preserve read state.
 		if (turn.reason.kind === 'localCommand' || turn.reason.kind === 'rejected') {
+			return;
+		}
+		if (this._workflows.isQuietTurn(turn)) {
 			return;
 		}
 		// Route subagent turns to their owning session too (a background subagent

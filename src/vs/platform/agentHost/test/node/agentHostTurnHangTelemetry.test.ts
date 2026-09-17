@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostWorkflowService } from '../../node/workflow/agentHostWorkflowService.js';
+import { createTestWorkflowService } from './testWorkflowService.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -252,6 +254,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		// Blocked-turn hang telemetry is reported by `SessionInputNeededContribution`,
 		// so the built-in contributions must be registered for this graph to mirror
 		// production wiring.
+		services.set(IAgentHostWorkflowService, createTestWorkflowService());
 		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

@@ -8,6 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -20,6 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
@@ -59,6 +61,10 @@ import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { SessionWorkflowSelection } from '../../../services/sessions/common/sessionsProvider.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { SessionWorkflowDraft } from '../../workflows/common/sessionWorkflowDraft.js';
+import { WorkflowDraftWidget } from '../../../../workbench/contrib/workflows/browser/workflowDraftWidget.js';
 
 // #region --- New Chat Widget ---
 
@@ -90,6 +96,9 @@ export class NewChatWidget extends Disposable {
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
+	private readonly _workflowDraft: SessionWorkflowDraft;
+	private get _workflow(): IObservable<SessionWorkflowSelection | undefined> { return this._workflowDraft.selection; }
+	private readonly _workflowsEnabled: IObservable<boolean>;
 
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
@@ -119,6 +128,7 @@ export class NewChatWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -133,12 +143,18 @@ export class NewChatWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+		this._workflowDraft = this.instantiationService.createInstance(SessionWorkflowDraft);
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
 		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
+		const workflowSetting = observableFromEvent(this,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration('chat.workflows.enabled')),
+			() => configurationService.getValue<boolean>('chat.workflows.enabled'));
+		this._workflowsEnabled = derived(this, reader => workflowSetting.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
@@ -213,15 +229,26 @@ export class NewChatWidget extends Disposable {
 				.filter(item => item.state === AgentFeedbackState.Accepted);
 		});
 
+		const workflowUnavailableReason = derived(this, reader => {
+			if (!this._workflow.read(reader)) {
+				return undefined;
+			}
+			if (!this._workflowsEnabled.read(reader)) {
+				return localize('workflow.startDisabled', "Workflows are disabled. Remove the workflow to send a regular message.");
+			}
+			providersChanged.read(reader);
+			const session = this._session.read(reader);
+			if (session && !session.capabilities.read(reader).supportsWorkflows) {
+				return localize('workflow.providerUnavailable', "The selected provider does not support workflows. Choose a workflow-capable provider or remove the workflow.");
+			}
+			if (session && !this.sessionsProvidersService.getProvider(session.providerId)?.workflows) {
+				return localize('workflow.runtimeUnavailable', "Workflow support is not available for this provider. Reconnect the agent host or choose another provider.");
+			}
+			return undefined;
+		});
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
-			if (!session) {
-				return false;
-			}
-			if (session.loading.read(reader)) {
-				return false;
-			}
-			return true;
+			return !!session && !session.loading.read(reader) && !workflowUnavailableReason.read(reader);
 		});
 
 		const loading = derived(reader => {
@@ -240,6 +267,15 @@ export class NewChatWidget extends Disposable {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			getContextPickerActions: () => this._workspacePicker.getContextPickerActions(),
+			workflow: {
+				enabled: this._workflowsEnabled,
+				selection: this._workflow,
+				error: this._workflowDraft.error,
+				unavailableReason: workflowUnavailableReason,
+				select: selection => this._selectWorkflow(selection),
+				setSelection: selection => this._workflowDraft.setSelection(selection),
+				clear: () => this._workflowDraft.setSelection(undefined),
+			},
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
 				: this._workspacePicker.preselectionSource,
@@ -874,12 +910,31 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 		]);
 		this._renderSessionTypePicker(row, false);
+		const store = new DisposableStore();
+		const workflow = store.add(new MutableDisposable<WorkflowDraftWidget>());
+		store.add(autorun(reader => {
+			const selection = this._workflow.read(reader);
+			const error = this._workflowDraft.error.read(reader);
+			const enabled = this._workflowsEnabled.read(reader);
+			if (!enabled && !selection && !error || this.chatEntitlementService.sentimentObs.read(reader).hidden) {
+				workflow.clear();
+				return;
+			}
+			if (!workflow.value) {
+				workflow.value = this.instantiationService.createInstance(WorkflowDraftWidget, row, selection, {
+					onPick: anchor => void this._selectWorkflow(undefined, anchor).catch(error => this.notificationService.error(error)),
+				});
+				workflow.value.domNode.classList.add('sessions-chat-picker-slot', 'sessions-workspace-category-picker-slot');
+			}
+			workflow.value.update(selection, error, enabled);
+		}));
 		this._workspacePickerRow = row;
-		return toDisposable(() => {
+		store.add(toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
 			}
-		});
+		}));
+		return store;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
@@ -1008,7 +1063,8 @@ export class NewChatWidget extends Disposable {
 		// have no workspace, so they re-seed via openQuickChat instead.
 		const wasQuickChat = this._isQuickChatComposer.get();
 		const reseedFolderUri = background && !wasQuickChat ? this._workspacePicker.selectedFolderUri : undefined;
-		const sendOptions = { query: request, attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined, background };
+		const workflow = this._workflow.get();
+		const sendOptions = { query: request, attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined, background, workflow };
 		const clearFeedback = () => {
 			for (const item of feedbackItems) {
 				this.agentFeedbackService.removeFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE, item.id);
@@ -1028,11 +1084,18 @@ export class NewChatWidget extends Disposable {
 		}
 
 		try {
+			if (workflow && (!this._workflowsEnabled.get() || !session.capabilities.get().supportsWorkflows
+				|| !this.sessionsProvidersService.getProvider(session.providerId)?.workflows)) {
+				throw new Error(localize('workflowUnsupported', "The selected session provider does not support workflows, or workflows are disabled. Remove the workflow or choose a supported provider."));
+			}
 			this.newSessionComposerService.notifyWillSendRequest(sendOptions, wasQuickChat ? undefined : this._workspacePicker.selectionSnapshot);
 			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			this.logService.error('Failed to send request:', e);
+			if (workflow && !isCancellationError(e)) {
+				this.notificationService.error(localize('workflowStartUnconfirmed', "Workflow start was not confirmed. Your draft has been kept. {0}", toErrorMessage(e)));
+			}
 			return false;
 		}
 
@@ -1040,6 +1103,9 @@ export class NewChatWidget extends Disposable {
 			clearFeedback();
 		}
 		this._workspacePicker.clearAttachedContext();
+		if (workflow && this._workflow.get() === workflow) {
+			this._workflowDraft.setSelection(undefined);
+		}
 
 		// A background send graduated the composer's in-flight session and
 		// returned the view to a fresh (but session-less) new-session composer.
@@ -1055,6 +1121,18 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		return true;
+	}
+
+	private async _selectWorkflow(selection?: SessionWorkflowSelection, anchor?: HTMLElement): Promise<void> {
+		const selected = await this.commandService.executeCommand<SessionWorkflowSelection | null | undefined>('sessions.workflows.pick', {
+			workspace: this._workspacePicker.selectedFolderUri,
+			selection: selection ?? this._workflow.get(),
+			anchor,
+		});
+		if (selected !== undefined) {
+			this._workflowDraft.setSelection(selected ?? undefined);
+			this._newChatInput.focus();
+		}
 	}
 
 	private _getWorkspaceRoots(session: ISession): readonly URI[] {

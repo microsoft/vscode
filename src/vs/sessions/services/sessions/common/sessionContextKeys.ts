@@ -20,6 +20,8 @@ import {
 	SessionIsStickyContext,
 	SessionProviderIdContext,
 	SessionSupportsDeleteContext,
+	SessionSupportsWorkflowsContext,
+	SessionHasWorkflowContext,
 	SessionSupportsMultipleChatsContext,
 	SessionSupportsForkContext,
 	SessionSupportsSideChatContext,
@@ -54,6 +56,8 @@ interface ISessionContextKeys {
 	readonly supportsSideChat: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
+	readonly supportsWorkflows: IContextKey<boolean>;
+	readonly hasWorkflow: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
 	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
@@ -97,6 +101,8 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			supportsSideChat: SessionSupportsSideChatContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
+			supportsWorkflows: SessionSupportsWorkflowsContext.bindTo(contextKeyService),
+			hasWorkflow: SessionHasWorkflowContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
 			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
@@ -150,6 +156,8 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.supportsSideChat.set(capabilities?.supportsSideChat ?? false);
 	keys.supportsRename.set(capabilities?.supportsRename ?? false);
 	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
+	keys.supportsWorkflows.set(capabilities?.supportsWorkflows ?? false);
+	keys.hasWorkflow.set(!!session?.workflow?.read(reader));
 	const workspace = session?.workspace.read(reader);
 	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);

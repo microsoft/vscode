@@ -29,6 +29,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBill
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { toAgentWorkflowCapabilityMeta } from '../../common/meta/agentWorkflowMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
@@ -1094,7 +1095,7 @@ function narrowFileChangeDecision(decision: CommandExecutionApprovalDecision): F
 export class CodexAgent extends Disposable implements IAgent {
 
 	readonly id: AgentProvider = CODEX_AGENT_PROVIDER_ID;
-	readonly agentHostCapabilities = { workspaceConversion: true } as const;
+	readonly agentHostCapabilities = { workspaceConversion: true, workflows: true } as const;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -2840,9 +2841,11 @@ export class CodexAgent extends Disposable implements IAgent {
 					return { result: this._toolFailure(`No chat channel for server tool ${params.tool}`) };
 				}
 				const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+				const original = session.mapState.itemToToolCall.get(params.callId);
+				const invocation = original ? { turnId: original.turnId, toolCallId: original.toolCallId } : undefined;
 				const fullAccess = !session.agentMergeTurn && approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
-				if (host.requiresConfirmation(chatChannel, params.tool) && !fullAccess) {
-					const entry = session.mapState.itemToToolCall.get(params.callId);
+				if (host.requiresConfirmation(chatChannel, params.tool, invocation) && !fullAccess) {
+					const entry = original;
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
@@ -2861,7 +2864,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
 					}
 				}
-				const text = host.executeTool(chatChannel, params.tool, params.arguments);
+				const text = host.executeTool(chatChannel, params.tool, params.arguments, invocation);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
@@ -4133,6 +4136,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('codexAgent.displayName', "Codex"),
 			description: localize('codexAgent.description', "Codex agent using session-selected model providers"),
+			_meta: toAgentWorkflowCapabilityMeta(this.agentHostCapabilities.workflows),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
 				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
@@ -4465,6 +4469,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		},
 		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chat, model, context);
+		},
+		getAgent: async (chat, context) => {
+			const resource = this._resolveConversationSession(chat, resolveAgentChatContext(context, chat));
+			if (!resource) {
+				throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
+			}
+			const session = this._sessions.get(AgentSession.id(resource));
+			return session ? session.agent : (await this._metadataStore.read(resource)).agent;
 		},
 		changeAgent: (chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
 		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => {

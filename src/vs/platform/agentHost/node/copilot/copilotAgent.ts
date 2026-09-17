@@ -35,6 +35,7 @@ import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
+import { toAgentWorkflowCapabilityMeta } from '../../common/meta/agentWorkflowMeta.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
@@ -731,7 +732,7 @@ const NANO_AIU_PER_CREDIT = 1_000_000_000;
  */
 export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = 'copilotcli' as const;
-	readonly agentHostCapabilities = { workspaceConversion: true } as const;
+	readonly agentHostCapabilities = { workspaceConversion: true, workflows: true } as const;
 	protected readonly _now = Date.now;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
@@ -1342,6 +1343,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			provider: 'copilotcli',
 			displayName: 'Copilot',
 			description: localize('copilotAgent.description', "Copilot SDK agent running in the local agent host process"),
+			_meta: toAgentWorkflowCapabilityMeta(this.agentHostCapabilities.workflows),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
 				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
@@ -3244,6 +3246,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._abortSession(chatUri, context);
 		},
 		getModel: (chatUri: URI): ModelSelection | undefined => this._chatBackings.get(chatUri.toString())?.model,
+		getAgent: async (chat, operationContext) => {
+			const context = resolveAgentChatContext(operationContext, chat);
+			const provisional = this._provisionalSessions.get(AgentSession.id(context.configurationResource));
+			if (provisional?.chat.toString() === chat.toString()) {
+				return provisional.agent;
+			}
+			const backing = this._chatBackings.get(chat.toString());
+			return backing ? backing.agent : (await this._readSessionMetadata(context.resource)).agent;
+		},
 		changeModel: (chatUri: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chatUri, model, context);
 		},
@@ -3990,6 +4001,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
 		if (agent !== undefined) {
 			await this._storeSessionAgentMetadata(sessionUri, agent);
+		}
+		const backing = this._chatBackings.get(provisional.chat.toString());
+		if (backing && backing.agent?.uri !== agent?.uri) {
+			const updated: IPersistedChat = { ...backing, agent };
+			this._chatBackings.set(provisional.chat.toString(), updated);
+			this._onDidChangeChatData.fire({ chat: provisional.chat, providerData: encodeProviderData(updated) });
 		}
 
 		// Capture the per-session baseline (turn/0) git checkpoint so

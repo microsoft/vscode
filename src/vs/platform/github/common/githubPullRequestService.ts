@@ -94,6 +94,8 @@ export interface PullRequestCore {
 	readonly updatedAt?: string;
 	readonly closedAt?: string;
 	readonly mergedAt?: string;
+	/** GitHub's post-merge commit, including the integrated squash or rebase tip rather than the PR head. */
+	readonly mergeCommitSha?: string;
 }
 
 export interface PullRequestComment {

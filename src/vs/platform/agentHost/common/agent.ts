@@ -284,6 +284,8 @@ export type IAgentCapabilities = AgentCapabilities;
 /** Agent Host-only capabilities that are not serialized to protocol clients. */
 export interface IAgentHostCapabilities {
 	readonly workspaceConversion: boolean;
+	/** Reliable dispatch and original-turn identity for host workflow tools. */
+	readonly workflows?: boolean;
 }
 
 /** Metadata describing an agent backend, discovered over IPC. */
@@ -293,6 +295,8 @@ export interface IAgentDescriptor {
 	readonly description: string;
 	/** Static capability flags the agent advertises (see {@link IAgentCapabilities}). */
 	readonly capabilities?: IAgentCapabilities;
+	/** Namespaced metadata forwarded to the protocol agent descriptor. */
+	readonly _meta?: Record<string, unknown>;
 }
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
@@ -807,6 +811,9 @@ export interface IAgentChats {
 	getModel?(chat: URI, context: AgentChatOperationContext): ModelSelection | undefined;
 
 	changeModel(chat: URI, model: ModelSelection, context: AgentChatOperationContext): Promise<void>;
+
+	/** Reads the persisted custom-agent selection without materializing an SDK session. */
+	getAgent?(chat: URI, context: AgentChatOperationContext): Promise<AgentSelection | undefined>;
 
 	/**
 	 * Change (or clear) the selected custom agent for `chat`. Passing

@@ -15,6 +15,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
+import { toWorkflowMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkflowMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -344,6 +345,23 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('restored workflow assignments keep their original request IDs across repair turns', () => {
+			const turns = ['first-assignment', 'repair-assignment'].map(id => createTurn({
+				id,
+				message: {
+					...message('Complete the plan checkpoint', MessageKind.SystemNotification),
+					_meta: toWorkflowMessageMeta({ runId: 'workflow', assignmentId: id, turnId: id }),
+				},
+			}));
+			const history = turnsToHistory(URI.parse('copilot:/workflow-session'), turns, 'participant-1');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				id: item.id, prompt: item.prompt, isHidden: item.isHidden,
+			})), [
+				{ id: 'first-assignment', prompt: 'Complete the plan checkpoint', isHidden: undefined },
+				{ id: 'repair-assignment', prompt: 'Complete the plan checkpoint', isHidden: undefined },
+			]);
+		});
+
 		test('identifies Agent Merge history by system origin and metadata, not prompt text', () => {
 			const messages: Message[] = [
 				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: toAgentMergeMessageMeta() },
@@ -360,6 +378,26 @@ suite('stateToProgressAdapter', () => {
 				{ isSystemInitiated: true, requestSource: undefined },
 				{ isSystemInitiated: undefined, requestSource: undefined },
 				{ isSystemInitiated: true, requestSource: undefined },
+			]);
+		});
+
+		test('keeps workflow display metadata separate from prompts and user messages', () => {
+			const presentation = { kind: 'workflow', workflowLabel: 'Feature', checkpointLabel: 'Plan', reason: 'start' } as const;
+			const meta = toWorkflowMessageMeta({ runId: 'run', assignmentId: 'assignment', turnId: 'turn' }, presentation);
+			const messages: Message[] = [
+				{ ...message('Complete the plan checkpoint', MessageKind.SystemNotification), _meta: meta },
+				{ ...message('Complete the plan checkpoint'), _meta: meta },
+				message('Complete the plan checkpoint', MessageKind.SystemNotification),
+				{ ...message('Legacy assignment', MessageKind.SystemNotification), _meta: toWorkflowMessageMeta({ runId: 'run', assignmentId: 'old', turnId: 'old' }) },
+			];
+			const history = turnsToHistory(URI.parse('copilot:/workflow'), messages.map((message, index) => createTurn({ id: `turn-${index}`, message })), 'participant-1');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				id: item.id, prompt: item.prompt, isSystemInitiated: item.isSystemInitiated, requestSource: item.requestSource,
+			})), [
+				{ id: 'turn-0', prompt: messages[0].text, isSystemInitiated: true, requestSource: presentation },
+				{ id: 'turn-1', prompt: messages[1].text, isSystemInitiated: undefined, requestSource: undefined },
+				{ id: 'turn-2', prompt: messages[2].text, isSystemInitiated: true, requestSource: undefined },
+				{ id: 'turn-3', prompt: messages[3].text, isSystemInitiated: true, requestSource: undefined },
 			]);
 		});
 

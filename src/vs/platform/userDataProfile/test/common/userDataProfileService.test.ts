@@ -12,7 +12,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AbstractNativeEnvironmentService, INativeEnvironmentPaths } from '../../../environment/common/environmentService.js';
 import product from '../../../product/common/product.js';
-import { InMemoryUserDataProfilesService, UserDataProfilesService } from '../../common/userDataProfile.js';
+import { AGENTS_WINDOW_PROFILE_ID, InMemoryUserDataProfilesService, reviveProfile, UserDataProfilesService } from '../../common/userDataProfile.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Event } from '../../../../base/common/event.js';
@@ -66,6 +66,26 @@ suite('UserDataProfileService (Common)', () => {
 	test('profiles always include default profile', () => {
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
+	});
+
+	test('workflow resources follow profile ownership and survive URI revival', async () => {
+		const isolated = await testObject.createProfile('workflow-isolated', 'Workflow Isolated');
+		const inherited = await testObject.createProfile('workflow-inherited', 'Workflow Inherited', { useDefaultFlags: { workflows: true } });
+		const agents = await testObject.createProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents');
+		const revived = reviveProfile(isolated, 'profile-preview');
+		assert.deepStrictEqual({
+			defaultHome: testObject.defaultProfile.workflowsHome,
+			isolatedHome: isolated.workflowsHome,
+			inheritedHome: inherited.workflowsHome,
+			agentsHome: agents.workflowsHome,
+			revivedHome: revived.workflowsHome,
+		}, {
+			defaultHome: joinPath(testObject.defaultProfile.location, 'workflows'),
+			isolatedHome: joinPath(isolated.location, 'workflows'),
+			inheritedHome: testObject.defaultProfile.workflowsHome,
+			agentsHome: testObject.defaultProfile.workflowsHome,
+			revivedHome: isolated.workflowsHome.with({ scheme: 'profile-preview' }),
+		});
 	});
 
 	test('create profile with id', async () => {

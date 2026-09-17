@@ -326,6 +326,11 @@ export class FileService extends Disposable implements IFileService {
 		if (hasFileRealpathCapability(provider)) {
 			const realpath = await provider.realpath(resource);
 
+			if (resource.scheme === Schemas.file) {
+				const canonical = URI.file(realpath);
+				return resource.with({ authority: canonical.authority, path: canonical.path });
+			}
+
 			return resource.with({ path: realpath });
 		}
 

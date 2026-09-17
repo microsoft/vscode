@@ -67,4 +67,26 @@ suite('AgentHostLocalTurns', () => {
 		assert.strictEqual(registry.resolveConcreteTurnId(chatA, 'local-x'), 'real-9');
 		assert.strictEqual(registry.isLocal(chatB, 'local-y'), true);
 	});
+
+	test('awaited local turn updates preserve their original order', async () => {
+		const db = new TestSessionDatabase();
+		const registry = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+		const chat = 'ahp-chat://default/xyz';
+		await registry.recordAndWait(session, chat, turn('first'), undefined);
+		await registry.recordAndWait(session, chat, turn('second'), undefined);
+		await registry.recordAndWait(session, chat, { ...turn('first'), state: TurnState.Cancelled }, undefined);
+		assert.deepStrictEqual((await db.getLocalTurns()).map(record => ({
+			id: record.turnId, sequence: record.seq, state: JSON.parse(record.payload).state,
+		})), [
+			{ id: 'first', sequence: 1, state: TurnState.Cancelled },
+			{ id: 'second', sequence: 2, state: TurnState.Complete },
+		]);
+	});
+
+	test('awaited local turn writes propagate persistence errors', async () => {
+		const db = new TestSessionDatabase();
+		db.insertLocalTurn = async () => { throw new Error('Local turn write failed'); };
+		const registry = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+		await assert.rejects(registry.recordAndWait(session, 'ahp-chat://default/xyz', turn('first'), undefined), /Local turn write failed/);
+	});
 });

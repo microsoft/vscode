@@ -27,6 +27,7 @@ const AGENTS_WINDOW_PROFILE_FLAGS: UseDefaultProfileFlags = {
 	settings: true,
 	keybindings: true,
 	prompts: true,
+	workflows: true,
 	mcp: true,
 	languageModels: true,
 	snippets: true,
@@ -39,6 +40,7 @@ export const enum ProfileResourceType {
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
 	Prompts = 'prompts',
+	Workflows = 'workflows',
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
@@ -66,6 +68,7 @@ export interface IUserDataProfile {
 	readonly tasksResource: URI;
 	readonly snippetsHome: URI;
 	readonly promptsHome: URI;
+	readonly workflowsHome: URI;
 	readonly extensionsResource: URI;
 	readonly mcpResource: URI;
 	readonly languageModelsResource: URI;
@@ -92,6 +95,7 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& URI.isUri(candidate.tasksResource)
 		&& URI.isUri(candidate.snippetsHome)
 		&& URI.isUri(candidate.promptsHome)
+		&& URI.isUri(candidate.workflowsHome)
 		&& URI.isUri(candidate.extensionsResource)
 		&& URI.isUri(candidate.mcpResource)
 		&& URI.isUri(candidate.languageModelsResource)
@@ -172,6 +176,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		tasksResource: URI.revive(profile.tasksResource).with({ scheme }),
 		snippetsHome: URI.revive(profile.snippetsHome).with({ scheme }),
 		promptsHome: URI.revive(profile.promptsHome).with({ scheme }),
+		workflowsHome: URI.revive(profile.workflowsHome).with({ scheme }),
 		extensionsResource: URI.revive(profile.extensionsResource).with({ scheme }),
 		mcpResource: URI.revive(profile.mcpResource).with({ scheme }),
 		languageModelsResource: URI.revive(profile.languageModelsResource).with({ scheme }),
@@ -199,6 +204,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		tasksResource: defaultProfile && options?.useDefaultFlags?.tasks ? defaultProfile.tasksResource : joinPath(location, 'tasks.json'),
 		snippetsHome: defaultProfile && options?.useDefaultFlags?.snippets ? defaultProfile.snippetsHome : joinPath(location, 'snippets'),
 		promptsHome: defaultProfile && options?.useDefaultFlags?.prompts ? defaultProfile.promptsHome : joinPath(location, 'prompts'),
+		workflowsHome: defaultProfile && options?.useDefaultFlags?.workflows ? defaultProfile.workflowsHome : joinPath(location, 'workflows'),
 		extensionsResource: defaultProfile && options?.useDefaultFlags?.extensions ? defaultProfile.extensionsResource : joinPath(location, 'extensions.json'),
 		mcpResource: defaultProfile && options?.useDefaultFlags?.mcp ? defaultProfile.mcpResource : joinPath(location, 'mcp.json'),
 		languageModelsResource: defaultProfile && options?.useDefaultFlags?.languageModels ? defaultProfile.languageModelsResource : joinPath(location, 'chatLanguageModels.json'),

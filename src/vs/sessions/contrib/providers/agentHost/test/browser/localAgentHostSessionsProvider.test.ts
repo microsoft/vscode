@@ -20,6 +20,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { IAgentHostWorkflowStartOptions } from '../../../../../../platform/agentHost/common/agentHostWorkflow.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentWorkflowCapabilityMetaKey, withAgentWorkflowProgress } from '../../../../../../platform/agentHost/common/meta/agentWorkflowMeta.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -40,14 +43,17 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { WorkflowRun } from '../../../../../../platform/workflow/common/workflow.js';
+import { getWorkflowProgress } from '../../../../../../platform/workflow/common/workflowProgress.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentHostChatSession, IAgentHostMessageContextOptions, IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatRequestVariableEntry } from '../../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider, SessionWorkflowSelection, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -60,6 +66,7 @@ import { IAutomationStorageService } from '../../../../automations/common/automa
 import { TestAutomationStorageService } from '../../../../automations/test/browser/automationTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkflowSourceEnablementService } from '../../../../../../workbench/contrib/workflows/common/workflowSources.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
@@ -104,6 +111,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	});
 
 	override readonly clientId = 'test-local-client';
+	override readonly resourceUris = identityAgentHostResourceUriMapper;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public automationCatalog: AutomationState = { entries: [] };
 	public disposedSessions: URI[] = [];
@@ -488,7 +496,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; prepareMessageContext?: IAgentHostChatSession['prepareMessageContext']; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -518,7 +526,10 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
 		getAllChatSessionContributions: () => contributions,
-		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
+		getOrCreateChatSession: async (sessionResource: URI) => ({
+			onWillDispose: Event.None, sessionResource, history: [], dispose() { },
+			prepareMessageContext: options?.prepareMessageContext,
+		}),
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: options?.acquireOrLoadSession ?? (async () => undefined),
@@ -540,6 +551,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(ILabelService, options?.labelService ?? new MockLabelService());
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IWorkflowSourceEnablementService, { onDidChange: Event.None, getSourceStates: async () => new Map() });
 	const storageService = options?.storageService ?? disposables.add(new InMemoryStorageService());
 	instantiationService.stub(IStorageService, storageService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -3198,7 +3210,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsMultipleChats: false, supportsWorkflows: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -4249,6 +4261,184 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pendingSendCalls: 0,
 			sendCalls: 1,
 			title: 'Config Operation',
+		});
+	});
+
+	suite('workflow starts', () => {
+		const selection: SessionWorkflowSelection = {
+			stopAfter: 'plan',
+			snapshot: {
+				id: 'feature', version: 1, label: 'Feature',
+				checkpoints: [{
+					id: 'plan', label: 'Plan', instructions: 'Create a plan.', inputs: {},
+					type: { id: 'plan', version: 1, label: 'Plan', instructions: 'Create a plan.', proofSchema: { type: 'object' }, completion: { kind: 'reported' } },
+				}],
+			},
+		};
+
+		function setAgentWorkflowSupport(supported: boolean): void {
+			const root = agentHost.rootState.value;
+			assert.ok(root && !(root instanceof Error));
+			agentHost.setAgents(root.agents.map(agent => ({ ...agent, _meta: { ...agent._meta, [AgentWorkflowCapabilityMetaKey]: supported } })));
+		}
+
+		function enableWorkflows(): IConfigurationService {
+			const initialization = agentHost.initializeResult.get();
+			agentHost.initializeResult.set({ ...initialization, _meta: { ...initialization._meta, [AgentWorkflowCapabilityMetaKey]: true } }, undefined);
+			setAgentWorkflowSupport(true);
+			agentHost.getWorkflowRun = async () => undefined;
+			agentHost.controlWorkflow = async () => { throw new Error('Unexpected workflow control'); };
+			agentHost.setWorkflowExtensionSources = async () => { };
+			return new TestConfigurationService({ chat: { workflows: { enabled: true } } });
+		}
+
+		function modelReference(): IChatModelReference {
+			return new ImmortalReference(upcastPartial<IChatModel>({ inputModel: upcastPartial<IInputModel>({ setState() { } }) }));
+		}
+
+		test('draft and restored capabilities require both the host and the selected agent', () => {
+			const configurationService = enableWorkflows();
+			agentHost.startWorkflow = async () => { throw new Error('Capability inspection must not start a workflow'); };
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			fireSessionAdded(agentHost, 'workflow-capabilities');
+			const restored = provider.getSessions().find(session => AgentSession.id(session.resource) === 'workflow-capabilities');
+			assert.ok(restored);
+			const draft = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			const root = agentHost.rootState.value;
+			assert.ok(root && !(root instanceof Error));
+			const initialization = agentHost.initializeResult.get();
+			const readSupport = () => ({
+				draft: draft.capabilities.get().supportsWorkflows,
+				restored: restored.capabilities.get().supportsWorkflows,
+			});
+			const states = [readSupport()];
+
+			agentHost.initializeResult.set({ ...initialization, _meta: { ...initialization._meta, [AgentWorkflowCapabilityMetaKey]: false } }, undefined);
+			states.push(readSupport());
+
+			agentHost.initializeResult.set(initialization, undefined);
+			agentHost.setAgents([
+				...root.agents.map(agent => ({ ...agent, _meta: { ...agent._meta, [AgentWorkflowCapabilityMetaKey]: false } })),
+				{ provider: 'other', displayName: 'Other', description: '', models: [], _meta: { [AgentWorkflowCapabilityMetaKey]: true } },
+			]);
+			states.push(readSupport());
+
+			agentHost.setAgents(root.agents);
+			states.push(readSupport());
+			agentHost.setRootStateError();
+			states.push(readSupport());
+			assert.deepStrictEqual(states, [
+				{ draft: true, restored: true },
+				{ draft: false, restored: false },
+				{ draft: false, restored: false },
+				{ draft: true, restored: true },
+				{ draft: false, restored: false },
+			]);
+		});
+
+		test('a host-supported but unsupported agent rejects before context preparation or dispatch', async () => {
+			const configurationService = enableWorkflows();
+			setAgentWorkflowSupport(false);
+			let prepared = 0;
+			let ordinarySends = 0;
+			let workflowStarts = 0;
+			agentHost.startWorkflow = async () => { workflowStarts++; throw new Error('Unexpected workflow start'); };
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService,
+				prepareMessageContext: async () => { prepared++; return {}; },
+				sendRequest: async () => { ordinarySends++; throw new Error('Unexpected ordinary send'); },
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'Implement feature', workflow: selection }), /Workflows are unavailable/);
+			assert.deepStrictEqual({ prepared, ordinarySends, workflowStarts }, { prepared: 0, ordinarySends: 0, workflowStarts: 0 });
+		});
+
+		test('preserves selected context and commits an initially waiting workflow without an ordinary send', async () => {
+			const configurationService = enableWorkflows();
+			const starts: IAgentHostWorkflowStartOptions[] = [];
+			agentHost.startWorkflow = async options => {
+				starts.push(options);
+				const run: WorkflowRun = {
+					...options, id: 'run', version: 1, revision: 1, inputs: options.inputs ?? {},
+					status: 'waiting', checkpointIndex: 0, receipts: [], firstTurns: {}, createdAt: 1, updatedAt: 1, activityAt: 1,
+				};
+				agentHost.addSession(createSession(AgentSession.id(URI.parse(options.session)), {
+					summary: 'Waiting for first checkpoint', _meta: withAgentWorkflowProgress(undefined, getWorkflowProgress(run)),
+				}));
+				return run;
+			};
+			const prepared: IAgentHostMessageContextOptions[] = [];
+			const modelId = 'agent-host-copilotcli:model';
+			const model = {
+				...createTestLanguageModel('model'), targetChatSessionType: 'agent-host-copilotcli',
+				configurationSchema: { type: 'object' as const, properties: { thinkingLevel: { type: 'string' as const, enum: ['low', 'high'], default: 'low' } } },
+			};
+			let ordinarySends = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService, openSession: true,
+				languageModelIds: [modelId], lookupLanguageModel: () => model,
+				languageModelsService: { getModelConfiguration: () => ({ thinkingLevel: 'high' }) },
+				acquireOrLoadSession: async () => modelReference(),
+				prepareMessageContext: async input => {
+					prepared.push(input);
+					return { model: { id: 'model', config: { thinkingLevel: 'high' } }, agent: input.agent, attachments: [] };
+				},
+				sendRequest: async () => { ordinarySends++; throw new Error('Workflow fell through to ordinary chat'); },
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			provider.setAgent(session.sessionId, { uri: 'agent://planner', name: 'Planner' });
+			provider.setModel(session.sessionId, session.resource, modelId, ChatModelSource.Chosen);
+			const chat = await provider.createNewChat(session.sessionId);
+			const attachment: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'design.ts', value: URI.file('/home/user/project/design.ts') };
+			const barrier = new DeferredPromise<void>();
+			provider.trackSessionConfigOperation(session.sessionId, barrier.p);
+			const sent = provider.sendRequest(session.sessionId, chat.resource, { query: 'Implement feature', attachedContext: [attachment], workflow: selection });
+			await timeout(0);
+			const beforeConfigurationReady = starts.length;
+			barrier.complete();
+			const committed = await sent;
+			assert.deepStrictEqual({
+				beforeConfigurationReady, ordinarySends,
+				prepared: prepared.map(input => ({ model: input.userSelectedModelId, config: input.modelConfiguration, agent: input.agent?.uri, attachments: input.attachments })),
+				starts: starts.map(start => ({ task: start.task, stopAfter: start.stopAfter, model: start.model, agent: start.agent?.uri })),
+				title: committed.title.get(), progress: committed.workflow?.get()?.status, mode: committed.mode.get(),
+			}, {
+				beforeConfigurationReady: 0, ordinarySends: 0,
+				prepared: [{ model: modelId, config: { thinkingLevel: 'high' }, agent: 'agent://planner', attachments: [attachment] }],
+				starts: [{ task: 'Implement feature', stopAfter: 'plan', model: { id: 'model', config: { thinkingLevel: 'high' } }, agent: 'agent://planner' }],
+				title: 'Waiting for first checkpoint', progress: 'waiting', mode: { id: 'agent://planner', kind: 'agent' },
+			});
+		});
+
+		test('discarding a draft after an unconfirmed start does not delete possibly accepted work', async () => {
+			const configurationService = enableWorkflows();
+			agentHost.startWorkflow = async () => { throw new Error('Start acknowledgement lost'); };
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService, openSession: true,
+				acquireOrLoadSession: async () => modelReference(),
+				prepareMessageContext: async () => ({}),
+				sendRequest: async () => { throw new Error('Workflow fell through to ordinary chat'); },
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'Implement feature', workflow: selection }), /Start acknowledgement lost/);
+			provider.createNewSession(URI.file('/home/user/different-project'), provider.sessionTypes[0].id);
+			await timeout(0);
+			assert.deepStrictEqual(agentHost.disposedSessions, []);
+		});
+
+		test('unsupported hosts reject workflow sends before context preparation or ordinary dispatch', async () => {
+			let prepared = 0;
+			let sent = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				prepareMessageContext: async () => { prepared++; return {}; },
+				sendRequest: async () => { sent++; throw new Error('Unexpected ordinary send'); },
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			const chat = await provider.createNewChat(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'Implement feature', workflow: selection }), /Workflows are unavailable/);
+			assert.deepStrictEqual({ prepared, sent }, { prepared: 0, sent: 0 });
 		});
 	});
 
@@ -5945,12 +6135,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		test('session adapters observe capabilities only after receiving a chat catalog', () => {
 			let listenerCount = 0;
-			let agentCapabilities = new Map<string, AgentInfo['capabilities']>([['copilotcli', {}]]);
+			const agent: AgentInfo = { provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} };
+			let agents = new Map<string, AgentInfo>([['copilotcli', agent]]);
 			const capabilitiesChanged = disposables.add(new Emitter<void>({
 				onDidAddListener: () => listenerCount++,
 				onWillRemoveListener: () => listenerCount--,
 			}));
-			const capabilitiesObs = observableFromEvent(disposables, capabilitiesChanged.event, () => agentCapabilities);
+			const agentsObs = observableFromEvent(disposables, capabilitiesChanged.event, () => agents);
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { });
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -5963,7 +6154,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				buildWorkspace: () => undefined,
 				instantiationService,
 				getConnection: () => undefined,
-				agentCapabilities: capabilitiesObs,
+				agentInfoByProvider: agentsObs,
 				mapBackendSessionResource: resource => resource.with({ scheme: `agent-host-${resource.scheme}` }),
 			};
 			const adapters = Array.from({ length: 200 }, (_, index) => disposables.add(instantiationService.createInstance(
@@ -5985,7 +6176,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				makeChatSummary(peerChat, 'Peer'),
 			], { defaultChat }));
 			const listenerCountAfterCatalog = listenerCount;
-			agentCapabilities = new Map([['copilotcli', { multipleChats: { fork: true } }]]);
+			agents = new Map([['copilotcli', { ...agent, capabilities: { multipleChats: { fork: true } } }]]);
 			capabilitiesChanged.fire();
 
 			assert.deepStrictEqual({

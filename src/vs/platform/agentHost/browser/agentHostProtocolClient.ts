@@ -19,7 +19,10 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, ControlWorkflowExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, GetWorkflowRunExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetWorkflowExtensionSourcesExtensionMethod, SetWorkflowSourceEnabledExtensionMethod, StartWorkflowExtensionMethod, supportsAgentHostChatStateFile, WorkflowRunChangedExtensionMethod, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { IAgentWorkflowRunChange, readAgentWorkflowRunChange, supportsAgentHostWorkflows } from '../common/meta/agentWorkflowMeta.js';
+import type { WorkflowControl, WorkflowRun } from '../../workflow/common/workflow.js';
+import type { IAgentHostWorkflowStartOptions } from '../common/agentHostWorkflow.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -236,6 +239,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+	private readonly _onDidChangeWorkflowRun = this._register(new Emitter<IAgentWorkflowRunChange>());
+	readonly onDidChangeWorkflowRun = this._onDidChangeWorkflowRun.event;
 
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
@@ -1351,6 +1356,38 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
 	}
 
+	async getWorkflowRun(session: URI): Promise<WorkflowRun | undefined> {
+		this._requireWorkflowSupport();
+		const result = await this._sendExtensionRequest(GetWorkflowRunExtensionMethod, { session: session.toString() });
+		return result.run;
+	}
+
+	async startWorkflow(options: IAgentHostWorkflowStartOptions): Promise<WorkflowRun> {
+		this._requireWorkflowSupport();
+		return this._sendExtensionRequest(StartWorkflowExtensionMethod, options);
+	}
+
+	async controlWorkflow(control: WorkflowControl): Promise<WorkflowRun> {
+		this._requireWorkflowSupport();
+		return this._sendExtensionRequest(ControlWorkflowExtensionMethod, control);
+	}
+
+	async setWorkflowSourceEnabled(sourceId: string, enabled: boolean): Promise<void> {
+		this._requireWorkflowSupport();
+		await this._sendExtensionRequest(SetWorkflowSourceEnabledExtensionMethod, { sourceId, enabled });
+	}
+
+	async setWorkflowExtensionSources(sources: Readonly<Record<string, boolean>>): Promise<void> {
+		this._requireWorkflowSupport();
+		await this._sendExtensionRequest(SetWorkflowExtensionSourcesExtensionMethod, { sources });
+	}
+
+	private _requireWorkflowSupport(): void {
+		if (!supportsAgentHostWorkflows(this._initializeResult.get())) {
+			throw new Error('This Agent Host does not support workflows. Update or reconnect to a compatible host.');
+		}
+	}
+
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {
 			session: session.toString(),
@@ -1834,6 +1871,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
+			if (String(msg.method) === WorkflowRunChangedExtensionMethod) {
+				const change = readAgentWorkflowRunChange(msg.params);
+				if (change && AgentSession.provider(change.session)) {
+					this._onDidChangeWorkflowRun.fire(change);
+				}
+				return;
+			}
 			switch (msg.method) {
 				case 'action': {
 					// Protocol envelope → VS Code envelope (superset of action types)

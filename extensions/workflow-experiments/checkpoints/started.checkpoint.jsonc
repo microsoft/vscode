@@ -1,0 +1,40 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"$schema": "vscode://schemas/workflow-checkpoint/v1",
+	"id": "microsoft.exp/started",
+	"version": 1,
+	"label": "Experiment started",
+	"description": "A checked public-release condition precedes an agent-reported Microsoft ExP start.",
+	"instructions": "Start the previously configured Microsoft ExP experiment identified by the bound experimentId and experimentUri. The core GitHub start condition has separately checked that a published, non-draft, non-prerelease release contains the integrated commit; that fact does not prove that ExP is running and does not grant tool permissions. Use the available approved Microsoft ExP tooling and its installed manage-experiments and exp-access guidance. Reuse the setup, confirm the intended targeting and allocation, preview the scoped experiment-file change, and use the documented running step state and approved sync workflow to start it. If it is already running, report the existing start rather than creating a duplicate experiment or resetting its allocation. Do not bypass approvals, invent endpoints, or request credentials in proof. Report the same experiment identifier, its URI, and what actually happened. If starting cannot be established with the available tooling, report a blocker. This completion is agent-reported, never ExP-verified.",
+	"inputSchema": {
+		"type": "object",
+		"properties": {
+			"repository": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 },
+			"integratedCommit": { "type": "string", "minLength": 40, "maxLength": 64 },
+			"experimentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+			"experimentUri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["repository", "integratedCommit", "experimentId", "experimentUri"],
+		"additionalProperties": false
+	},
+	"startCondition": {
+		"check": "vscode.github/commit-in-release@1",
+		"inputs": {
+			"repository": { "input": "repository" },
+			"commit": { "input": "integratedCommit" }
+		},
+		"options": { "release": "published-stable" }
+	},
+	"proofSchema": {
+		"type": "object",
+		"properties": {
+			"summary": { "type": "string", "minLength": 1, "maxLength": 8192 },
+			"experimentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+			"uri": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 2048 }
+		},
+		"required": ["summary", "experimentId", "uri"],
+		"additionalProperties": false
+	},
+	"completion": { "kind": "reported" }
+}

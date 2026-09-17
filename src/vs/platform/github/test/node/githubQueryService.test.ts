@@ -15,13 +15,15 @@ import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
-import { GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
 	gitHubGraphQLResponse,
 	gitHubGraphQLStep,
 	gitHubJsonResponse,
+	gitHubNotModifiedResponse,
+	gitHubRateLimitResponse,
 	gitHubRestStep,
 	ProgrammableGitHubServer,
 } from './programmableGitHubServer.js';
@@ -552,6 +554,225 @@ suite('GitHubQueryService', () => {
 		});
 	});
 
+	test('checks ancestry with bounded metadata rather than enumerating commits and files', async () => {
+		await withServer(async server => {
+			const baseSha = 'a'.repeat(40);
+			const headSha = 'b'.repeat(40);
+			const commonSha = 'c'.repeat(40);
+			const cases = [
+				{ status: 'ahead', head: headSha, mergeBaseSha: baseSha, isAncestor: true },
+				{ status: 'identical', head: baseSha, mergeBaseSha: baseSha, isAncestor: true },
+				{ status: 'behind', head: headSha, mergeBaseSha: headSha, isAncestor: false },
+				{ status: 'diverged', head: headSha, mergeBaseSha: commonSha, isAncestor: false },
+			];
+			const { ref, service } = setup(server);
+			const results = [];
+			for (const value of cases) {
+				server.enqueue(gitHubRestStep({
+					path: `/repos/octo/repo/compare/${baseSha}...${value.head}`,
+					query: { per_page: 1, page: 2 },
+					response: gitHubJsonResponse({
+						base_commit: { sha: baseSha },
+						merge_base_commit: { sha: value.mergeBaseSha },
+						status: value.status,
+						total_commits: 10_000,
+					}),
+				}));
+				results.push(await service.compareCommitAncestry(ref, baseSha, value.head, signal()));
+			}
+			assert.deepStrictEqual(results, cases.map(value => ({ baseSha, headSha: value.head, mergeBaseSha: value.mergeBaseSha, isAncestor: value.isAncestor })));
+			server.assertSatisfied();
+		});
+	});
+
+	test('rejects malformed ancestry instead of guessing from a partial comparison', async () => {
+		await withServer(async server => {
+			const base = 'a'.repeat(40);
+			const head = 'b'.repeat(40);
+			const { ref, service } = setup(server);
+			for (const body of [
+				{ base_commit: { sha: base }, merge_base_commit: { sha: base } },
+				{ base_commit: { sha: head }, merge_base_commit: { sha: base }, status: 'ahead' },
+				{ base_commit: { sha: base }, merge_base_commit: { sha: head }, status: 'ahead' },
+			]) {
+				server.enqueue(gitHubRestStep({
+					path: `/repos/octo/repo/compare/${base}...${head}`,
+					query: { per_page: 1, page: 2 },
+					response: gitHubJsonResponse(body),
+				}));
+				await assert.rejects(service.compareCommitAncestry(ref, base, head, signal()), error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
+			}
+			await assert.rejects(service.compareCommitAncestry(ref, 'main', head, signal()), error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
+			server.assertSatisfied();
+		});
+	});
+
+	test('returns bounded release pages without treating the first release as latest stable', async () => {
+		await withServer(async server => {
+			const releases = [
+				releaseResponse(3, { draft: true, published_at: null }),
+				releaseResponse(2, { prerelease: true }),
+				releaseResponse(1),
+			];
+			server.enqueue(
+				gitHubRestStep({
+					path: '/repos/octo/repo/releases',
+					query: { per_page: 10, page: 1 },
+					response: gitHubJsonResponse(releases, { link: '<https://unrelated.invalid/private>; rel="next"' }),
+				}),
+				gitHubRestStep({ path: '/repos/octo/repo/releases', query: { per_page: 10, page: 2 }, response: gitHubJsonResponse([]) }),
+			);
+			const { ref, service } = setup(server);
+			const first = await service.listReleases(ref, 1, signal());
+			const second = await service.listReleases(ref, first.nextPage!, signal());
+			assert.deepStrictEqual({
+				first: first.releases.map(release => [release.id, release.draft, release.prerelease, release.publishedAt]),
+				nextPage: first.nextPage,
+				second,
+			}, {
+				first: [['3', true, false, undefined], ['2', false, true, '2026-09-01T12:00:00Z'], ['1', false, false, '2026-09-01T12:00:00Z']],
+				nextPage: 2,
+				second: { releases: [], nextPage: undefined },
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('keeps a full release page incomplete without a pagination header', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubRestStep({
+				path: '/repos/octo/repo/releases',
+				query: { per_page: 10, page: 1 },
+				response: gitHubJsonResponse(Array.from({ length: 10 }, (_, index) => releaseResponse(index + 1))),
+			}));
+			const { ref, service } = setup(server);
+			assert.strictEqual((await service.listReleases(ref, 1, signal())).nextPage, 2);
+			server.assertSatisfied();
+		});
+	});
+
+	test('requires explicit draft, prerelease and publication facts', async () => {
+		await withServer(async server => {
+			const { ref, service } = setup(server);
+			for (const missing of ['draft', 'prerelease', 'published_at']) {
+				const release = releaseResponse(1);
+				Reflect.deleteProperty(release, missing);
+				server.enqueue(gitHubRestStep({ path: '/repos/octo/repo/releases', query: { per_page: 10, page: 1 }, response: gitHubJsonResponse([release]) }));
+				await assert.rejects(service.listReleases(ref, 1, signal()), error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
+			}
+			server.assertSatisfied();
+		});
+	});
+
+	test('resolves lightweight and nested annotated release tags to commits', async () => {
+		await withServer(async server => {
+			const commit = 'a'.repeat(40);
+			const outer = 'b'.repeat(40);
+			const inner = 'c'.repeat(40);
+			server.enqueue(
+				gitHubRestStep({
+					path: '/repos/octo/repo/git/ref/tags/v1',
+					response: gitHubJsonResponse({ ref: 'refs/tags/v1', object: { type: 'commit', sha: commit } }),
+				}),
+				gitHubRestStep({
+					path: '/repos/octo/repo/git/ref/tags/release%2Fv2',
+					response: gitHubJsonResponse({ ref: 'refs/tags/release/v2', object: { type: 'tag', sha: outer } }),
+				}),
+				gitHubRestStep({ path: `/repos/octo/repo/git/tags/${outer}`, response: gitHubJsonResponse({ sha: outer, object: { type: 'tag', sha: inner } }) }),
+				gitHubRestStep({ path: `/repos/octo/repo/git/tags/${inner}`, response: gitHubJsonResponse({ sha: inner, object: { type: 'commit', sha: commit } }) }),
+			);
+			const { ref, service } = setup(server);
+			assert.deepStrictEqual([
+				await service.resolveTag(ref, 'v1', signal()),
+				await service.resolveTag(ref, 'release/v2', signal()),
+			], [
+				{ tagName: 'v1', tagSha: commit, commitSha: commit },
+				{ tagName: 'release/v2', tagSha: outer, commitSha: commit },
+			]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not accept cyclic or non-commit tag objects', async () => {
+		await withServer(async server => {
+			const tag = 'b'.repeat(40);
+			server.enqueue(
+				gitHubRestStep({ path: '/repos/octo/repo/git/ref/tags/v1', response: gitHubJsonResponse({ ref: 'refs/tags/v1', object: { type: 'tag', sha: tag } }) }),
+				gitHubRestStep({ path: `/repos/octo/repo/git/tags/${tag}`, response: gitHubJsonResponse({ sha: tag, object: { type: 'tag', sha: tag } }) }),
+				gitHubRestStep({ path: '/repos/octo/repo/git/ref/tags/v2', response: gitHubJsonResponse({ ref: 'refs/tags/v2', object: { type: 'tree', sha: tag } }) }),
+			);
+			const { ref, service } = setup(server);
+			for (const name of ['v1', 'v2']) {
+				await assert.rejects(service.resolveTag(ref, name, signal()), error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
+			}
+			server.assertSatisfied();
+		});
+	});
+
+	test('coalesces release observations and revalidates the shared conditional cache', async () => {
+		await withServer(async server => {
+			const requested = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			server.enqueue(
+				gitHubRestStep({
+					path: '/repos/octo/repo/releases',
+					query: { per_page: 10, page: 1 },
+					assert: () => requested.complete(),
+					waitFor: release.p,
+					response: gitHubJsonResponse([releaseResponse(1)], { etag: '"releases"' }),
+				}),
+				gitHubRestStep({
+					path: '/repos/octo/repo/releases',
+					query: { per_page: 10, page: 1 },
+					assert: request => assert.strictEqual(request.headers['if-none-match'], '"releases"'),
+					response: gitHubNotModifiedResponse(),
+				}),
+			);
+			const { ref, service } = setup(server);
+			const first = service.listReleases(ref, 1, signal());
+			const second = service.listReleases(ref, 1, signal());
+			await requested.p;
+			await release.complete();
+			const values = await Promise.all([first, second]);
+			const revalidated = await service.listReleases(ref, 1, signal());
+			assert.deepStrictEqual({ equal: values.every(value => JSON.stringify(value) === JSON.stringify(revalidated)), requests: server.requests.length }, { equal: true, requests: 2 });
+			server.assertSatisfied();
+		});
+	});
+
+	test('bounds nested tag resolution instead of following an unbounded chain', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubRestStep({
+				path: '/repos/octo/repo/git/ref/tags/v1',
+				response: gitHubJsonResponse({ ref: 'refs/tags/v1', object: { type: 'tag', sha: '1'.repeat(40) } }),
+			}));
+			for (let index = 1; index <= 8; index++) {
+				const sha = String(index).repeat(40);
+				server.enqueue(gitHubRestStep({
+					path: `/repos/octo/repo/git/tags/${sha}`,
+					response: gitHubJsonResponse({ sha, object: { type: 'tag', sha: String(index + 1).repeat(40) } }),
+				}));
+			}
+			const { ref, service } = setup(server);
+			await assert.rejects(service.resolveTag(ref, 'v1', signal()), error => error instanceof GitHubRequestError && error.kind === 'malformedResponse');
+			server.assertSatisfied();
+		});
+	});
+
+	test('propagates release rate-limit and authentication errors instead of empty success', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ path: '/repos/octo/repo/releases', query: { per_page: 10, page: 1 }, response: gitHubJsonResponse({ message: 'Bad credentials' }, { status: 401 }) }),
+				gitHubRestStep({ path: '/repos/octo/repo/releases', query: { per_page: 10, page: 1 }, response: gitHubRateLimitResponse({ retryAfterSeconds: 60 }) }),
+			);
+			const { ref, service } = setup(server);
+			for (const kind of ['authentication', 'rateLimit']) {
+				await assert.rejects(service.listReleases(ref, 1, signal()), error => error instanceof GitHubRequestError && error.kind === kind);
+			}
+			server.assertSatisfied();
+		});
+	});
+
 	test('lists pull request pages and viewer-specific searches', async () => {
 		await withServer(async server => {
 			server.enqueue(
@@ -1078,6 +1299,18 @@ function changedFile(filename: string): object {
 		deletions: 2,
 		changes: 3,
 		patch: '@@ patch',
+	};
+}
+
+function releaseResponse(id: number, overrides: object = {}): object {
+	return {
+		id,
+		tag_name: `v${id}`,
+		html_url: `https://github.example.test/octo/repo/releases/tag/v${id}`,
+		draft: false,
+		prerelease: false,
+		published_at: '2026-09-01T12:00:00Z',
+		...overrides,
 	};
 }
 

@@ -13,6 +13,7 @@ import {
 	GitHubChangedFile,
 	GitHubComparison,
 	GitHubComparisonCommit,
+	GitHubCommitAncestry,
 	GitHubHydratableResourceRef,
 	GitHubIssue,
 	GitHubIssueRef,
@@ -27,12 +28,15 @@ import {
 	GitHubRecentIssue,
 	GitHubRecentPullRequest,
 	GitHubRecentPullRequestReviewThread,
+	GitHubRelease,
+	GitHubReleasesPage,
 	GitHubRepository,
 	GitHubRepositoryRef,
 	GitHubRepositoryResource,
 	GitHubRepositorySubscription,
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
+	GitHubResolvedTag,
 } from './githubQueryService.js';
 import { FragmentState, GitHubActor, PullRequestRef } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
@@ -66,6 +70,8 @@ const defaultPollingPolicy: GitHubEntityPollingPolicy = {
 };
 
 const maximumPaginationPages = 100;
+const releasesPageSize = 10;
+const maximumTagDepth = 8;
 const maximumHydrationBatchSize = 25;
 const repositoryHydrationFields = `
 	id
@@ -509,6 +515,99 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				files,
 				filesComplete: filesPresent && files.length < 300,
 			};
+		});
+	}
+
+	async compareCommitAncestry(ref: GitHubRepositoryRef, baseSha: string, headSha: string, signal: AbortSignal): Promise<GitHubCommitAncestry> {
+		const normalized = normalizeRepositoryRef(ref);
+		baseSha = commitSha(baseSha);
+		headSha = commitSha(headSha);
+		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				method: 'GET',
+				// Comparison metadata is on every page; the potentially large file list is only on page one.
+				url: `${this._restUrl(normalized, `compare/${baseSha}...${headSha}`)}?per_page=1&page=2`,
+				etag: true,
+				priority: 'background',
+			}, combinedSignal);
+			const value = asObject(response.data, 'GitHub ancestry response was malformed');
+			const observedBase = commitSha(requiredString(objectProperty(value, 'base_commit'), 'sha'));
+			const mergeBaseSha = commitSha(requiredString(objectProperty(value, 'merge_base_commit'), 'sha'));
+			const status = enumProperty(value, 'status', ['ahead', 'behind', 'diverged', 'identical'], undefined);
+			const isAncestor = status === 'ahead' || status === 'identical';
+			if (!status || observedBase !== baseSha
+				|| isAncestor && mergeBaseSha !== baseSha
+				|| status === 'identical' && baseSha !== headSha) {
+				throw new GitHubRequestError('GitHub ancestry response did not match the requested commits', 'malformedResponse');
+			}
+			return { baseSha, headSha, mergeBaseSha, isAncestor };
+		});
+	}
+
+	async listReleases(ref: GitHubRepositoryRef, page: number, signal: AbortSignal): Promise<GitHubReleasesPage> {
+		const normalized = normalizeRepositoryRef(ref);
+		if (!Number.isSafeInteger(page) || page < 1 || page > 10_000) {
+			throw new GitHubRequestError('GitHub release page is outside the supported range', 'validation');
+		}
+		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				method: 'GET',
+				url: `${this._restUrl(normalized, 'releases')}?per_page=${releasesPageSize}&page=${page}`,
+				etag: true,
+				priority: 'background',
+			}, combinedSignal);
+			const releases = asArray(response.data, 'GitHub releases response was not an array').map(toRelease);
+			if (releases.length > releasesPageSize) {
+				throw new GitHubRequestError('GitHub release page exceeded its requested size', 'malformedResponse');
+			}
+			// Never follow a response-provided URL with credentials; advance the bounded repository route instead.
+			const hasMore = nextLink(response.link) !== undefined || releases.length === releasesPageSize;
+			return { releases, nextPage: hasMore ? page + 1 : undefined };
+		});
+	}
+
+	async resolveTag(ref: GitHubRepositoryRef, tagName: string, signal: AbortSignal): Promise<GitHubResolvedTag> {
+		const normalized = normalizeRepositoryRef(ref);
+		if (!tagName || tagName.length > 1_024) {
+			throw new GitHubRequestError('GitHub release tag is invalid', 'validation');
+		}
+		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				method: 'GET',
+				url: this._restUrl(normalized, `git/ref/tags/${encodeURIComponent(tagName)}`),
+				etag: true,
+				priority: 'background',
+			}, combinedSignal);
+			const value = asObject(response.data, 'GitHub tag reference was malformed');
+			if (requiredString(value, 'ref') !== `refs/tags/${tagName}`) {
+				throw new GitHubRequestError('GitHub returned a different tag reference', 'malformedResponse');
+			}
+			let target = objectProperty(value, 'object');
+			const tagSha = commitSha(requiredString(target, 'sha'));
+			const visited = new Set<string>();
+			for (let depth = 0; depth <= maximumTagDepth; depth++) {
+				const sha = commitSha(requiredString(target, 'sha'));
+				const type = requiredString(target, 'type');
+				if (type === 'commit') {
+					return { tagName, tagSha, commitSha: sha };
+				}
+				if (type !== 'tag' || visited.has(sha) || depth === maximumTagDepth) {
+					throw new GitHubRequestError('GitHub release tag could not be resolved to a commit within the nesting limit', 'malformedResponse');
+				}
+				visited.add(sha);
+				const tagResponse = await this._transport.rest<unknown>(credential.account, credential.token, {
+					method: 'GET',
+					url: this._restUrl(normalized, `git/tags/${sha}`),
+					etag: true,
+					priority: 'background',
+				}, combinedSignal);
+				const tag = asObject(tagResponse.data, 'GitHub annotated tag was malformed');
+				if (commitSha(requiredString(tag, 'sha')) !== sha) {
+					throw new GitHubRequestError('GitHub returned a different annotated tag', 'malformedResponse');
+				}
+				target = objectProperty(tag, 'object');
+			}
+			throw new GitHubRequestError('GitHub release tag could not be resolved to a commit', 'malformedResponse');
 		});
 	}
 
@@ -1349,6 +1448,34 @@ function toReviewThreadSummary(value: object): GitHubRecentPullRequestReviewThre
 	return {
 		isResolved: booleanProperty(value, 'isResolved') ?? false,
 		latestCommentAt: latest ? stringProperty(latest, 'createdAt') : undefined,
+	};
+}
+
+function commitSha(value: string): string {
+	if (!/^(?:[a-f\d]{40}|[a-f\d]{64})$/i.test(value)) {
+		throw new GitHubRequestError('GitHub commit must be a full object ID', 'malformedResponse');
+	}
+	return value.toLowerCase();
+}
+
+function toRelease(value: unknown): GitHubRelease {
+	const release = asObject(value, 'GitHub release was malformed');
+	const id = idProperty(release, 'id');
+	const tagName = requiredString(release, 'tag_name');
+	const draft = booleanProperty(release, 'draft');
+	const prerelease = booleanProperty(release, 'prerelease');
+	const published = Reflect.get(release, 'published_at');
+	if (!id || !tagName || draft === undefined || prerelease === undefined
+		|| published !== null && (typeof published !== 'string' || !Number.isFinite(Date.parse(published)))) {
+		throw new GitHubRequestError('GitHub release publication facts were incomplete', 'malformedResponse');
+	}
+	return {
+		id,
+		tagName,
+		url: requiredString(release, 'html_url'),
+		draft,
+		prerelease,
+		publishedAt: typeof published === 'string' ? published : undefined,
 	};
 }
 

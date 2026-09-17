@@ -170,7 +170,8 @@
 	display: flex;
 	align-items: center;
 	gap: 2px;
-	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
 	margin-left: auto;
 }
 
@@ -224,7 +225,8 @@
 	align-items: center;
 	margin-left: auto;
 	padding-right: var(--vscode-spacing-size40);
-	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .session-chat-tabs-actions.hidden {
@@ -253,6 +255,24 @@
 
 .chat-composite-bar-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
+}
+
+.chat-composite-bar-toolbar-trailing {
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.chat-composite-bar-toolbar-trailing .monaco-toolbar,
+.chat-composite-bar-toolbar-trailing .monaco-action-bar,
+.chat-composite-bar-toolbar-trailing .actions-container,
+.chat-composite-bar-toolbar-trailing .action-item {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.chat-composite-bar-toolbar-trailing .actions-container {
+	display: flex;
+	align-items: center;
 }
 
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */

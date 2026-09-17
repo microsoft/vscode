@@ -57,6 +57,7 @@ export interface IUserDataProfileTemplate {
 	readonly keybindings?: string;
 	readonly tasks?: string;
 	readonly snippets?: string;
+	readonly workflows?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
 	readonly mcp?: string;
@@ -69,6 +70,7 @@ export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataPro
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
+		&& (isUndefined(candidate.workflows) || typeof candidate.workflows === 'string')
 		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
 }
 

@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-workflow-sidebar {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+	background: var(--vscode-sideBar-background);
+	color: var(--vscode-editorWidget-foreground);
+}
+
+.session-workflow-sidebar-toolbar {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: flex-end;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.monaco-action-bar .session-workflow-action {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.monaco-action-bar .session-workflow-action .action-label[role="button"] {
+	display: block;
+	min-width: 0;
+	max-width: 24ch;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: var(--vscode-fontSize-label1);
+	height: var(--vscode-spacing-size200);
+	line-height: var(--vscode-spacing-size200);
+	padding: 0 var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+}
+
+.session-workflow-action .action-label[role="button"]:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-workflow-action.expanded .action-label[role="button"] {
+	background: var(--vscode-toolbar-activeBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.hc-black .session-workflow-action .action-label[role="button"],
+.hc-light .session-workflow-action .action-label[role="button"] {
+	border-color: var(--vscode-contrastBorder);
+}

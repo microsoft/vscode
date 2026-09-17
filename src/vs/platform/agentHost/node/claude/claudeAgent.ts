@@ -28,6 +28,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRoot
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { toAgentWorkflowCapabilityMeta } from '../../common/meta/agentWorkflowMeta.js';
 import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -351,7 +352,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
  */
 export class ClaudeAgent extends Disposable implements IAgent {
 	readonly id: AgentProvider = CLAUDE_AGENT_PROVIDER_ID;
-	readonly agentHostCapabilities = { workspaceConversion: false } as const;
+	readonly agentHostCapabilities = { workspaceConversion: false, workflows: true } as const;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -705,6 +706,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('claudeAgent.displayName', "Claude"),
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
+			_meta: toAgentWorkflowCapabilityMeta(this.agentHostCapabilities.workflows),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
 				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
@@ -1168,6 +1170,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return this._abortSession(chatUri, context);
 		},
 		getModel: chatUri => this._chatBackings.get(chatUri.toString())?.model,
+		getAgent: async (chatUri, operationContext) => {
+			const context = this._resolveChatContext(chatUri, operationContext);
+			return context.target ? context.target.provisionalAgent : (await this._metadataStore.read(context.resource)).agent;
+		},
 		changeModel: (chatUri, model, context) => {
 			return this._changeModel(chatUri, model, context);
 		},
