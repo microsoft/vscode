@@ -1911,28 +1911,40 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		const iframeFocusTracker = disposables.add(new MutableDisposable());
+		const focusCheck = disposables.add(new MutableDisposable());
 		disposables.add(addDisposableListener(window, 'blur', () => {
-			// Defer the reset so iframe focus is reflected by document.hasFocus() (#199998).
-			window.setTimeout(() => {
+			// Defer the check so that focus moving into an iframe is reflected by document.hasFocus() (#199998).
+			const handle = window.setTimeout(() => {
 				if (!window.document.hasFocus()) {
-					iframeFocusTracker.clear();
+					focusCheck.clear();
 					this.resetKeyStatus();
 					return;
 				}
 
 				// Focus moved into an iframe (e.g. a webview). The window does not blur again when
 				// the application loses focus from there, so poll like webviews do to still reset then.
-				iframeFocusTracker.value = disposableWindowInterval(window, () => {
+				focusCheck.value = disposableWindowInterval(window, () => {
 					if (window.document.hasFocus()) {
 						return false;
 					}
-					this.resetKeyStatus();
+					if (!this.hasFocusedWindow()) { // another window tracks the keys itself
+						this.resetKeyStatus();
+					}
 					return true;
 				}, 250);
 			}, 0);
+			focusCheck.value = toDisposable(() => window.clearTimeout(handle));
 		}));
-		disposables.add(addDisposableListener(window, 'focus', () => iframeFocusTracker.clear()));
+		disposables.add(addDisposableListener(window, 'focus', () => focusCheck.clear()));
+	}
+
+	private hasFocusedWindow(): boolean {
+		for (const { window } of getWindows()) {
+			if (window.document.hasFocus()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	get keyStatus(): IModifierKeyStatus {
