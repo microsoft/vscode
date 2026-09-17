@@ -472,6 +472,7 @@
 		}
 
 		.session-approval-row,
+		.session-input-needed-row,
 		.session-ci-row {
 			grid-column: 1 / -1;
 		}
@@ -507,6 +508,26 @@
 		top: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size120));
 	}
 
+}
+
+.session-input-needed-row {
+	line-height: 18px;
+
+	.session-input-needed-label {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+
+		&.rendered-markdown,
+		&.rendered-markdown p {
+			margin: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
 }
 
 .session-compact-hover-description {

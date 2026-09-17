@@ -650,6 +650,30 @@ const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
 		minutesAgo: 8,
 	},
 ];
+const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'question',
+		title: 'Choose the authentication migration',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		status: SessionStatus.NeedsInput,
+		description: 'Which compatibility strategy should I use?',
+	},
+	{
+		id: 'approval',
+		title: 'Publish the release branch',
+		workspace: 'vscode',
+		minutesAgo: 5,
+		status: SessionStatus.NeedsInput,
+		mainApprovalCommand: 'git push origin release/1.139',
+	},
+	{
+		id: 'completed',
+		title: 'Update onboarding copy',
+		workspace: 'vscode',
+		minutesAgo: 12,
+	},
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
@@ -668,6 +692,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
 		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_CompactNeedsInput: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a callout saying "Which compatibility strategy should I use?" but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_NEEDS_INPUT_SESSIONS, compact: true, width: 380 }),
 	}),
 	SessionsList_CompactSessionRename: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
