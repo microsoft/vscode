@@ -37,12 +37,6 @@ function announceCursorChange(previousCursorState: CursorState[], cursorState: C
 	}
 }
 
-enum SearchType {
-	Find = 'find',
-	Word = 'word',
-	Selection = 'selection'
-}
-
 interface InsertCursorArgs {
 	source?: string;
 	logicalLine?: boolean;
@@ -292,16 +286,22 @@ export class MultiCursorSession {
 		if (!editor.hasModel()) {
 			return null;
 		}
+		const findState = findController.getState();
+
 		if (isFindWidgetSearch(editor, findController)) {
-			return new MultiCursorSession(editor, findController, SearchType.Find, findController.getState().searchString, null);
+			// Find widget owns what is searched for
+			return new MultiCursorSession(editor, findController, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}
 
-		let searchType: SearchType;
+		let wholeWord: boolean;
+		let matchCase: boolean;
 		const selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
-			searchType = SearchType.Word;
+			wholeWord = true;
+			matchCase = true;
 		} else {
-			searchType = SearchType.Selection;
+			wholeWord = false;
+			matchCase = editor.getOption(EditorOption.selectionMatchCase);
 		}
 
 		// Selection owns what is searched for
@@ -322,28 +322,18 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, searchType, searchText, currentMatch);
+		return new MultiCursorSession(editor, findController, false, searchText, wholeWord, matchCase, currentMatch);
 	}
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		public readonly findController: CommonFindController,
-		private _searchType: SearchType,
+		public readonly drivenByFind: boolean,
 		public readonly searchText: string,
+		public readonly wholeWord: boolean,
+		public readonly matchCase: boolean,
 		public currentMatch: Selection | null
 	) { }
-
-	public get isSelectionDriven(): boolean {
-		return this._searchType !== SearchType.Find;
-	}
-
-	public get wholeWord(): boolean {
-		return this._searchType === SearchType.Find ? this.findController.getState().wholeWord : this._searchType === SearchType.Word;
-	}
-
-	public get matchCase(): boolean {
-		return this._searchType === SearchType.Find ? this.findController.getState().matchCase : this._searchType === SearchType.Word || this._editor.getOption(EditorOption.selectionMatchCase);
-	}
 
 	public addSelectionToNextFindMatch(): MultiCursorSessionResult | null {
 		if (!this._editor.hasModel()) {
@@ -384,10 +374,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
-		if (!this.isSelectionDriven) {
-			this.findController.highlightFindOptions();
-		}
+		this._highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -438,10 +425,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
-		if (!this.isSelectionDriven) {
-			this.findController.highlightFindOptions();
-		}
+		this._highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -458,16 +442,20 @@ export class MultiCursorSession {
 			return [];
 		}
 
-		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
-		if (!this.isSelectionDriven) {
-			this.findController.highlightFindOptions();
-		}
+		this._highlightFindOptions();
 
 		const editorModel = this._editor.getModel();
 		if (searchScope) {
 			return editorModel.findMatches(this.searchText, searchScope, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		}
 		return editorModel.findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+	}
+
+	private _highlightFindOptions(): void {
+		// Find controls don't reflect selection matching, so only highlight them when Find owns the search.
+		if (this.drivenByFind) {
+			this.findController.highlightFindOptions();
+		}
 	}
 }
 
@@ -497,9 +485,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	}
 
 	private _beginSessionIfNeeded(findController: CommonFindController): void {
-		// Returning to the editor must restore selection rules: case-sensitive "bar" should skip "BAR", even if Find would match it.
-		const isSelectionDriven = !isFindWidgetSearch(this._editor, findController);
-		if (this._session && this._session.isSelectionDriven !== isSelectionDriven) {
+		// Focusing editor again must restore selection rules: case-sensitive "bar" should skip "BAR", even if Find would match it.
+		const drivenByFind = !isFindWidgetSearch(this._editor, findController);
+		if (this._session?.drivenByFind !== drivenByFind) {
 			this._endSession();
 		}
 		if (!this._session) {
@@ -524,7 +512,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			}));
 			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
 				// Preserve caret-started selection whole-word matching; changing Find options must not make "foo" start matching "FOObar".
-				if (!session.isSelectionDriven && (e.matchCase || e.wholeWord)) {
+				if (session.drivenByFind && (e.matchCase || e.wholeWord)) {
 					this._endSession();
 				}
 			}));

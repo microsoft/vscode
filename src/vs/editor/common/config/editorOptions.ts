@@ -6713,7 +6713,7 @@ export const EditorOptions = {
 	)),
 	selectionMatchCase: register(new EditorBooleanOption(
 		EditorOption.selectionMatchCase, 'selectionMatchCase', false,
-		{ markdownDescription: nls.localize('selectionMatchCase', "Controls whether selecting and highlighting occurrences of selected text is case-sensitive, independently of the Find widget. Non-empty selections match substrings, not just whole words. An empty selection starts a whole-word, case-sensitive search. Changing this setting during a selection applies the new value to subsequent matches without changing existing selections. Selection highlighting is controlled by `#editor.selectionHighlight#`.") }
+		{ markdownDescription: nls.localize('selectionMatchCase', "Controls whether selecting and highlighting occurrences of selected text is case-sensitive. Non-empty selections match substrings, not just whole words. An empty selection starts a whole-word, case-sensitive search.") }
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
