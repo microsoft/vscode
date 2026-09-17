@@ -34,6 +34,7 @@ type Coverage = Record<MetricName, ICoverageMetric>;
 
 const providerPackages = [
 	'@anthropic-ai/claude-agent-sdk',
+	'@github/copilot',
 	'@github/copilot-sdk',
 	'@openai/codex',
 ];

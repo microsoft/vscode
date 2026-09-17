@@ -9,7 +9,6 @@ import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandbo
 
 interface IPackageConfiguration {
 	readonly version: string;
-	readonly copilotRuntimeVersion?: string;
 	readonly dependencies?: Readonly<Record<string, string>>;
 }
 
@@ -60,9 +59,10 @@ else if (globalThis._VSCODE_PRODUCT_JSON && globalThis._VSCODE_PACKAGE_JSON) {
 	}
 
 	if (!product.copilotVersions) {
+		const runtime = getDependencyVersion(packageConfiguration, '@github/copilot');
 		const sdk = getDependencyVersion(packageConfiguration, '@github/copilot-sdk');
-		if (packageConfiguration.copilotRuntimeVersion && sdk) {
-			Object.assign(product, { copilotVersions: { runtime: packageConfiguration.copilotRuntimeVersion, sdk } });
+		if (runtime && sdk) {
+			Object.assign(product, { copilotVersions: { runtime, sdk } });
 		}
 	}
 }
