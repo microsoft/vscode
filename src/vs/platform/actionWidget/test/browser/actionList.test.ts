@@ -1583,6 +1583,39 @@ suite('ActionListWidget', () => {
 		]);
 	});
 
+	test('mousedown on submenu remove toolbar keeps focus in the picker', async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [
+					Object.assign(toAction({ id: 'remove', label: 'Test Remote A', run: () => { } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		removeButton.dispatchEvent(mousedown);
+
+		assert.deepStrictEqual({
+			defaultPrevented: mousedown.defaultPrevented,
+			focusInsidePicker: widget.domNode.contains(document.activeElement),
+		}, {
+			defaultPrevented: true,
+			focusInsidePicker: true,
+		});
+	});
+
 	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
