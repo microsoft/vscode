@@ -17,8 +17,8 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { IFileService } from '../../files/common/files.js';
 import { join } from '../../../base/common/path.js';
 import { ILogService } from '../../log/common/log.js';
-import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionIdentity, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../common/otelDiagnosticsService.js';
-import { loadSqlite, OTelSqliteStore, SpanRow } from './sqlite/otelSqliteStore.js';
+import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionIdentity, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsSpan, IOTelDiagnosticsTimeWindow, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails, IOTelDiagnosticsTraceProjection } from '../common/otelDiagnosticsService.js';
+import { loadSqlite, OTelSqliteStore, SpanAttributeRow, SpanEventRow, SpanRow } from './sqlite/otelSqliteStore.js';
 
 interface IRawMessagePart {
 	readonly id?: string;
@@ -48,6 +48,14 @@ interface IToolDetails {
 	status?: 'success' | 'error';
 	duration?: number;
 }
+
+const messageAttributeKeys = [
+	'gen_ai.input.messages',
+	'gen_ai.output.messages',
+	'gen_ai.tool.description',
+	'gen_ai.tool.call.arguments',
+	'gen_ai.tool.call.result',
+];
 
 export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosticsService {
 	declare readonly _serviceBrand: undefined;
@@ -183,8 +191,11 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		const seen = new Set<string>();
 		const batches: IMessageBatch[] = [];
 		const toolDetailsByCallId = new Map<string, IToolDetails>();
-		for (const span of this.getSessionSpans(identity)) {
-			const attributes = this.getAttributes(span.span_id);
+		const relevantSpans = this.getSessionSpans(identity)
+			.filter(span => span.operation_name === 'chat' || span.operation_name === 'execute_tool');
+		const attributesBySpanId = groupAttributes(this.store.getSpanAttributesBySpanIds(relevantSpans.map(span => span.span_id), messageAttributeKeys));
+		for (const span of relevantSpans) {
+			const attributes = attributesBySpanId.get(span.span_id) ?? {};
 			if (attributes['gen_ai.input.messages']) {
 				batches.push({ span, messages: JSON.parse(attributes['gen_ai.input.messages']) as IRawMessage[], timestamp: span.start_time_ms });
 			}
@@ -237,24 +248,76 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		return this.createTraceSummaries(this.getSessionSpans(identity));
 	}
 
+	async getSessionTraceProjections(sessionUri: string, windows: readonly IOTelDiagnosticsTimeWindow[]): Promise<readonly IOTelDiagnosticsTraceProjection[]> {
+		const identity = await this.resolveSessionUri(sessionUri);
+		if (!identity) {
+			return [];
+		}
+		const spans = this.getSessionSpans(identity);
+		const traces = new Map(this.createTraceSummaries(spans).map(trace => [trace.traceId, trace]));
+		const result: IOTelDiagnosticsTraceProjection[] = [];
+		for (const window of windows) {
+			const spansByTrace = new Map<string, SpanRow[]>();
+			for (const span of spans) {
+				if (span.start_time_ms < window.startTime || span.start_time_ms >= window.endTime) {
+					continue;
+				}
+				const traceSpans = spansByTrace.get(span.trace_id) ?? [];
+				traceSpans.push(span);
+				spansByTrace.set(span.trace_id, traceSpans);
+			}
+			for (const [traceId, traceSpans] of spansByTrace) {
+				const trace = traces.get(traceId);
+				if (!trace) {
+					continue;
+				}
+				const startTime = Math.min(...traceSpans.map(span => span.start_time_ms));
+				const endTime = Math.max(...traceSpans.map(span => span.end_time_ms));
+				const tokenSpans = traceSpans.filter(span => span.operation_name === 'chat');
+				result.push({
+					windowId: window.id,
+					trace: {
+						...trace,
+						startTime,
+						endTime,
+						duration: endTime - startTime,
+						spanCount: traceSpans.length,
+						hasError: traceSpans.some(span => span.status_code === 2),
+						inputTokens: sum(tokenSpans, span => span.input_tokens),
+						outputTokens: sum(tokenSpans, span => span.output_tokens),
+						cachedTokens: sum(tokenSpans, span => span.cached_tokens),
+					},
+					responseModel: traceSpans.findLast(span => !!span.response_model)?.response_model ?? undefined,
+				});
+			}
+		}
+		return result;
+	}
+
 	async getSessionLogs(sessionUri: string): Promise<readonly IOTelDiagnosticsLog[]> {
 		const identity = await this.resolveSessionUri(sessionUri);
 		if (!identity) {
 			return [];
 		}
 		const logs: IOTelDiagnosticsLog[] = [];
-		for (const span of this.getSessionSpans(identity)) {
-			for (const event of this.store.getSpanEvents(span.span_id)) {
-				logs.push({
-					id: `${span.span_id}:${event.id}`,
-					traceId: span.trace_id,
-					spanId: span.span_id,
-					timestamp: event.timestamp_ms,
-					name: event.name,
-					body: event.attributes ?? undefined,
-					severity: 'info',
-				});
+		const spans = this.getSessionSpans(identity);
+		const spansById = new Map(spans.map(span => [span.span_id, span]));
+		for (const event of this.store.getSpanEventsBySpanIds(spans.map(span => span.span_id))) {
+			const span = spansById.get(event.span_id);
+			if (!span) {
+				continue;
 			}
+			logs.push({
+				id: `${span.span_id}:${event.id}`,
+				traceId: span.trace_id,
+				spanId: span.span_id,
+				timestamp: event.timestamp_ms,
+				name: event.name,
+				body: event.attributes ?? undefined,
+				severity: 'info',
+			});
+		}
+		for (const span of spans) {
 			if (span.status_code === 2) {
 				logs.push({
 					id: `${span.span_id}:error`,
@@ -280,12 +343,17 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 			.map(span => this.createSpan(span));
 	}
 
-	async getTraceDetails(traceId: string): Promise<IOTelDiagnosticsTraceDetails | undefined> {
-		const rows = this.store.getSpansByTraceId(traceId);
+	async getTraceDetails(traceId: string, startTime?: number, endTime?: number): Promise<IOTelDiagnosticsTraceDetails | undefined> {
+		const rows = this.store.getSpansByTraceId(traceId).filter(row =>
+			(startTime === undefined || row.start_time_ms >= startTime)
+			&& (endTime === undefined || row.start_time_ms < endTime)
+		);
 		const trace = this.createTraceSummaries(rows)[0];
+		const attributesBySpanId = groupAttributes(this.store.getSpanAttributesBySpanIds(rows.map(row => row.span_id)));
+		const eventsBySpanId = groupEvents(this.store.getSpanEventsBySpanIds(rows.map(row => row.span_id)));
 		return trace ? {
 			trace,
-			spans: rows.map(row => this.createSpan(row)),
+			spans: rows.map(row => this.createSpan(row, attributesBySpanId.get(row.span_id), eventsBySpanId.get(row.span_id))),
 		} : undefined;
 	}
 
@@ -331,7 +399,7 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 		}).sort((a, b) => a.startTime - b.startTime);
 	}
 
-	private createSpan(row: SpanRow): IOTelDiagnosticsSpan {
+	private createSpan(row: SpanRow, attributes = this.getAttributes(row.span_id), events = this.store.getSpanEvents(row.span_id)): IOTelDiagnosticsSpan {
 		return {
 			spanId: row.span_id,
 			traceId: row.trace_id,
@@ -351,8 +419,8 @@ export class OTelDiagnosticsService extends Disposable implements IOTelDiagnosti
 			outputTokens: row.output_tokens ?? 0,
 			cachedTokens: row.cached_tokens ?? 0,
 			toolName: row.tool_name ?? undefined,
-			attributes: this.getAttributes(row.span_id),
-			events: this.store.getSpanEvents(row.span_id).map(event => ({
+			attributes,
+			events: events.map(event => ({
 				name: event.name,
 				timestamp: event.timestamp_ms,
 				attributes: event.attributes ?? undefined,
@@ -422,4 +490,27 @@ function formatMessageValue(value: unknown): string {
 
 function sum(rows: readonly SpanRow[], value: (row: SpanRow) => number | null): number {
 	return rows.reduce((total, row) => total + (value(row) ?? 0), 0);
+}
+
+function groupAttributes(rows: readonly SpanAttributeRow[]): Map<string, Record<string, string>> {
+	const result = new Map<string, Record<string, string>>();
+	for (const row of rows) {
+		if (row.value === null) {
+			continue;
+		}
+		const attributes = result.get(row.span_id) ?? {};
+		attributes[row.key] = row.value;
+		result.set(row.span_id, attributes);
+	}
+	return result;
+}
+
+function groupEvents(rows: readonly SpanEventRow[]): Map<string, SpanEventRow[]> {
+	const result = new Map<string, SpanEventRow[]>();
+	for (const row of rows) {
+		const events = result.get(row.span_id) ?? [];
+		events.push(row);
+		result.set(row.span_id, events);
+	}
+	return result;
 }

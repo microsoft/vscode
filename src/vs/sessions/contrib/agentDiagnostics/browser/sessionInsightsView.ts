@@ -109,7 +109,7 @@ export class SessionInsightsView extends Disposable {
 		this.scrollable.scanDomNode();
 	}
 
-	revealTrace(traceId: string, spanId: string | undefined, timestamp: number): boolean {
+	async revealTrace(traceId: string, spanId: string | undefined, timestamp: number): Promise<boolean> {
 		const state = this.model.state;
 		if (!state) {
 			return false;
@@ -121,7 +121,7 @@ export class SessionInsightsView extends Disposable {
 		}
 		const sessionKey = `${state.sessionResource.toString()}\0${state.chatResource.toString()}`;
 		this.expandedTurnBySession.set(sessionKey, turn.id);
-		this.model.expandTrace(traceId);
+		await this.model.expandTrace(traceId, turn.startTime, turn.endTime);
 		if (spanId) {
 			this.expandedSpanIds.add(spanId);
 		}
@@ -152,7 +152,7 @@ export class SessionInsightsView extends Disposable {
 		this.expandedTurnBySession.set(sessionKey, turn.id);
 		const hookSpan = this.findHookSpan(turn, timestamp, hookType);
 		if (hookSpan) {
-			this.model.expandTrace(hookSpan.traceId);
+			void this.model.expandTrace(hookSpan.traceId, turn.startTime, turn.endTime);
 			this.expandedSpanIds.add(hookSpan.spanId);
 		}
 		this.render();
@@ -167,7 +167,7 @@ export class SessionInsightsView extends Disposable {
 	}
 
 	private findHookSpan(turn: ISessionDiagnosticsTurn, timestamp: number, hookType: string | undefined): IOTelDiagnosticsSpan | undefined {
-		const candidates = turn.otelTraces.flatMap(trace => this.model.getTraceDetails(trace.traceId)?.spans ?? [])
+		const candidates = turn.otelTraces.flatMap(trace => this.model.getTraceDetails(trace.traceId, turn.startTime, turn.endTime)?.spans ?? [])
 			.filter(span => span.operationName === GenAiOperationName.EXECUTE_HOOK || span.name.toLowerCase().includes('hook'));
 		const normalizedHookType = hookType ? normalizeHookType(hookType) : undefined;
 		const matchingType = normalizedHookType
@@ -401,6 +401,7 @@ export class SessionInsightsView extends Disposable {
 		node.element.classList.toggle('expanded', expanded);
 		node.spanButtons.clear();
 		if (expanded) {
+			void this.model.ensureTraceDetails(trace.traceId, turn.startTime, turn.endTime);
 			this.renderTraceDetail(node, turn, trace);
 			DOM.show(node.detail);
 		} else {
@@ -413,8 +414,10 @@ export class SessionInsightsView extends Disposable {
 	private renderTraceDetail(node: ITraceNode, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace): void {
 		node.detailStore.clear();
 		DOM.clearNode(node.detail);
-		const details = this.model.getTraceDetails(trace.traceId);
+		const details = this.model.getTraceDetails(trace.traceId, turn.startTime, turn.endTime);
 		if (!details) {
+			const loading = DOM.append(node.detail, DOM.$('.agent-diagnostics-trace-loading'));
+			loading.textContent = localize('agentDiagnostics.traceDetailsLoading', "Loading trace details...");
 			return;
 		}
 
@@ -462,7 +465,7 @@ export class SessionInsightsView extends Disposable {
 		const waterfall = DOM.append(node.detail, DOM.$('.agent-diagnostics-waterfall'));
 		const waterfallHeading = DOM.append(waterfall, DOM.$('h4.agent-diagnostics-detail-heading'));
 		waterfallHeading.textContent = localize('agentDiagnostics.waterfall', "Waterfall");
-		for (const span of details.spans.filter(span => span.startTime >= turn.startTime && span.startTime < turn.endTime)) {
+		for (const span of details.spans) {
 			this.renderSpan(node, waterfall, trace, span);
 		}
 	}

@@ -31,6 +31,7 @@ import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPan
 import { ChatDebugFilterState } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugFilters.js';
 import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEnablement.js';
 import { ChatDebugSessionView, ChatDebugSessionViews } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugSessionViews.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatDebugService } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -96,6 +97,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IChatService private readonly chatService: IChatService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -432,7 +434,13 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			this.notificationService.error(localize('agentDiagnostics.troubleshootSessionUnavailable', "The Diagnostics source session is no longer open."));
 			return;
 		}
-		const chat = await this.sessionsManagementService.createNewChatInSession(session, { forceNew: true });
+		const sourceChat = session.chats.get().find(chat => isEqual(chat.resource, request.sourceChatResource));
+		const sourceTurn = sourceChat
+			? this.chatService.getSession(sourceChat.resource)?.getRequests().at(-1)
+			: undefined;
+		const chat = sourceChat && sourceTurn && session.capabilities.get().supportsSideChat
+			? await this.sessionsManagementService.createSideChatInSession(session, sourceChat.resource, sourceTurn.id)
+			: await this.sessionsManagementService.createNewChatInSession(session, { forceNew: true });
 		if (!chat) {
 			this.notificationService.error(localize('agentDiagnostics.troubleshootUnavailable', "A Troubleshoot chat could not be created in this session."));
 			return;
@@ -470,7 +478,7 @@ export class AgentDiagnosticsEditor extends EditorPane {
 			this.selectTab(DiagnosticsTab.SessionInsights, false);
 			await timeout(250);
 			const revealed = request.traceId
-				? this.sessionInsightsView?.revealTrace(request.traceId, request.spanId, request.timestamp)
+				? await this.sessionInsightsView?.revealTrace(request.traceId, request.spanId, request.timestamp)
 				: request.debugEventId
 					? this.sessionInsightsView?.revealDebugEvent(request.debugEventId, request.parentDebugEventId, request.timestamp, request.hookType)
 					: false;

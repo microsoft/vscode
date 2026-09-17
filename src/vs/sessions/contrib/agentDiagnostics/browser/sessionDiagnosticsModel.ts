@@ -9,7 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../../../../platform/otel/common/otelDiagnosticsService.js';
+import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails, IOTelDiagnosticsTraceProjection } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IChatDebugEvent, IChatDebugModelTurnEvent, IChatDebugService, IChatDebugUserMessageEvent } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 
 export interface ISessionDiagnosticsTurn {
@@ -55,6 +55,7 @@ export class SessionDiagnosticsModel extends Disposable {
 	private _state: ISessionDiagnosticsState | undefined;
 	private readonly expandedTraceIds = new Set<string>();
 	private readonly traceDetails = new Map<string, IOTelDiagnosticsTraceDetails>();
+	private readonly traceDetailRequests = new Map<string, Promise<void>>();
 
 	get state(): ISessionDiagnosticsState | undefined {
 		return this._state;
@@ -88,6 +89,7 @@ export class SessionDiagnosticsModel extends Disposable {
 		this.generation++;
 		this.expandedTraceIds.clear();
 		this.traceDetails.clear();
+		this.traceDetailRequests.clear();
 		this._state = undefined;
 		this._onDidChange.fire();
 		this.scheduleRefresh();
@@ -97,8 +99,8 @@ export class SessionDiagnosticsModel extends Disposable {
 		return this.expandedTraceIds.has(traceId);
 	}
 
-	getTraceDetails(traceId: string): IOTelDiagnosticsTraceDetails | undefined {
-		return this.traceDetails.get(traceId);
+	getTraceDetails(traceId: string, startTime: number, endTime: number): IOTelDiagnosticsTraceDetails | undefined {
+		return this.traceDetails.get(traceDetailsKey(traceId, startTime, endTime));
 	}
 
 	toggleTraceExpanded(traceId: string): void {
@@ -110,11 +112,38 @@ export class SessionDiagnosticsModel extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	expandTrace(traceId: string): void {
+	async expandTrace(traceId: string, startTime: number, endTime: number): Promise<void> {
 		if (!this.expandedTraceIds.has(traceId)) {
 			this.expandedTraceIds.add(traceId);
 			this._onDidChange.fire();
 		}
+		await this.ensureTraceDetails(traceId, startTime, endTime);
+	}
+
+	ensureTraceDetails(traceId: string, startTime: number, endTime: number): Promise<void> {
+		const key = traceDetailsKey(traceId, startTime, endTime);
+		if (this.traceDetails.has(key)) {
+			return Promise.resolve();
+		}
+		const existingRequest = this.traceDetailRequests.get(key);
+		if (existingRequest) {
+			return existingRequest;
+		}
+		const generation = this.generation;
+		const request = this.otelDiagnosticsService.getTraceDetails(traceId, startTime, endTime).then(details => {
+			if (generation === this.generation && details) {
+				this.traceDetails.set(key, details);
+				this._onDidChange.fire();
+			}
+		}).catch(error => {
+			this.logService.error('[AgentDiagnostics] Failed to load trace details', error);
+		}).finally(() => {
+			if (this.traceDetailRequests.get(key) === request) {
+				this.traceDetailRequests.delete(key);
+			}
+		});
+		this.traceDetailRequests.set(key, request);
+		return request;
 	}
 
 	private scheduleRefresh(): void {
@@ -163,21 +192,9 @@ export class SessionDiagnosticsModel extends Disposable {
 			this.otelDiagnosticsService.getSessionTraces(queryResource),
 			this.otelDiagnosticsService.getSessionLogs(queryResource),
 		]);
-		const traceDetails = new Map<string, IOTelDiagnosticsTraceDetails>();
-		await Promise.all(traces.map(async trace => {
-			const details = await this.otelDiagnosticsService.getTraceDetails(trace.traceId);
-			if (details) {
-				traceDetails.set(trace.traceId, details);
-			}
-		}));
 		if (generation !== this.generation) {
 			return;
 		}
-		this.traceDetails.clear();
-		for (const [traceId, details] of traceDetails) {
-			this.traceDetails.set(traceId, details);
-		}
-
 		const debugEvents = this.chatDebugService.getEvents(chatResource);
 		const modelOptions = new Map<string, Readonly<Record<string, string | number | boolean | null>>>();
 		await Promise.all(debugEvents.map(async event => {
@@ -197,19 +214,32 @@ export class SessionDiagnosticsModel extends Disposable {
 			? debugPrompts.map(event => ({ id: event.id ?? `${event.created.getTime()}`, content: event.message, timestamp: event.created.getTime() }))
 			: messages.filter(message => message.role === 'user').map(message => ({ id: message.id, content: message.content, timestamp: message.timestamp }));
 		prompts.sort((a, b) => a.timestamp - b.timestamp);
+		const windows = prompts.map((prompt, index) => ({
+			id: prompt.id,
+			startTime: prompt.timestamp,
+			endTime: prompts[index + 1]?.timestamp ?? Math.max(
+				prompt.timestamp,
+				...traces.map(trace => trace.endTime),
+				...debugEvents.map(event => event.created.getTime()),
+			),
+		}));
+		const traceProjections = await this.otelDiagnosticsService.getSessionTraceProjections(queryResource, windows);
+		if (generation !== this.generation) {
+			return;
+		}
+		const projectionsByWindow = new Map<string, IOTelDiagnosticsTraceProjection[]>();
+		for (const projection of traceProjections) {
+			const projections = projectionsByWindow.get(projection.windowId) ?? [];
+			projections.push(projection);
+			projectionsByWindow.set(projection.windowId, projections);
+		}
 
 		const assignedTraceIds = new Set<string>();
 		const assignedDebugEvents = new Set<IChatDebugEvent>();
 		const turns = prompts.map((prompt, index): ISessionDiagnosticsTurn => {
-			const endTime = prompts[index + 1]?.timestamp ?? Math.max(
-				prompt.timestamp,
-				...traces.map(trace => trace.endTime),
-				...debugEvents.map(event => event.created.getTime()),
-			);
-			const otelTraces = traces.flatMap(trace => {
-				const projected = projectTraceToTurn(trace, traceDetails.get(trace.traceId), prompt.timestamp, endTime);
-				return projected ? [projected] : [];
-			});
+			const endTime = windows[index].endTime;
+			const projections = projectionsByWindow.get(prompt.id) ?? [];
+			const otelTraces = projections.map(projection => projection.trace);
 			const otelMessages = messages.filter(message => message.timestamp >= prompt.timestamp && (index === prompts.length - 1 || message.timestamp < endTime));
 			const turnDebugEvents = debugEvents.filter(event => event.created.getTime() >= prompt.timestamp && (index === prompts.length - 1 || event.created.getTime() < endTime));
 			otelTraces.forEach(trace => assignedTraceIds.add(trace.traceId));
@@ -218,13 +248,12 @@ export class SessionDiagnosticsModel extends Disposable {
 			const debugModelEvent = turnDebugEvents.findLast((event): event is IChatDebugModelTurnEvent => event.kind === 'modelTurn');
 			const debugModel = debugModelEvent?.model;
 			const options = debugModelEvent?.id ? modelOptions.get(debugModelEvent.id) : undefined;
-			const modelSpans = otelTraces.flatMap(trace => traceDetails.get(trace.traceId)?.spans ?? []);
 			return {
 				id: prompt.id,
 				prompt: prompt.content,
 				startTime: prompt.timestamp,
 				endTime,
-				resolvedModel: modelSpans.findLast(span => span.responseModel)?.responseModel ?? debugModel,
+				resolvedModel: projections.findLast(projection => projection.responseModel)?.responseModel ?? debugModel,
 				thinkingLevel: readStringModelOption(options, 'thinkingLevel', 'reasoningEffort'),
 				context: readModelOption(options, 'contextSize', 'contextTier'),
 				otelMessages,
@@ -248,33 +277,8 @@ export class SessionDiagnosticsModel extends Disposable {
 
 }
 
-function projectTraceToTurn(
-	trace: IOTelDiagnosticsTrace,
-	details: IOTelDiagnosticsTraceDetails | undefined,
-	startTime: number,
-	endTime: number,
-): IOTelDiagnosticsTrace | undefined {
-	const spans = details?.spans.filter(span => span.startTime >= startTime && span.startTime < endTime) ?? [];
-	if (spans.length === 0) {
-		return undefined;
-	}
-	const projectedStart = Math.min(...spans.map(span => span.startTime));
-	const projectedEnd = Math.max(...spans.map(span => span.endTime));
-	return {
-		...trace,
-		startTime: projectedStart,
-		endTime: projectedEnd,
-		duration: projectedEnd - projectedStart,
-		spanCount: spans.length,
-		hasError: spans.some(span => span.statusCode === 2),
-		inputTokens: sumSpans(spans, span => span.inputTokens),
-		outputTokens: sumSpans(spans, span => span.outputTokens),
-		cachedTokens: sumSpans(spans, span => span.cachedTokens),
-	};
-}
-
-function sumSpans(spans: readonly IOTelDiagnosticsSpan[], selector: (span: IOTelDiagnosticsSpan) => number): number {
-	return spans.reduce((total, span) => total + selector(span), 0);
+function traceDetailsKey(traceId: string, startTime: number, endTime: number): string {
+	return `${traceId}\0${startTime}\0${endTime}`;
 }
 
 function readModelOption(options: Readonly<Record<string, string | number | boolean | null>> | undefined, ...keys: readonly string[]): string | number | undefined {

@@ -759,6 +759,10 @@ export class ChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
+	override prefillInput(text: string): void {
+		this._widget.setInput(text);
+	}
+
 	override attach(uris: URI[]): void {
 		for (const uri of uris) {
 			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));

@@ -137,6 +137,18 @@ export interface IOTelDiagnosticsTraceDetails {
 	readonly spans: readonly IOTelDiagnosticsSpan[];
 }
 
+export interface IOTelDiagnosticsTimeWindow {
+	readonly id: string;
+	readonly startTime: number;
+	readonly endTime: number;
+}
+
+export interface IOTelDiagnosticsTraceProjection {
+	readonly windowId: string;
+	readonly trace: IOTelDiagnosticsTrace;
+	readonly responseModel: string | undefined;
+}
+
 export interface IOTelDiagnosticsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
@@ -145,9 +157,10 @@ export interface IOTelDiagnosticsService {
 	getSessionSummary(sessionUri: string): Promise<IOTelDiagnosticsSessionSummary | undefined>;
 	getSessionMessages(sessionUri: string): Promise<readonly IOTelDiagnosticsMessage[]>;
 	getSessionTraces(sessionUri: string): Promise<readonly IOTelDiagnosticsTrace[]>;
+	getSessionTraceProjections(sessionUri: string, windows: readonly IOTelDiagnosticsTimeWindow[]): Promise<readonly IOTelDiagnosticsTraceProjection[]>;
 	getSessionLogs(sessionUri: string): Promise<readonly IOTelDiagnosticsLog[]>;
 	getSessionHookSpans(sessionUri: string): Promise<readonly IOTelDiagnosticsSpan[]>;
-	getTraceDetails(traceId: string): Promise<IOTelDiagnosticsTraceDetails | undefined>;
+	getTraceDetails(traceId: string, startTime?: number, endTime?: number): Promise<IOTelDiagnosticsTraceDetails | undefined>;
 }
 
 export const IOTelDiagnosticsService = createDecorator<IOTelDiagnosticsService>('otelDiagnosticsService');
