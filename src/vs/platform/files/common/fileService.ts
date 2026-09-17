@@ -18,10 +18,10 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from '../../../
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAppendCapability, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability, hasFileAtomicRenameCapability } from './files.js';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAppendCapability, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileCopyProgressCallback, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability, hasFileAtomicRenameCapability } from './files.js';
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
-import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { CancellationError, ErrorNoTelemetry } from '../../../base/common/errors.js';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -803,12 +803,12 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async copy(source: URI, target: URI, overwrite?: boolean, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<IFileStatWithMetadata> {
 		const sourceProvider = await this.withReadProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
 		// copy
-		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite);
+		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', !!overwrite, false, progress, token);
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
@@ -817,9 +817,15 @@ export class FileService extends Disposable implements IFileService {
 		return fileStat;
 	}
 
-	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean, atomic = false): Promise<'move' | 'copy'> {
+	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean, atomic = false, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
 			return mode; // simulate node.js behaviour here and do a no-op if paths match
+		}
+
+		// check for cancellation before we make any changes such
+		// as deleting an existing target to overwrite
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
 		}
 
 		if (atomic && sourceProvider !== targetProvider) {
@@ -866,9 +872,9 @@ export class FileService extends Disposable implements IFileService {
 			else {
 				const sourceFile = await this.resolve(source);
 				if (sourceFile.isDirectory) {
-					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target);
+					await this.doCopyFolder(sourceProvider, sourceFile, targetProvider, target, progress, token);
 				} else {
-					await this.doCopyFile(sourceProvider, source, targetProvider, target);
+					await this.doCopyFile(sourceProvider, source, targetProvider, target, progress, token);
 				}
 			}
 
@@ -891,7 +897,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// across providers: copy to target & delete at source
 			else {
-				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
+				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite, false, progress, token);
 				await this.del(source, { recursive: true });
 
 				return 'copy';
@@ -899,30 +905,30 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doCopyFile(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI): Promise<void> {
+	private async doCopyFile(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
 
 		// copy: source (buffered) => target (buffered)
 		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
-			return this.doPipeBuffered(sourceProvider, source, targetProvider, target);
+			return this.doPipeBuffered(sourceProvider, source, targetProvider, target, progress, token);
 		}
 
 		// copy: source (buffered) => target (unbuffered)
 		if (hasOpenReadWriteCloseCapability(sourceProvider) && hasReadWriteCapability(targetProvider)) {
-			return this.doPipeBufferedToUnbuffered(sourceProvider, source, targetProvider, target);
+			return this.doPipeBufferedToUnbuffered(sourceProvider, source, targetProvider, target, progress, token);
 		}
 
 		// copy: source (unbuffered) => target (buffered)
 		if (hasReadWriteCapability(sourceProvider) && hasOpenReadWriteCloseCapability(targetProvider)) {
-			return this.doPipeUnbufferedToBuffered(sourceProvider, source, targetProvider, target);
+			return this.doPipeUnbufferedToBuffered(sourceProvider, source, targetProvider, target, progress, token);
 		}
 
 		// copy: source (unbuffered) => target (unbuffered)
 		if (hasReadWriteCapability(sourceProvider) && hasReadWriteCapability(targetProvider)) {
-			return this.doPipeUnbuffered(sourceProvider, source, targetProvider, target);
+			return this.doPipeUnbuffered(sourceProvider, source, targetProvider, target, progress, token);
 		}
 	}
 
-	private async doCopyFolder(sourceProvider: IFileSystemProvider, sourceFolder: IFileStat, targetProvider: IFileSystemProvider, targetFolder: URI): Promise<void> {
+	private async doCopyFolder(sourceProvider: IFileSystemProvider, sourceFolder: IFileStat, targetProvider: IFileSystemProvider, targetFolder: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
 
 		// create folder in target
 		await targetProvider.mkdir(targetFolder);
@@ -930,11 +936,15 @@ export class FileService extends Disposable implements IFileService {
 		// create children in target
 		if (Array.isArray(sourceFolder.children)) {
 			await Promises.settled(sourceFolder.children.map(async sourceChild => {
+				if (token?.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
 				if (sourceChild.isDirectory) {
-					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild);
+					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild, progress, token);
 				} else {
-					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild);
+					return this.doCopyFile(sourceProvider, sourceChild.resource, targetProvider, targetChild, progress, token);
 				}
 			}));
 		}
@@ -1435,11 +1445,11 @@ export class FileService extends Disposable implements IFileService {
 		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false, atomic: options?.atomic ?? false, append: options?.append ?? false });
 	}
 
-	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		return this.writeQueue.queueFor(target, () => this.doPipeBufferedQueued(sourceProvider, source, targetProvider, target), this.getExtUri(targetProvider).providerExtUri);
+	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
+		return this.writeQueue.queueFor(target, () => this.doPipeBufferedQueued(sourceProvider, source, targetProvider, target, progress, token), this.getExtUri(targetProvider).providerExtUri);
 	}
 
-	private async doPipeBufferedQueued(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+	private async doPipeBufferedQueued(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
 		let sourceHandle: number | undefined = undefined;
 		let targetHandle: number | undefined = undefined;
 
@@ -1455,6 +1465,10 @@ export class FileService extends Disposable implements IFileService {
 			let posInBuffer = 0;
 			let bytesRead = 0;
 			do {
+				if (token?.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				// read from source (sourceHandle) at current position (posInFile) into buffer (buffer) at
 				// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
 				bytesRead = await sourceProvider.read(sourceHandle, posInFile, buffer.buffer, posInBuffer, buffer.byteLength - posInBuffer);
@@ -1470,7 +1484,18 @@ export class FileService extends Disposable implements IFileService {
 				if (posInBuffer === buffer.byteLength) {
 					posInBuffer = 0;
 				}
+
+				if (bytesRead > 0) {
+					progress?.({ resource: source, bytesCopied: posInFile });
+				}
 			} while (bytesRead > 0);
+
+			// make sure to report progress at least once per file
+			// even when the file is empty, so that consumers can
+			// rely on one event per file (e.g. for counting files)
+			if (posInFile === 0) {
+				progress?.({ resource: source, bytesCopied: 0 });
+			}
 		} catch (error) {
 			throw ensureFileSystemProviderError(error);
 		} finally {
@@ -1481,19 +1506,34 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doPipeUnbuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return this.writeQueue.queueFor(target, () => this.doPipeUnbufferedQueued(sourceProvider, source, targetProvider, target), this.getExtUri(targetProvider).providerExtUri);
+	private async doPipeUnbuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
+		return this.writeQueue.queueFor(target, () => this.doPipeUnbufferedQueued(sourceProvider, source, targetProvider, target, progress, token), this.getExtUri(targetProvider).providerExtUri);
 	}
 
-	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true, unlock: false, atomic: false });
+	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const buffer = await sourceProvider.readFile(source);
+
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		await targetProvider.writeFile(target, buffer, { create: true, overwrite: true, unlock: false, atomic: false });
+
+		progress?.({ resource: source, bytesCopied: buffer.byteLength });
 	}
 
-	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
-		return this.writeQueue.queueFor(target, () => this.doPipeUnbufferedToBufferedQueued(sourceProvider, source, targetProvider, target), this.getExtUri(targetProvider).providerExtUri);
+	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
+		return this.writeQueue.queueFor(target, () => this.doPipeUnbufferedToBufferedQueued(sourceProvider, source, targetProvider, target, progress, token), this.getExtUri(targetProvider).providerExtUri);
 	}
 
-	private async doPipeUnbufferedToBufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
+	private async doPipeUnbufferedToBufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
 		// Open handle
 		const targetHandle = await targetProvider.open(target, { create: true, unlock: false });
@@ -1501,7 +1541,14 @@ export class FileService extends Disposable implements IFileService {
 		// Read entire buffer from source and write buffered
 		try {
 			const buffer = await sourceProvider.readFile(source);
+
+			if (token?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
 			await this.doWriteBuffer(targetProvider, targetHandle, VSBuffer.wrap(buffer), buffer.byteLength, 0, 0);
+
+			progress?.({ resource: source, bytesCopied: buffer.byteLength });
 		} catch (error) {
 			throw ensureFileSystemProviderError(error);
 		} finally {
@@ -1509,13 +1556,19 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
+	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
 
 		// Read buffer via stream buffered
-		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, CancellationToken.None));
+		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, token ?? CancellationToken.None));
+
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
 		// Write buffer into target at once
 		await this.doWriteUnbuffered(targetProvider, target, undefined, buffer);
+
+		progress?.({ resource: source, bytesCopied: buffer.byteLength });
 	}
 
 	protected throwIfFileSystemIsReadonly<T extends IFileSystemProvider>(provider: T, resource: URI): T {

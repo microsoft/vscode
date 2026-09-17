@@ -184,9 +184,18 @@ export interface IFileService {
 	 * Copies the file/folder to a path identified by the resource. A folder is copied
 	 * recursively.
 	 *
+	 * The optional progress callback is invoked as bytes are being copied whenever file
+	 * contents are streamed between providers. It is not invoked when the copy is
+	 * delegated to a provider that supports copying natively.
+	 *
+	 * The optional cancellation token can be used to stop the copy while file contents
+	 * are streamed between providers. Cancelling does not undo the effects of a partial
+	 * copy: files and folders that have already been created at the target are left as
+	 * they are.
+	 *
 	 * Emits a `FileOperation.COPY` file operation event when successful.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(source: URI, target: URI, overwrite?: boolean, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Find out if a copy operation is possible given the arguments. No changes on disk will
@@ -1441,6 +1450,21 @@ export interface IWriteFileOptions {
 	 */
 	readonly append?: boolean;
 }
+
+export interface IFileCopyProgress {
+
+	/**
+	 * The source resource of the file that is being copied.
+	 */
+	readonly resource: URI;
+
+	/**
+	 * The total number of bytes copied so far for this file.
+	 */
+	readonly bytesCopied: number;
+}
+
+export type IFileCopyProgressCallback = (progress: IFileCopyProgress) => void;
 
 export interface IResolveFileOptions {
 

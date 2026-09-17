@@ -7,6 +7,8 @@ import assert from 'assert';
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync, promises } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
@@ -16,7 +18,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
-import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from '../../common/files.js';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileCopyProgress, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -1021,6 +1023,139 @@ flakySuite('Disk File Service', function () {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		await doTestCopy('lorem.txt');
+	});
+
+	test('copy - reports progress (buffered)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		await doTestCopyProgress('lorem.txt', 2 /* file is larger than one copy buffer */);
+	});
+
+	test('copy - reports progress (unbuffered)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		await doTestCopyProgress('lorem.txt', 1);
+	});
+
+	async function doTestCopyProgress(sourceName: string, minimumEvents: number): Promise<void> {
+		const source = URI.file(join(testDir, sourceName));
+		const sourceSize = statSync(source.fsPath).size;
+		const target = URI.file(join(testDir, 'other.html'));
+
+		const events: IFileCopyProgress[] = [];
+		await service.copy(source, target, undefined, progress => events.push(progress));
+
+		assert.ok(events.length >= minimumEvents, `Expected at least ${minimumEvents} progress events, got ${events.length}`);
+		assert.ok(events.every(event => event.resource.toString() === source.toString()));
+		for (let i = 1; i < events.length; i++) {
+			assert.ok(events[i].bytesCopied > events[i - 1].bytesCopied, 'Expected bytesCopied to increase monotonically');
+		}
+		assert.strictEqual(events[events.length - 1].bytesCopied, sourceSize);
+		assert.strictEqual(statSync(target.fsPath).size, sourceSize);
+	}
+
+	test('copy - reports progress (folder)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'deep'));
+		const target = URI.file(join(testDir, 'deep-copy'));
+
+		const events: IFileCopyProgress[] = [];
+		await service.copy(source, target, undefined, progress => events.push(progress));
+
+		const bytesCopiedPerResource = new Map<string, number>();
+		for (const event of events) {
+			bytesCopiedPerResource.set(event.resource.toString(), event.bytesCopied);
+		}
+
+		const copiedFiles = readdirSync(target.fsPath);
+		assert.strictEqual(bytesCopiedPerResource.size, copiedFiles.length);
+		for (const file of copiedFiles) {
+			assert.strictEqual(bytesCopiedPerResource.get(URI.file(join(source.fsPath, file)).toString()), statSync(join(target.fsPath, file)).size);
+		}
+	});
+
+	test('copy - reports progress for empty files (buffered)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'empty.txt'));
+		writeFileSync(source.fsPath, '');
+		const target = URI.file(join(testDir, 'other.html'));
+
+		const events: IFileCopyProgress[] = [];
+		await service.copy(source, target, undefined, progress => events.push(progress));
+
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].resource.toString(), source.toString());
+		assert.strictEqual(events[0].bytesCopied, 0);
+	});
+
+	test('copy - can be cancelled while copying (buffered)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'other.html'));
+
+		const cts = new CancellationTokenSource();
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy(source, target, undefined, () => cts.cancel(), cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.ok(statSync(target.fsPath).size < statSync(source.fsPath).size, 'Expected copy to stop before all bytes were copied');
+
+		cts.dispose();
+	});
+
+	test('copy - can be cancelled before copying (unbuffered)', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'other.html'));
+
+		const cts = new CancellationTokenSource();
+		cts.cancel();
+
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy(source, target, undefined, undefined, cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.strictEqual(existsSync(target.fsPath), false);
+
+		cts.dispose();
+	});
+
+	test('copy - cancellation before copying keeps an existing target', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'small.txt'));
+		const targetContents = readFileSync(target.fsPath);
+
+		const cts = new CancellationTokenSource();
+		cts.cancel();
+
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy(source, target, true, undefined, cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.strictEqual(readFileSync(target.fsPath).toString(), targetContents.toString());
+
+		cts.dispose();
 	});
 
 	function setCapabilities(provider: TestDiskFileSystemProvider, capabilities: FileSystemProviderCapabilities): void {
