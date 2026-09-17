@@ -2,7 +2,7 @@
 
 Revision: 2026-09-15. Status: P0/P1 prototype implemented; optional P2 work is not a committed feature set.
 
-This is the contributor-facing design for the shared feature branch `bryanchen-d/agents-board-view`. It consolidates the product contract from the original hackathon handoff without requiring the private planning workspace or conversation history.
+This is the contributor-facing design for the shared feature branch `agent-hub-main`. It consolidates the product contract from the original hackathon handoff without requiring the private planning workspace or conversation history.
 
 Start with the [contributor setup guide](agent-project-board-setup.md). Repository-relative paths below refer to this VS Code checkout.
 
