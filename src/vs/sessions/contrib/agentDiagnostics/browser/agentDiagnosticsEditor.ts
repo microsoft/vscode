@@ -43,7 +43,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { AgentDiagnosticsEditorInput } from './agentDiagnosticsEditorInput.js';
 import { SessionCustomizationsModel } from './sessionCustomizationsModel.js';
-import { SessionCustomizationsView } from './sessionCustomizationsView.js';
+import { type ISessionCustomizationInvocationNavigation, SessionCustomizationsView } from './sessionCustomizationsView.js';
 import { SessionDiagnosticsModel } from './sessionDiagnosticsModel.js';
 import { ISessionDiagnosticsTroubleshootRequest, SessionInsightsView } from './sessionInsightsView.js';
 import '../../../../workbench/contrib/chat/browser/chatDebug/media/chatDebug.css';
@@ -160,6 +160,11 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		customizationsPanel.emptyState.remove();
 		this.customizationsModel = this._register(this.instantiationService.createInstance(SessionCustomizationsModel));
 		this.customizationsView = this._register(this.instantiationService.createInstance(SessionCustomizationsView, customizationsPanel.panel, this.customizationsModel));
+		this._register(this.customizationsView.onDidNavigateInvocation(request => {
+			void this.navigateToCustomizationInvocation(request).catch(error => {
+				this.notificationService.error(localize('agentDiagnostics.customizations.navigationFailed', "Failed to reveal lifecycle event: {0}", toErrorMessage(error)));
+			});
+		}));
 		const debugPanel = this.createPanel(
 			content,
 			DiagnosticsTab.AgentDebug,
@@ -445,6 +450,50 @@ export class AgentDiagnosticsEditor extends EditorPane {
 		}
 		sessionView.prefillInput(request.query);
 		this.sessionsPartService.focusSession(session);
+	}
+
+	private async navigateToCustomizationInvocation(request: ISessionCustomizationInvocationNavigation): Promise<void> {
+		const session = this.sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const chat = session.chats.get().find(candidate => isEqual(candidate.resource, request.chatResource));
+		if (!chat) {
+			this.notificationService.error(localize('agentDiagnostics.customizations.chatUnavailable', "The chat containing this lifecycle event is no longer available."));
+			return;
+		}
+		if (!isEqual(session.activeChat.get().resource, chat.resource)) {
+			await this.sessionsService.openChat(session, chat.resource);
+			await timeout(0);
+		}
+		if (request.target === 'sessionInsights') {
+			this.selectTab(DiagnosticsTab.SessionInsights, false);
+			await timeout(250);
+			const revealed = request.traceId
+				? this.sessionInsightsView?.revealTrace(request.traceId, request.spanId, request.timestamp)
+				: request.debugEventId
+					? this.sessionInsightsView?.revealDebugEvent(request.debugEventId, request.parentDebugEventId, request.timestamp, request.hookType)
+					: false;
+			if (!revealed) {
+				this.notificationService.error(localize('agentDiagnostics.customizations.turnUnavailable', "The trace containing this lifecycle event could not be found."));
+			}
+			return;
+		}
+
+		if (!request.debugEventId) {
+			this.notificationService.error(localize('agentDiagnostics.customizations.debugEventUnavailable', "The Agent Debug event for this lifecycle event could not be found."));
+			return;
+		}
+		this.setDebugSession(chat.resource);
+		this.selectTab(DiagnosticsTab.AgentDebug, false);
+		this.selectDebugView(ChatDebugSessionView.Logs, false);
+		await timeout(0);
+		if (!await this.debugSessionViews?.revealLogEvent(request.debugEventId)) {
+			await this.chatDebugService.invokeProviders(chat.resource);
+			if (!await this.debugSessionViews?.revealLogEvent(request.debugEventId)) {
+				this.notificationService.error(localize('agentDiagnostics.customizations.debugEventUnavailable', "The Agent Debug event for this lifecycle event could not be found."));
+			}
+		}
 	}
 
 	private updateDebugView(): void {

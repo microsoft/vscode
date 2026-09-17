@@ -28,6 +28,7 @@ export const AgentHostSessionTitleSpanName = 'vscode.agent_host.session.title_ch
 
 export const AgentHostSessionTitleAttribute = 'vscode.agent_host.session.title';
 export const AgentHostSessionUriAttribute = 'vscode.agent_host.session.uri';
+export const AgentHostHookTypeAttribute = 'vscode.agent_host.hook.type';
 
 export interface IAgentHostTraceContext {
 	readonly traceId: string;

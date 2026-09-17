@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Throttler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../../../../platform/otel/common/otelDiagnosticsService.js';
+import { IOTelDiagnosticsLog, IOTelDiagnosticsMessage, IOTelDiagnosticsService, IOTelDiagnosticsSessionSummary, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace, IOTelDiagnosticsTraceDetails } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IChatDebugEvent, IChatDebugModelTurnEvent, IChatDebugService, IChatDebugUserMessageEvent } from '../../../../workbench/contrib/chat/common/chatDebugService.js';
 
 export interface ISessionDiagnosticsTurn {
@@ -47,7 +47,8 @@ export class SessionDiagnosticsModel extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => this.refreshNow(), 200));
+	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => this.refreshNow(), 750));
+	private readonly refreshThrottler = new Throttler();
 	private sessionResource: URI | undefined;
 	private chatResource: URI | undefined;
 	private generation = 0;
@@ -84,6 +85,7 @@ export class SessionDiagnosticsModel extends Disposable {
 		}
 		this.sessionResource = sessionResource;
 		this.chatResource = chatResource;
+		this.generation++;
 		this.expandedTraceIds.clear();
 		this.traceDetails.clear();
 		this._state = undefined;
@@ -108,6 +110,13 @@ export class SessionDiagnosticsModel extends Disposable {
 		this._onDidChange.fire();
 	}
 
+	expandTrace(traceId: string): void {
+		if (!this.expandedTraceIds.has(traceId)) {
+			this.expandedTraceIds.add(traceId);
+			this._onDidChange.fire();
+		}
+	}
+
 	private scheduleRefresh(): void {
 		if (!this.refreshScheduler.isScheduled()) {
 			this.refreshScheduler.schedule();
@@ -117,24 +126,28 @@ export class SessionDiagnosticsModel extends Disposable {
 	private refreshNow(): void {
 		const sessionResource = this.sessionResource;
 		const chatResource = this.chatResource;
-		const generation = ++this.generation;
 		if (!sessionResource || !chatResource) {
 			return;
 		}
-		void this.load(sessionResource, chatResource, generation).catch(error => {
-			this.logService.error('[AgentDiagnostics] Failed to refresh combined session diagnostics', error);
-			if (generation === this.generation) {
-				this._state = {
-					sessionResource,
-					chatResource,
-					summary: undefined,
-					turns: [],
-					unmatchedTraces: [],
-					unmatchedDebugEvents: [],
-					sessionActivity: [],
-					error: error instanceof Error ? error.message : String(error),
-				};
-				this._onDidChange.fire();
+		void this.refreshThrottler.queue(async () => {
+			const generation = ++this.generation;
+			try {
+				await this.load(sessionResource, chatResource, generation);
+			} catch (error) {
+				this.logService.error('[AgentDiagnostics] Failed to refresh combined session diagnostics', error);
+				if (generation === this.generation) {
+					this._state = {
+						sessionResource,
+						chatResource,
+						summary: undefined,
+						turns: [],
+						unmatchedTraces: [],
+						unmatchedDebugEvents: [],
+						sessionActivity: [],
+						error: error instanceof Error ? error.message : String(error),
+					};
+					this._onDidChange.fire();
+				}
 			}
 		});
 	}
@@ -190,7 +203,10 @@ export class SessionDiagnosticsModel extends Disposable {
 				...traces.map(trace => trace.endTime),
 				...debugEvents.map(event => event.created.getTime()),
 			);
-			const otelTraces = traces.filter(trace => trace.startTime >= prompt.timestamp && (index === prompts.length - 1 || trace.startTime < endTime));
+			const otelTraces = traces.flatMap(trace => {
+				const projected = projectTraceToTurn(trace, traceDetails.get(trace.traceId), prompt.timestamp, endTime);
+				return projected ? [projected] : [];
+			});
 			const otelMessages = messages.filter(message => message.timestamp >= prompt.timestamp && (index === prompts.length - 1 || message.timestamp < endTime));
 			const turnDebugEvents = debugEvents.filter(event => event.created.getTime() >= prompt.timestamp && (index === prompts.length - 1 || event.created.getTime() < endTime));
 			otelTraces.forEach(trace => assignedTraceIds.add(trace.traceId));
@@ -226,6 +242,36 @@ export class SessionDiagnosticsModel extends Disposable {
 		};
 		this._onDidChange.fire();
 	}
+
+}
+
+function projectTraceToTurn(
+	trace: IOTelDiagnosticsTrace,
+	details: IOTelDiagnosticsTraceDetails | undefined,
+	startTime: number,
+	endTime: number,
+): IOTelDiagnosticsTrace | undefined {
+	const spans = details?.spans.filter(span => span.startTime >= startTime && span.startTime < endTime) ?? [];
+	if (spans.length === 0) {
+		return undefined;
+	}
+	const projectedStart = Math.min(...spans.map(span => span.startTime));
+	const projectedEnd = Math.max(...spans.map(span => span.endTime));
+	return {
+		...trace,
+		startTime: projectedStart,
+		endTime: projectedEnd,
+		duration: projectedEnd - projectedStart,
+		spanCount: spans.length,
+		hasError: spans.some(span => span.statusCode === 2),
+		inputTokens: sumSpans(spans, span => span.inputTokens),
+		outputTokens: sumSpans(spans, span => span.outputTokens),
+		cachedTokens: sumSpans(spans, span => span.cachedTokens),
+	};
+}
+
+function sumSpans(spans: readonly IOTelDiagnosticsSpan[], selector: (span: IOTelDiagnosticsSpan) => number): number {
+	return spans.reduce((total, span) => total + selector(span), 0);
 }
 
 function readModelOption(options: Readonly<Record<string, string | number | boolean | null>> | undefined, ...keys: readonly string[]): string | number | undefined {

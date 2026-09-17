@@ -13,8 +13,10 @@ import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { AgentHostHookTypeAttribute } from '../../../../platform/agentHost/common/otel/agentHostOTelService.js';
 import { getReasoningEffortLabel } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { CopilotChatAttr, CopilotCliSdkAttr, GenAiOperationName } from '../../../../platform/otel/common/genAiAttributes.js';
 import { IOTelDiagnosticsMessage, IOTelDiagnosticsSpan, IOTelDiagnosticsTrace } from '../../../../platform/otel/common/otelDiagnosticsService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getEventCreatedText, getEventDetailsText, getEventNameText } from '../../../../workbench/contrib/chat/browser/chatDebug/chatDebugEventList.js';
@@ -27,6 +29,7 @@ interface ITraceNode {
 	readonly detail: HTMLElement;
 	readonly store: DisposableStore;
 	readonly detailStore: DisposableStore;
+	readonly spanButtons: Map<string, HTMLElement>;
 }
 
 interface ITurnNode {
@@ -100,6 +103,77 @@ export class SessionInsightsView extends Disposable {
 			this.scrollable.getDomNode().style.height = `${parent.clientHeight}px`;
 		}
 		this.scrollable.scanDomNode();
+	}
+
+	revealTrace(traceId: string, spanId: string | undefined, timestamp: number): boolean {
+		const state = this.model.state;
+		if (!state) {
+			return false;
+		}
+		const matchingTurns = state.turns.filter(turn => turn.otelTraces.some(trace => trace.traceId === traceId));
+		const turn = matchingTurns.find(candidate => timestamp >= candidate.startTime && timestamp <= candidate.endTime) ?? matchingTurns[0];
+		if (!turn) {
+			return false;
+		}
+		const sessionKey = `${state.sessionResource.toString()}\0${state.chatResource.toString()}`;
+		this.expandedTurnBySession.set(sessionKey, turn.id);
+		this.model.expandTrace(traceId);
+		if (spanId) {
+			this.expandedSpanIds.add(spanId);
+		}
+		this.render();
+		const turnNode = this.turnNodes.get(turn.id);
+		const traceNode = turnNode?.traceNodes.get(traceId);
+		const target = spanId
+			? traceNode?.spanButtons.get(spanId)
+			: traceNode?.button.element;
+		const fallback = traceNode?.button.element ?? turnNode?.header.element;
+		(target ?? fallback)?.scrollIntoView({ block: 'center' });
+		(target ?? fallback)?.focus();
+		return true;
+	}
+
+	revealDebugEvent(debugEventId: string, parentDebugEventId: string | undefined, timestamp: number, hookType: string | undefined): boolean {
+		const state = this.model.state;
+		if (!state) {
+			return false;
+		}
+		const turn = state.turns.find(candidate => candidate.debugEvents.some(event =>
+			event.id === debugEventId || (parentDebugEventId !== undefined && event.id === parentDebugEventId)
+		)) ?? state.turns.find(candidate => timestamp >= candidate.startTime && timestamp <= candidate.endTime);
+		if (!turn) {
+			return false;
+		}
+		const sessionKey = `${state.sessionResource.toString()}\0${state.chatResource.toString()}`;
+		this.expandedTurnBySession.set(sessionKey, turn.id);
+		const hookSpan = this.findHookSpan(turn, timestamp, hookType);
+		if (hookSpan) {
+			this.model.expandTrace(hookSpan.traceId);
+			this.expandedSpanIds.add(hookSpan.spanId);
+		}
+		this.render();
+		const turnNode = this.turnNodes.get(turn.id);
+		const traceNode = hookSpan ? turnNode?.traceNodes.get(hookSpan.traceId) : undefined;
+		const target = hookSpan
+			? traceNode?.spanButtons.get(hookSpan.spanId)
+			: turnNode?.header.element;
+		target?.scrollIntoView({ block: 'center' });
+		target?.focus();
+		return true;
+	}
+
+	private findHookSpan(turn: ISessionDiagnosticsTurn, timestamp: number, hookType: string | undefined): IOTelDiagnosticsSpan | undefined {
+		const candidates = turn.otelTraces.flatMap(trace => this.model.getTraceDetails(trace.traceId)?.spans ?? [])
+			.filter(span => span.operationName === GenAiOperationName.EXECUTE_HOOK || span.name.toLowerCase().includes('hook'));
+		const normalizedHookType = hookType ? normalizeHookType(hookType) : undefined;
+		const matchingType = normalizedHookType
+			? candidates.filter(span => {
+				const spanHookType = span.attributes[AgentHostHookTypeAttribute] ?? span.attributes[CopilotChatAttr.HOOK_TYPE] ?? span.attributes[CopilotCliSdkAttr.HOOK_TYPE];
+				return spanHookType && normalizeHookType(spanHookType) === normalizedHookType;
+			})
+			: [];
+		return (matchingType.length > 0 ? matchingType : candidates)
+			.sort((a, b) => distanceFromSpan(timestamp, a) - distanceFromSpan(timestamp, b))[0];
 	}
 
 	private render(): void {
@@ -311,7 +385,7 @@ export class SessionInsightsView extends Disposable {
 		const detail = DOM.append(element, DOM.$('.agent-diagnostics-trace-detail'));
 		const detailStore = store.add(new DisposableStore());
 		store.add(button.onDidClick(() => this.model.toggleTraceExpanded(traceId)));
-		return { element, button, detail, store, detailStore };
+		return { element, button, detail, store, detailStore, spanButtons: new Map() };
 	}
 
 	private updateTraceNode(node: ITraceNode, turn: ISessionDiagnosticsTurn, trace: IOTelDiagnosticsTrace): void {
@@ -321,6 +395,7 @@ export class SessionInsightsView extends Disposable {
 		node.button.setAriaLabel(label);
 		node.button.element.setAttribute('aria-expanded', String(expanded));
 		node.element.classList.toggle('expanded', expanded);
+		node.spanButtons.clear();
 		if (expanded) {
 			this.renderTraceDetail(node, turn, trace);
 			DOM.show(node.detail);
@@ -357,7 +432,7 @@ export class SessionInsightsView extends Disposable {
 		const waterfall = DOM.append(node.detail, DOM.$('.agent-diagnostics-waterfall'));
 		const waterfallHeading = DOM.append(waterfall, DOM.$('h4.agent-diagnostics-detail-heading'));
 		waterfallHeading.textContent = localize('agentDiagnostics.waterfall', "Waterfall");
-		for (const span of details.spans) {
+		for (const span of details.spans.filter(span => span.startTime >= turn.startTime && span.startTime < turn.endTime)) {
 			this.renderSpan(node, waterfall, trace, span);
 		}
 	}
@@ -435,6 +510,7 @@ export class SessionInsightsView extends Disposable {
 
 	private renderSpan(traceNode: ITraceNode, parent: HTMLElement, trace: IOTelDiagnosticsTrace, span: IOTelDiagnosticsSpan): void {
 		const row = DOM.append(parent, DOM.$('.agent-diagnostics-span'));
+		row.dataset.spanId = span.spanId;
 		const button = traceNode.detailStore.add(new Button(row, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -444,6 +520,7 @@ export class SessionInsightsView extends Disposable {
 			buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',
 		}));
 		button.element.classList.add('agent-diagnostics-span-button');
+		traceNode.spanButtons.set(span.spanId, button.element);
 		const label = localize('agentDiagnostics.spanLabel', "{0} · {1}", span.name, formatDuration(span.duration));
 		button.label = label;
 		button.setAriaLabel(label);
@@ -579,4 +656,18 @@ function formatMessageRole(role: string): string {
 		default:
 			return role.charAt(0).toUpperCase() + role.slice(1);
 	}
+}
+
+function normalizeHookType(value: string): string {
+	return value.replace(/[^a-z]/gi, '').toLowerCase();
+}
+
+function distanceFromSpan(timestamp: number, span: IOTelDiagnosticsSpan): number {
+	if (timestamp < span.startTime) {
+		return span.startTime - timestamp;
+	}
+	if (timestamp > span.endTime) {
+		return timestamp - span.endTime;
+	}
+	return 0;
 }

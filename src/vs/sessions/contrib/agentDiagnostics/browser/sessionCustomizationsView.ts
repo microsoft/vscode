@@ -7,6 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -16,9 +17,23 @@ import { CustomizationType } from '../../../../platform/agentHost/common/state/s
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { type ISessionCustomizationGroup, type ISessionCustomizationItem, type ISessionCustomizationLifecycleEntry, type ISessionCustomizationMetadata, type ISessionMcpLifecycleAttempt, SessionCustomizationMetadataKind, SessionCustomizationSection, type SessionCustomizationStatus, SessionCustomizationsModel, summarizeMcpLifecycle } from './sessionCustomizationsModel.js';
+import { type ISessionCustomizationGroup, type ISessionCustomizationItem, type ISessionCustomizationLifecycleEntry, type ISessionCustomizationMetadata, type ISessionHookInvocationSummary, type ISessionMcpLifecycleAttempt, SessionCustomizationMetadataKind, SessionCustomizationSection, type SessionCustomizationStatus, SessionCustomizationsModel, summarizeMcpLifecycle } from './sessionCustomizationsModel.js';
+
+export interface ISessionCustomizationInvocationNavigation {
+	readonly target: 'sessionInsights' | 'agentDebug';
+	readonly chatResource: URI;
+	readonly debugEventId: string | undefined;
+	readonly parentDebugEventId: string | undefined;
+	readonly timestamp: number;
+	readonly hookType: string | undefined;
+	readonly traceId: string | undefined;
+	readonly spanId: string | undefined;
+}
 
 export class SessionCustomizationsView extends Disposable {
+
+	private readonly _onDidNavigateInvocation = this._register(new Emitter<ISessionCustomizationInvocationNavigation>());
+	readonly onDidNavigateInvocation = this._onDidNavigateInvocation.event;
 
 	readonly element: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
@@ -154,8 +169,8 @@ export class SessionCustomizationsView extends Disposable {
 		}
 		body.setAttribute('role', 'list');
 		body.setAttribute('aria-label', sectionLabel(group.section));
-		if (group.lifecycle.length > 0) {
-			this.renderHookLifecycle(body, group.lifecycle);
+		if (group.hookSummary) {
+			this.renderHookLifecycle(body, group.lifecycle, group.hookSummary);
 		}
 		for (const item of group.items) {
 			this.renderItem(body, item);
@@ -314,12 +329,13 @@ export class SessionCustomizationsView extends Disposable {
 		}
 	}
 
-	private renderHookLifecycle(parent: HTMLElement, entries: readonly ISessionCustomizationLifecycleEntry[]): void {
+	private renderHookLifecycle(parent: HTMLElement, entries: readonly ISessionCustomizationLifecycleEntry[], summary: ISessionHookInvocationSummary): void {
 		const container = DOM.append(parent, DOM.$('.agent-diagnostics-customization-lifecycle'));
 		const heading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-lifecycle-heading'));
 		heading.textContent = localize('agentDiagnostics.customizations.hookHealth', "Hook Health");
 		const health = DOM.append(container, DOM.$('.agent-diagnostics-customization-health'));
-		this.renderHealthFact(health, localize('agentDiagnostics.customizations.executions', "Executions"), String(entries.length));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.invocations', "Invocations"), String(entries.length));
+		this.renderHealthFact(health, localize('agentDiagnostics.customizations.latestTurn', "Latest Turn"), hookTurnStatusLabel(summary.status));
 		this.renderHealthFact(health, localize('agentDiagnostics.customizations.succeeded', "Succeeded"), String(entries.filter(entry => entry.kind === 'hookSucceeded').length));
 		this.renderHealthFact(health, localize('agentDiagnostics.customizations.warnings', "Warnings"), String(entries.filter(entry => entry.kind === 'hookWarning').length));
 		this.renderHealthFact(health, localize('agentDiagnostics.customizations.failed', "Failed"), String(entries.filter(entry => entry.kind === 'hookFailed').length));
@@ -329,6 +345,20 @@ export class SessionCustomizationsView extends Disposable {
 				health,
 				localize('agentDiagnostics.customizations.averageDuration', "Average Duration"),
 				formatDuration(durations.reduce((total, duration) => total + duration, 0) / durations.length)
+			);
+		}
+		if (summary.lastInvocationAt !== undefined) {
+			this.renderHealthFact(health, localize('agentDiagnostics.customizations.lastInvoked', "Last Invoked"), new Date(summary.lastInvocationAt).toLocaleTimeString());
+		}
+		if (summary.status === 'notInvoked') {
+			const problem = DOM.append(container, DOM.$('.agent-diagnostics-customization-health-problem.warning'));
+			const problemTitle = DOM.append(problem, DOM.$('.agent-diagnostics-customization-health-problem-title'));
+			problemTitle.textContent = localize('agentDiagnostics.customizations.notInvoked', "Hook Not Invoked in Latest Turn");
+			const problemDetail = DOM.append(problem, DOM.$('.agent-diagnostics-customization-health-problem-detail'));
+			problemDetail.textContent = localize(
+				'agentDiagnostics.customizations.notInvokedDetail',
+				"{0} tool call(s) ran without a captured hook invocation.",
+				summary.toolCallCount
 			);
 		}
 		const activityHeading = DOM.append(container, DOM.$('h4.agent-diagnostics-customization-attempts-heading'));
@@ -393,6 +423,44 @@ export class SessionCustomizationsView extends Disposable {
 			if (entry.title) {
 				const entryTitle = DOM.append(header, DOM.$('.agent-diagnostics-customization-lifecycle-title'));
 				entryTitle.textContent = entry.title;
+			}
+			const chatResource = entry.chatResource;
+			const debugEventId = entry.debugEventId;
+			if (chatResource && (debugEventId || entry.traceId)) {
+				const navigation = DOM.append(row, DOM.$('.agent-diagnostics-customization-lifecycle-navigation'));
+				const traceId = entry.traceId;
+				if (traceId || debugEventId) {
+					const showInsights = this.renderDisposables.add(new Button(navigation, { ...defaultButtonStyles, secondary: true }));
+					showInsights.element.classList.add('agent-diagnostics-customization-lifecycle-navigation-button');
+					showInsights.label = traceId
+						? localize('agentDiagnostics.customizations.showTrace', "Show Trace")
+						: localize('agentDiagnostics.customizations.showTurn', "Show Turn");
+					this.renderDisposables.add(showInsights.onDidClick(() => this._onDidNavigateInvocation.fire({
+						target: 'sessionInsights',
+						chatResource,
+						debugEventId,
+						parentDebugEventId: entry.parentDebugEventId,
+						timestamp: entry.timestamp,
+						hookType: entry.title,
+						traceId,
+						spanId: entry.spanId,
+					})));
+				}
+				if (debugEventId) {
+					const showDebugLog = this.renderDisposables.add(new Button(navigation, { ...defaultButtonStyles, secondary: true }));
+					showDebugLog.element.classList.add('agent-diagnostics-customization-lifecycle-navigation-button');
+					showDebugLog.label = localize('agentDiagnostics.customizations.showDebugLog', "Show Debug Log");
+					this.renderDisposables.add(showDebugLog.onDidClick(() => this._onDidNavigateInvocation.fire({
+						target: 'agentDebug',
+						chatResource,
+						debugEventId,
+						parentDebugEventId: entry.parentDebugEventId,
+						timestamp: entry.timestamp,
+						hookType: entry.title,
+						traceId,
+						spanId: entry.spanId,
+					})));
+				}
 			}
 			const hasDetails = entry.duration !== undefined
 				|| entry.exitCode !== undefined
@@ -487,6 +555,8 @@ function statusLabel(status: SessionCustomizationStatus): string {
 	switch (status) {
 		case 'used':
 			return localize('agentDiagnostics.customizations.status.used', "Used");
+		case 'invoked':
+			return localize('agentDiagnostics.customizations.status.invoked', "Invoked");
 		case 'loaded':
 			return localize('agentDiagnostics.customizations.status.loaded', "Loaded");
 		case 'disabled':
@@ -590,6 +660,19 @@ function lifecycleKindLabel(kind: ISessionCustomizationLifecycleEntry['kind']): 
 			return localize('agentDiagnostics.customizations.lifecycle.hookWarning', "Completed with Warning");
 		case 'hookFailed':
 			return localize('agentDiagnostics.customizations.lifecycle.hookFailed', "Failed");
+	}
+}
+
+function hookTurnStatusLabel(status: ISessionHookInvocationSummary['status']): string {
+	switch (status) {
+		case 'invoked':
+			return localize('agentDiagnostics.customizations.hookLatestTurnInvoked', "Invoked");
+		case 'notInvoked':
+			return localize('agentDiagnostics.customizations.hookLatestTurnNotInvoked', "Not Invoked");
+		case 'noToolCalls':
+			return localize('agentDiagnostics.customizations.hookLatestTurnNoToolCalls', "No Tool Calls");
+		case 'unknown':
+			return localize('agentDiagnostics.customizations.hookLatestTurnUnknown', "Unknown");
 	}
 }
 

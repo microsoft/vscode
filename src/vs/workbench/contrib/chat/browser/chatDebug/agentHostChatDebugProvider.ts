@@ -19,7 +19,7 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildDefaultChatUri, CustomizationType, parseChatUri, readUsageInfoMeta, ResponsePartKind, StateComponents, ToolCallStatus, type ActiveTurn, type ChatState, type ChildCustomization, type Customization, type Turn, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { IOTelDiagnosticsService } from '../../../../../platform/otel/common/otelDiagnosticsService.js';
+import { type IOTelDiagnosticsMcpLifecycleEvent, IOTelDiagnosticsService, parseOTelMcpLifecycleEvent } from '../../../../../platform/otel/common/otelDiagnosticsService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -408,6 +408,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 				return undefined; // session has no events.jsonl or live chat state
 			}
 			const converted = convertAgentHostChatStateToDebugEvents(chat, sessionResource);
+			await this._appendOTelMcpLifecycleEvents(sourceSessionResource, sessionResource, converted.events, converted.resolved, token);
 			this.mergeResolvedDetails(converted.resolved);
 			return converted.events;
 		}
@@ -444,8 +445,46 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 		}
 
 		const { events, resolved } = convertAgentHostEventsToDebugEvents(records, sessionResource, liveUsageTotals, usageRecords, customizations);
+		await this._appendOTelMcpLifecycleEvents(sourceSessionResource, sessionResource, events, resolved, token);
 		this.mergeResolvedDetails(resolved);
 		return events;
+	}
+
+	private async _appendOTelMcpLifecycleEvents(
+		sourceSessionResource: URI,
+		sessionResource: URI,
+		events: IChatDebugEvent[],
+		resolved: Map<string, IChatDebugResolvedEventContent>,
+		token: CancellationToken,
+	): Promise<void> {
+		const logs = await this._otelDiagnosticsService.getSessionLogs(sourceSessionResource.toString());
+		if (token.isCancellationRequested) {
+			return;
+		}
+		for (const log of logs) {
+			const lifecycle = parseOTelMcpLifecycleEvent(log);
+			if (!lifecycle || events.some(event => event.id === lifecycle.id)) {
+				continue;
+			}
+			const failed = lifecycle.state === 'error';
+			const parent = events.findLast(event => event.kind === 'userMessage' && event.created.getTime() <= lifecycle.timestamp);
+			events.push({
+				kind: 'generic',
+				id: lifecycle.id,
+				sessionResource,
+				created: new Date(lifecycle.timestamp),
+				parentEventId: parent?.id,
+				name: localize('agentHost.debug.mcpLifecycle', "MCP Server {0}: {1}", lifecycle.serverName, mcpLifecycleStateLabel(lifecycle.state)),
+				details: lifecycle.error ?? lifecycle.source,
+				level: failed ? ChatDebugLogLevel.Error : ChatDebugLogLevel.Info,
+				category: 'mcpLifecycle',
+			});
+			resolved.set(lifecycle.id, {
+				kind: 'text',
+				value: mcpLifecycleDetail(lifecycle),
+			});
+		}
+		events.sort((a, b) => a.created.getTime() - b.created.getTime());
 	}
 
 	private mergeResolvedDetails(resolved: ReadonlyMap<string, IChatDebugResolvedEventContent>): void {
@@ -1651,6 +1690,35 @@ export function parseJsonl(text: string): IAgentHostEventRecord[] {
 	const records: IAgentHostEventRecord[] = [];
 	appendJsonlRecords(text, records);
 	return records;
+}
+
+function mcpLifecycleStateLabel(state: string): string {
+	switch (state) {
+		case 'discovered':
+			return localize('agentHost.debug.mcpLifecycle.discovered', "Discovered");
+		case 'initialized':
+			return localize('agentHost.debug.mcpLifecycle.initialized', "Initialized");
+		case 'starting':
+		case 'pending':
+			return localize('agentHost.debug.mcpLifecycle.starting', "Starting");
+		case 'error':
+			return localize('agentHost.debug.mcpLifecycle.error', "Failed");
+		case 'stopped':
+			return localize('agentHost.debug.mcpLifecycle.stopped', "Stopped");
+		default:
+			return state;
+	}
+}
+
+function mcpLifecycleDetail(event: IOTelDiagnosticsMcpLifecycleEvent): string {
+	return [
+		localize('agentHost.debug.mcpLifecycle.server', "Server: {0}", event.serverName),
+		localize('agentHost.debug.mcpLifecycle.state', "State: {0}", mcpLifecycleStateLabel(event.state)),
+		...(event.source ? [localize('agentHost.debug.mcpLifecycle.source', "Source: {0}", event.source)] : []),
+		...(event.error ? [localize('agentHost.debug.mcpLifecycle.errorDetail', "Error: {0}", event.error)] : []),
+		localize('agentHost.debug.mcpLifecycle.trace', "Trace: {0}", event.traceId),
+		localize('agentHost.debug.mcpLifecycle.span', "Span: {0}", event.spanId),
+	].join('\n');
 }
 
 /**

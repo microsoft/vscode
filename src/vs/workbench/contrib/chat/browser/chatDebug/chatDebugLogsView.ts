@@ -318,6 +318,53 @@ export class ChatDebugLogsView extends Disposable {
 		}
 	}
 
+	async revealEvent(eventId: string): Promise<boolean> {
+		this.filterWidget.setFilterText('');
+		this.filterDirty = true;
+		const event = this.events.find(candidate => candidate.id === eventId);
+		if (!event) {
+			return false;
+		}
+		this.visibleLimit = Math.max(this.visibleLimit, this.events.length);
+		this.refreshList();
+		if (this.logsViewMode === LogsViewMode.List) {
+			const index = this.filteredEvents.indexOf(event);
+			if (index < 0) {
+				return false;
+			}
+			this.list.reveal(index);
+			this.list.setSelection([index]);
+			this.list.setFocus([index]);
+			this.list.domFocus();
+			return true;
+		}
+
+		const eventsById = new Map(this.events.flatMap(candidate => candidate.id ? [[candidate.id, candidate] as const] : []));
+		const ancestors: IChatDebugEvent[] = [];
+		let parentId = event.parentEventId;
+		while (parentId) {
+			const parent = eventsById.get(parentId);
+			if (!parent) {
+				break;
+			}
+			ancestors.push(parent);
+			parentId = parent.parentEventId;
+		}
+		for (const parent of ancestors.reverse()) {
+			if (this.tree.hasElement(parent)) {
+				await this.tree.expand(parent);
+			}
+		}
+		if (!this.tree.hasElement(event)) {
+			return false;
+		}
+		this.tree.reveal(event);
+		this.tree.setSelection([event]);
+		this.tree.setFocus([event]);
+		this.tree.domFocus();
+		return true;
+	}
+
 	updateBreadcrumb(): void {
 		if (!this.currentSessionResource) {
 			return;

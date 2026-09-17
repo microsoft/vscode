@@ -96,6 +96,41 @@ export interface IOTelDiagnosticsLog {
 	readonly severity: 'info' | 'error';
 }
 
+export const OTEL_MCP_SERVER_LIFECYCLE_EVENT_NAME = 'github.copilot.mcp.server.lifecycle';
+
+export interface IOTelDiagnosticsMcpLifecycleEvent {
+	readonly id: string;
+	readonly traceId: string;
+	readonly spanId: string;
+	readonly timestamp: number;
+	readonly serverName: string;
+	readonly state: string;
+	readonly source: string | undefined;
+	readonly error: string | undefined;
+}
+
+export function parseOTelMcpLifecycleEvent(log: IOTelDiagnosticsLog): IOTelDiagnosticsMcpLifecycleEvent | undefined {
+	if (log.name !== OTEL_MCP_SERVER_LIFECYCLE_EVENT_NAME || !log.body) {
+		return undefined;
+	}
+	const attributes = JSON.parse(log.body) as Record<string, string>;
+	const serverName = attributes['github.copilot.mcp.server.name'];
+	const state = attributes['github.copilot.mcp.server.state'];
+	if (!serverName || !state) {
+		return undefined;
+	}
+	return {
+		id: log.id,
+		traceId: log.traceId,
+		spanId: log.spanId,
+		timestamp: log.timestamp,
+		serverName,
+		state,
+		source: attributes['github.copilot.mcp.server.source'],
+		error: attributes['github.copilot.mcp.server.error'],
+	};
+}
+
 export interface IOTelDiagnosticsTraceDetails {
 	readonly trace: IOTelDiagnosticsTrace;
 	readonly spans: readonly IOTelDiagnosticsSpan[];

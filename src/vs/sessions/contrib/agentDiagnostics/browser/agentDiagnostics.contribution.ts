@@ -105,6 +105,7 @@ class AgentDiagnosticsAccessibleView implements IAccessibleViewImplementation {
 				localize('agentDiagnostics.accessibilityHelp.overview', "The Diagnostics editor shows information for the focused Agents session and its active chat."),
 				localize('agentDiagnostics.accessibilityHelp.tabs', "Use the left and right arrow keys to switch between Session Insights, Agent Debug, and Customizations."),
 				localize('agentDiagnostics.accessibilityHelp.configure', "Use Configure Diagnostics to enable local session traces, captured content, Agent Debug events, and AHP logs, then restart the local Agent Host."),
+				localize('agentDiagnostics.accessibilityHelp.lifecycleNavigation', "Lifecycle events in Customizations provide navigation actions. Hook invocations provide Show Turn, while MCP server events provide Show Trace; Show Debug Log reveals the exact matching event."),
 				localize('agentDiagnostics.accessibilityHelp.view', "Open the accessible view to read the selected diagnostics tab as text{0}.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n')
 			: editor.getAccessibleContent();

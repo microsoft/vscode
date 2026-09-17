@@ -120,6 +120,11 @@ export class ChatDebugSessionViews extends Disposable {
 		}
 	}
 
+	revealLogEvent(eventId: string): Promise<boolean> {
+		this.showView(ChatDebugSessionView.Logs);
+		return this.logsView.revealEvent(eventId);
+	}
+
 	layout(dimension: Dimension): void {
 		this.currentDimension = dimension;
 		this.doLayout();

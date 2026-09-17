@@ -394,6 +394,7 @@ export interface IChatDebugEventModelTurnContent {
 export interface IChatDebugEventHookContent {
 	readonly kind: 'hook';
 	readonly hookType: string;
+	readonly sourceUri?: URI;
 	readonly command?: string;
 	readonly result?: ChatDebugHookResult;
 	readonly durationInMillis?: number;

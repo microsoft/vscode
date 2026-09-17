@@ -289,7 +289,8 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
-.agent-diagnostics-customization-status.used {
+.agent-diagnostics-customization-status.used,
+.agent-diagnostics-customization-status.invoked {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
@@ -621,6 +622,27 @@
 .agent-diagnostics-customization-lifecycle-title {
 	font-size: var(--vscode-fontSize-body2);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-diagnostics-customization-lifecycle-navigation {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.agent-diagnostics-customization-lifecycle-navigation-button.monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	color: var(--vscode-textLink-foreground);
+	background: transparent;
+	border: 0;
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-diagnostics-customization-lifecycle-navigation-button.monaco-button:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background: var(--vscode-list-hoverBackground);
 }
 
 .agent-diagnostics-customization-lifecycle-details.monaco-button {
