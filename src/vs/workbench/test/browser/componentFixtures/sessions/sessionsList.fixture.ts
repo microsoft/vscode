@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { IConfettiAnimationOptions, triggerConfettiAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -252,6 +253,7 @@ interface IRenderOptions {
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
+	readonly confettiAnimation?: IConfettiAnimationOptions;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
@@ -404,8 +406,8 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
-	if (options.archiveOnboarding) {
-		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+	if (options.archiveOnboarding || options.confettiAnimation) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding ?? ChatSessionArchiveActionWording.MarkAsDone).archive;
 		const archiveAction = instantiationService.createInstance(MenuItemAction, {
 			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
 		}, undefined, undefined, undefined, undefined);
@@ -471,9 +473,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
-	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
-	if (options.archiveOnboarding) {
+	const hasPreviewSpace = !!(options.archiveOnboarding || options.confettiAnimation);
+	container.style.width = `${hasPreviewSpace ? width + 420 : width}px`;
+	container.style.height = hasPreviewSpace ? '420px' : options.phone ? '260px' : '220px';
+	if (hasPreviewSpace) {
 		container.style.position = 'relative';
 	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -545,6 +548,20 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			advanceOnTargetClick: step.advanceOnTargetClick,
 			hideNext: step.hideNext,
 		});
+	}
+	const confettiAnimation = options.confettiAnimation;
+	if (confettiAnimation) {
+		listHost.style.width = `${width}px`;
+		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
+		const target = container.querySelector<HTMLElement>(`[${ONBOARDING_TARGET_ATTR}="${CSS.escape(reveal.targetId)}"]`);
+		if (!target) {
+			throw new Error('Expected the production session mark-as-done action.');
+		}
+		disposableStore.add(DOM.addDisposableListener(target, DOM.EventType.CLICK, () => {
+			if (!options.reducedMotion) {
+				triggerConfettiAnimation(target, confettiAnimation);
+			}
+		}));
 	}
 
 	if (options.showAutomations) {
@@ -652,6 +669,12 @@ const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Confetti: defineComponentFixture({
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'confetti', title: 'Finish confetti animation fixture', workspace: 'vscode', minutesAgo: 1 }],
+			confettiAnimation: {},
+		}),
+	}),
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
