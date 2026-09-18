@@ -141,6 +141,7 @@ class SimpleModel implements IResolvedTextEditorModel {
 		this.disposed = true;
 
 		this._onWillDispose.fire();
+		this._onWillDispose.dispose();
 	}
 
 	public isDisposed(): boolean {
@@ -156,7 +157,7 @@ class SimpleModel implements IResolvedTextEditorModel {
 	}
 }
 
-class StandaloneTextModelService implements ITextModelService {
+export class StandaloneTextModelService implements ITextModelService {
 	public _serviceBrand: undefined;
 
 	constructor(
@@ -168,6 +169,12 @@ class StandaloneTextModelService implements ITextModelService {
 
 		if (!model) {
 			return Promise.reject(new Error(`Model not found`));
+		}
+
+		const reference = this.modelService.acquireSharedModel(resource);
+		if (reference) {
+			const resolved = new SimpleModel(model);
+			return Promise.resolve(Object.assign(combinedDisposable(resolved, reference), { object: resolved }));
 		}
 
 		return Promise.resolve(new ImmortalReference(new SimpleModel(model)));

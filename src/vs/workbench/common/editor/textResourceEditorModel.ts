@@ -9,12 +9,16 @@ import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { IReference } from '../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../editor/common/model.js';
 
 /**
  * An editor model for in-memory, readonly text content that
  * is backed by an existing editor model.
  */
 export class TextResourceEditorModel extends BaseTextEditorModel {
+
+	private readonly _modelReference: IReference<ITextModel> | undefined;
 
 	constructor(
 		resource: URI,
@@ -24,12 +28,14 @@ export class TextResourceEditorModel extends BaseTextEditorModel {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService, resource);
+		const reference = modelService.acquireSharedModel(resource);
+		this._modelReference = reference ? this._register(reference) : undefined;
 	}
 
 	override dispose(): void {
 
-		// force this class to dispose the underlying model
-		if (this.textEditorModelHandle) {
+		// Preserve last-resolver-reference disposal for models not created with shared ownership.
+		if (this.textEditorModelHandle && !this._modelReference) {
 			this.modelService.destroyModel(this.textEditorModelHandle);
 		}
 

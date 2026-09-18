@@ -193,8 +193,8 @@ export class DocumentDiffItemViewModel extends Disposable {
 		}
 
 		const diffEditorViewModelStore = new DisposableStore();
-		const originalTextModel = this.documentDiffItem.original?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
-		const modifiedTextModel = this.documentDiffItem.modified?.textModel ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));
+		const originalTextModel = this.documentDiffItem.original?.textModel ?? diffEditorViewModelStore.add(this._modelService.createSharedModel('', null)).object;
+		const modifiedTextModel = this.documentDiffItem.modified?.textModel ?? diffEditorViewModelStore.add(this._modelService.createSharedModel('', null)).object;
 		diffEditorViewModelStore.add(this._documentDiffItemRef.createNewRef(this));
 
 		this.diffEditorViewModelRef = this._register(RefCounted.createWithDisposable(

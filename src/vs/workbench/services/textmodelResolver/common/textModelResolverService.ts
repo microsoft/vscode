@@ -62,27 +62,32 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 		// In-Memory / Virtual documents
 		if (resource.scheme === Schemas.inMemory || this.providers.has(resource.scheme)) {
-			await this.ensureResolvedTextModelContent(resource); // throws if failing to resolve content
+			const sharedModelReference = this.modelService.acquireSharedModel(resource);
+			try {
+				await this.ensureResolvedTextModelContent(resource); // throws if failing to resolve content
 
-			let model: ITextEditorModel | undefined = undefined;
-			if (pendingModel) {
-				try {
-					// if we have a pending model for this key, we try to await that and prevent
-					// creating a new model so that we are not leaking models. we only do this for
-					// in-memory or virtual documents where we create models here, the others are
-					// already shared by their respective services.
-					model = await pendingModel;
-				} catch {
-					// ignore and re-create below
+				let model: ITextEditorModel | undefined = undefined;
+				if (pendingModel) {
+					try {
+						// if we have a pending model for this key, we try to await that and prevent
+						// creating a new model so that we are not leaking models. we only do this for
+						// in-memory or virtual documents where we create models here, the others are
+						// already shared by their respective services.
+						model = await pendingModel;
+					} catch {
+						// ignore and re-create below
+					}
 				}
-			}
 
-			if (!model) {
-				model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
-			}
+				if (!model) {
+					model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+				}
 
-			if (this.ensureResolvedModel(model, key)) {
-				return model;
+				if (this.ensureResolvedModel(model, key)) {
+					return model;
+				}
+			} finally {
+				sharedModelReference?.dispose();
 			}
 		}
 

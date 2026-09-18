@@ -8,7 +8,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { StandaloneCodeEditorService } from '../../browser/standaloneCodeEditorService.js';
-import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from '../../browser/standaloneServices.js';
+import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService, StandaloneTextModelService } from '../../browser/standaloneServices.js';
 import { StandaloneThemeService } from '../../browser/standaloneThemeService.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
@@ -16,6 +16,30 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { createModelServices } from '../../../test/common/testTextModel.js';
+import { IModelService } from '../../../common/services/model.js';
+
+suite('StandaloneTextModelService', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const releaseCreatorFirst of [false, true]) {
+		test(`shares explicit model ownership (creator first: ${releaseCreatorFirst})`, async () => {
+			const services = createModelServices(disposables);
+			const owner = disposables.add(services.get(IModelService).createSharedModel('shared', null));
+			const resolver = services.createInstance(StandaloneTextModelService);
+			const reference = disposables.add(await resolver.createModelReference(owner.object.uri));
+			if (releaseCreatorFirst) {
+				owner.dispose();
+			} else {
+				reference.dispose();
+			}
+			assert.strictEqual(owner.object.getValue(), 'shared');
+			owner.dispose();
+			reference.dispose();
+			assert.strictEqual(owner.object.isDisposed(), true);
+		});
+	}
+});
 
 suite('StandaloneKeybindingService', () => {
 
