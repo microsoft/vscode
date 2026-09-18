@@ -63,6 +63,7 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'elicitationSerialized':
 				case 'progressTaskSerialized':
 				case 'textEditGroup':
+				case 'notebookEditGroup':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'thinking':
@@ -80,7 +81,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'hook':
 				case 'inlineReference':
 				case 'markdownVuln':
-				case 'notebookEditGroup':
 				case 'progressMessage':
 				case 'systemNotification':
 				case 'pullRequest':
@@ -150,6 +150,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	responseId: Adapt.v(m => m.response?.id),
 	responseTimestamp: Adapt.v(m => m.response?.timestamp),
 	result: Adapt.v(m => m.response?.result, objectsEqual),
+	autoTier: Adapt.v(m => m.response?.autoTier),
 	responseMarkdownInfo: Adapt.v(
 		m => m.response?.codeBlockInfos?.map(info => ({ suggestionId: info.suggestionId })),
 		objectsEqual,

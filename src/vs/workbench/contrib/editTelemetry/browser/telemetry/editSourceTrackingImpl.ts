@@ -5,6 +5,7 @@
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
+import { groupByMap } from '../../../../../base/common/collections.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -283,24 +284,28 @@ class TrackedDocumentInfo extends Disposable {
 				entry.modifiedCount += range.range.length;
 			}
 		}
-		const sums = Object.fromEntries(Array.from(telemetryKeys, ([key, value]) => [key, value.modifiedCount]));
-		const entries = Object.entries(sums)
-			.filter((entry): entry is [string, number] => entry[1] !== undefined)
-			.sort(reverseOrder(compareBy(([, value]) => value, numberComparator)))
-			.slice(0, mode === 'longterm' ? 30 : 10);
+		// Apply the source cap before subdividing by Auto tier so no selected source loses contributions.
+		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => entry.representative.toKey(1, { $autoTier: false }));
+		const entries = Array.from(sourceGroups.values(), entries => ({
+			entries,
+			modifiedCount: sumBy(entries, ([, entry]) => entry.modifiedCount),
+		}))
+			.sort(reverseOrder(compareBy(group => group.modifiedCount, numberComparator)))
+			.slice(0, mode === 'longterm' ? 30 : 10)
+			.flatMap(group => group.entries);
 
-		for (const [key, value] of entries) {
-			const telemetryEntry = telemetryKeys.get(key)!;
+		for (const [key, telemetryEntry] of entries) {
 			const repr = telemetryEntry.representative;
 			const deltaModifiedCount = telemetryEntry.deltaModifiedCount;
 
 			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
 				sourceKey: key,
-				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
 				modelId: repr.props.$modelId,
+				autoTier: repr.props.$autoTier,
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
@@ -308,7 +313,7 @@ class TrackedDocumentInfo extends Disposable {
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,
 				harness: repr.props.$harness,
-				modifiedCount: value,
+				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,
 			});

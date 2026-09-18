@@ -43,7 +43,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatVoiceProgressPart, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatAutoModeTierPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatVoiceProgressPart, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../contrib/chat/common/chatImageExtraction.js';
@@ -2877,6 +2877,16 @@ export namespace ChatResponseAutoModeResolutionPart {
 	}
 }
 
+export namespace ChatResponseAutoModeTierPart {
+	export function from(part: vscode.ChatResponseAutoModeTierPart): Dto<IChatAutoModeTierPart> {
+		return { kind: 'autoModeTier', autoTier: part.autoTier };
+	}
+
+	export function to(part: Dto<IChatAutoModeTierPart>): vscode.ChatResponseAutoModeTierPart {
+		return new types.ChatResponseAutoModeTierPart(part.autoTier);
+	}
+}
+
 export namespace ChatResponseWarningPart {
 	export function from(part: vscode.ChatResponseWarningPart): Dto<IChatWarningMessage> {
 		return {
@@ -3426,6 +3436,8 @@ export namespace ChatResponsePart {
 			return ChatResponseWorkspaceEditPart.from(part);
 		} else if (part instanceof types.ChatResponseAutoModeResolutionPart) {
 			return ChatResponseAutoModeResolutionPart.from(part);
+		} else if (part instanceof types.ChatResponseAutoModeTierPart) {
+			return ChatResponseAutoModeTierPart.from(part);
 		}
 
 		return {

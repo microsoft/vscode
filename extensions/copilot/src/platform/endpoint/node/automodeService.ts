@@ -7,9 +7,9 @@ import type { ChatRequest, ChatResponseStream } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
-import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseAutoModeResolutionPart } from '../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseAutoModeTierPart } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
@@ -72,6 +72,11 @@ export interface IAutoModeRoutingState {
 	readonly endpoint: IChatEndpoint | undefined;
 }
 
+export interface IAutoModeResolvedTier {
+	readonly requestId: string | undefined;
+	readonly tier: AutoModeTier | undefined;
+}
+
 /**
  * Reports Auto's routing rounds into a turn's response stream. Install this
  * before the turn resolves any endpoint — the first route happens during
@@ -81,13 +86,22 @@ export function reportAutoModeRouting(
 	request: ChatRequest,
 	stream: ChatResponseStream,
 	automodeService: IAutomodeService,
+	reportRouting = true,
 ): IDisposable {
-	return automodeService.onDidRoute(e => {
-		if (e.requestId !== request.id) {
+	const store = new DisposableStore();
+	store.add(automodeService.onDidRoute(e => {
+		if (!reportRouting || e.requestId === undefined || e.requestId !== request.id) {
 			return;
 		}
 		stream.push(new ChatResponseAutoModeResolutionPart(e.endpoint && { id: e.endpoint.model, name: e.endpoint.name }));
-	});
+	}));
+	store.add(automodeService.onDidResolveTier(e => {
+		if (e.requestId === undefined || e.requestId !== request.id) {
+			return;
+		}
+		stream.push(new ChatResponseAutoModeTierPart(e.tier));
+	}));
+	return store;
 }
 
 export interface IAutomodeService {
@@ -119,6 +133,9 @@ export interface IAutomodeService {
 	 */
 	readonly onDidRoute: Event<IAutoModeRoutingState>;
 
+	/** Reports each call's resolved tier before returning, or clears it before rejecting. */
+	readonly onDidResolveTier: Event<IAutoModeResolvedTier>;
+
 	/**
 	 * Marks the router cache for this conversation as needing re-evaluation.
 	 * The next call to {@link resolveAutoModeEndpoint} will re-run the router
@@ -139,6 +156,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private static readonly CACHE_MAX_ENTRIES = 50;
 	private readonly _onDidRoute = this._register(new Emitter<IAutoModeRoutingState>());
 	readonly onDidRoute = this._onDidRoute.event;
+	private readonly _onDidResolveTier = this._register(new Emitter<IAutoModeResolvedTier>());
+	readonly onDidResolveTier = this._onDidResolveTier.event;
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -197,12 +216,23 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * turn cannot be routed, leaving it to the caller to degrade.
 	 */
 	async resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		try {
+			const tier = this._resolveTier(chatRequest);
+			const endpoint = await this._resolveAutoModeEndpoint(chatRequest, knownEndpoints, tier);
+			this._onDidResolveTier.fire({ requestId: chatRequest?.id, tier });
+			return endpoint;
+		} catch (error) {
+			this._onDidResolveTier.fire({ requestId: chatRequest?.id, tier: undefined });
+			throw error;
+		}
+	}
+
+	private async _resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[], tier: AutoModeTier): Promise<IChatEndpoint> {
 		if (!knownEndpoints.length) {
 			throw new Error('No auto mode endpoints provided.');
 		}
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
-		const tier = this._resolveTier(chatRequest);
 		// Sessions are keyed on the conversation, so a request that cannot be
 		// keyed always routes fresh and is never cached.
 		const entry = conversationId === 'unknown' ? undefined : this._cache.get(conversationId);

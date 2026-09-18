@@ -16,7 +16,7 @@ import { INotebookEditorService } from '../../../../notebook/browser/services/no
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
 
@@ -82,8 +82,8 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		this._textModelChangeService.clearCurrentEditLineDecoration();
 	}
 
-	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
-		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel);
+	async acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata?: IChatEditMetadata): Promise<void> {
+		const { maxLineNumber } = await this._textModelChangeService.acceptAgentEdits(this.modifiedModel.uri, textEdits, isLastEdits, responseModel, metadata);
 
 		transaction((tx) => {
 			if (!isLastEdits) {

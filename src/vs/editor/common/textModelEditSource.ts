@@ -102,6 +102,7 @@ export const EditSources = {
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
@@ -114,6 +115,7 @@ export const EditSources = {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: getAutoTier(data.modelId, data.autoTier),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$harness: data.harness,
@@ -171,10 +173,11 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; autoTier?: string; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: getAutoTier(data.modelId, data.autoTier),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$$sessionId: data.sessionId,
@@ -216,6 +219,21 @@ function toProperties(version: ProviderId | undefined) {
 type Values<T> = T[keyof T];
 export type ITextModelEditSourceMetadata = Values<{ [TKey in keyof typeof EditSources]: ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
 type ITextModelEditSourceMetadataKeys = Values<{ [TKey in keyof typeof EditSources]: keyof ReturnType<typeof EditSources[TKey]>['metadataT'] }>;
+
+function getAutoTier(modelId: string | undefined, autoTier: string | undefined) {
+	if (modelId !== 'copilot/auto') {
+		return undefined;
+	}
+	switch (autoTier) {
+		case 'efficiency':
+		case 'balance':
+		case 'intelligence':
+		case 'fast':
+			return autoTier;
+		default:
+			return undefined;
+	}
+}
 
 
 function avoidPathRedaction(str: string | undefined): string | undefined {

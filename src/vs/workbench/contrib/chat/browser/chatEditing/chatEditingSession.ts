@@ -40,7 +40,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
@@ -553,24 +553,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		let didComplete = false;
 
 		return {
-			pushText: (edits, isLastEdits) => {
+			pushText: (edits, isLastEdits, metadata = { autoTier: responseModel.autoTier }) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, edits, isLastEdits, responseModel);
+						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebookCellText: (cell, edits, isLastEdits) => {
+			pushNotebookCellText: (cell, edits, isLastEdits, metadata = { autoTier: responseModel.autoTier }) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(cell, edits, isLastEdits, responseModel);
+						await this._acceptEdits(cell, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
-			pushNotebook: (edits, isLastEdits) => {
+			pushNotebook: (edits, isLastEdits, metadata = { autoTier: responseModel.autoTier }) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, edits, isLastEdits, responseModel);
+						await this._acceptEdits(resource, edits, isLastEdits, responseModel, metadata);
 					}
 				});
 			},
@@ -582,7 +582,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				didComplete = true;
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptEdits(resource, [], true, responseModel);
+						await this._acceptEdits(resource, [], true, responseModel, {});
 						await this._resolve(responseModel.requestId, inUndoStop, resource);
 						completePromise.complete();
 					}
@@ -1028,7 +1028,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel, metadata: IChatEditMetadata): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Create, this._getTelemetryInfoForModel(responseModel));
 
 		// Record edit operations in the timeline if there are actual edits
@@ -1036,7 +1036,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._recordEditOperations(entry, resource, textEdits, responseModel);
 		}
 
-		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel, metadata);
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {

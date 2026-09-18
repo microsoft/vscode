@@ -6,9 +6,12 @@
 import { RequestType } from '@vscode/copilot-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest } from 'vscode';
+import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation } from '../../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseAutoModeTierPart, ChatResponseTextEditPart, Uri } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { BaseConfig, ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
@@ -18,9 +21,9 @@ import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
-import { defaultAutoModeTier } from '../../common/autoModeTiers';
+import { defaultAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
-import { AutomodeService } from '../automodeService';
+import { AutomodeService, reportAutoModeRouting, type IAutoModeResolvedTier } from '../automodeService';
 
 function createMockHeaders(entries: Record<string, string> = {}): { get(name: string): string | null } {
 	const lower: Record<string, string> = {};
@@ -58,14 +61,14 @@ describe('AutomodeService', () => {
 		} as unknown as IChatEndpoint;
 	}
 
-	function createService(): AutomodeService {
+	function createService(requestLogger = new NullRequestLogger()): AutomodeService {
 		return new AutomodeService(
 			mockCAPIClientService,
 			mockAuthService,
 			mockLogService,
 			mockInstantiationService,
 			mockTelemetryService,
-			new NullRequestLogger(),
+			requestLogger,
 			configurationService
 		);
 	}
@@ -572,6 +575,418 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [textOnly, visionModel]);
 
 			expect({ first: first.model, second: second.model }).toEqual({ first: 'gpt-4o', second: 'gpt-4o-vision' });
+		});
+	});
+
+	describe('resolved tier reporting', () => {
+		const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+		let resolvedTiers: IAutoModeResolvedTier[];
+
+		beforeEach(() => {
+			disposables.add(onDidAuthenticationChangeEmitter);
+			automodeService = disposables.add(createService(disposables.add(new NullRequestLogger())));
+			resolvedTiers = [];
+			disposables.add(automodeService.onDidResolveTier(e => resolvedTiers.push(e)));
+		});
+
+		function request(id: string, overrides: Partial<ChatRequest> = {}): ChatRequest {
+			return {
+				id,
+				prompt: 'test prompt',
+				location: ChatLocation.Panel,
+				sessionId: 'session-resolved-tier',
+				...overrides,
+			} as ChatRequest;
+		}
+
+		function observe(chatRequest: ChatRequest, reportRouting = true): SpyChatResponseStream {
+			const stream = new SpyChatResponseStream();
+			disposables.add(reportAutoModeRouting(chatRequest, stream, automodeService, reportRouting));
+			return stream;
+		}
+
+		function routingParts(tier: AutoModeTier) {
+			return [
+				new ChatResponseAutoModeResolutionPart(),
+				new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name }),
+				new ChatResponseAutoModeTierPart(tier),
+			];
+		}
+
+		it.each<{ name: string; location?: ChatLocation; selected?: string; override?: string; tier: AutoModeTier }>([
+			{ name: 'panel default', tier: 'balance' },
+			{ name: 'editor default', location: ChatLocation.Editor, tier: 'fast' },
+			{ name: 'terminal default', location: ChatLocation.Terminal, tier: 'fast' },
+			{ name: 'notebook default', location: ChatLocation.Notebook, tier: 'fast' },
+			{ name: 'materialized inline default', location: ChatLocation.Editor, selected: 'balance', tier: 'fast' },
+			{ name: 'efficiency selection', selected: 'efficiency', tier: 'efficiency' },
+			{ name: 'intelligence selection', selected: 'intelligence', tier: 'intelligence' },
+			{ name: 'explicit inline selection', location: ChatLocation.Editor, selected: 'intelligence', tier: 'intelligence' },
+			{ name: 'unselectable fast value', selected: 'fast', tier: 'balance' },
+			{ name: 'invalid picker value', selected: 'invalid', tier: 'balance' },
+			{ name: 'override before picker', selected: 'intelligence', override: 'efficiency', tier: 'efficiency' },
+			{ name: 'override before inline default', location: ChatLocation.Editor, override: 'balance', tier: 'balance' },
+			{ name: 'internal fast override', override: 'fast', tier: 'fast' },
+			{ name: 'invalid override', selected: 'intelligence', override: 'invalid', tier: 'intelligence' },
+			{ name: 'legacy override', override: 'eco', tier: 'efficiency' },
+			{ name: 'legacy efficiency picker', selected: 'eco', tier: 'efficiency' },
+			{ name: 'legacy intelligence picker', selected: 'max', tier: 'intelligence' },
+			{ name: 'legacy balance picker', selected: 'balanced', tier: 'balance' },
+			{ name: 'legacy inline default', location: ChatLocation.Editor, selected: 'balanced', tier: 'fast' },
+		])('reports the /auto body tier for $name', async ({ location, selected, override, tier }) => {
+			if (override !== undefined) {
+				await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, override);
+			}
+			const chatRequest = request('turn', {
+				location: location ?? ChatLocation.Panel,
+				modelConfiguration: selected === undefined ? undefined : { tier: selected },
+			});
+			const stream = observe(chatRequest);
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+
+			expect({
+				bodies: autoRequestBodies(),
+				resolvedTiers,
+				parts: stream.items,
+			}).toEqual({
+				bodies: [{ prompt: 'test prompt', tier }],
+				resolvedTiers: [{ requestId: 'turn', tier }],
+				parts: routingParts(tier),
+			});
+		});
+
+		it('pushes the resolved tier before the endpoint promise returns and edits begin', async () => {
+			const chatRequest = request('turn');
+			const stream = observe(chatRequest);
+			const uri = Uri.parse('test:/file.ts');
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+			stream.textEdit(uri, []);
+
+			expect(stream.items).toEqual([
+				...routingParts('balance'),
+				new ChatResponseTextEditPart(uri, []),
+			]);
+		});
+
+		it('reports cache hits and compatible no-prompt returns without extra routing rows', async () => {
+			const first = request('first', { modelConfiguration: { tier: 'efficiency' } });
+			const second = request('second', { modelConfiguration: { tier: 'efficiency' } });
+			const noPrompt = request('no-prompt', { prompt: ' ', modelConfiguration: { tier: 'eco' } });
+			const streams = [first, second, noPrompt].map(r => observe(r));
+
+			await automodeService.resolveAutoModeEndpoint(first, [mockChatEndpoint]);
+			await automodeService.resolveAutoModeEndpoint(second, [mockChatEndpoint]);
+			automodeService.invalidateRouterCache(noPrompt);
+			await automodeService.resolveAutoModeEndpoint(noPrompt, [mockChatEndpoint]);
+
+			expect({ calls: autoCalls().length, resolvedTiers, parts: streams.map(s => s.items) }).toEqual({
+				calls: 1,
+				resolvedTiers: [
+					{ requestId: 'first', tier: 'efficiency' },
+					{ requestId: 'second', tier: 'efficiency' },
+					{ requestId: 'no-prompt', tier: 'efficiency' },
+				],
+				parts: [
+					routingParts('efficiency'),
+					[new ChatResponseAutoModeTierPart('efficiency')],
+					[new ChatResponseAutoModeTierPart('efficiency')],
+				],
+			});
+		});
+
+		it('reports the compatible tier when a failed route falls back to its cached endpoint', async () => {
+			const first = request('first');
+			await automodeService.resolveAutoModeEndpoint(first, [mockChatEndpoint]);
+			automodeService.invalidateRouterCache(first);
+			mockAuto({ error: 'server_error' }, 500);
+			const fallback = request('fallback');
+			const stream = observe(fallback);
+
+			const endpoint = await automodeService.resolveAutoModeEndpoint(fallback, [mockChatEndpoint]);
+
+			expect({ endpoint: endpoint.model, resolvedTiers, parts: stream.items }).toEqual({
+				endpoint: mockChatEndpoint.model,
+				resolvedTiers: [
+					{ requestId: 'first', tier: 'balance' },
+					{ requestId: 'fallback', tier: 'balance' },
+				],
+				parts: routingParts('balance'),
+			});
+		});
+
+		it('delivers metadata to every coalesced caller without adding routing rows', async () => {
+			const requests = ['first', 'second', 'third'].map(id => request(id, { prompt: id }));
+			const streams = requests.map(r => observe(r));
+
+			await Promise.all(requests.map(r => automodeService.resolveAutoModeEndpoint(r, [mockChatEndpoint])));
+
+			expect({ calls: autoCalls().length, resolvedTiers, parts: streams.map(s => s.items) }).toEqual({
+				calls: 1,
+				resolvedTiers: requests.map(r => ({ requestId: r.id, tier: 'balance' })),
+				parts: [
+					routingParts('balance'),
+					[new ChatResponseAutoModeTierPart('balance')],
+					[new ChatResponseAutoModeTierPart('balance')],
+				],
+			});
+		});
+
+		it('reports each call even when concurrent callers share a request id', async () => {
+			const chatRequest = request('turn');
+			const stream = observe(chatRequest);
+
+			await Promise.all([
+				automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]),
+				automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]),
+			]);
+
+			expect({ calls: autoCalls().length, resolvedTiers, parts: stream.items }).toEqual({
+				calls: 1,
+				resolvedTiers: [
+					{ requestId: 'turn', tier: 'balance' },
+					{ requestId: 'turn', tier: 'balance' },
+				],
+				parts: [...routingParts('balance'), new ChatResponseAutoModeTierPart('balance')],
+			});
+		});
+
+		it('keeps independent concurrent conversations and tiers request-local', async () => {
+			const requests = [
+				request('first', { sessionId: 'session-a', modelConfiguration: { tier: 'efficiency' } }),
+				request('second', { sessionId: 'session-b', modelConfiguration: { tier: 'intelligence' } }),
+				request('third', { sessionId: 'session-a', modelConfiguration: { tier: 'intelligence' } }),
+			];
+			const streams = requests.map(r => observe(r));
+
+			await Promise.all(requests.map(r => automodeService.resolveAutoModeEndpoint(r, [mockChatEndpoint])));
+
+			expect({ bodies: autoRequestBodies(), resolvedTiers, parts: streams.map(s => s.items) }).toEqual({
+				bodies: [
+					{ prompt: 'test prompt', tier: 'efficiency' },
+					{ prompt: 'test prompt', tier: 'intelligence' },
+					{ prompt: 'test prompt', tier: 'intelligence' },
+				],
+				resolvedTiers: [
+					{ requestId: 'first', tier: 'efficiency' },
+					{ requestId: 'second', tier: 'intelligence' },
+					{ requestId: 'third', tier: 'intelligence' },
+				],
+				parts: [routingParts('efficiency'), routingParts('intelligence'), routingParts('intelligence')],
+			});
+		});
+
+		it('captures each call tier before awaiting and reports later tier changes and reroutes', async () => {
+			const pendingFirst = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
+			const pendingSecond = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
+			vi.mocked(mockCAPIClientService.makeRequest)
+				.mockImplementationOnce(() => pendingFirst.p)
+				.mockImplementationOnce(() => pendingSecond.p);
+			const first = request('first');
+			const second = request('second');
+			const streams = [observe(first), observe(second)];
+
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'efficiency');
+			const firstResult = automodeService.resolveAutoModeEndpoint(first, [mockChatEndpoint]);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'intelligence');
+			const secondResult = automodeService.resolveAutoModeEndpoint(second, [mockChatEndpoint]);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'fast');
+			await pendingSecond.complete(makeAutoResponse(autoResponse(mockChatEndpoint.model)));
+			await secondResult;
+			await pendingFirst.complete(makeAutoResponse(autoResponse(mockChatEndpoint.model)));
+			await firstResult;
+
+			const later = request('later');
+			streams.push(observe(later));
+			await automodeService.resolveAutoModeEndpoint(later, [mockChatEndpoint]);
+			automodeService.invalidateRouterCache(later);
+			await automodeService.resolveAutoModeEndpoint(later, [mockChatEndpoint]);
+
+			expect({ bodies: autoRequestBodies(), resolvedTiers, parts: streams.map(s => s.items) }).toEqual({
+				bodies: [
+					{ prompt: 'test prompt', tier: 'efficiency' },
+					{ prompt: 'test prompt', tier: 'intelligence' },
+					{ prompt: 'test prompt', tier: 'fast' },
+					{ prompt: 'test prompt', tier: 'fast' },
+				],
+				resolvedTiers: [
+					{ requestId: 'second', tier: 'intelligence' },
+					{ requestId: 'first', tier: 'efficiency' },
+					{ requestId: 'later', tier: 'fast' },
+					{ requestId: 'later', tier: 'fast' },
+				],
+				parts: [
+					routingParts('efficiency'),
+					routingParts('intelligence'),
+					[...routingParts('fast'), ...routingParts('fast')],
+				],
+			});
+		});
+
+		it('leaves the tier unset for missing endpoints, missing prompts, and failed routes', async () => {
+			const chatRequest = request('turn');
+			const stream = observe(chatRequest);
+
+			await expect(automodeService.resolveAutoModeEndpoint(chatRequest, [])).rejects.toThrow();
+			await expect(automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: ' ' }, [mockChatEndpoint])).rejects.toThrow();
+			await expect(automodeService.resolveAutoModeEndpoint(undefined, [mockChatEndpoint])).rejects.toThrow();
+			mockAuto({ error: 'server_error' }, 500);
+			await expect(automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint])).rejects.toThrow();
+			mockAuto(autoResponse('unknown-model'));
+			await expect(automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint])).rejects.toThrow();
+
+			expect({ resolvedTiers, parts: stream.items }).toEqual({
+				resolvedTiers: [
+					{ requestId: 'turn', tier: undefined },
+					{ requestId: 'turn', tier: undefined },
+					{ requestId: undefined, tier: undefined },
+					{ requestId: 'turn', tier: undefined },
+					{ requestId: 'turn', tier: undefined },
+				],
+				parts: [
+					new ChatResponseAutoModeTierPart(),
+					new ChatResponseAutoModeTierPart(),
+					new ChatResponseAutoModeResolutionPart(),
+					new ChatResponseAutoModeTierPart(),
+					new ChatResponseAutoModeResolutionPart(),
+					new ChatResponseAutoModeTierPart(),
+				],
+			});
+		});
+
+		it('does not report a tier when the cached fallback is incompatible', async () => {
+			await automodeService.resolveAutoModeEndpoint(request('first'), [mockChatEndpoint]);
+			const changed = request('changed', { modelConfiguration: { tier: 'intelligence' } });
+			const stream = observe(changed);
+			mockAuto({ error: 'server_error' }, 500);
+
+			await expect(automodeService.resolveAutoModeEndpoint(changed, [mockChatEndpoint])).rejects.toThrow();
+
+			expect({ resolvedTiers, parts: stream.items }).toEqual({
+				resolvedTiers: [
+					{ requestId: 'first', tier: 'balance' },
+					{ requestId: 'changed', tier: undefined },
+				],
+				parts: [new ChatResponseAutoModeResolutionPart(), new ChatResponseAutoModeTierPart()],
+			});
+		});
+
+		it('clears an earlier tier before a failed reroute rejects on the same request', async () => {
+			const chatRequest = request('turn');
+			const stream = observe(chatRequest);
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+			automodeService.invalidateRouterCache(chatRequest);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'intelligence');
+			mockAuto({ error: 'server_error' }, 500);
+
+			await expect(automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint])).rejects.toThrow();
+			const uri = Uri.parse('test:/fallback.ts');
+			stream.textEdit(uri, []);
+
+			expect({ resolvedTiers, parts: stream.items }).toEqual({
+				resolvedTiers: [
+					{ requestId: 'turn', tier: 'balance' },
+					{ requestId: 'turn', tier: undefined },
+				],
+				parts: [
+					...routingParts('balance'),
+					new ChatResponseAutoModeResolutionPart(),
+					new ChatResponseAutoModeTierPart(),
+					new ChatResponseTextEditPart(uri, []),
+				],
+			});
+		});
+
+		it('does not report a tier for a shared failed route', async () => {
+			const first = request('first');
+			const second = request('second');
+			const streams = [observe(first), observe(second)];
+			mockAuto({ error: 'server_error' }, 500);
+
+			const results = await Promise.allSettled([
+				automodeService.resolveAutoModeEndpoint(first, [mockChatEndpoint]),
+				automodeService.resolveAutoModeEndpoint(second, [mockChatEndpoint]),
+			]);
+
+			expect({ statuses: results.map(r => r.status), calls: autoCalls().length, resolvedTiers, parts: streams.map(s => s.items) }).toEqual({
+				statuses: ['rejected', 'rejected'],
+				calls: 1,
+				resolvedTiers: [
+					{ requestId: 'first', tier: undefined },
+					{ requestId: 'second', tier: undefined },
+				],
+				parts: [
+					[new ChatResponseAutoModeResolutionPart(), new ChatResponseAutoModeTierPart()],
+					[new ChatResponseAutoModeTierPart()],
+				],
+			});
+		});
+
+		it('does not cross-attribute unknown request ids or unrelated requests', async () => {
+			const missingId = request('unused', { id: undefined });
+			const streams = [observe(request('listening')), observe(missingId)];
+
+			await automodeService.resolveAutoModeEndpoint(missingId, [mockChatEndpoint]);
+			await automodeService.resolveAutoModeEndpoint(request('unrelated'), [mockChatEndpoint]);
+
+			expect({ resolvedTiers, parts: streams.map(s => s.items) }).toEqual({
+				resolvedTiers: [
+					{ requestId: undefined, tier: 'balance' },
+					{ requestId: 'unrelated', tier: 'balance' },
+				],
+				parts: [[], []],
+			});
+		});
+
+		it('reports successful uncached requests but not picker-only resolutions', async () => {
+			const chatRequest = request('turn', { sessionId: undefined });
+			const stream = observe(chatRequest);
+
+			await automodeService.resolveAutoModePickerEndpoint([mockChatEndpoint]);
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+
+			expect({ calls: autoCalls().length, resolvedTiers, parts: stream.items }).toEqual({
+				calls: 2,
+				resolvedTiers: [
+					{ requestId: 'turn', tier: 'balance' },
+					{ requestId: 'turn', tier: 'balance' },
+				],
+				parts: [...routingParts('balance'), ...routingParts('balance')],
+			});
+		});
+
+		it('can suppress visible routing parts without suppressing resolved tier metadata', async () => {
+			const chatRequest = request('turn', { location: ChatLocation.Editor });
+			const stream = observe(chatRequest, false);
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+
+			expect(stream.items).toEqual([new ChatResponseAutoModeTierPart('fast')]);
+		});
+
+		it('disposes both stream listeners while routing is in flight', async () => {
+			const pending = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
+			vi.mocked(mockCAPIClientService.makeRequest).mockImplementationOnce(() => pending.p);
+			const chatRequest = request('turn');
+			const stream = new SpyChatResponseStream();
+			const listener = disposables.add(reportAutoModeRouting(chatRequest, stream, automodeService));
+
+			const result = automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+			listener.dispose();
+			await pending.complete(makeAutoResponse(autoResponse(mockChatEndpoint.model)));
+			await result;
+			automodeService.invalidateRouterCache(chatRequest);
+			await automodeService.resolveAutoModeEndpoint(chatRequest, [mockChatEndpoint]);
+
+			expect({ resolvedTiers, parts: stream.items }).toEqual({
+				resolvedTiers: [
+					{ requestId: 'turn', tier: 'balance' },
+					{ requestId: 'turn', tier: 'balance' },
+				],
+				parts: [new ChatResponseAutoModeResolutionPart()],
+			});
 		});
 	});
 
