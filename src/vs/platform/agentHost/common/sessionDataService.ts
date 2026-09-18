@@ -310,6 +310,9 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
 
+	/** Move every edit from a tool call to the turn that received its result. */
+	reassignFileEditsToTurn(toolCallId: string, turnId: string): Promise<void>;
+
 	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
 	 * Content blobs are **not** included — use {@link readFileEditContent}

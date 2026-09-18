@@ -2003,9 +2003,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude] getSessionMessages SDK fetch failed for ${sdkSessionId}`, err);
 			return [];
 		}
+		let sdkTurns: ReadonlyMap<string, string> = new Map();
+		try {
+			sdkTurns = await this._metadataStore.readSdkTurns(resource, messages.map(message => message.uuid));
+		} catch (err) {
+			this._logService.warn(`[Claude] SDK turn metadata read failed for ${sdkSessionId}`, err);
+		}
 		let turns: readonly Turn[];
 		try {
-			const sdkTurns = await this._metadataStore.readSdkTurns(resource, messages.map(message => message.uuid));
 			turns = mapSessionMessagesToTurns(messages, routingUri, this._logService, sdkTurns);
 		} catch (err) {
 			// Defensive boundary: a single malformed SDK message must not

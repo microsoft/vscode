@@ -747,6 +747,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		let action = signal.action;
+		const producerTurnId = hasKey(action, { turnId: true }) ? action.turnId : undefined;
 		if (action.type !== ActionType.ChatTruncated && hasKey(action, { turnId: true }) && action.turnId !== turnId) {
 			if (turnIdRouting === 'remap') {
 				action = { ...action, turnId };
@@ -877,7 +878,12 @@ export class AgentSideEffects extends Disposable {
 			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._changesets.onToolCallEditsApplied(sessionUri, turnId, this._turnTracker.getClientTelemetryContext(sessionKey, turnId));
+				const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
+				if (turnIdRouting === 'remap' && producerTurnId !== turnId) {
+					void this._remapFileEdits(sessionUri, action.toolCallId, turnId, clientContext);
+				} else {
+					this._changesets.onToolCallEditsApplied(sessionUri, turnId, clientContext);
+				}
 			}
 		}
 
@@ -914,6 +920,20 @@ export class AgentSideEffects extends Disposable {
 
 	private _resumedTurnExecutionKey(chat: ProtocolURI, turnId: string): string {
 		return `${chat}\0${turnId}`;
+	}
+
+	private async _remapFileEdits(sessionUri: ProtocolURI, toolCallId: string, turnId: string, clientContext: IAgentHostClientTelemetryContext | undefined): Promise<void> {
+		try {
+			const ref = this._options.sessionDataService.openDatabase(URI.parse(sessionUri));
+			try {
+				await ref.object.reassignFileEditsToTurn(toolCallId, turnId);
+			} finally {
+				ref.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentSideEffects] Failed to reassign file edits for ${toolCallId}`, error);
+		}
+		this._changesets.onToolCallEditsApplied(sessionUri, turnId, clientContext);
 	}
 
 	private _recordModelCallCompleted(agent: IAgent, signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {

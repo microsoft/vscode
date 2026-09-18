@@ -144,17 +144,9 @@ suite('ClaudeSdkMessageRouter', () => {
 		subagents.recordSpawn('child').background = true;
 		const file = URI.file('/work/child.txt');
 		await fileService.writeFile(file, VSBuffer.fromString('before'));
-		await router.handle({
-			...assistantMessage([
-				{ type: 'tool_use', id: 'child-write', name: 'Write', input: { file_path: file.fsPath, content: 'after' } },
-			]), parent_tool_use_id: 'child'
-		}, undefined);
+		await router.handle({ ...assistantMessage([{ type: 'tool_use', id: 'child-write', name: 'Write', input: { file_path: file.fsPath, content: 'after' } }]), parent_tool_use_id: 'child' }, undefined);
 		await fileService.writeFile(file, VSBuffer.fromString('after'));
-		await router.handle({
-			...userMessage([
-				{ type: 'tool_result', tool_use_id: 'child-write', content: 'ok' },
-			]), parent_tool_use_id: 'child'
-		}, undefined);
+		await router.handle({ ...userMessage([{ type: 'tool_result', tool_use_id: 'child-write', content: 'ok' }]), parent_tool_use_id: 'child' }, undefined);
 		assert.strictEqual(attribution.recordedSessionUris.length, 1);
 		const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
 		assert.ok(completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete);

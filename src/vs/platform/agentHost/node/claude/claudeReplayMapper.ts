@@ -52,13 +52,13 @@ export function mapSessionMessagesToTurns(
 ): readonly Turn[] {
 	const builder = new ReplayBuilder(session, logService);
 	for (const msg of messages) {
+		const sdkTurnId = readSdkTurnId(msg, sdkTurns);
+		if (sdkTurnId !== undefined) {
+			builder.startSdkTurn(sdkTurnId, readTimestamp(msg));
+		}
 		const parsed = parseSessionMessage(msg);
 		if (parsed === undefined) {
 			continue;
-		}
-		const sdkTurnId = parsed.kind === 'assistant' && !parsed.isInner ? sdkTurns.get(parsed.uuid) : undefined;
-		if (sdkTurnId !== undefined) {
-			builder.startSdkTurn(sdkTurnId, parsed.timestamp);
 		}
 		builder.consume(parsed);
 	}
@@ -79,17 +79,20 @@ export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnI
 	let seenTarget = false;
 	let lastAssistantUuid: string | undefined;
 	for (const msg of messages) {
-		const parsed = parseSessionMessage(msg);
-		if (parsed === undefined) {
-			continue;
-		}
-		const sdkTurnId = parsed.kind === 'assistant' && !parsed.isInner ? sdkTurns.get(parsed.uuid) : undefined;
+		const sdkTurnId = readSdkTurnId(msg, sdkTurns);
 		if (sdkTurnId !== undefined) {
 			if (seenTarget) {
 				break;
 			}
 			turnOpen = true;
 			seenTarget = sdkTurnId === turnId;
+			if (seenTarget) {
+				lastAssistantUuid = msg.uuid;
+			}
+		}
+		const parsed = parseSessionMessage(msg);
+		if (parsed === undefined) {
+			continue;
 		}
 		if (parsed.kind === 'user-text') {
 			if (seenTarget) {
@@ -122,6 +125,10 @@ export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnI
 		return undefined;
 	}
 	return lastAssistantUuid;
+}
+
+function readSdkTurnId(msg: SessionMessage, sdkTurns: ReadonlyMap<string, string>): string | undefined {
+	return msg.type === 'assistant' && msg.parent_tool_use_id === null ? sdkTurns.get(msg.uuid) : undefined;
 }
 
 // #region Parsed message union — narrow-at-the-seam adapter

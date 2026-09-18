@@ -14,7 +14,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
 import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageKind } from '../../common/state/protocol/channels-chat/state.js';
 import { withMessageRequestHiddenFromTranscript } from '../../common/state/sessionState.js';
@@ -254,14 +254,15 @@ export class ClaudeSdkPipeline extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		readonly chatChannelUri: URI,
-		resource: URI,
+		private readonly _resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
-		private readonly _dbRef: IReference<ISessionDatabase>,
+		dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._warm = warm;
@@ -278,7 +279,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, chatChannelUri, resource, this._dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, this._resource, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -730,11 +731,16 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._adoptSdkTurn(message);
 				const sdkTurn = this._sdkInitiatedTurn;
 				if (sdkTurn && !sdkTurn.persisted && message.type === 'assistant' && message.parent_tool_use_id === null) {
-					await this._dbRef.object.setMetadata(sdkInitiatedTurnKey(message.uuid), sdkTurn.turnId);
+					sdkTurn.persisted = true;
+					try {
+						const ref = this._sessionDataService.openDatabase(this._resource);
+						await Promise.resolve().then(() => ref.object.setMetadata(sdkInitiatedTurnKey(message.uuid), sdkTurn.turnId)).finally(() => ref.dispose());
+					} catch (err) {
+						this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] failed to persist SDK turn boundary`, err);
+					}
 					if (this._abortController.signal.aborted) {
 						throw new CancellationError();
 					}
-					sdkTurn.persisted = true;
 				}
 
 				const parent = this._queue.peekParent();

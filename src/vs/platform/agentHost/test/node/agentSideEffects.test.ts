@@ -29,7 +29,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, FileEditKind, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -5955,6 +5955,25 @@ suite('AgentSideEffects', () => {
 	// ---- Subagent sessions ----------------------------------------------
 
 	suite('subagent sessions', () => {
+
+		test('idle child edits are reassigned to the active child turn', async () => {
+			setupSession();
+			startTurn('turn-1');
+			const db = new TestSessionDatabase();
+			const changesets = new FakeChangesetService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, { getAgent: () => agent, agents: agentList, sessionDataService: createSessionDataService(db) }, undefined, NullTelemetryService, changesets);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'child', agentName: 'helper', agentDisplayName: 'Helper' });
+			const childTurnId = stateManager.getActiveTurnId(buildSubagentChatUri(sessionUri.toString(), 'child'))!;
+			db.addEdit({ turnId: 'child', toolCallId: 'child-write', filePath: '/work/a.ts', kind: FileEditKind.Edit, beforeContent: new Uint8Array(), afterContent: new Uint8Array(), addedLines: 1, removedLines: 0 });
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'child',
+				action: { type: ActionType.ChatToolCallComplete, turnId: 'child', toolCallId: 'child-write', result: { success: true, pastTenseMessage: 'Wrote file', content: [{ type: ToolResultContentType.FileEdit, after: { uri: 'file:///work/a.ts', content: { uri: 'file:///work/a.ts' } }, diff: { added: 1, removed: 0 } }] } },
+			});
+			await Promise.resolve();
+			assert.deepStrictEqual({ editTurns: (await db.getFileEdits(['child-write'])).map(edit => edit.turnId), changesets: changesets.toolCallEdits }, { editTurns: [childTurnId], changesets: [{ session: sessionUri.toString(), turnId: childTurnId }] });
+		});
 
 		test('inherits the parent turn client identity for subagent telemetry', () => {
 			setupSession();

@@ -99,9 +99,7 @@ export class ClaudeSessionMetadataStore {
 				const metadata = await ref.object.getMetadataObject(Object.fromEntries(ids.map(id => [sdkInitiatedTurnKey(id), true])));
 				for (const id of ids) {
 					const turnId = metadata[sdkInitiatedTurnKey(id)];
-					if (turnId !== undefined) {
-						turns.set(id, turnId);
-					}
+					if (turnId !== undefined) { turns.set(id, turnId); }
 				}
 			}
 			return turns;
