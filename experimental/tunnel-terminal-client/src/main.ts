@@ -6,7 +6,7 @@
 
 import { parseArgs } from 'node:util';
 import { getAccessToken } from './auth.js';
-import { choose, safeLabel } from './picker.js';
+import { choose, chooseRemoteHost, safeLabel } from './picker.js';
 import { ensureSupportedRuntime } from './runtime.js';
 import { connectMachine, discoverMachines, type Host, type HostSelection } from './tunnel.js';
 import { requireTerminal, runTerminal } from './terminal.js';
@@ -16,9 +16,11 @@ const help = `Standalone Tunnel Terminal (Experimental)
 
 Usage: tunnel [--tunnel NAME_OR_ID] [options]
 
-With no arguments, choose a remote tunnel interactively.
+A sole tunnel or existing remote host is selected automatically and announced.
+With multiple choices, choose interactively. Use --new-host to request a new host.
 
   --list                    List machines without opening a shell
+  --force-select            Show pickers even when only one choice exists
   --tunnel NAME_OR_ID        Select a tunnel without the machine picker
   --cluster ID              Disambiguate matching tunnels
   --instance ID             Select an existing gateway agent host
@@ -44,6 +46,7 @@ async function main(): Promise<number> {
 		options: {
 			help: { type: 'boolean' },
 			list: { type: 'boolean' },
+			'force-select': { type: 'boolean' },
 			tunnel: { type: 'string' },
 			cluster: { type: 'string' },
 			instance: { type: 'string' },
@@ -116,7 +119,7 @@ async function main(): Promise<number> {
 		if (matching && matching.length !== 1) {
 			throw new Error(matching.length ? 'Tunnel name is ambiguous. Use --tunnel ID and --cluster ID from --list.' : 'Tunnel not found. Run --list and check the account/provider.');
 		}
-		const machine = matching?.[0] ?? await choose('Your Machines', machines.map(machine => ({ label: describe(machine), value: machine })), abort.signal);
+		const machine = matching?.[0] ?? await choose('Your Machines', machines.map(machine => ({ label: describe(machine), value: machine })), abort.signal, undefined, !values['force-select']);
 		if (!machine.online) {
 			throw new Error('Selected machine is offline. Start its remote tunnel and try again.');
 		}
@@ -126,14 +129,7 @@ async function main(): Promise<number> {
 		const chooseHost = async (hosts: Host[], canCreate: boolean): Promise<HostSelection> => {
 			if (values.instance) { return { instanceId: values.instance }; }
 			if (values['new-host']) { return { newDedicated: true }; }
-			const items: { label: string; value: HostSelection }[] = hosts.map(host => ({
-				label: `${host.type} host, PID ${host.pid}, instance ${host.instanceId}`,
-				value: { instanceId: host.instanceId },
-			}));
-			if (canCreate) {
-				items.push({ label: 'Start a dedicated agent host (may download/start server components)', value: { newDedicated: true } });
-			}
-			return choose('Select Remote Host', items, abort.signal);
+			return chooseRemoteHost(hosts, canCreate, abort.signal, undefined, !values['force-select']);
 		};
 		console.error(`Connecting to ${safeLabel(machine.name)}...`);
 		const tunnel = await connectMachine(machine, token, values.provider, chooseHost, abort.signal);

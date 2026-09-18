@@ -86,16 +86,24 @@ From any directory you can then run:
 
 ```powershell
 tunnel
+tunnel --force-select
 tunnel --tunnel my-machine
 tunnel --list
 tunnel --help
 ```
 
-With no arguments, the command opens the same interactive tunnel picker as
-`npm start`. All existing options are supported unchanged, including `--cluster`,
+With no arguments, the command behaves like `npm start`: a sole discovered
+tunnel is selected automatically and announced; multiple tunnels open the picker.
+All existing options are supported unchanged, including `--cluster`,
 `--instance`, `--new-host`, `--cwd`, `--provider`, and `--client-id`. It runs the
 same entry point in the foreground, preserving terminal input/output and exit
 codes.
+
+Use `--force-select` to show the tunnel and remote-host pickers even when only
+one choice exists. The host picker also retains the "Start a dedicated agent
+host" option when supported. Explicit `--tunnel`, `--instance`, and `--new-host`
+arguments still bypass their respective pickers; `--list` still only lists
+machines.
 
 On Windows, npm also creates **`tunnel.cmd`**. Use that name if
 PowerShell blocks npm's generated `.ps1` wrapper:
@@ -184,9 +192,16 @@ Never put tokens in command-line arguments, source files, profiles, or issue rep
 npm start
 ```
 
-1. Choose a machine from the authenticated discovery list.
-2. On a protocol-6 tunnel, select a host, or explicitly choose to start a
-   dedicated host. Creating a dedicated host may download/start server components.
+1. A sole discovered machine is selected automatically, with a message naming it.
+   With multiple machines, choose one from the authenticated discovery list.
+   Offline and compatibility checks still apply.
+2. On a protocol-6 tunnel, a sole existing host is selected automatically and
+   announced, even if creating a dedicated host is also possible. With multiple
+   hosts, select one or explicitly choose to start a dedicated host. With no
+   existing hosts, creating one still requires confirmation in the picker.
+   `--force-select` disables automatic selection. Explicit `--instance` and
+   `--new-host` still take precedence. Creating a dedicated
+   host may download/start server components.
 3. The client creates a **new default shell** in the remote home directory.
    You are not attaching to any existing integrated terminal.
 

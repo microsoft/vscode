@@ -27,7 +27,8 @@ test('help is available without credentials or a TTY', async () => {
 	});
 	assert.match(stdout, /Ctrl\+\]/);
 	assert.match(stdout, /Usage: tunnel \[--tunnel NAME_OR_ID\]/);
-	assert.match(stdout, /With no arguments, choose a remote tunnel interactively/);
+	assert.match(stdout, /A sole tunnel or existing remote host is selected automatically and announced/);
+	assert.match(stdout, /--force-select\s+Show pickers even when only one choice exists/);
 	assert.match(stdout, /Node\.js 22\.x/);
 	assert.doesNotMatch(stdout + stderr, /test-value-must-not-be-printed/);
 	assert.equal(stderr, '');
@@ -43,6 +44,7 @@ for (const [name, args, expected] of [
 	['rejects a non-file working directory', ['--cwd', 'https://example.test/'], /remote file URI/],
 	['rejects empty option values', ['--tunnel', ''], /non-empty/],
 	['requires interactive terminal before authentication', [], /interactive terminal/],
+	['accepts force-select and requires an interactive terminal', ['--force-select'], /interactive terminal/],
 ] as const) {
 	test(name, async () => {
 		await assert.rejects(execute(process.execPath, [mainPath, ...args], { timeout: 5000 }), expected);
