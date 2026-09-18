@@ -339,12 +339,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 					{
 						type: 'website',
 						label: 'Agent Host guide',
+						chat: session.chatUri,
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
 					},
 					{
 						type: 'file',
 						label: 'Agent Host report',
+						chat: session.chatUri,
 						isArtifact: true,
 						uri: 'file:///agent-host-report.md',
 					},

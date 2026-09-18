@@ -188,6 +188,7 @@ suite('Sessions list context menus', () => {
 			resource: URI.parse('test-chat:/main'),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
+			workspace: constObservable(undefined),
 		});
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/peer'),
@@ -196,6 +197,7 @@ suite('Sessions list context menus', () => {
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
 			capabilities: constObservable({ canRename: true, canDelete: true }),
+			workspace: constObservable(undefined),
 		});
 		const chatSession: ISession = {
 			...createSession('Session with chat').session,

@@ -106,7 +106,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	}
 
 	private _computeOperations({ sessionKey, changesetKind, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
-		if (changesetKind !== ChangesetKind.Branch) {
+		if (changesetKind !== ChangesetKind.Branch && changesetKind !== ChangesetKind.Uncommitted) {
 			return undefined;
 		}
 		// New Session

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { realpath } from 'fs/promises';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Schemas } from '../../../base/common/network.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -14,6 +16,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { resolveRealPathForNonexistent } from './sessionPermissions.js';
 
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
 
@@ -62,7 +65,20 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		if (!workingDirectories?.length) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
-		const workingDirectoryStr = workingDirectories.find(directory => extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(directory)));
+		const canonicalResource = resource.scheme === Schemas.file
+			? await resolveRealPathForNonexistent(resource, realpath)
+			: resource;
+		let workingDirectoryStr: string | undefined;
+		for (const directory of workingDirectories) {
+			const workingDirectory = URI.parse(directory);
+			const canonicalWorkingDirectory = workingDirectory.scheme === Schemas.file
+				? await resolveRealPathForNonexistent(workingDirectory, realpath)
+				: workingDirectory;
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(canonicalResource, canonicalWorkingDirectory)) {
+				workingDirectoryStr = directory;
+				break;
+			}
+		}
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Resource is outside the session working directories: ${params.target.resource}`);
 		}
