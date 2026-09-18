@@ -99,6 +99,16 @@ suite('ConfigurationModelParser', () => {
 		assert.strictEqual(testObject.configurationModel.getValue('a.b.c'), undefined);
 	});
 
+	test('parse configuration model with __proto__ key does not cause prototype pollution', () => {
+		const testObject = new ConfigurationModelParser('', new NullLogService());
+
+		testObject.parse(JSON.stringify({ '__proto__': { 'editor.fontSize': 100 } }));
+
+		assert.strictEqual((Object.prototype as Record<string, unknown>)['editor.fontSize'], undefined, '__proto__ must not pollute Object.prototype');
+		const raw = testObject.configurationModel.getValue('__proto__') as Record<string, unknown>;
+		assert.deepStrictEqual(raw, { 'editor.fontSize': 100 });
+	});
+
 });
 
 suite('ConfigurationModelParser - Excluded Properties', () => {
