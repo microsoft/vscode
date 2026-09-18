@@ -4308,7 +4308,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		this.markRead(session);
+		if (this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+			this.markRead(session);
+		}
 		this.invokeOpenRequest(request);
 		return true;
 	}
@@ -5550,7 +5552,7 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			if (this.options.markSessionReadOnOpen !== false) {
+			if (this.options.markSessionReadOnOpen !== false && this._sessionsService.activeSession.get()?.sessionId !== element.sessionId) {
 				this._sessionsManagementService.markRead(element);
 			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;

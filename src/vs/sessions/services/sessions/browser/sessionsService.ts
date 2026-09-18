@@ -484,13 +484,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
-		// Viewing a session marks it read. This keeps the active session read
-		// while it stays active, so `ISession.isRead` is the single source of
-		// truth for read state (no display-only overlay needed).
+		// Honor explicit unread marks until the user leaves the session and returns.
+		let previousActiveSessionId: string | undefined;
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
-			if (activeSession && !activeSession.isRead.read(reader)) {
-				this.sessionsManagementService.markRead(activeSession);
+			const isRead = activeSession?.isRead.read(reader);
+			const activeSessionChanged = activeSession?.sessionId !== previousActiveSessionId;
+			previousActiveSessionId = activeSession?.sessionId;
+			if (activeSession && (activeSessionChanged || !isRead)) {
+				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}
 		}));
 
