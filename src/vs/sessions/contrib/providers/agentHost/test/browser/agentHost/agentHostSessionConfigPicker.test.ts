@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -221,6 +222,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	readonly events: string[] = [];
 }
 
@@ -242,9 +244,10 @@ function setupServices(
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
-		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
 			actionWidget.items = items;
 			actionWidget.delegate = delegate;
+			actionWidget.accessibilityProvider = accessibilityProvider;
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
@@ -626,6 +629,47 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			ariaLabel: 'Approval Mode: Assisted, Read-Only',
 			warning: true,
+		});
+	});
+
+	test('generic approval choices announce their badges without losing accessible descriptions', async () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: {
+						title: 'Approvals',
+						type: 'string',
+						enum: ['default', 'assisted', 'custom'],
+						enumLabels: ['Manual permissions', 'Assisted permissions', 'Custom permissions'],
+					},
+				},
+			},
+			values: { autoApprove: 'default' },
+		};
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.AutoApprove));
+		const container = document.createElement('div');
+		picker.render(container);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		const getAriaLabel = services.actionWidget.accessibilityProvider?.getAriaLabel;
+		assert.ok(getAriaLabel);
+		const assisted = services.actionWidget.items.find(item => item.item?.value === 'assisted');
+		assert.ok(assisted);
+		assert.deepStrictEqual({
+			choices: services.actionWidget.items.map(item => ({ label: getAriaLabel(item), badge: item.badge })),
+			withDescription: getAriaLabel({ ...assisted, ariaDescription: 'Evaluates risk before running tools' }),
+			descriptionOnly: getAriaLabel({ ...assisted, badge: undefined, ariaDescription: 'Evaluates risk before running tools' }),
+		}, {
+			choices: [
+				{ label: 'Manual permissions', badge: undefined },
+				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Custom permissions', badge: undefined },
+			],
+			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});
 

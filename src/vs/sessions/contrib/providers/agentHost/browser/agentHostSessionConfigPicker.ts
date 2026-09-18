@@ -68,6 +68,7 @@ import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermission
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -151,6 +152,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
 			detail: disabled
 				? localize('agentHostSessionConfig.policyDisabled', "Disabled by your organization. Contact your administrator.")
 				: uncommittedChangesDescription ?? item.description,
@@ -951,9 +953,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.ariaDescription
-					? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", item.label ?? '', item.ariaDescription)
-					: item.label ?? '',
+				getAriaLabel: item => {
+					const label = item.badge
+						? localize('agentHostSessionConfig.itemAriaLabelWithBadge', "{0}, {1}", item.label ?? '', item.badge)
+						: item.label ?? '';
+					return item.ariaDescription
+						? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", label, item.ariaDescription)
+						: label;
+				},
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
 			items.length > 10
