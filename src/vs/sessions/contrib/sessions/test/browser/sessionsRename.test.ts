@@ -876,7 +876,7 @@ suite('Sessions rename', () => {
 				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),
-				hasSidebarCustomizations: content.includes('Chat Customizations section at the bottom of the left sidebar'),
+				hasSidebarCustomizations: content.includes('Customizations entry next to Automations in the left sidebar'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
@@ -907,7 +907,7 @@ suite('Sessions rename', () => {
 		test('omits the desktop customization focus command on phones', () => {
 			const origin = mainWindow.document.createElement('button');
 			const { provider } = createHelpProvider(origin, false, true);
-			assert.strictEqual(provider.provideContent().includes('Chat Customizations section at the bottom of the left sidebar'), false);
+			assert.strictEqual(provider.provideContent().includes('Customizations entry next to Automations in the left sidebar'), false);
 		});
 
 		test('falls back to the active session when the originating element is gone', () => {

@@ -480,7 +480,7 @@ import './services/sessions/browser/sessionsListModelService.js';
 import './services/sessions/browser/sessionGroupsService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
+import './contrib/sessions/browser/customizations.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';

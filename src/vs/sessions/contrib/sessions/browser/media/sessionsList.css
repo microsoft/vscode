@@ -817,6 +817,25 @@
 
 /* Section Header */
 
+.sessions-list-header {
+	width: 100%;
+	padding: var(--vscode-spacing-size100) 0 0;
+	box-sizing: border-box;
+
+	.agent-sessions-header-row {
+		padding-left: var(--vscode-spacing-size100);
+	}
+}
+
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row:hover,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row.focused,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row.selected {
+	background-color: transparent;
+	outline: 0 !important;
+	cursor: default;
+}
+
 .session-section {
 	display: flex;
 	align-items: center;
@@ -921,7 +940,7 @@
 	display: block;
 }
 
-/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+/* Shortcut sections only show toolbar on hover, not on focus */
 .monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: hidden;
 }
@@ -929,6 +948,11 @@
 	display: block;
 	visibility: hidden;
 }
+
+.session-section.session-section-shortcut {
+	padding-left: 0;
+}
+
 .monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: visible;
 }
@@ -959,11 +983,11 @@
 .sessions-list-control {
 
 	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
-	.monaco-list-row:has(.session-section):hover,
+	.monaco-list-row:has(.session-section:not(.session-section-shortcut)):hover,
 	.monaco-list-row:has(.session-show-more-folders):hover,
-	.monaco-list-row.focused:has(.session-section),
+	.monaco-list-row.focused:has(.session-section:not(.session-section-shortcut)),
 	.monaco-list-row.focused:has(.session-show-more-folders),
-	.monaco-list-row.selected:has(.session-section),
+	.monaco-list-row.selected:has(.session-section:not(.session-section-shortcut)),
 	.monaco-list-row.selected:has(.session-show-more-folders) {
 		background: transparent !important;
 	}

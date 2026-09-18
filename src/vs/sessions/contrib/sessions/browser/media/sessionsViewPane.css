@@ -49,7 +49,7 @@
 		opacity: 0.7;
 	}
 
-	/* Sessions section - fills remaining space above customizations */
+	/* Sessions section - fills the available sidebar space */
 	.agent-sessions-section {
 		display: flex;
 		flex-direction: column;
@@ -88,11 +88,15 @@
 		display: none;
 	}
 
+	.agent-sessions-header-container {
+		flex: 0 0 auto;
+	}
+
 	/* Header row: label + action buttons */
 	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
-		padding: 0 var(--vscode-spacing-size100);
+		padding: 0 var(--vscode-spacing-size200);
 		height: var(--vscode-spacing-size320);
 		box-sizing: border-box;
 		-webkit-user-select: none;
@@ -103,8 +107,8 @@
 		flex: 1;
 		min-width: 0;
 		font-size: var(--vscode-fontSize-label1, 12px);
-		font-weight: var(--vscode-fontWeight-semiBold, 600);
-		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+		font-weight: var(--vscode-fontWeight-regular, 400);
+		color: var(--vscode-descriptionForeground);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -172,12 +176,13 @@
 	.agent-sessions-control-container {
 		flex: 1;
 		overflow: hidden;
+		box-sizing: border-box;
 	}
 
-	.agent-sessions-customizations-section {
-		overflow: hidden;
-		min-height: 0;
-	}
+}
+
+.agent-sessions-workbench:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-control-container {
+	padding-top: var(--vscode-spacing-size80);
 }
 
 .agent-sessions-workbench:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
