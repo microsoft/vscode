@@ -205,6 +205,7 @@ export function buildUtilityAliasModelInfo(
 			version: endpoint.version,
 			maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 			maxOutputTokens: endpoint.maxOutputTokens,
+			maxContextWindowTokens: endpoint.maxContextWindowTokens,
 			requiresAuthorization,
 			isUserSelectable: false,
 			isDefault: false,
@@ -397,6 +398,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
+				maxContextWindowTokens: endpoint.maxContextWindowTokens,
 				requiresAuthorization: session && { label: session.account.label },
 				isDefault: {
 					[ApiChatLocation.Panel]: isDefault,

@@ -270,6 +270,8 @@ export interface ILanguageModelChatMetadata {
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
+	/** The total context window, independent of the input and output token limits. */
+	readonly maxContextWindowTokens?: number;
 
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
@@ -347,6 +349,18 @@ export interface ILanguageModelChatMetadata {
 		readonly message: string;
 		readonly showBanner?: boolean;
 	};
+}
+
+/**
+ * Uses the declared context window, falling back to input/output budgets for legacy providers.
+ * A configured input limit can reduce the effective window, but never exceed the declared maximum.
+ */
+export function getModelContextWindowTotal(metadata: ILanguageModelChatMetadata, inputTokenLimit?: number): number {
+	const tokenBudget = (inputTokenLimit ?? metadata.maxInputTokens ?? 0) + (metadata.maxOutputTokens ?? 0);
+	if (metadata.maxContextWindowTokens === undefined) {
+		return tokenBudget;
+	}
+	return inputTokenLimit === undefined ? metadata.maxContextWindowTokens : Math.min(metadata.maxContextWindowTokens, tokenBudget);
 }
 
 export namespace ILanguageModelChatMetadata {
