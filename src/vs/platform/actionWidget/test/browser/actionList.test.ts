@@ -1552,6 +1552,149 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('submenu rows do not duplicate labels as descriptions', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('chat'),
+				submenuActions: [
+					toAction({ id: 'local', label: 'Local', run: () => { } }),
+					toAction({ id: 'remote', label: 'Test Remote B', run: () => { } }),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+					stopToolbarPointerPropagation: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const rows = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => ({
+			label: row.querySelector<HTMLElement>('.title')?.textContent,
+			description: row.querySelector<HTMLElement>('.description')?.textContent?.trim() || undefined,
+		}));
+
+		assert.deepStrictEqual(rows, [
+			{ label: 'Local', description: undefined },
+			{ label: 'Test Remote B', description: undefined },
+		]);
+	});
+
+	test('mousedown on submenu remove toolbar keeps focus in the picker', async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [
+					Object.assign(toAction({ id: 'remove', label: 'Test Remote A', run: () => { } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+					stopToolbarPointerPropagation: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		removeButton.dispatchEvent(mousedown);
+
+		assert.deepStrictEqual({
+			defaultPrevented: mousedown.defaultPrevented,
+			focusInsidePicker: widget.domNode.contains(document.activeElement),
+		}, {
+			defaultPrevented: true,
+			focusInsidePicker: true,
+		});
+	});
+
+	test('clicking submenu remove toolbar does not select the row', async () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [
+					Object.assign(toAction({ id: 'remove', label: 'Test Remote A', run: () => { selected.push('submenu-select'); } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+					stopToolbarPointerPropagation: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			selected,
+			panelVisible: panel.style.display !== 'none',
+		}, {
+			selected: [],
+			panelVisible: true,
+		});
+	});
+
+	test('clicking remove in a wrapped submenu group keeps the submenu open', async () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [new SubmenuAction('workspacePicker.remote.options', '', [
+					Object.assign(toAction({ id: 'remove', label: 'Manage Provider remote-a', run: () => { selected.push('submenu-select'); } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				])],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			selected,
+			panelVisible: panel.style.display !== 'none',
+			focusInsidePanel: panel.contains(document.activeElement),
+		}, {
+			selected: [],
+			panelVisible: true,
+			focusInsidePanel: true,
+		});
+	});
+
 	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -1617,6 +1760,59 @@ suite('ActionListWidget', () => {
 			footer: panel.querySelector('.action-list-footer')?.textContent,
 			listHeight: panel.querySelector<HTMLElement>('.actionList')?.style.height,
 		}, { footer: 'Remote footer', listHeight: '0px' });
+	});
+
+	test('refreshing parent items while removing a nested row keeps the submenu open', async () => {
+		let hidden = 0;
+		const widgetRef: { current: ActionListWidget<ITestActionItem> | undefined } = { current: undefined };
+		const remaining = toAction({ id: 'beta', label: 'Beta', run: () => { } });
+		const removed = Object.assign(
+			toAction({ id: 'alpha', label: 'Alpha', run: () => { } }),
+			{
+				onRemove: () => widgetRef.current?.updateItems([{
+					...action('remote'),
+					submenuActions: [remaining],
+					submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+				}], undefined, { preserveHover: true }),
+			},
+		);
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [removed, remaining],
+				submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
+			}],
+			listOptions: { showFilter: false },
+			onHide: () => hidden++,
+		});
+		widgetRef.current = widget;
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		filter.value = 'a';
+		filter.dispatchEvent(new Event('input'));
+		const removeButton = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'Alpha')!
+			.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.focus();
+		removeButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hidden,
+			panelDisplay: panel.style.display,
+			filterValue: filter.value,
+			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+				.map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+			focusInsidePanel: panel.contains(document.activeElement),
+		}, {
+			hidden: 0,
+			panelDisplay: '',
+			filterValue: 'a',
+			rows: ['Beta'],
+			focusInsidePanel: true,
+		});
 	});
 
 	test('a filtered submenu near the viewport bottom shifts enough to show all rows', () => withWindowInnerHeight(300, () => {
@@ -1910,6 +2106,7 @@ suite('ActionListWidget', () => {
 			items: [item],
 			listOptions: { showFilter: false, reserveSubmenuSpace: false },
 		});
+
 		const press = (key: string, shiftKey = false) =>
 			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
 		const focusedToolbarLabel = () => document.activeElement?.closest('.action-list-item-toolbar') ? document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent : undefined;
@@ -1926,6 +2123,24 @@ suite('ActionListWidget', () => {
 			firstReverseTarget: 'Remove',
 			secondReverseTarget: 'Copy',
 		});
+	});
+
+	test('mouse removal from a row toolbar does not select the row', async () => {
+		const selected: string[] = [];
+		let removed = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('reference'),
+				toolbarActions: [toAction({ id: 'remove-reference', label: 'Remove Reference from Session', run: () => { removed++; } })],
+			}],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ removed, selected }, { removed: 1, selected: [] });
 	});
 
 	test('Ctrl/Meta/Alt+Tab bubble to the keybinding service instead of driving panel traversal', () => {

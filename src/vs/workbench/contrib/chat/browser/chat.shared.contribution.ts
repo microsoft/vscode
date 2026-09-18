@@ -66,6 +66,7 @@ import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
 import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, CustomizationMigrationHintMode, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import './agentSessionsConfiguration.js';
+import { chatProgressConfigurationProperties } from './chatProgressConfiguration.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
@@ -206,6 +207,7 @@ import { ChatImplicitContextContribution } from './attachments/chatImplicitConte
 import { ChatPasteTargetService } from './attachments/chatPasteTargetService.js';
 import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { EditorChatUsageContribution } from './editorChatUsage.contribution.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution, ChatPetEditingAchievementContribution } from './chatPetAchievements.contribution.js';
@@ -1050,6 +1052,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
+		...chatProgressConfigurationProperties,
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
 			default: false,
@@ -1594,6 +1597,16 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
 			default: '',
+		},
+		[ChatConfiguration.AgentHostDebugLogsDefaultExportLocation]: {
+			type: 'string',
+			pattern: '^((\\/|\\\\\\\\|[a-zA-Z]:\\\\).*)?$',
+			patternErrorMessage: nls.localize('chat.agentHost.debugLogs.defaultExportLocation.error', "The default Agent Host debug-log export location must be an absolute path (for example, C:\\\\myFolder or /myFolder)."),
+			description: nls.localize('chat.agentHost.debugLogs.defaultExportLocation', "The default folder for archives and folders created by the Developer: Export Agent Host Debug Logs command. When empty or unavailable, the default file-dialog location is used."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
+			tags: ['advanced'],
 		},
 		[AgentHostAhpJsonlLoggingSettingId]: {
 			type: 'boolean',
@@ -3280,6 +3293,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);
 
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(EditorChatUsageContribution.ID, EditorChatUsageContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CustomizationMigrationHintContribution.ID, CustomizationMigrationHintContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);

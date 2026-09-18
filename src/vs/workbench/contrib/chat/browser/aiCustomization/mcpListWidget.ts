@@ -2452,6 +2452,7 @@ export class McpListWidget extends Disposable {
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
+		this.installedEntries.sort((a, b) => Number(getActiveSessionServer(b.entry)?.enabled ?? this.isInstalledEntryEnabled(b.entry)) - Number(getActiveSessionServer(a.entry)?.enabled ?? this.isInstalledEntryEnabled(a.entry)));
 
 		this._onDidChangeItemCount.fire(this.itemCount);
 		if (render) {

@@ -319,6 +319,75 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	for (const searchQuery of ['', 'server']) {
+		test(`sorts enabled MCP servers first and preserves order within each group (query: '${searchQuery}')`, () => {
+			const local = ['disabled-server', 'enabled-server', 'other-enabled-server'].map(id => new class extends mock<IWorkbenchMcpServer>() {
+				override readonly id = id;
+				override readonly name = id;
+				override readonly label = id;
+				override readonly description = '';
+				override readonly local = undefined;
+			}());
+			const disabledIds = new Set(['disabled-server']);
+			let sessionServers = [
+				createAgentHostServer({
+					id: 'disabled-session',
+					name: 'Disabled session server',
+					enabled: false,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				}),
+				createAgentHostServer({ id: 'enabled-session', name: 'Enabled session server' }),
+			];
+			const widget = Object.create(McpListWidget.prototype) as {
+				filterServers(render: boolean): void;
+				getInstalledEntryMembershipSignature(): string;
+				installedEntries: { entry: Parameters<typeof createInstalledMcpServerDetailInput>[0] }[];
+			};
+			Object.assign(widget, {
+				searchQuery,
+				customizationHarnessService: {
+					activeSessionResource: observableValue('session', undefined),
+					getActiveDescriptor: () => ({}),
+				},
+				agentHostCustomizationService: { getMcpServers: () => sessionServers },
+				mcpWorkbenchService: { local },
+				mcpService: {
+					servers: observableValue('servers', []),
+					enablementModel: {
+						readEnabled: (id: string) => disabledIds.has(id) ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile,
+					},
+				},
+				mcpRegistry: { collections: observableValue('collections', []) },
+				_onDidChangeItemCount: disposables.add(new Emitter<number>()),
+			});
+			const readOrder = () => widget.installedEntries.map(({ entry }) => entry.type === 'builtin-item' ? entry.id : entry.server.id);
+			widget.filterServers(false);
+			const initialOrder = readOrder();
+			const previousMembership = widget.getInstalledEntryMembershipSignature();
+
+			disabledIds.delete('disabled-server');
+			disabledIds.add('enabled-server');
+			sessionServers = sessionServers.map(server => createAgentHostServer({
+				...server,
+				enabled: !server.enabled,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: !server.enabled }],
+			}));
+			widget.filterServers(false);
+
+			assert.deepStrictEqual({
+				initialOrder,
+				updatedOrder: readOrder(),
+				membershipChanged: !hasSameMcpMembership(previousMembership, widget.getInstalledEntryMembershipSignature()),
+				sourceOrder: local.map(server => server.id),
+			}, {
+				initialOrder: ['enabled-server', 'other-enabled-server', 'enabled-session', 'disabled-server', 'disabled-session'],
+				updatedOrder: ['disabled-server', 'other-enabled-server', 'disabled-session', 'enabled-server', 'enabled-session'],
+				membershipChanged: true,
+				sourceOrder: ['disabled-server', 'enabled-server', 'other-enabled-server'],
+			});
+		});
+	}
+
 	test('uses collection origin as the installed MCP detail fallback', () => {
 		const definitionOrigin = URI.file('/definition/mcp.json');
 		const collectionOrigin = URI.file('/collection/mcp-config.json');

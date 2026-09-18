@@ -223,6 +223,7 @@ type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
+	readonly builtinSkillDirectories?: readonly string[];
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
 	/**
@@ -878,6 +879,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// Hooks are also projected explicitly below because plugin directory discovery
+		// does not register their commands with the SDK callback surface.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const explicitMcpServers = plan.isEphemeral ? [] : plugins.flatMap(plugin => plugin.mcpServers.filter(server =>
 			!plugin.disabledMcpServers?.includes(server.name)
@@ -887,7 +890,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
 		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
-		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
+		const skillDirectories = [...new Set([
+			...(plan.builtinSkillDirectories ?? []),
+			...toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),
+		])];
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
 		// Keyed by the real, un-aliased model id; a model-less "Auto" session
@@ -987,7 +993,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			...(hydraFusionEnabled ? {
+				enableExperimentalMode: true,
+				featureFlags: {
+					HYDRAFUSION: true,
+					HYDRAFUSION_ROLLOUT: true,
+				},
+			} : {}),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless
@@ -999,12 +1011,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
+			enableSkills: true,
 			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
+			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),

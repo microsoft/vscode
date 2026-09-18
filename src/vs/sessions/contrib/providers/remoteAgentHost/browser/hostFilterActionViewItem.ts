@@ -135,8 +135,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// --- Passive connection status + information button --------------------
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
-		this._renderDiagnosticsButton(this._diagnosticsElement);
+		this._renderDiagnosticsButton(this.element);
 	}
 
 	/**
@@ -203,11 +202,11 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		// Connection state is passive; the adjacent information control opens management.
 		this._connectElement = dom.append(this.element, dom.$('div.agent-host-filter-connect'));
 		this._connectElement.setAttribute('aria-hidden', 'true');
-		this._diagnosticsElement = dom.append(this.element, dom.$('div.agent-host-filter-diagnostics'));
-		this._renderDiagnosticsButton(this._diagnosticsElement);
+		this._renderDiagnosticsButton(this.element);
 	}
 
-	private _renderDiagnosticsButton(element: HTMLElement): void {
+	protected _renderDiagnosticsButton(container: HTMLElement): void {
+		const element = this._diagnosticsElement = dom.append(container, dom.$('div.agent-host-filter-diagnostics'));
 		const label = localize('agentHostFilter.connectionInformation', "Open Connection Information");
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-label', label);
@@ -454,6 +453,9 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 	private _updateDiagnosticsLabel(status?: string): void {
 		if (!this._diagnosticsElement) {
+			if (status && this._dropdownElement) {
+				this._dropdownElement.setAttribute('aria-label', localize('agentHostFilter.aria.withStatus', "{0} Current host status: {1}.", this._dropdownElement.getAttribute('aria-label') ?? '', status));
+			}
 			return;
 		}
 		const label = status
