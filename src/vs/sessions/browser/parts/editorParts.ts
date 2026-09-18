@@ -19,7 +19,6 @@ export class EditorParts extends EditorPartsBase {
 		const editorPart = layoutService.isSinglePaneLayoutEnabled
 			? this.instantiationService.createInstance(SinglePaneMainEditorPart, this)
 			: this.instantiationService.createInstance(MainEditorPart, this);
-		this._register(editorPart.enforcePartOptions({ tabActionReserveSpace: false }));
 
 		return editorPart;
 	}
