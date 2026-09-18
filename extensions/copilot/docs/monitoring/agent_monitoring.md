@@ -115,6 +115,17 @@ managed `false` overrides personal settings and environment opt-in. Omission is 
 a denial and leaves the identity preference available, including when other managed
 OTel settings replace the personal configuration block.
 
+Across managed sources, the highest-priority telemetry block wins as a whole:
+native MDM, then server-delivered settings, then the managed-settings file.
+Omitted identity, resource attributes, and other telemetry leaves are not filled
+from weaker managed sources. An empty block, or one containing only unsupported
+fields, still replaces the weaker block. Removing the block entirely allows the
+next managed source to apply. This does not change precedence for unrelated
+managed settings or the native runtime's own transport.
+Native delivery also observes the other recognized `telemetry.capture.*` controls
+for block selection only; this does not implement those content-capture classes
+in Local or expose additional Local settings.
+
 When enabled, `user.name` is the current authenticated provider account name on
 top-level and subagent `invoke_agent` spans. Each invocation reads the current
 authentication session, so account changes and sign-out do not reuse a cached name.

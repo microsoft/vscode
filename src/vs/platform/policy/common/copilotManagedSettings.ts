@@ -80,6 +80,12 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
+	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
+	'telemetry.capture.prompts': { type: 'boolean' },
+	'telemetry.capture.responses': { type: 'boolean' },
+	'telemetry.capture.toolArguments': { type: 'boolean' },
+	'telemetry.capture.toolOutput': { type: 'boolean' },
+	'telemetry.capture.policyDetail': { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -140,6 +146,18 @@ export const COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY = 'telemetry.resourceAttribute
 
 /** Managed-settings key for extra OTLP exporter headers (a `{ [k]: string }` map). */
 export const COPILOT_OTEL_HEADERS_KEY = 'telemetry.headers';
+
+/**
+ * An empty normalized telemetry block is carried as the JSON string `{}` under `telemetry`.
+ * This preserves block presence across IPC and caching without inventing a policy leaf. Like
+ * undeclared telemetry leaves, this anchor is discarded by policy projection, not by selection.
+ */
+const telemetryBlockKey = 'telemetry';
+
+/** Whether a canonical bag key belongs to the telemetry block. */
+function isTelemetrySettingKey(key: string): boolean {
+	return key === telemetryBlockKey || key.startsWith(`${telemetryBlockKey}.`);
+}
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
@@ -395,9 +413,9 @@ export interface IManagedSettingResolution {
 	readonly contributions: readonly IManagedSettingsContribution[];
 }
 
-/** The result of merging managed settings from every delivery channel on a per-key basis. */
+/** The result of resolving managed settings across the delivery channels. */
 export interface IManagedSettingsPick {
-	/** The effective merged bag: the winning value for each key contributed by any channel. */
+	/** The effective bag, excluding telemetry leaves found only in weaker managed sources. */
 	readonly values: ManagedSettingsData;
 	/** Per-key provenance: how each key resolved and which channels were overridden. */
 	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
@@ -406,13 +424,15 @@ export interface IManagedSettingsPick {
 }
 
 /**
- * Merge the managed-settings bags from every delivery channel on a **per-key** basis.
+ * Merge the managed-settings bags from every delivery channel.
  *
  * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
- * a lower channel. The runtime-owned `sandbox.enabled` control is the exception: any managed
- * `true` wins, so harness selection cannot discard a sandbox requirement from another channel.
+ * a lower channel. Telemetry instead selects the highest-priority block in its entirety, including
+ * empty or unrecognized blocks; omitted leaves cannot inherit from a weaker managed source.
+ * The runtime-owned `sandbox.enabled` control is force-on-wins, so harness selection cannot
+ * discard a sandbox requirement from another channel.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
  * resolution here (rather than inlining it at each call site) keeps policy evaluation
@@ -425,6 +445,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 
 	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
+	let telemetrySource: ManagedSettingsChannel | undefined;
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
 		if (!bag) {
@@ -438,6 +459,12 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 				continue;
 			}
 			const existing = resolutions.get(key);
+			if (isTelemetrySettingKey(key)) {
+				telemetrySource ??= channel;
+				if (channel !== telemetrySource && !existing) {
+					continue;
+				}
+			}
 			if (existing) {
 				existing.contributions.push({ channel, value });
 				if (key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true) {
@@ -632,6 +659,8 @@ function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: st
  *   `PolicyConfiguration` parses the JSON back into the object-typed setting on read.
  *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source, autoUpdate? } }`
  *   map to the policy-backed marketplace dict.
+ * - Telemetry blocks with no representable leaves retain a JSON `{}` anchor under `telemetry`,
+ *   so an empty or future-only block still takes precedence over lower managed sources.
  *
  * Malformed marketplace entries are dropped (with an optional warning via {@link onWarn}) rather
  * than throwing, so a bad enterprise settings file degrades gracefully instead of blocking startup.
@@ -642,6 +671,11 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
 	// `telemetry.resourceAttributes`), so removal clones only the touched path.
 	let scalarRest: Record<string, unknown> = { ...parsed };
+	const hasTelemetryBlock = Object.hasOwn(parsed, telemetryBlockKey) && isObject(parsed[telemetryBlockKey]);
+	if (!hasTelemetryBlock) {
+		// A scalar named telemetry is not a block (nor a serialized presence anchor in raw input).
+		delete scalarRest[telemetryBlockKey];
+	}
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
 	}
@@ -653,6 +687,10 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 		if (encoded !== undefined) {
 			result[setting.key] = JSON.stringify(encoded);
 		}
+	}
+
+	if (hasTelemetryBlock && !Object.keys(result).some(isTelemetrySettingKey)) {
+		result[telemetryBlockKey] = '{}';
 	}
 
 	return result;

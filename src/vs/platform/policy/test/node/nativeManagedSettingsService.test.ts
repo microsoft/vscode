@@ -10,7 +10,7 @@ import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, pickManagedSettings } from '../../common/copilotManagedSettings.js';
 import { NativeManagedSettingsChannelClient } from '../../common/nativeManagedSettingsIpc.js';
 import { PolicyValue } from '../../common/policy.js';
 import { NativeManagedSettingsService, NativePolicyWatcherFactory } from '../../node/nativeManagedSettingsService.js';
@@ -25,9 +25,7 @@ suite('NativeManagedSettingsService', () => {
 		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
 			assert.deepStrictEqual(policies, {
 				[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
-				[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
-				[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
-				[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
+				...MANAGED_SETTINGS_CONTROL_DEFINITIONS,
 			});
 			onDidChange = callback;
 			callback({});
@@ -66,14 +64,26 @@ suite('NativeManagedSettingsService', () => {
 			watchedSettings,
 			managedSettings: service.managedSettings,
 		}, {
-			watchedSettings: {
-				[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
-				[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
-				[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
-			},
+			watchedSettings: MANAGED_SETTINGS_CONTROL_DEFINITIONS,
 			managedSettings: { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
 		});
 	});
+
+	for (const leaf of ['prompts', 'responses', 'toolArguments', 'toolOutput', 'policyDetail']) {
+		test(`native capture.${leaf} selects telemetry without a corresponding Local capture policy`, async () => {
+			const key = `telemetry.capture.${leaf}`;
+			const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
+				assert.deepStrictEqual(policies[key], { type: 'boolean' });
+				callback({ [key]: false });
+				return Disposable.None;
+			};
+			const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+			await service.initialize();
+			const values = [false, true].map(identity =>
+				pickManagedSettings(service.managedSettings, { [COPILOT_OTEL_CAPTURE_IDENTITY_KEY]: identity }, undefined).values);
+			assert.deepStrictEqual(values, [{ [key]: false }, { [key]: false }]);
+		});
+	}
 
 	test('clears stale watcher values when managed-settings definitions are removed', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
