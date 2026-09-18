@@ -58,6 +58,7 @@ class TokenCache {
 			&& document.version >= 0 && this.#cachedDocument.version === document.version
 			&& this.#cachedDocument.config.breaks === config.breaks
 			&& this.#cachedDocument.config.linkify === config.linkify
+			&& this.#cachedDocument.config.typographer === config.typographer
 		) {
 			return this.#tokens;
 		}
