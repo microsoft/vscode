@@ -35,6 +35,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { toSessionEvents } from './copilotTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
@@ -708,6 +709,15 @@ function getActions(signals: readonly AgentSignal[]) {
 	return signals
 		.filter((s): s is IAgentActionSignal => s.kind === 'action')
 		.map(s => s.action);
+}
+
+function withoutModelCallDiagnostics(usage: ChatUsageAction['usage'] | undefined): ChatUsageAction['usage'] | undefined {
+	if (!usage?._meta) {
+		return usage;
+	}
+	const metadata = { ...usage._meta };
+	delete metadata[agentModelCallMetaKey];
+	return { ...usage, _meta: metadata };
 }
 
 function getInputRequest(signal: AgentSignal): ChatInputRequestedAction['request'] {
@@ -2730,6 +2740,26 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	test('model-call diagnostics preserve SDK timings and never infer the active turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.modelCallTurnCorrelation.record('old-call', 'old-turn');
+		session.resetTurnState('current-turn');
+		for (const apiCallId of ['old-call', 'unmapped-call']) {
+			mockSession.fire('assistant.usage', {
+				model: 'gpt-5', apiCallId, duration: 150, timeToFirstTokenMs: 30, outputTtftMs: 50,
+				inputTokens: 12, outputTokens: 3, cacheReadTokens: 4, providerCallId: 'provider', serviceRequestId: 'service',
+			}, { id: apiCallId });
+		}
+		const diagnostics = getActions(signals).filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage)
+			.map(action => readAgentModelCallDiagnostics(action.usage))
+			.filter(value => value !== undefined)
+			.map(value => ({ apiCallId: value.apiCallId, turnId: value.turnId, duration: value.durationMs, ttft: value.timeToFirstTokenMs, output: value.outputTtftMs }));
+		assert.deepStrictEqual(diagnostics, [
+			{ apiCallId: 'old-call', turnId: 'old-turn', duration: 150, ttft: 30, output: 50 },
+			{ apiCallId: 'unmapped-call', turnId: undefined, duration: 150, ttft: 30, output: 50 },
+		]);
+	});
+
 	test('observed request usage retains the ultra reasoning-effort tier', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		session.resetTurnState('ultra-turn');
@@ -2961,7 +2991,7 @@ suite('CopilotAgentSession', () => {
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		// The compaction credits add to the turn total while the parent turn's own model and
 		// context tokens are preserved, so the response footer shows the full turn cost.
-		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
+		assert.deepStrictEqual(withoutModelCallDiagnostics(usageActions.at(-1)?.usage), {
 			inputTokens: 10,
 			outputTokens: 20,
 			model: 'claude-sonnet-4.6',
@@ -3014,7 +3044,7 @@ suite('CopilotAgentSession', () => {
 		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
-		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
+		assert.deepStrictEqual(withoutModelCallDiagnostics(usageActions.at(-1)?.usage), {
 			inputTokens: 10,
 			outputTokens: 20,
 			model: 'claude-opus-4.6',
@@ -3049,7 +3079,7 @@ suite('CopilotAgentSession', () => {
 		await timeout(0);
 
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
-		assert.deepStrictEqual(usageActions.at(-1)?.usage._meta, {
+		assert.deepStrictEqual(withoutModelCallDiagnostics(usageActions.at(-1)?.usage)?._meta, {
 			copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 3_000_000_000 },
 			turnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
 			directTurnTokenTotals: [{ model: 'claude-opus-4.6', inputTokens: 1, cachedTokens: 0, outputTokens: 1 }],
@@ -3857,7 +3887,7 @@ suite('CopilotAgentSession', () => {
 
 		// The turn's running total and the session total both come from the SDK's usage
 		// metrics, so they are reported on the enrichment re-emit that follows each event.
-		assert.deepStrictEqual(usageActions.at(-1)?.usage, {
+		assert.deepStrictEqual(withoutModelCallDiagnostics(usageActions.at(-1)?.usage), {
 			inputTokens: 30,
 			outputTokens: 40,
 			model: 'claude-sonnet-4.6',
@@ -4075,7 +4105,7 @@ suite('CopilotAgentSession', () => {
 			.filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage && action.turnId === 'turn-auto');
 
 		assert.deepStrictEqual({
-			usages: usageActions.map(action => action.usage),
+			usages: usageActions.map(action => withoutModelCallDiagnostics(action.usage)),
 			parsed: readUsageInfoMeta(usageActions.at(-1)?.usage).autoModeResolved,
 		}, {
 			usages: [
@@ -5982,6 +6012,26 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('enterprise policy prevents Assisted permissions and global bypass on the first turn', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+				rootValues: {
+					[AgentHostAutoApprovePolicyRestrictedConfigKey]: true,
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				enabledExperimentalMode: mockSession.experimentalModeUpdates.includes(true),
+			}, {
+				permissionModes: ['manual'],
+				enabledExperimentalMode: false,
+			});
+		});
+
 		test('does not send when the SDK rejects experimental mode for Approve When Safe', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -6523,7 +6573,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
 		});
 
-		test('revokes elevated permission modes when policy changes', async () => {
+		test('revokes and restores elevated permission modes when policy changes', async () => {
 			const results: PermissionMode[][] = [];
 			for (const autoApprove of ['assisted', 'autoApprove']) {
 				const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
@@ -6535,12 +6585,15 @@ suite('CopilotAgentSession', () => {
 
 				fireRootConfigChange();
 				await timeout(0);
+				setRootValue(AgentHostAutoApprovePolicyRestrictedConfigKey, false);
+				fireRootConfigChange();
+				await timeout(0);
 				results.push([...mockSession.permissionModeSetCalls]);
 			}
 
 			assert.deepStrictEqual(results, [
-				['assisted', 'manual'],
-				['allow-all', 'manual'],
+				['assisted', 'manual', 'assisted'],
+				['allow-all', 'manual', 'allow-all'],
 			]);
 		});
 
@@ -6733,26 +6786,26 @@ suite('CopilotAgentSession', () => {
 			const abortPromise = session.abort();
 			assert.strictEqual(mockSession.abortCalls, 1);
 
-			const permission = await runtime.handlePermissionRequest({
+			const permission = runtime.handlePermissionRequest({
 				kind: 'write',
 				toolCallId: 'tc-during-abort',
 			});
-			const userInput = await runtime.handleUserInputRequest(
+			const userInput = runtime.handleUserInputRequest(
 				{ question: 'New question' },
 				{ sessionId: 'test-session-1' },
 			);
-			const elicitation = await runtime.handleElicitationRequest({
+			const elicitation = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'New elicitation',
 				mode: 'form',
 				requestedSchema: { type: 'object', properties: {} },
 			});
-			const planReview = await runtime.handleExitPlanModeRequest({
+			const planReview = runtime.handleExitPlanModeRequest({
 				actions: ['interactive'],
 				recommendedAction: 'interactive',
 				summary: 'Plan',
 			}, { sessionId: 'test-session-1' });
-			const mcpAuth = await runtime.handleMcpAuthRequest({
+			const mcpAuth = runtime.handleMcpAuthRequest({
 				requestId: 'auth-during-abort',
 				serverName: 'test-server',
 				serverUrl: 'https://mcp.example.com',
@@ -6764,11 +6817,11 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				pendingUserInput: await pendingUserInput,
 				pendingElicitation: await pendingElicitation,
-				permission,
-				userInput,
-				elicitation,
-				planReview,
-				mcpAuth,
+				permission: await permission,
+				userInput: await userInput,
+				elicitation: await elicitation,
+				planReview: await planReview,
+				mcpAuth: await mcpAuth,
 			}, {
 				pendingUserInput: { answer: '', wasFreeform: true },
 				pendingElicitation: { action: 'cancel' },
@@ -11155,6 +11208,84 @@ Use the attached image as context.
 			const result = await resultPromise;
 			assert.strictEqual(result.answer, '');
 			assert.strictEqual(result.wasFreeform, true);
+		});
+
+		test('pending user input does not resume the runtime before abort is acknowledged', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			let inputResponded = false;
+			const responsePromise = runtime.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' },
+			).then(response => {
+				inputResponded = true;
+				return response;
+			});
+
+			const abortPromise = session.abort();
+			await timeout(0);
+			const respondedBeforeAbortAcknowledgement = inputResponded;
+			abortGate.complete();
+			await abortPromise;
+
+			assert.deepStrictEqual({
+				respondedBeforeAbortAcknowledgement,
+				response: await responsePromise,
+			}, {
+				respondedBeforeAbortAcknowledgement: false,
+				response: { answer: '', wasFreeform: true },
+			});
+		});
+
+		test('failed abort still settles cancelled user input', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			const responsePromise = runtime.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' },
+			);
+			const abortError = new Error('Abort failed');
+			const abortRejected = assert.rejects(session.abort(), abortError);
+			abortGate.error(abortError);
+			await abortRejected;
+
+			assert.deepStrictEqual(await responsePromise, { answer: '', wasFreeform: true });
+		});
+
+		test('dispose releases cancelled user input while abort is in flight', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			let inputResponded = false;
+			const responsePromise = runtime.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' },
+			).then(response => {
+				inputResponded = true;
+				return response;
+			});
+			const abortPromises = [session.abort(), session.abort()];
+			session.dispose();
+			await timeout(0);
+			const respondedAfterDispose = inputResponded;
+			abortGate.complete();
+			await Promise.all(abortPromises);
+
+			assert.deepStrictEqual({
+				respondedAfterDispose,
+				response: await responsePromise,
+			}, {
+				respondedAfterDispose: true,
+				response: { answer: '', wasFreeform: true },
+			});
 		});
 
 		test('handleUserInputRequest rejects without an active turn', async () => {

@@ -99,6 +99,7 @@ import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
+import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
@@ -877,6 +878,8 @@ export class CopilotAgentSession extends Disposable {
 	}>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** Delays cancelled callbacks until the SDK abort settles or the session is disposed. */
+	private _abortBarrier: DeferredPromise<void> | undefined;
 	/**
 	 * Signatures ({@link safeStringify}) of user-approved `read`/`write`
 	 * permission requests, keyed by tool call id. The Copilot CLI runtime emits
@@ -2277,11 +2280,13 @@ export class CopilotAgentSession extends Disposable {
 		return async (...args) => {
 			const token = this._abortToken;
 			if (token.isCancellationRequested) {
+				await this._abortBarrier?.p;
 				this._logService.info(`[Copilot:${this.sessionId}] Discarding ${label} callback received while aborting`);
 				return cancelled;
 			}
 			const result = await raceCancellation(handler(...args), token, cancelled);
 			if (token.isCancellationRequested) {
+				await this._abortBarrier?.p;
 				this._logService.info(`[Copilot:${this.sessionId}] Discarding ${label} callback result after abort`);
 				return cancelled;
 			}
@@ -3545,9 +3550,10 @@ export class CopilotAgentSession extends Disposable {
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
 		}
-		this._beginAbort();
-		this._drainPendingSteeringFlips();
+		const abortBarrier = this._abortBarrier ??= new DeferredPromise<void>();
 		try {
+			this._beginAbort();
+			this._drainPendingSteeringFlips();
 			await this._wrapper.session.abort();
 		} catch (error) {
 			if (this._abortingTurn === abortTarget) {
@@ -3555,6 +3561,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._resetAbortToken();
 			throw error;
+		} finally {
+			abortBarrier.complete();
+			if (this._abortBarrier === abortBarrier) {
+				this._abortBarrier = undefined;
+			}
 		}
 		if (resumingTurn && this._resumingTurnAwaitingProviderStart === resumingTurn && this._currentTurn.value === resumingTurn && !resumingTurn.providerTurnStarted) {
 			resumingTurn.markAborted();
@@ -3575,6 +3586,8 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
 		this._beginAbort();
+		this._abortBarrier?.complete();
+		this._abortBarrier = undefined;
 		this._shellInitScriptDisposing = true;
 		// Only a session that wrote a script has anything to remove; every other
 		// session keeps the plain dispose path. Remove it once the SDK session's
@@ -5973,6 +5986,18 @@ export class CopilotAgentSession extends Disposable {
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(typeof e.data.cost === 'number' ? { cost: e.data.cost } : {}),
 			};
+			const modelCall = readAgentModelCallDiagnostics({
+				_meta: {
+					[agentModelCallMetaKey]: {
+						schemaVersion: 1, sdkSessionId: wrapper.sessionId, eventId: e.id,
+						apiCallId: e.data.apiCallId, providerCallId: e.data.providerCallId, serviceRequestId: e.data.serviceRequestId,
+						agentId: e.agentId, model: e.data.model,
+						turnId: e.data.apiCallId ? this.modelCallTurnCorrelation.getRecordedTurnId(e.data.apiCallId) : undefined,
+						durationMs: e.data.duration, timeToFirstTokenMs: e.data.timeToFirstTokenMs, outputTtftMs: e.data.outputTtftMs,
+						inputTokens: e.data.inputTokens, outputTokens: e.data.outputTokens, cacheReadTokens: e.data.cacheReadTokens,
+					},
+				},
+			});
 
 			// Record the parent agent's own context usage so subagent events
 			// don't overwrite the model/context tokens shown for the parent turn.
@@ -5998,6 +6023,9 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot billing metadata, or `undefined` when nothing is billed yet.
 			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean, directOwnerToolCallId: string | undefined): UsageInfo => {
 				const metadata: UsageInfoMeta = {};
+				if (modelCall) {
+					metadata[agentModelCallMetaKey] = modelCall;
+				}
 				if (typeof context.cost === 'number') {
 					metadata.cost = context.cost;
 				}

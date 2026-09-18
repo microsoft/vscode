@@ -28,6 +28,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
 		isActiveAgentTitleGenerationEnabled: () => this.value.sessionServerToolAccessor.isActiveAgentTitleGenerationEnabled(),
+		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),

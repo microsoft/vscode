@@ -17,11 +17,12 @@ import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHost
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -288,8 +289,23 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					},
 				},
 			}, 100);
+			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
+			const chatUri = buildChatUri(sessionUri, 'root-mcp');
+			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
+			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			await context.client.waitForNotification(n => {
+				if (n.method !== 'action') {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === sessionUri
+					&& action.type === ActionType.SessionCustomizationUpdated
+					&& action.customization.type === CustomizationType.McpServer
+					&& action.customization.name === 'root_probe_server'
+					&& action.customization.state.kind === McpServerStatus.Ready;
+			}, 30_000);
 			const turnId = 'turn-root-mcp';
-			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
+			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			const completion = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.turnId === turnId);

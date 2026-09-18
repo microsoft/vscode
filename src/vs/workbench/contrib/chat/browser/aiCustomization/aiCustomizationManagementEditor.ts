@@ -639,6 +639,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly customizationMigrationRequest = this._register(new DisposableStore());
 	private customizationMigrationLoading = false;
 	private customizationMigrationLoadError: string | undefined;
+	private customizationMigrationResultsSettled = false;
 	private customizationMigrationInProgress = false;
 	private customizationMigrationWritesInProgress = false;
 
@@ -1501,16 +1502,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const activeSessionResource = this.harnessService.activeSessionResource.get();
 		const projectRoot = this.workspaceService.activeProjectRoot.get();
 		const selectionContextKey = `${activeHarnessId}\n${activeSessionResource.toString()}\n${projectRoot ? getComparisonKey(projectRoot) : ''}`;
-		if (selectionContextKey !== this.migrationSelectionContextKey) {
+		const selectionContextChanged = selectionContextKey !== this.migrationSelectionContextKey;
+		if (selectionContextChanged) {
 			this.migrationSelectionContextKey = selectionContextKey;
 			this.knownMcpServerMigrationItems.clear();
 			this.selectedMcpServerMigrationItems.clear();
 			this.selectedCustomizationMigrationTargets.clear();
 			this.explicitlySelectedCustomizationMigrationTargets.clear();
+			this.customizationsByMigrationCategory.clear();
+			this.customizationMigrationTargetFoldersByType.clear();
+			this.customizationMigrationResultsSettled = false;
 		}
-		this.customizationMigrationLoading = true;
+		const showLoadingState = !this.customizationMigrationResultsSettled
+			|| this.customizationMigrationLoadError !== undefined;
+		this.customizationMigrationLoading = showLoadingState;
 		this.customizationMigrationLoadError = undefined;
-		this.renderCustomizationMigrationPage();
+		if (showLoadingState) {
+			this.renderCustomizationMigrationPage();
+		}
 
 		if (!isAgentHostTarget(activeHarnessId)) {
 			this.customizationMigrationLoading = false;
@@ -1593,6 +1602,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.customizationsByMigrationCategory = candidatesByCategory;
 		this.customizationMigrationTargetFoldersByType = targetFoldersByType;
 		this.refreshMcpDetailMigrationState();
+		this.customizationMigrationResultsSettled = true;
 		this.reconcileCustomizationMigrationTargets();
 		this.refreshCustomizationMigrationUi();
 		if (this.viewMode === 'migration' && this.activeMigrationCategoryId !== undefined && !candidatesByCategory.has(this.activeMigrationCategoryId)) {

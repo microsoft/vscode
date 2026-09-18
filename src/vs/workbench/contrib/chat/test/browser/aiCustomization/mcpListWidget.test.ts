@@ -1234,6 +1234,12 @@ suite('mcpListWidget', () => {
 			});
 		});
 
+		test('installed rows use compact density', () => {
+			const ctx = createRenderer(createAgentHostServer());
+			disposables.add(ctx.store);
+			assert.strictEqual(ctx.templateData.container.style.minHeight, '44px');
+		});
+
 		test('message-only changes preserve management action identity, keyboard focus and clicks', () => {
 			const ctx = createRenderer(erroring());
 			disposables.add(ctx.store);

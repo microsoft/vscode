@@ -65,7 +65,8 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 const $ = DOM.$;
 
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
-const MCP_SECTION_ITEM_HEIGHT = 66;
+const MCP_INSTALLED_ITEM_HEIGHT = 44;
+const MCP_MARKETPLACE_ITEM_HEIGHT = 66;
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
 
@@ -138,8 +139,8 @@ interface IMcpSectionList {
 }
 
 class McpSectionDelegate implements IListVirtualDelegate<IMcpSectionEntry> {
-	getHeight(): number {
-		return MCP_SECTION_ITEM_HEIGHT;
+	getHeight(element: IMcpSectionEntry): number {
+		return element.type === 'marketplace-item' ? MCP_MARKETPLACE_ITEM_HEIGHT : MCP_INSTALLED_ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: IMcpSectionEntry): string {
@@ -168,7 +169,6 @@ export function getToggledMcpEnablementState(state: ContributionEnablementState)
 
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
-	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly compatibilityBadge: HTMLElement;
 	readonly statusBadge: HTMLElement;
@@ -213,10 +213,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
 		const templateDisposables = new DisposableStore();
 		container.classList.add('mcp-server-item');
-		container.style.minHeight = `${MCP_SECTION_ITEM_HEIGHT}px`;
-
-		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
-		typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
+		container.style.minHeight = `${MCP_INSTALLED_ITEM_HEIGHT}px`;
 
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
@@ -233,7 +230,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 
 		const template: IMcpServerItemTemplateData = {
 			container,
-			typeIcon,
 			name,
 			compatibilityBadge,
 			statusBadge,
@@ -1770,7 +1766,8 @@ export class McpListWidget extends Disposable {
 
 	private createMcpSectionList(container: HTMLElement, label: string, entries: readonly IMcpSectionEntry[]): void {
 		const key = container.dataset.virtualizedSectionKey ?? label;
-		container.style.height = `${MCP_SECTION_ITEM_HEIGHT}px`;
+		const delegate = new McpSectionDelegate();
+		container.style.height = `${entries.length > 0 ? delegate.getHeight(entries[0]) : MCP_INSTALLED_ITEM_HEIGHT}px`;
 		container.classList.add('virtualized-section-list');
 		this.cardListControllers.get(container)?.dispose();
 		this.cardListControllers.delete(container);
@@ -1786,7 +1783,7 @@ export class McpListWidget extends Disposable {
 			WorkbenchList<IMcpSectionEntry>,
 			`McpManagementList.${label}`,
 			container,
-			new McpSectionDelegate(),
+			delegate,
 			[itemRenderer, marketplaceRenderer],
 			{
 				multipleSelectionSupport: false,
@@ -2043,7 +2040,7 @@ export class McpListWidget extends Disposable {
 		availableList.classList.add('plugin-inventory-list');
 		if (servers.length === 0) {
 			if (this.gallerySnapshotLoading) {
-				renderVirtualizedSectionLoadingPlaceholder(availableList, localize('loadingMcpMarketplace', "Loading marketplace MCP servers..."), MCP_SECTION_ITEM_HEIGHT);
+				renderVirtualizedSectionLoadingPlaceholder(availableList, localize('loadingMcpMarketplace', "Loading marketplace MCP servers..."), MCP_MARKETPLACE_ITEM_HEIGHT);
 			} else {
 				const empty = DOM.append(availableList, $('.plugin-inventory-empty'));
 				empty.textContent = localize('noAvailableMcpServers', "No marketplace MCP servers are available.");
@@ -2392,6 +2389,7 @@ export class McpListWidget extends Disposable {
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
+		this.installedEntries.sort((a, b) => Number(getActiveSessionServer(b.entry)?.enabled ?? this.isInstalledEntryEnabled(b.entry)) - Number(getActiveSessionServer(a.entry)?.enabled ?? this.isInstalledEntryEnabled(a.entry)));
 
 		// Compute sidebar badge directly from the data arrays (same source as group headers)
 		this.filteredBuiltinCount = builtinServers.length;

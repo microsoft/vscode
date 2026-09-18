@@ -636,8 +636,11 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 
 	// Safe lockfile-only installs
 	'npm ci': true,
+	'/^npm\\s+ci\\s+\\S/': false,
 	'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+	'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 	'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+	'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 
 	// Safe commands with dangerous arg blocking
 	column: true,

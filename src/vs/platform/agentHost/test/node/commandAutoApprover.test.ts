@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { gitAutoApproveRules } from '../../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
 
 suite('CommandAutoApprover initialization', () => {
@@ -265,6 +266,71 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('npm audit'), 'approved');
 		});
 
+		test('requires approval for package manager install options', () => {
+			const exactCommands = [
+				'npm ci',
+				'npm ci   ',
+				'yarn install --frozen-lockfile',
+				'yarn  install  --frozen-lockfile   ',
+				'pnpm install --frozen-lockfile',
+				'pnpm  install  --frozen-lockfile   ',
+			];
+			const commandsWithOptions = [
+				'npm ci --prefix /outside/project',
+				'npm ci --workspace other',
+				'npm ci -w other',
+				'npm ci --workspaces',
+				'npm ci --script-shell=/tmp/payload',
+				'yarn install --frozen-lockfile --cwd /outside/project',
+				'yarn install --frozen-lockfile --modules-folder /outside/modules',
+				'yarn install --frozen-lockfile --focus',
+				'yarn install --frozen-lockfile --no-lockfile',
+				'pnpm install --frozen-lockfile -C /outside/project',
+				'pnpm install --frozen-lockfile --dir /outside/project',
+				'pnpm install --frozen-lockfile --filter other',
+				'pnpm install --frozen-lockfile --workspace-root',
+				'pnpm install --frozen-lockfile --no-frozen-lockfile',
+			];
+			const forwardedRules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+
+			for (const options of [undefined, { autoApproveRules: forwardedRules }]) {
+				assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, options)), exactCommands.map(() => 'approved'));
+				assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, options)), commandsWithOptions.map(() => 'denied'));
+			}
+		});
+
+		test('preserves persisted legacy package manager overrides', () => {
+			const rules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
+			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
+
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), exactCommands.map(() => 'approved'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), commandsWithOptions.map(() => 'denied'));
+
+			const nullOverrides = {
+				...rules,
+				'npm ci': null,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
+			};
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), exactCommands.map(() => 'noMatch'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), commandsWithOptions.map(() => 'denied'));
+		});
+
 		// Unknown commands get noMatch
 		test('returns noMatch for unknown commands', () => {
 			assert.strictEqual(approver.shouldAutoApprove('my-custom-script'), 'noMatch');
@@ -338,6 +404,67 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('SELECT-OBJECT Name', pwsh),
 				approver.shouldAutoApprove('measure-object Length', pwsh),
 			], ['approved', 'approved', 'approved']);
+		});
+
+		test('keeps the Git directory option case-sensitive in PowerShell', () => {
+			const pwsh = { language: 'powershell' } as const;
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep needle', 'branch'];
+			const commands = [
+				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
+				'GIT -C repo DIFF',
+				...safeSubcommands.map(subcommand => `git -c key=value ${subcommand}`),
+				'git --no-pager -c core.pager=program log',
+				'git -C repo -c diff.external=program diff',
+			];
+			const expected = [
+				...safeSubcommands.map(() => 'approved'),
+				'approved',
+				...safeSubcommands.map(() => 'noMatch'),
+				'noMatch',
+				'noMatch',
+			];
+
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, pwsh)), expected);
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, { ...pwsh, autoApproveRules: gitAutoApproveRules })), expected);
+		});
+
+		test('requires confirmation for Git grep pager options', () => {
+			const approvedCommands = [
+				'git grep needle',
+				'git grep -n needle',
+				'git grep -o needle',
+				'git grep -e TODO',
+				'git grep -eTODO',
+				'git grep --only-matching needle',
+				'git -C repo grep needle',
+				'git --no-pager grep needle',
+			];
+			const deniedCommands = [
+				'git grep -O needle',
+				'git grep -Osh -e needle',
+				'git grep -nOsh -e needle',
+				'git grep --open-files-in-pager -e needle',
+				'git grep --open-files-in-pager=sh -e needle',
+				'git --no-pager -C repo grep --"op=sh" -e needle',
+				'git --no-pager -C repo grep --\'op=sh\' -e needle',
+			];
+			const options = [
+				undefined,
+				{ language: 'powershell' } as const,
+				{ autoApproveRules: gitAutoApproveRules },
+				{ language: 'powershell', autoApproveRules: gitAutoApproveRules } as const,
+			];
+
+			for (const option of options) {
+				assert.deepStrictEqual(
+					approvedCommands.map(command => approver.shouldAutoApprove(command, option)),
+					approvedCommands.map(() => 'approved')
+				);
+				assert.deepStrictEqual(
+					deniedCommands.map(command => approver.shouldAutoApprove(command, option)),
+					deniedCommands.map(() => 'denied')
+				);
+			}
 		});
 
 		test('does not auto-approve arbitrary PowerShell cmdlets by verb', () => {
