@@ -10,12 +10,14 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, resolveDictationBackend, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
+import { ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 
 type CleanupTestService = {
 	_configurationService: {
@@ -71,7 +73,7 @@ type FinalizationTestService = {
 	_deltaText: string;
 	_logService: Pick<Console, 'warn'>;
 	_pendingLocalTeardown: Promise<void> | undefined;
-	_finishBackend: () => Promise<string | undefined>;
+	_finishBackend: () => Promise<{ text: string | undefined; timedOut: boolean }>;
 };
 
 type MaiTeardownTestService = FinalizationTestService & {
@@ -88,21 +90,51 @@ type MaiTeardownTestService = FinalizationTestService & {
 
 type StopTestService = {
 	_sessionGeneration: number;
-	_activeBackend: 'mai';
+	_activeBackend: 'nemo' | 'mai';
 	_maiReceivedFinal: boolean;
 	_finalizedText: string;
 	_deltaText: string;
 	_sessionErrorCode: string;
 	_finalizeMs: number;
 	_flushCapture: (() => Promise<void>) | undefined;
-	_finishBackend: () => Promise<string | undefined>;
+	_finishBackend: () => Promise<{ text: string | undefined; timedOut: boolean }>;
 	_stopCapture: () => void;
 	_setState: (state: ChatSpeechToTextState) => void;
 	_accessibilitySignalService: { playSignal: (signal: unknown) => void };
 	_configurationService: { getValue: () => boolean };
+	_logService: { trace: (message: string) => void };
 	_logSessionTelemetry: (outcome: string) => void;
 	_teardown: () => void;
 	_stopAndTranscribe: (generation: number) => Promise<string | undefined>;
+};
+
+type LocalStartupTestService = {
+	_sessionGeneration: number;
+	_localSessionDisposables: DisposableStore;
+	_localTranscription: {
+		onDidTranscribe: Event<{ text: string; finalizedText?: string; isFinal: boolean }>;
+		start: () => Promise<void>;
+		getModelStatus: () => Promise<ILocalTranscriptionModelStatus>;
+	};
+	_environmentService: { cacheHome: URI };
+	_configurationService: { getValue: () => string };
+	_emitTranscript: () => void;
+	_handleModelStatus: (status: ILocalTranscriptionModelStatus) => void;
+	_startLocalSession: (window: Window & typeof globalThis, generation: number) => Promise<void>;
+};
+
+type StartupFailureTestService = {
+	_state: ChatSpeechToTextState;
+	_startInProgress: number | undefined;
+	_sessionGeneration: number;
+	_startGeneration: number;
+	_sessionErrorCode: string;
+	_logSessionTelemetry: (outcome: string) => void;
+	_cancelBackend: () => void;
+	_teardown: () => void;
+	_setState: (state: ChatSpeechToTextState) => void;
+	_notificationService: { error: (message: string) => void };
+	_failSession: (errorCode: string, message: string) => void;
 };
 
 type MaiFailureTestService = {
@@ -203,7 +235,7 @@ suite('ChatSpeechToTextService', () => {
 				teardownPending: service._pendingLocalTeardown !== undefined,
 				warnings,
 			}, {
-				result: 'streamed transcript',
+				result: { text: 'streamed transcript', timedOut: true },
 				cancellations: 1,
 				teardownPending: true,
 				warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
@@ -246,7 +278,7 @@ suite('ChatSpeechToTextService', () => {
 				sentTurns,
 				warnings,
 			}, {
-				result: 'streamed transcript',
+				result: { text: 'streamed transcript', timedOut: true },
 				sentTurns: ['turn-1'],
 				warnings: ['[chat-stt] cloud final transcription timed out after 35000ms; using streamed transcript'],
 			});
@@ -297,7 +329,7 @@ suite('ChatSpeechToTextService', () => {
 				pendingTimers: clock.countTimers(),
 			}, {
 				settled: true,
-				result: '',
+				result: { text: '', timedOut: false },
 				disconnects: 1,
 				warnings: [],
 				pendingTimers: 0,
@@ -321,7 +353,7 @@ suite('ChatSpeechToTextService', () => {
 		service._deltaText = '';
 		service._sessionErrorCode = '';
 		service._flushCapture = undefined;
-		service._finishBackend = async () => '';
+		service._finishBackend = async () => ({ text: '', timedOut: false });
 		service._stopCapture = () => { };
 		service._setState = state => states.push(state);
 		service._accessibilitySignalService = { playSignal: () => { } };
@@ -335,6 +367,126 @@ suite('ChatSpeechToTextService', () => {
 		}, {
 			result: '',
 			states: [ChatSpeechToTextState.Transcribing, ChatSpeechToTextState.Idle],
+		});
+	});
+
+	test('reports an empty on-device finalization timeout as an error', async () => {
+		const states: ChatSpeechToTextState[] = [];
+		const outcomes: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as StopTestService;
+		service._sessionGeneration = 0;
+		service._activeBackend = 'nemo';
+		service._maiReceivedFinal = false;
+		service._finalizedText = 'um';
+		service._deltaText = '';
+		service._sessionErrorCode = '';
+		service._flushCapture = undefined;
+		service._finishBackend = async () => ({ text: 'um', timedOut: true });
+		service._stopCapture = () => { };
+		service._setState = state => states.push(state);
+		service._accessibilitySignalService = { playSignal: () => { } };
+		service._configurationService = { getValue: () => false };
+		service._logService = { trace: () => { } };
+		service._logSessionTelemetry = outcome => outcomes.push(outcome);
+		service._teardown = () => { };
+
+		assert.deepStrictEqual({
+			result: await service._stopAndTranscribe(0),
+			errorCode: service._sessionErrorCode,
+			outcomes,
+			states,
+		}, {
+			result: undefined,
+			errorCode: 'transcribe.timeout',
+			outcomes: ['error'],
+			states: [ChatSpeechToTextState.Transcribing, ChatSpeechToTextState.Idle],
+		});
+	});
+
+	test('preserves a partial transcript when on-device finalization times out', async () => {
+		const outcomes: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as StopTestService;
+		service._sessionGeneration = 0;
+		service._activeBackend = 'nemo';
+		service._maiReceivedFinal = false;
+		service._finalizedText = 'partial transcript';
+		service._deltaText = '';
+		service._sessionErrorCode = '';
+		service._flushCapture = undefined;
+		service._finishBackend = async () => ({ text: 'partial transcript', timedOut: true });
+		service._stopCapture = () => { };
+		service._setState = () => { };
+		service._accessibilitySignalService = { playSignal: () => { } };
+		service._configurationService = { getValue: () => false };
+		service._logService = { trace: () => { } };
+		service._logSessionTelemetry = outcome => outcomes.push(outcome);
+		service._teardown = () => { };
+
+		assert.deepStrictEqual({
+			result: await service._stopAndTranscribe(0),
+			errorCode: service._sessionErrorCode,
+			outcomes,
+		}, {
+			result: 'partial transcript',
+			errorCode: '',
+			outcomes: ['completed'],
+		});
+	});
+
+	test('handles an initial on-device model error', async () => {
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as LocalStartupTestService;
+		const status: ILocalTranscriptionModelStatus = {
+			state: LocalTranscriptionModelState.Error,
+			error: 'failed to load',
+			errorCode: 'load',
+		};
+		service._sessionGeneration = 1;
+		service._localSessionDisposables = new DisposableStore();
+		service._localTranscription = {
+			onDidTranscribe: Event.None,
+			start: async () => { },
+			getModelStatus: async () => status,
+		};
+		service._environmentService = { cacheHome: URI.file('/cache') };
+		service._configurationService = { getValue: () => '' };
+		service._emitTranscript = () => { };
+		service._handleModelStatus = modelStatus => statuses.push(modelStatus);
+
+		try {
+			await service._startLocalSession(mainWindow, 1);
+			assert.deepStrictEqual(statuses, [status]);
+		} finally {
+			service._localSessionDisposables.dispose();
+		}
+	});
+
+	test('fails a session while on-device startup is in progress', () => {
+		const calls: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as StartupFailureTestService;
+		service._state = ChatSpeechToTextState.Idle;
+		service._startInProgress = 4;
+		service._sessionGeneration = 2;
+		service._startGeneration = 4;
+		service._sessionErrorCode = '';
+		service._logSessionTelemetry = outcome => calls.push(`telemetry:${outcome}`);
+		service._cancelBackend = () => calls.push('cancel');
+		service._teardown = () => calls.push('teardown');
+		service._setState = state => calls.push(`state:${state}`);
+		service._notificationService = { error: message => calls.push(`error:${message}`) };
+
+		service._failSession('model', 'failed to load');
+
+		assert.deepStrictEqual({
+			sessionGeneration: service._sessionGeneration,
+			startGeneration: service._startGeneration,
+			errorCode: service._sessionErrorCode,
+			calls,
+		}, {
+			sessionGeneration: 3,
+			startGeneration: 5,
+			errorCode: 'model',
+			calls: ['telemetry:error', 'cancel', 'teardown', `state:${ChatSpeechToTextState.Idle}`, 'error:failed to load'],
 		});
 	});
 

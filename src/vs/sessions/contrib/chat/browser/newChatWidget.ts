@@ -11,13 +11,13 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -40,7 +40,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
@@ -85,7 +85,7 @@ export class NewChatWidget extends Disposable {
 	 * workspace picker; consulted by {@link focusInput} to route focus to
 	 * the visible heading instead of the (hidden) chat input.
 	 */
-	private _activeEmptyState: NoAgentHostEmptyState | undefined;
+	private readonly _activeEmptyState = this._register(disposableObservableValue<NoAgentHostEmptyState | undefined>(this, undefined));
 	private _workspacePickerRow: HTMLElement | undefined;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 
@@ -102,12 +102,7 @@ export class NewChatWidget extends Disposable {
 	/** In-flight background sends awaiting confirmation before their comments are cleared. */
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
 
-	/**
-	 * Tracks whether the workspace picker is currently rendered (vs replaced by
-	 * the no-agent-host empty state on web). Consumed by the new-session-view
-	 * onboarding tour to skip the workspace step when the picker is not shown.
-	 */
-	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
+	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 
 	constructor(
 		private readonly options: IChatViewOptions & {
@@ -135,8 +130,6 @@ export class NewChatWidget extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
-		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
-		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
@@ -266,6 +259,9 @@ export class NewChatWidget extends Disposable {
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
+		this.pickerVisibility = derived(this, reader => this._activeEmptyState.read(reader)
+			? noSessionPickerVisibility
+			: newChatInput.pickerVisibility.visibility.read(reader));
 		const workspacePickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
 		this._newChatInput.sessionTypePicker.setSessionWorkspaceFolderSource(derived(this, reader => {
 			workspacePickerSelectionChanged.read(reader);
@@ -523,7 +519,7 @@ export class NewChatWidget extends Disposable {
 			chatWidgetContent.classList.toggle('quick-chat', isQuickChat && !isWorkspacePickerQuickChat);
 			this._workspacePicker.refreshPresentation();
 			if (!isWeb) {
-				this._workspacePickerVisibleKey.set(!isQuickChat || isWorkspacePickerQuickChat);
+				this._newChatInput.pickerVisibility.setVisible('workspace', !isQuickChat || isWorkspacePickerQuickChat);
 			}
 		}));
 
@@ -885,7 +881,6 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
-		this._workspacePickerVisibleKey.set(true);
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
 			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
@@ -899,9 +894,11 @@ export class NewChatWidget extends Disposable {
 		]);
 		this._renderSessionTypePicker(row, false);
 		this._workspacePickerRow = row;
+		this._newChatInput.pickerVisibility.setVisible('workspace', true);
 		return toDisposable(() => {
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
+				this._newChatInput.pickerVisibility.setVisible('workspace', false);
 			}
 		});
 	}
@@ -920,18 +917,15 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
-		this._workspacePickerVisibleKey.set(false);
+		this._newChatInput.pickerVisibility.setVisible('workspace', false);
 		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
+		this._activeEmptyState.set(emptyState, undefined);
 		emptyState.render(container);
-		this._activeEmptyState = emptyState;
-		return {
-			dispose: () => {
-				if (this._activeEmptyState === emptyState) {
-					this._activeEmptyState = undefined;
-				}
-				emptyState.dispose();
-			},
-		};
+		return toDisposable(() => {
+			if (this._activeEmptyState.get() === emptyState) {
+				this._activeEmptyState.set(undefined, undefined);
+			}
+		});
 	}
 
 	/**
@@ -1137,8 +1131,9 @@ export class NewChatWidget extends Disposable {
 		// CSS (`.no-agent-host` on `.new-chat-widget-content`) so focusing
 		// it would just send focus to <body>. Land on the empty state's
 		// heading instead so the user has a visible focus target.
-		if (this._activeEmptyState) {
-			this._activeEmptyState.focus();
+		const emptyState = this._activeEmptyState.get();
+		if (emptyState) {
+			emptyState.focus();
 			return;
 		}
 		this._newChatInput.focus();

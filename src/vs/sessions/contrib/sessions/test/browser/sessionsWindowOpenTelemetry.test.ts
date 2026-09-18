@@ -49,6 +49,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const telemetryService = new TestTelemetryService();
 			let workspacePreselected = true;
 			let workspacePreselectionSource = 'existingSessions';
+			let nonArchivedSessionListCount = 1;
 			const selection = {
 				folderUri: URI.file('/private/project'),
 				origin: WorkspaceSelectionOrigin.ExistingSessions,
@@ -62,6 +63,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
 				() => true,
 				() => ({ workspacePreselected, workspacePreselectionSource, viewKind: 'newSession', workspaceSelection: selection }),
+				() => nonArchivedSessionListCount,
 				telemetryService,
 				lifecycleService,
 			));
@@ -69,6 +71,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			tracker.captureInitialViewState();
 			workspacePreselected = false;
 			workspacePreselectionSource = 'none';
+			nonArchivedSessionListCount = 2;
 			selection.registeredProviderCount = 3;
 			await timeout(4_000);
 			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
@@ -98,6 +101,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					workspacePreselectedAtEmission: false,
 					workspaceSelectionOriginAtEmission: 'existingSessions',
 					workspaceSelectionStateAtEmission: 'selected',
+					nonArchivedSessionListCount: 2,
 					windowCloseDurationMs: 4_000,
 					emissionReason: 'close',
 				},
@@ -116,6 +120,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				{ workspaceArgumentKind: 'local', hasSessionArgument: true },
 				() => false,
 				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined, viewKind: 'createdSession' }),
+				() => 3,
 				telemetryService,
 				lifecycleService,
 			));
@@ -148,6 +153,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					workspacePreselectedAtEmission: undefined,
 					workspaceSelectionOriginAtEmission: undefined,
 					workspaceSelectionStateAtEmission: undefined,
+					nonArchivedSessionListCount: 3,
 					windowCloseDurationMs: undefined,
 					emissionReason: 'timer',
 				},
@@ -172,6 +178,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				{ workspaceArgumentKind: 'none', hasSessionArgument: false },
 				() => false,
 				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined, viewKind: 'createdSession' }),
+				() => 0,
 				telemetryService,
 				lifecycleService,
 			));
@@ -216,6 +223,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				{ workspaceArgumentKind: 'local', hasSessionArgument: false },
 				() => true,
 				() => ({ workspacePreselected: false, workspacePreselectionSource: 'none', viewKind: 'noComposer' }),
+				() => 0,
 				telemetryService,
 				lifecycleService,
 			));
@@ -266,6 +274,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 				{ workspaceArgumentKind: 'local', hasSessionArgument: false },
 				() => false,
 				getViewState,
+				() => 0,
 				telemetryService,
 				lifecycleService,
 			));
@@ -323,6 +332,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					registeredProviderCount: 120,
 				},
 			}),
+			() => 0,
 			telemetryService,
 			lifecycleService,
 		));
