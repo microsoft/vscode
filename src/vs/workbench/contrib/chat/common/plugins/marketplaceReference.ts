@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceConfigValue } from '../../../../../base/common/managedSettings.js';
+import { IExtraKnownMarketplaceConfigValue } from '../../../../../base/common/managedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
 
@@ -52,11 +52,14 @@ const _githubShorthandRe = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#.+)?$/;
 export function readConfiguredMarketplaces(configurationService: IConfigurationService): IConfiguredMarketplaces {
 	const userValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.PluginMarketplaces) ?? [];
 
-	// `ChatExtraMarketplaces` is stored as `{ [name]: url-or-shorthand }` when delivered by
-	// policy. Convert each entry to the nested IExtraMarketplaceObjectEntry shape so that
-	// parseMarketplaceReferences can set displayLabel = name (critical for enabledPlugins keys).
-	const extraObj = configurationService.getValue<ExtraKnownMarketplacesConfigDict>(ChatConfiguration.ExtraMarketplaces) ?? {};
+	// `ChatExtraMarketplaces` may contain URL/shorthand strings or object-form entries from
+	// managed settings. Convert each entry to a named object so parseMarketplaceReferences
+	// can set displayLabel = name (critical for enabledPlugins keys).
+	const extraObj = configurationService.getValue<Record<string, string | IExtraMarketplaceObjectEntry>>(ChatConfiguration.ExtraMarketplaces) ?? {};
 	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).flatMap(([name, value]) => {
+		if (value && typeof value === 'object') {
+			return [{ ...value, name }];
+		}
 		if (typeof value !== 'string') {
 			return [];
 		}
