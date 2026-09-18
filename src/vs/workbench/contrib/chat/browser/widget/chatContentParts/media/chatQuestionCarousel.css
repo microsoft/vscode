@@ -193,6 +193,15 @@
 				font-weight: var(--vscode-fontWeight-regular);
 				color: var(--vscode-descriptionForeground);
 			}
+
+			/* Keep rows compact by default, but reveal the description for the
+			   keyboard-active row (single-select `.selected`, multi-select `:focus`)
+			   so keyboard-only users get the same access as a mouse hover. */
+			.chat-question-list-item.selected .chat-question-list-label-desc,
+			.chat-question-list-item:focus .chat-question-list-label-desc,
+			.chat-question-list-item:focus-within .chat-question-list-label-desc {
+				display: block;
+			}
 		}
 
 		.chat-question-list-item.has-description {
