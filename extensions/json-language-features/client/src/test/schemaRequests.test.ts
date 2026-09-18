@@ -256,6 +256,68 @@ suite('JSON schema cache invalidation', () => {
 		}
 	});
 
+	test('regression: cache clearing discards aliases for responses without ETags', async () => {
+		let cacheResponses = false;
+		const canonical = 'https://json.schemastore.org/package.json';
+		const aliases = ['https://json.schemastore.org:443/package.json', 'https://json.schemastore.org/folder/../package.json'];
+		const client = await createSchemaClient('node', {
+			trustedDomains: { 'https://json.schemastore.org': true },
+			cache: true,
+			schemaResponse: () => ({ content: '{"type":"object"}', etag: cacheResponses ? 'cached-etag' : undefined })
+		});
+		try {
+			for (const alias of aliases) {
+				await client.request(alias);
+			}
+			await client.clearCache();
+			cacheResponses = true;
+			await client.request(canonical);
+			await client.clearCache();
+
+			assert.deepStrictEqual({
+				requestUrls: client.requests.map(request => request.url),
+				invalidated: client.schemaNotifications,
+			}, {
+				requestUrls: [canonical, canonical, canonical],
+				invalidated: [[], [canonical]],
+			});
+		} finally {
+			await client.dispose();
+		}
+	});
+
+	test('controls: cache clearing preserves aliases refreshed while the cache is being cleared', async () => {
+		let cacheResponses = false;
+		const canonical = 'https://json.schemastore.org/package.json';
+		const alias = 'https://json.schemastore.org:443/package.json';
+		const client = await createSchemaClient('node', {
+			trustedDomains: { 'https://json.schemastore.org': true },
+			cache: true,
+			schemaResponse: () => ({ content: '{"type":"object"}', etag: cacheResponses ? 'cached-etag' : undefined }),
+			onCacheUpdate: async () => {
+				if (!cacheResponses) {
+					cacheResponses = true;
+					await client.request(alias);
+				}
+			}
+		});
+		try {
+			await client.request(alias);
+			await client.clearCache();
+			await client.clearCache();
+
+			assert.deepStrictEqual({
+				requestUrls: client.requests.map(request => request.url),
+				invalidated: client.schemaNotifications,
+			}, {
+				requestUrls: [canonical, canonical],
+				invalidated: [[], [canonical, alias]],
+			});
+		} finally {
+			await client.dispose();
+		}
+	});
+
 	test('controls: clearing a canonical cache entry preserves its schema ID', async () => {
 		const canonical = 'https://json.schemastore.org/package.json';
 		const client = await createSchemaClient('node', {

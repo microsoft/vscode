@@ -226,7 +226,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
-	const schemaRequestAliases = new Map<string, string>();
+	const schemaRequestAliases = new Map<string, { readonly requestUrl: string }>();
 	let schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
 	let trustedDomains = workspace.getConfiguration().get<Record<string, boolean>>(SettingIds.trustedDomains, {});
 
@@ -240,11 +240,15 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	toDispose.push(commands.registerCommand(CommandIds.clearCacheCommandId, async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
+			// Preserve aliases recorded by requests that finish while the cache is being cleared.
+			const aliasesToClear = new Map(schemaRequestAliases);
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
 			const schemaIds = new Set(cachedSchemas);
-			for (const [schemaId, requestUrl] of schemaRequestAliases) {
-				if (schemaIds.has(requestUrl)) {
+			for (const [schemaId, alias] of schemaRequestAliases) {
+				if (schemaIds.has(alias.requestUrl)) {
 					schemaIds.add(schemaId);
+				}
+				if (aliasesToClear.get(schemaId) === alias) {
 					schemaRequestAliases.delete(schemaId);
 				}
 			}
@@ -449,7 +453,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			try {
 				const content = await runtime.schemaRequests.getContent(requestUrl.href);
 				if (runtime.schemaRequests.clearCache && requestUrl.href !== uriPath) {
-					schemaRequestAliases.set(uriPath, requestUrl.href);
+					schemaRequestAliases.set(uriPath, { requestUrl: requestUrl.href });
 				}
 				return content;
 			} catch (e) {

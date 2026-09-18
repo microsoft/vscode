@@ -24,6 +24,7 @@ export interface RequestOptions {
 	extensionSchemas?: string[];
 	cache?: boolean;
 	schemaResponse?: () => { content: string; etag?: string };
+	onCacheUpdate?: () => Promise<void>;
 }
 
 export interface RequestRecord {
@@ -236,7 +237,10 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 		globalState: {
 			keys: () => [...state.keys()],
 			get: <T>(key: string, fallback?: T): T | undefined => state.has(key) ? state.get(key) as T : fallback,
-			update: async (key: string, value: object) => { state.set(key, value); },
+			update: async (key: string, value: object) => {
+				state.set(key, value);
+				await options.onCacheUpdate?.();
+			},
 			setKeysForSync: () => { }
 		},
 		asAbsolutePath: (value: string) => path.resolve(__dirname, value)

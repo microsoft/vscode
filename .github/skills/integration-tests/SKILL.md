@@ -53,7 +53,7 @@ Filters which **test cases** run by matching against their test titles (e.g. `de
 
 Runs only the extension host test suites whose name matches the pattern. Supports comma-separated values and shell glob patterns (on macOS/Linux). Node.js integration tests are skipped.
 
-Available suite names: `api-folder`, `api-workspace`, `colorize`, `terminal-suggest`, `typescript`, `markdown`, `emmet`, `git`, `git-base`, `ipynb`, `notebook-renderers`, `configuration-editing`, `github-authentication`, `css`, `html`, `json`.
+Available suite names: `api-folder`, `api-workspace`, `colorize`, `terminal-suggest`, `typescript`, `markdown`, `emmet`, `git`, `git-base`, `ipynb`, `notebook-renderers`, `configuration-editing`, `github-authentication`, `copilot`, `css`, `html`, `json`.
 
 The `css`, `html`, and `json` suites are standalone extension tests that run in Electron's Node.js mode without opening a workbench. They share the same suite selection and grep filtering as extension host tests.
 
