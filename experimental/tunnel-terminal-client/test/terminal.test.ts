@@ -5,16 +5,20 @@
 
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
+import { setImmediate } from 'node:timers/promises';
 import { test, type TestContext } from 'node:test';
 import { spawn, type IPty } from 'node-pty';
 import type WebSocket from 'ws';
 import { runTerminal } from '../src/terminal.js';
+import { disableWin32InputMode } from '../src/terminalModes.js';
 import { record, text } from '../src/wire.js';
 import { action, Input, messages, Output, peer, reply, rpc } from './helpers.js';
 
 async function fixture(t: TestContext, options: {
 	snapshotContent?: string;
 	exited?: boolean;
+	input?: Input;
+	output?: Output;
 	onSubscribe?(socket: WebSocket, channel: string): void;
 	onAction?(socket: WebSocket, channel: string, value: Record<string, unknown>): void;
 } = {}) {
@@ -55,8 +59,8 @@ async function fixture(t: TestContext, options: {
 			}
 		}
 	}));
-	const input = new Input();
-	const output = new Output();
+	const input = options.input ?? new Input();
+	const output = options.output ?? new Output();
 	const signals = new EventEmitter();
 	t.after(() => { input.destroy(); output.destroy(); });
 	const client = rpc(t, connection);
@@ -73,13 +77,13 @@ test('renders snapshot once, ordered streaming output, and propagates exit statu
 	});
 	const code = await runTerminal(state.client, state);
 	assert.deepEqual({ code, output: state.output.value, requests: state.requests, raw: state.input.isRaw }, {
-		code: 7, output: 'initial next', requests: ['initialize', 'createTerminal', 'subscribe', 'disposeTerminal'], raw: false,
+		code: 7, output: `initial next${disableWin32InputMode}`, requests: ['initialize', 'createTerminal', 'subscribe', 'disposeTerminal'], raw: false,
 	});
 });
 
 test('handles a shell that already exited before subscription', { timeout: 5000 }, async t => {
 	const state = await fixture(t, { exited: true, snapshotContent: 'finished' });
-	assert.deepEqual({ code: await runTerminal(state.client, state), output: state.output.value }, { code: 4, output: 'finished' });
+	assert.deepEqual({ code: await runTerminal(state.client, state), output: state.output.value }, { code: 4, output: `finished${disableWin32InputMode}` });
 });
 
 test('forwards Unicode input and Ctrl+C, resizes, and uses Ctrl+] only for local exit', { timeout: 5000 }, async t => {
@@ -144,9 +148,88 @@ test('action rejection is not silently dropped', { timeout: 5000 }, async t => {
 });
 
 test('disconnect reports uncertain remote cleanup and restores local terminal', { timeout: 5000 }, async t => {
-	const state = await fixture(t, { onSubscribe: socket => socket.close() });
+	const state = await fixture(t, { snapshotContent: '\x1b[?9001h', onSubscribe: socket => socket.close() });
 	await assert.rejects(runTerminal(state.client, state), /shell may still be running/);
 	assert.equal(state.input.isRaw, false);
+	assert.ok(state.output.value.endsWith(disableWin32InputMode));
+});
+
+for (const ending of ['exit', 'escape', 'signal'] as const) {
+	test(`Win32 input mode is disabled after remote ${ending}`, { timeout: 5000 }, async t => {
+		const state = await fixture(t, {
+			snapshotContent: '\x1b[?9001h',
+			onAction(socket, channel, value) {
+				if (ending === 'exit' && value.type === 'terminal/input') {
+					action(socket, channel, 3, { type: 'terminal/exited', exitCode: 0 });
+				}
+			},
+		});
+		const raw = once(state.input, 'raw');
+		const done = runTerminal(state.client, state);
+		await raw;
+		if (ending === 'exit') {
+			state.input.write('exit\r');
+		} else if (ending === 'escape') {
+			state.input.write('\x1d');
+		} else {
+			state.signals.emit('SIGTERM');
+		}
+		await done;
+		assert.deepEqual({ output: state.output.value, raw: state.input.isRaw }, {
+			output: `\x1b[?9001h${disableWin32InputMode}`, raw: false,
+		});
+	});
+}
+
+test('flushes the keyboard reset before restoring cooked input', { timeout: 5000 }, async t => {
+	const order: string[] = [];
+	class ObservedInput extends Input {
+		override setRawMode(value: boolean): this {
+			if (!value) { order.push('cooked'); }
+			return super.setRawMode(value);
+		}
+	}
+	class DelayedOutput extends Output {
+		override _write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+			if (chunk.toString() === disableWin32InputMode) {
+				order.push('reset queued');
+				void setImmediate().then(() => {
+					order.push('reset flushed');
+					super._write(chunk, encoding, callback);
+				});
+			} else {
+				super._write(chunk, encoding, callback);
+			}
+		}
+	}
+	const state = await fixture(t, { input: new ObservedInput(), output: new DelayedOutput() });
+	const raw = once(state.input, 'raw');
+	const done = runTerminal(state.client, state);
+	await raw;
+	state.input.write('\x1d');
+	await done;
+	assert.deepEqual(order, ['reset queued', 'reset flushed', 'cooked']);
+});
+
+test('a failed keyboard reset is reported and local raw input is still restored', { timeout: 5000 }, async t => {
+	class FailedResetOutput extends Output {
+		override _write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+			if (chunk.toString() === disableWin32InputMode) {
+				callback(new Error('Test reset failure'));
+			} else {
+				super._write(chunk, encoding, callback);
+			}
+		}
+	}
+	const state = await fixture(t, { output: new FailedResetOutput() });
+	const raw = once(state.input, 'raw');
+	const done = runTerminal(state.client, state);
+	const rejected = assert.rejects(done, /terminal output/i);
+	await raw;
+	state.input.write('\x1d');
+	await rejected;
+	await setImmediate();
+	assert.deepEqual({ raw: state.input.isRaw, errors: state.output.listenerCount('error') }, { raw: false, errors: 0 });
 });
 
 test('PTY end-to-end: run a real shell over WebSocket/AHP, forward resize and return exit status', { timeout: 20_000 }, async t => {

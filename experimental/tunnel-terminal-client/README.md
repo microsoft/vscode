@@ -225,6 +225,9 @@ to avoid selecting the same machine on every launch. No URL is needed.
   That key is reserved and is not sent to remote programs.
 - `exit` returns the remote shell's exit status. Local raw input mode and event
   listeners are restored on exit, cancellation, and errors.
+- Windows shells can enable Win32 keyboard-event encoding through their VT
+  output. The client disables that encoding before local pickers and flushes a
+  reset after remote output on exit/disconnect, before restoring local input.
 - Graceful exit sends `disposeTerminal`; it does not kill a shared agent host.
 - **No automatic reconnect, input replay, or durable session management.**
   After a broken connection, forced process termination, or cleanup timeout,
@@ -241,6 +244,18 @@ to avoid selecting the same machine on every launch. No URL is needed.
 npm run check
 npm test
 ```
+
+### Digits appear as `50;1;0;1_` in the picker
+
+These are Win32 keyboard-event records from a mode enabled by a previous remote
+Windows shell, not damaged tunnel names or account information. Older clients
+restored Node's raw input state without disabling that terminal encoding.
+
+Update the complete client source and run `npm.cmd run build`. Both the machine
+picker and host picker now reset the encoding, and session cleanup resets it on
+normal exit, local cancellation, and disconnection. Start a fresh terminal tab
+once if an older running process has already left the current tab unresponsive.
+No login changes or dependency reinstall are needed for this fix.
 
 ### Relay connection failures
 

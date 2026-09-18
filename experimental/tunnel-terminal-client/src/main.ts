@@ -4,9 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createInterface } from 'node:readline/promises';
-import { parseArgs, stripVTControlCharacters } from 'node:util';
+import { parseArgs } from 'node:util';
 import { getAccessToken } from './auth.js';
+import { choose, safeLabel } from './picker.js';
 import { ensureSupportedRuntime } from './runtime.js';
 import { connectMachine, discoverMachines, type Host, type HostSelection } from './tunnel.js';
 import { requireTerminal, runTerminal } from './terminal.js';
@@ -38,37 +38,6 @@ Ctrl+C is sent to the remote shell. Ctrl+] exits locally and requests shell
 disposal. No automatic reconnect or input replay; after a network failure
 the remote shell may still be running. See README.md for host setup.
 `;
-
-function safeLabel(value: string): string {
-	return stripVTControlCharacters(value).replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
-}
-
-async function choose<T>(label: string, items: { label: string; value: T }[], signal: AbortSignal): Promise<T> {
-	if (!items.length) {
-		throw new Error(`No choices available for ${label}.`);
-	}
-	console.error(`\n${label}`);
-	for (const [index, item] of items.entries()) {
-		console.error(`  ${index + 1}. ${safeLabel(item.label)}`);
-	}
-	const prompt = createInterface({ input: process.stdin, output: process.stderr });
-	const cancelled = new AbortController();
-	const onInterrupt = (): void => cancelled.abort();
-	prompt.on('SIGINT', onInterrupt);
-	try {
-		while (true) {
-			const answer = await prompt.question('Select a number (Ctrl+C cancels): ', { signal: AbortSignal.any([signal, cancelled.signal]) });
-			const selected = Number(answer);
-			if (/^\d+$/.test(answer.trim()) && Number.isInteger(selected) && selected >= 1 && selected <= items.length) {
-				return items[selected - 1].value;
-			}
-			console.error(`Enter a number between 1 and ${items.length}.`);
-		}
-	} finally {
-		prompt.off('SIGINT', onInterrupt);
-		prompt.close();
-	}
-}
 
 async function main(): Promise<number> {
 	const { values } = parseArgs({

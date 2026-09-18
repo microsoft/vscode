@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { Readable, Writable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
+import { disableWin32InputMode } from './terminalModes.js';
 import { deadline, maxBufferedBytes, ProtocolClient, record, text } from './wire.js';
 
 export interface TerminalInput extends Readable {
@@ -266,6 +267,19 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 		removeNotification();
 		removeFailure();
 		try {
+			if (!outputError) {
+				write(disableWin32InputMode);
+				if (outputBytes > 0) {
+					await deadline(new Promise<void>(resolve => { drain = resolve; }), 'Terminal output flush', undefined, 5000);
+				}
+			}
+			if (outputError) { throw outputError; }
+		} catch (error) {
+			failure ??= error;
+		} finally {
+			output.off('error', onOutputError);
+		}
+		try {
 			input.setRawMode!(wasRaw);
 			if (wasFlowing) { input.resume(); }
 		} catch {
@@ -280,16 +294,6 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 			} catch {
 				failure = new Error(`${failure instanceof Error ? failure.message + ' ' : ''}Unable to confirm remote shell cleanup (${channel}). The shell may still be running; inspect it on the remote host.`);
 			}
-		}
-		try {
-			if (outputBytes > 0 && !outputError) {
-				await deadline(new Promise<void>(resolve => { drain = resolve; }), 'Terminal output flush', undefined, 5000);
-			}
-			if (outputError) { throw outputError; }
-		} catch (error) {
-			failure ??= error;
-		} finally {
-			output.off('error', onOutputError);
 		}
 	}
 	if (failure) { throw failure; }
