@@ -197,6 +197,39 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps shared badges borderless and sized without workbench size tokens', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('model'), badge: 'Preview' }],
+			listOptions: { showFilter: false },
+		});
+		widget.domNode.classList.add('action-widget');
+		const badge = widget.domNode.querySelector<HTMLElement>('.action-item-badge')!;
+		for (const token of ['--vscode-spacing-size60', '--vscode-cornerRadius-circle', '--vscode-fontSize-label2', '--vscode-strokeThickness']) {
+			badge.style.setProperty(token, 'initial');
+		}
+		badge.style.setProperty('--vscode-contrastBorder', '#ffffff');
+		const style = mainWindow.getComputedStyle(badge);
+		const defaultStyle = {
+			padding: style.padding,
+			borderWidth: style.borderWidth,
+			borderRadius: style.borderRadius,
+			fontSize: style.fontSize,
+			height: badge.getBoundingClientRect().height,
+		};
+		badge.style.lineHeight = '16px';
+
+		assert.deepStrictEqual({ defaultStyle, customizedHeight: badge.getBoundingClientRect().height }, {
+			defaultStyle: {
+				padding: '0px 6px',
+				borderWidth: '0px',
+				borderRadius: '9999px',
+				fontSize: '11px',
+				height: 18,
+			},
+			customizedHeight: 16,
+		});
+	});
+
 	test('includes badges in accessible labels and clears them when rows are reused', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{

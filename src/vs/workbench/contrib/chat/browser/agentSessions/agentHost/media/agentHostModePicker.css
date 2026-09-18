@@ -77,7 +77,7 @@
 	line-height: normal;
 	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	color: var(--vscode-descriptionForeground);
-	border-color: var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
 }
 
 .action-widget .monaco-list-row.action.agent-host-assisted-permissions.focused .action-item-badge,

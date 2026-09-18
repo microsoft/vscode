@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -36,12 +36,14 @@ import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/ch
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from '../../browser/agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
+import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -49,18 +51,23 @@ import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 import '../../../../../browser/media/style.css';
 
-async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly compact?: boolean; readonly combined?: boolean } = {}): Promise<void> {
-	const { editor = false, openMode = false, newChat = false, compact = false, combined = true } = options;
+async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number } = {}): Promise<void> {
+	const { editor = false, openMode = false, newChat = false, compact = false, combined = true, phoneWidth } = options;
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'interactive-session', 'modern-ui', 'monaco-enable-motion');
 	if (!editor) {
 		container.classList.add('agent-sessions-workbench');
 	}
 	container.style.position = 'relative';
-	container.style.width = '900px';
-	container.style.height = '450px';
+	container.style.width = `${phoneWidth ?? 900}px`;
+	container.style.height = phoneWidth === undefined ? '450px' : '640px';
 	container.style.padding = 'var(--vscode-spacing-size80)';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
+	if (phoneWidth !== undefined) {
+		container.classList.add('phone-layout');
+		container.style.boxSizing = 'border-box';
+		container.style.contain = 'layout paint';
+	}
 
 	const configuration = new class extends TestConfigurationService {
 		override async updateValue(key: string, value: unknown): Promise<void> {
@@ -127,6 +134,9 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		resolveSessionResource: resource => ({ connection, connectionAuthority: 'local', backendSession: resource }),
 	});
 	instantiationService.set(IConfigurationService, configuration);
+	if (phoneWidth !== undefined) {
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
+	}
 	instantiationService.set(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return [...providers.values()]; }
@@ -145,7 +155,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
 	const toolbar = dom.append(container, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-input-part'));
 	toolbar.style.position = 'absolute';
-	toolbar.style.left = '350px';
+	toolbar.style.left = phoneWidth === undefined ? '350px' : '8px';
 	toolbar.style.bottom = newChat && !combined ? '240px' : '8px';
 	if (newChat) {
 		toolbar.style.width = 'max-content';
@@ -222,7 +232,9 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		if (!combined) {
 			if (newChat) {
 				const delegate = disposableStore.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
-				const permissionPicker = disposableStore.add(instantiationService.createInstance(PermissionPicker, delegate));
+				const permissionPicker = phoneWidth === undefined
+					? disposableStore.add(instantiationService.createInstance(PermissionPicker, delegate))
+					: disposableStore.add(instantiationService.createInstance(MobilePermissionPicker, delegate));
 				permissionPicker.render(permissionActionItem);
 				showSeparatePermissions = () => permissionPicker.showPicker();
 			} else {
@@ -248,6 +260,14 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			trigger.click();
 		}
 	}
+	if (phoneWidth !== undefined) {
+		const overlay = container.querySelector<HTMLElement>('.mobile-picker-sheet-overlay');
+		if (!overlay) {
+			throw new Error('Expected the phone permissions sheet');
+		}
+		overlay.style.height = '100%';
+		disposableStore.add(toDisposable(() => overlay.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }, {
@@ -266,5 +286,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }
 	NewChat: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, false, { newChat: true }) }),
 	NewChatPermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true, { newChat: true }) }),
 	NewChatSeparatePermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true, { newChat: true, combined: false }) }),
+	MobilePermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, { newChat: true, combined: false, phoneWidth: 390 }) }),
+	MobilePermissionsNarrow: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, { newChat: true, combined: false, phoneWidth: 320 }) }),
 	NewChatCompact: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, false, { newChat: true, compact: true }) }),
 });

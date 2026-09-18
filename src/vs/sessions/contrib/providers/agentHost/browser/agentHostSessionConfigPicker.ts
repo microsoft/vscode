@@ -953,9 +953,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.ariaDescription
-					? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", item.label ?? '', item.ariaDescription)
-					: item.label ?? '',
+				getAriaLabel: item => {
+					const label = item.badge
+						? localize('agentHostSessionConfig.itemAriaLabelWithBadge', "{0}, {1}", item.label ?? '', item.badge)
+						: item.label ?? '';
+					return item.ariaDescription
+						? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", label, item.ariaDescription)
+						: label;
+				},
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
 			items.length > 10
