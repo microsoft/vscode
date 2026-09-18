@@ -49,7 +49,7 @@ export interface IDevContainerAgentHostTarget {
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
-/** Coordinates local, SSH, and Tunnel source workspaces with persistent container-backed Sessions providers. */
+/** Coordinates local, SSH, Tunnel, and WSL source workspaces with persistent container-backed Sessions providers. */
 export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 

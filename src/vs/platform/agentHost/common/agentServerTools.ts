@@ -15,6 +15,8 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	 * throwaway surfaces do not pay for session-management tooling.
 	 */
 	readonly enabledForEphemeralSessions?: boolean;
+	/** Defers the tool behind discovery when supported; `false` keeps it eager. Omit to preserve provider defaults. */
+	readonly deferLoading?: boolean;
 }
 
 /**

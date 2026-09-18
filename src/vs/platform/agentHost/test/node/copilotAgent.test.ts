@@ -1746,6 +1746,27 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('launches the runtime owned by the Copilot SDK platform package', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
+		try {
+			await agent.listChatsToMigrate();
+			const connection = getCreatedClientOptions(agent).at(-1)?.connection;
+			const runtimePath = connection?.kind === 'stdio' ? connection.path?.replaceAll('\\', '/') : undefined;
+			assert.deepStrictEqual({
+				kind: connection?.kind,
+				sdkRuntime: runtimePath?.includes('/node_modules/@github/copilot-sdk-'),
+				runtimeExecutable: runtimePath?.endsWith(process.platform === 'win32' ? '/copilot-runtime.exe' : '/copilot-runtime'),
+			}, {
+				kind: 'stdio',
+				sdkRuntime: true,
+				runtimeExecutable: true,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('promotes the forwarded secondary assignment context to a telemetry-wide property', async () => {
 		const client = new TestCopilotClient([]);
 		const telemetryService = new RecordingTelemetryService();
@@ -4326,7 +4347,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([sdkSession('test-session-1', previous.fsPath)]);
 			const resumedConfigs: Array<{
 				workingDirectory: string | undefined;
-				skillDirectories: readonly string[] | undefined;
+				skillDirectoryNames: readonly string[] | undefined;
 				instructionDirectories: readonly string[] | undefined;
 				mcpServerNames: readonly string[];
 				hasClientTool: boolean;
@@ -4334,7 +4355,7 @@ suite('CopilotAgent', () => {
 			client.resumeSession = async (_sessionId, options) => {
 				resumedConfigs.push({
 					workingDirectory: options?.workingDirectory,
-					skillDirectories: options?.skillDirectories,
+					skillDirectoryNames: options?.skillDirectories?.map(directory => basename(directory)),
 					instructionDirectories: options?.instructionDirectories,
 					mcpServerNames: Object.keys(options?.mcpServers ?? {}),
 					hasClientTool: options?.tools?.some(tool => tool.name === 'workspace_client_tool') ?? false,
@@ -4374,7 +4395,7 @@ suite('CopilotAgent', () => {
 				}, {
 					resumedConfigs: [{
 						workingDirectory: next.fsPath,
-						skillDirectories: [],
+						skillDirectoryNames: ['customize-cloud-agent', 'github-pr-media'],
 						instructionDirectories: [],
 						mcpServerNames: ['workspace-server'],
 						hasClientTool: true,
@@ -5727,36 +5748,33 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual([
 				createCopilotCliEnvironment({})['SKILL_CHAR_BUDGET'],
 				createCopilotCliEnvironment({ SKILL_CHAR_BUDGET: '15000' })['SKILL_CHAR_BUDGET'],
-				createCopilotCliEnvironment({}, [], false, false, 30_000)['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({}, [], false, 30_000)['SKILL_CHAR_BUDGET'],
 			], ['15000', '15000', '30000']);
 		});
 
-		for (const enabled of [false, true]) {
-			test(`sets standalone HydraFusion flags to ${enabled} and preserves inherited environment`, () => {
-				const ambient = Object.freeze({
-					COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION,HYDRAFUSION_ROLLOUT,COMPUTER_USE',
-					HYDRAFUSION: String(!enabled),
-					HYDRAFUSION_ROLLOUT: String(!enabled),
-					COMPUTER_USE: 'true',
-					PATH: '/usr/bin',
-				});
-				const env = createCopilotCliEnvironment(ambient, [], false, enabled);
-
-				assert.deepStrictEqual({
-					hydraFusion: env['HYDRAFUSION'],
-					hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
-					featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
-					computerUse: env['COMPUTER_USE'],
-					path: env['PATH'],
-				}, {
-					hydraFusion: String(enabled),
-					hydraFusionRollout: String(enabled),
-					featureFlags: ambient.COPILOT_CLI_ENABLED_FEATURE_FLAGS,
-					computerUse: 'true',
-					path: '/usr/bin',
-				});
+		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
+			const env = createCopilotCliEnvironment({
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT',
+				HYDRAFUSION: 'true',
+				HYDRAFUSION_ROLLOUT: 'true',
+				COMPUTER_USE: 'true',
+				PATH: '/usr/bin',
 			});
-		}
+
+			assert.deepStrictEqual({
+				hydraFusion: env['HYDRAFUSION'],
+				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
+				featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
+				computerUse: env['COMPUTER_USE'],
+				path: env['PATH'],
+			}, {
+				hydraFusion: undefined,
+				hydraFusionRollout: undefined,
+				featureFlags: 'COMPUTER_USE',
+				computerUse: 'true',
+				path: '/usr/bin',
+			});
+		});
 
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
@@ -6360,7 +6378,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables Rubber Duck and disables Claude Advisor and HydraFusion by default', async () => {
+		test('enables Rubber Duck and disables Claude Advisor by default', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
@@ -6371,14 +6389,10 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					rubberDuck: env?.['RUBBER_DUCK_AGENT'],
 					advisor: env?.['ANTHROPIC_ADVISOR'],
-					hydraFusion: env?.['HYDRAFUSION'],
-					hydraFusionRollout: env?.['HYDRAFUSION_ROLLOUT'],
 					skillCharBudget: env?.['SKILL_CHAR_BUDGET'],
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
-					hydraFusion: 'false',
-					hydraFusionRollout: 'false',
 					skillCharBudget: '15000',
 				});
 			} finally {
@@ -6444,12 +6458,8 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
-					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
 				}, {
 					models: ['gpt-5', 'hydrafusion'],
-					hydraFusion: 'true',
-					hydraFusionRollout: 'true',
 				});
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
@@ -6457,13 +6467,9 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
-					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
 					stopCallCount: client.stopCallCount,
 				}, {
 					models: ['gpt-5'],
-					hydraFusion: 'false',
-					hydraFusionRollout: 'false',
 					stopCallCount: 1,
 				});
 			} finally {
@@ -7443,59 +7449,30 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema offers the Auto routing profile only to the Auto model, and only while the gate is on', async () => {
+	test('configSchema offers the Auto routing profile by default only to the Auto model', async () => {
 		const models: ITestCopilotModelInfo[] = [
 			{ id: 'auto', name: 'Auto' },
 			{ id: 'claude-sonnet', name: 'Claude Sonnet' },
 		];
-		const configSchemasFor = async (autoModeTiers: boolean) => {
-			const { agent } = createTestAgentContext(disposables, {
-				copilotClient: new TestCopilotClient([], models),
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: autoModeTiers },
-			});
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				const published = await waitForState(agent.models, published => published.length === models.length);
-				return published.map(model => model.configSchema?.properties.tier);
-			} finally {
-				await disposeAgent(agent);
-			}
-		};
-
-		const [auto, concrete] = await configSchemasFor(true);
-		assert.deepStrictEqual({
-			auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
-			concrete,
-			gateOff: await configSchemasFor(false),
-		}, {
-			// The enum carries the runtime's wire values, not the retired names.
-			auto: {
-				enum: ['efficiency', 'balance', 'intelligence'],
-				default: 'balance',
-				enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
-			},
-			concrete: undefined,
-			gateOff: [undefined, undefined],
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], models),
 		});
-	});
-
-	test('re-publishes the Auto routing profile picker when the gate flips', async () => {
-		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			await waitForState(agent.models, models => models.length === 1);
+			const published = await waitForState(agent.models, published => published.length === models.length);
+			const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
 
-			// The picker is built while the model list is enumerated, so a flip has to re-enumerate.
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
-			const enabled = await waitForState(agent.models, models => models[0]?.configSchema?.properties.tier !== undefined);
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
-			const disabled = await waitForState(agent.models, models => models[0]?.configSchema === undefined);
-
-			assert.deepStrictEqual(
-				[enabled[0].configSchema?.properties.tier?.default, disabled[0].configSchema],
-				['balance', undefined]
-			);
+			assert.deepStrictEqual({
+				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
+				concrete,
+			}, {
+				auto: {
+					enum: ['efficiency', 'balance', 'intelligence'],
+					default: 'balance',
+					enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
+				},
+				concrete: undefined,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -12554,6 +12531,42 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('changeModel rejects a model outside the populated catalog', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'invalid-model-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				await assert.rejects(
+					agent.chats.changeModel(chat, { id: 'missing-model' }, exactChatContext(result.session, chat, result.session)),
+					/Model 'missing-model' is not available\./,
+				);
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual({
+					modelCalls: sdkSession.setModelCalls,
+					storedModel: JSON.parse(stored ?? 'null'),
+				}, {
+					modelCalls: [],
+					storedModel: { id: 'model-a' },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('changeModel forwards and persists Auto routing preferences and resets', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
@@ -12562,7 +12575,6 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12614,9 +12626,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('changeModel applies Auto preferences, overrides, and resets only to the targeted chat', async () => {
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
-			});
+			const { agent, configurationService } = createTestAgentContext(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'auto-tier-peer');
 				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
@@ -12636,11 +12646,10 @@ suite('CopilotAgent', () => {
 				];
 
 				await agent.chats.changeModel(chatA, selections[0], exactChatContext(session, chatA));
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false, [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
 				await agent.chats.changeModel(chatA, selections[1], exactChatContext(session, chatA));
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: '' });
 				await agent.chats.changeModel(chatA, selections[2], exactChatContext(session, chatA));
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
 				await agent.chats.changeModel(chatA, selections[3], exactChatContext(session, chatA));
 				await agent.chats.changeModel(chatA, selections[4], exactChatContext(session, chatA));
 
@@ -12666,7 +12675,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not apply a provisional Auto routing preference when the gate turns off before the first send', async () => {
+		test('applies a provisional Auto routing preference on the first send without opting in', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			const capiCalls: SessionConfig['capi'][] = [];
@@ -12674,10 +12683,9 @@ suite('CopilotAgent', () => {
 				capiCalls.push(config.capi);
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
-			const { agent, configurationService } = createTestAgentContext(disposables, {
+			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12690,13 +12698,12 @@ suite('CopilotAgent', () => {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
 				});
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual({ model: JSON.parse(stored ?? 'null'), capiCalls }, {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
-					capiCalls: [undefined],
+					capiCalls: [{ autoTier: 'intelligence' }],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -14655,7 +14662,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{
 					workingDirectory: capturedConfig.workingDirectory,
-					skillDirectories: capturedConfig.skillDirectories,
+					skillDirectoryNames: capturedConfig.skillDirectories?.map(directory => basename(directory)),
 					instructionDirectories: capturedConfig.instructionDirectories,
 					agentDiscoveryProjectPaths: client.agentDiscoveryRequests.at(-1)?.projectPaths,
 					instructionDiscoveryProjectPaths: client.instructionDiscoveryRequests.at(-1)?.projectPaths,
@@ -14663,7 +14670,7 @@ suite('CopilotAgent', () => {
 				},
 				{
 					workingDirectory: worktree.fsPath,
-					skillDirectories: [],
+					skillDirectoryNames: ['customize-cloud-agent', 'github-pr-media'],
 					instructionDirectories: [],
 					agentDiscoveryProjectPaths: [worktree.fsPath],
 					instructionDiscoveryProjectPaths: [worktree.fsPath],

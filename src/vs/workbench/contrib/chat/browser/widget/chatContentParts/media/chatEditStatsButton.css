@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session .interactive-response .value .chat-thinking-box > .chat-used-context-label > .chat-thinking-title-diff.monaco-button,
+.interactive-session .interactive-response .value .completed-response-summary > .chat-edit-stats.monaco-button {
+	display: inline-flex;
+	align-items: center;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin-left: var(--vscode-spacing-sizeNone);
+	border-radius: var(--vscode-cornerRadius-small);
+	gap: var(--vscode-spacing-size40);
+	background: transparent;
+	color: inherit;
+	line-height: 1.5em;
+	cursor: pointer;
+
+	> .label-added {
+		color: var(--vscode-chat-linesAddedForeground);
+	}
+
+	> .label-removed {
+		color: var(--vscode-chat-linesRemovedForeground);
+	}
+
+	&:hover,
+	&.hovered {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-foreground);
+	}
+
+	&:focus {
+		outline: none;
+	}
+
+	&:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+}
+
+.interactive-session .interactive-response .value .completed-response-summary.chat-completed-response-with-edits {
+	> .monaco-icon-button {
+		padding-right: var(--vscode-spacing-size20);
+	}
+
+	> .chat-collapsible-hover-chevron {
+		vertical-align: middle;
+	}
+}

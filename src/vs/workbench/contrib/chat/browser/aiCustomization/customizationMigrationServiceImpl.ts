@@ -226,14 +226,18 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return undefined;
 		}
 
+		const workspaceCounts = workspaceCount === 1
+			? localize('customizationMigrationHintWorkspaceSingle', "1 workspace customization")
+			: localize('customizationMigrationHintWorkspaceMultiple', "{0} workspace customizations", workspaceCount);
+		const userCounts = userCount === 1
+			? localize('customizationMigrationHintUserSingle', "1 user customization")
+			: localize('customizationMigrationHintUserMultiple', "{0} user customizations", userCount);
 		const sourceCounts = workspaceCount > 0 && userCount > 0
-			? localize('customizationMigrationHintWorkspaceAndUser', "{0} workspace and {1} user", workspaceCount, userCount)
-			: workspaceCount > 0
-				? localize('customizationMigrationHintWorkspace', "{0} workspace", workspaceCount)
-				: localize('customizationMigrationHintUser', "{0} user", userCount);
+			? localize('customizationMigrationHintWorkspaceAndUser', "{0} and {1}", workspaceCounts, userCounts)
+			: workspaceCount > 0 ? workspaceCounts : userCounts;
 		return fileCount === 1
-			? localize('customizationMigrationHintSingle', "Found {0} customization file that is present but not used by {1} and could be migrated.", sourceCounts, harnessLabel)
-			: localize('customizationMigrationHintMultiple', "Found {0} customizations that are present but not used by {1} and could be migrated.", sourceCounts, harnessLabel);
+			? localize('customizationMigrationHintSingle', "Found {0} that is present but not used by {1} and could be migrated.", sourceCounts, harnessLabel)
+			: localize('customizationMigrationHintMultiple', "Found {0} that are present but not used by {1} and could be migrated.", sourceCounts, harnessLabel);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {

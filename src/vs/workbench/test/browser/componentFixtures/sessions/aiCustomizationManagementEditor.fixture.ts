@@ -1336,6 +1336,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			await timeout(50);
 		}
 	}
+
+	for (const selector of ['.welcome-page-host', '.mcp-content-container', '.plugin-content-container']) {
+		const panel = ctx.container.querySelector<HTMLElement>(selector);
+		const scrollHost = panel?.querySelector<HTMLElement>('.welcome-prompts-scrollable, .plugin-card-scrollable');
+		if (!panel || !scrollHost || scrollHost.getBoundingClientRect().height === 0) {
+			continue;
+		}
+		const panelBounds = panel.getBoundingClientRect();
+		const scrollBounds = scrollHost.getBoundingClientRect();
+		assert(
+			Math.abs(scrollBounds.left - panelBounds.left - panel.clientLeft) < 1
+			&& Math.abs(scrollBounds.width - panel.clientWidth) < 1,
+			`${selector} must keep its page scroll host flush with both panel edges.`,
+		);
+	}
 }
 
 // ============================================================================
@@ -2366,6 +2381,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ConfiguredLocationsMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,

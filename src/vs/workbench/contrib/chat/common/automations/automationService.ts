@@ -225,6 +225,8 @@ export interface IAutomationStore {
 
 export interface IAutomationService extends IAutomationStore {
 	readonly _serviceBrand: undefined;
+	/** Providers whose Automation catalogues are currently unavailable. */
+	readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
 	canRunAutomation?(automationId: string): boolean;
 	canUpdateAutomation?(automationId: string): boolean;
 	canDeleteAutomation?(automationId: string): boolean;
@@ -234,4 +236,9 @@ export interface IAutomationService extends IAutomationStore {
 	startStaleRunRecovery(reason: string): Promise<void>;
 	/** Stops leader-scoped stale-run recovery. */
 	stopStaleRunRecovery(): void;
+}
+
+export interface IAutomationProviderDescriptor {
+	readonly id: string;
+	readonly label: string;
 }

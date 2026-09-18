@@ -10,8 +10,8 @@ import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/ch
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { CustomViewVisibleContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -23,6 +23,7 @@ import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } f
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -33,7 +34,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	getProvider(accessor: ServicesAccessor) {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsService = accessor.get(ISessionsService);
-		const archiveActionWording = getChatSessionArchiveActionWording(accessor.get(IConfigurationService));
+		const configurationService = accessor.get(IConfigurationService);
+		const archiveActionWording = getChatSessionArchiveActionWording(configurationService);
 		const previouslyFocused = getActiveElement();
 
 		const content: string[] = [];
@@ -41,7 +43,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.inputPills', "When session metadata or active-turn status pills appear above the input, press Shift+Tab to reach them, use the Left and Right arrow keys to move between them, and press Enter or Space to activate one. Open the context menu{0} to choose which pills are shown. Pull Requests Options lets you show all pull requests or only open and draft ones, remembered across sessions. If every pull request is filtered out, these options are also available in any other pill's context menu or the toolbar context menu.", '<keybinding:editor.action.showContextMenu>'));
-		content.push(localize('sessionsChat.removePullRequestArtifact', "For pull requests recorded as session artifacts, the pull request dropdown offers Remove Pull Request Artifact from Session on each row. Use Tab to reach its actions. When only one pull request is visible, use the pull request pill's context menu instead. Removal is immediate and only deletes the artifact record; it does not close the pull request or remove independent session associations."));
+		content.push(localize('sessionsChat.removeSessionRecord', "Recorded artifacts and references offer Remove from Session for each row. Use Tab to reach row actions. When only one item is visible, use its pill hover actions or context menu instead. Removal waits for persistence and only deletes the session record; it does not delete the linked resource, close a pull request or issue, or remove independent session associations."));
 		content.push(localize('sessionsChat.externalSessionFilter', "The Sessions list Filter menu includes an External submenu. Use it to choose whether external sessions from another application are shown for the last 24 hours, the last 7 days, always, or not at all."));
 		content.push(localize('sessionsChat.externalSessionBanner', "When you first open a session created in another application, a banner appears at the top of the chat. Use Tab to reach its external-session picker, choose an option, and activate Save. The Close action dismisses the banner without changing the setting. Saving or closing permanently dismisses the banner."));
 		content.push(localize('sessionsChat.delegatedMessage', "Messages sent by another session or chat show a source annotation above the message. Press Tab to focus the annotation, then press Enter or Space to open the source chat."));
@@ -61,7 +63,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.workspaceHandoff', "Opening Agents from an editor can suggest that editor's folder for a fresh session. Choosing a workspace yourself or starting another session cancels a pending suggestion. If an explicitly requested workspace cannot be selected, a notification offers Retry and Choose Workspace actions."));
 		content.push(localize('sessionsChat.syncChanges', "When available, Sync Changes appears with incoming and outgoing commit counts in the same repository toolbar as the worktree and branch controls below the input. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session's repository. The action is disabled while synchronization is running."));
 		content.push(localize('sessionsChat.githubContext', "Use Add Context to attach files, images, and, when available, GitHub issues or pull requests."));
-		content.push(localize('sessionsChat.devContainer', "When Dev Container Agent Host sessions are enabled, Docker is available on the host, and a local, SSH, or Tunnel folder contains a Dev Container configuration, open the folder's submenu and choose Use Dev Container. For remote folders, first connect to a host that supports Dev Container sessions. Use the arrow keys to navigate submenus and Enter to select. The workspace picker then identifies the folder with a Dev Container suffix. Choose Use Local or Use Remote Host to switch back."));
+		content.push(localize('sessionsChat.devContainer', "When Dev Container Agent Host sessions are enabled, Docker is available on the host, and a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration, open the folder's submenu and choose Use Dev Container. For remote folders, first connect to a host that supports Dev Container sessions. For WSL folders, Docker must be available in the WSL distribution. Use the arrow keys to navigate submenus and Enter to select. The workspace picker then identifies the folder with a Dev Container suffix. Choose Use Local or Use Remote Host to switch back."));
 		content.push(localize('sessionsChat.pullRequestSession', "In a repository section where New Session is a split button, focus New Session and press Right Arrow to reach its dropdown, then activate New Session from Pull Request to open a searchable pull request picker. Pull requests are grouped by review and assignment status. Use the arrow keys to navigate, Enter to create the session, and Escape to close the picker."));
 		content.push(localize('sessionsChat.githubReferences', "Pull request and issue pills above the chat input open their GitHub item in the GitHub Pull Requests extension when it is available. Pills that represent several items open a keyboard-accessible picker."));
 		content.push(localize('sessionsChat.failingChecksPullRequest', "When a session pull request has failing checks, use Reveal in its banner item to open that pull request, or use Fix Checks to ask the agent to address the failures."));
@@ -80,11 +82,21 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 		content.push(localize('sessionsChat.pasteAsText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));
 		content.push(localize('sessionsChat.backgroundActivities', "Press Shift+Tab from the chat input to reach metadata and status pills above it, use the left and right arrows to move between pills, and press Enter or Space to activate one. Live browsers appear in their own pill, and the chat's subagents of any status appear in another. A pill with more than one entry opens a picker. Use the up and down arrows to move between entries. When an entry has details, Tab moves through its row actions and detail links; Shift+Tab returns to the row action, and the up and down arrows continue moving between entries. Press Enter to open an entry, or Escape to dismiss the picker and return focus to the pill."));
-		content.push(localize('sessionsChat.conversations', "When multiple chats appear as tabs in a single group, the tab row replaces the session header and includes the session actions. Side-by-side chat groups retain the session header and keep their tab rows compact."));
-		content.push(localize('sessionsChat.sessionsListChats', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to open a chat. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript."));
-		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('sessionsChat.sessionsListDoneActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Mark as Done. Open the session's context menu to pin or unpin it.")
-			: localize('sessionsChat.sessionsListArchiveActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Archive. Open the session's context menu to pin or unpin it."));
+		const chatTabsMode = configurationService.getValue<SessionsChatTabsMode>(SESSIONS_CHAT_TABS_SETTING) ?? SESSIONS_CHAT_TABS_DEFAULT;
+		content.push(chatTabsMode === SessionsChatTabsMode.Single
+			? localize('sessionsChat.conversationsAsSessionView', "Chats open directly in the session view without a tab row. Side-by-side chat groups retain the session header.")
+			: localize('sessionsChat.conversationsAsTabs', "When multiple chats appear as tabs in a single group, the tab row replaces the session header and includes the session actions. Side-by-side chat groups retain the session header and keep their tab rows compact."));
+		content.push(chatTabsMode === SessionsChatTabsMode.Single
+			? localize('sessionsChat.sessionsListChatsAsSessionView', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to show a chat as the session view. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript.")
+			: localize('sessionsChat.sessionsListChatsAsTabs', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to open a chat as a tab. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript."));
+		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? false;
+		content.push(promoteNewChatAction
+			? archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('sessionsChat.sessionsListPromotedNewChatDoneActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Mark as Done. Open the session's context menu to pin or unpin it.")
+				: localize('sessionsChat.sessionsListPromotedNewChatArchiveActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Archive. Open the session's context menu to pin or unpin it.")
+			: archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('sessionsChat.sessionsListDefaultDoneActions', "The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session's context menu to start a new chat.")
+				: localize('sessionsChat.sessionsListDefaultArchiveActions', "The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session's context menu to start a new chat."));
 		content.push(localize('sessionsChat.sessionsListChatContextMenu', "Open a nested chat's context menu to rename it, open it to the side, or, when supported, permanently delete it. Agent Host chats also offer Copy Link."));
 		content.push(localize('sessionsChat.forkToSide', "Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork's context menu."));
 		content.push(localize('sessionsChat.copySessionLink', "To copy a browser link that opens an Agent Host session in the Agents window, open the session's context menu and choose Copy Link."));

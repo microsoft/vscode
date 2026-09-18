@@ -141,7 +141,7 @@ suite('StandardChatInputPillSources', () => {
 		let removed = 0;
 		const entry: IChatPullRequestPillEntry = {
 			...pullRequestEntry('#1', 'open'),
-			removeAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
+			promotedAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
 		};
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [entry] }]), createPullRequestVisibility());
 		const pills = createPills({ pullRequests: data });
@@ -162,6 +162,45 @@ suite('StandardChatInputPillSources', () => {
 			keyboard: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', '', 'Pull Requests Options', ''],
 			backgroundRemoval: false,
 			removed: 2,
+		});
+	});
+
+	test('restores focus to a live pill after a context menu action removes an entry', async () => {
+		const sections = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', []);
+		sections.set([{
+			title: 'Pull Requests', entries: [{
+				...pullRequestEntry('#1', 'open'),
+				promotedAction: toAction({
+					id: 'remove-pr',
+					label: 'Remove Pull Request from Session',
+					run: async () => {
+						await timeout(0);
+						sections.set([], undefined);
+					},
+				}),
+			}]
+		}], undefined);
+		const pills = createPills({
+			pullRequests: createSessionPullRequestPillData(sections, createPullRequestVisibility()),
+			artifacts: { sections: constObservable([{ title: 'Artifacts', entries: [{ id: 'report', label: 'Report', open: () => { } }] }]) },
+		});
+		const target = pills.inputPills.getPillElements()[0];
+		target.focus();
+		const menu = pills.openContextMenu(target, true);
+		// The real context menu widget holds focus while it is open, so the pill is no longer focused
+		// by the time the promoted action resolves.
+		target.blur();
+		await menu[0].run();
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			action: menu[0].label,
+			labels: pills.labels(),
+			focusedLivePill: document.activeElement === pills.inputPills.getPillElements().at(0),
+		}, {
+			action: 'Remove Pull Request from Session',
+			labels: ['1 Artifact'],
+			focusedLivePill: true,
 		});
 	});
 

@@ -123,6 +123,8 @@ Sessions may expose the artifacts and references recorded by the agent. Both sha
 
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
+GitHub issue and pull-request references promoted into dedicated pills retain their optional recorded-reference ID. Presentation code uses that ID for per-item removal and never infers record identity from a title or URL.
+
 ## Provider contract
 
 `ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
@@ -200,7 +202,7 @@ Requests route through `ISessionsManagementService` to the provider identified b
 
 ### Multiple chats
 
-Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
+Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
 
 ## State propagation
 
