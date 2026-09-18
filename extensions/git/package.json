@@ -4072,6 +4072,12 @@
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
         },
+        "git.stageOnDoubleClick": {
+          "type": "boolean",
+          "scope": "window",
+          "default": false,
+          "description": "%config.stageOnDoubleClick%"
+        },
         "git.blame.editorDecoration.enabled": {
           "type": "boolean",
           "default": false,
