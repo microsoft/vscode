@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { collapseWorktreeIncludePaths, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -546,6 +546,73 @@ suite('AgentHostGitService', () => {
 				],
 				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
 			);
+		});
+	});
+
+	suite('collapseWorktreeIncludePaths', () => {
+		const collapse = (wholeDirectories: readonly string[], listing: readonly string[]): { collapsed: [string, number][]; standalone: string[] } => {
+			const result = collapseWorktreeIncludePaths(
+				listing.map(entry => entry.startsWith('+') ? entry.slice(1) : entry),
+				listing.filter(entry => entry.startsWith('+')).map(entry => entry.slice(1)),
+				new Set(wholeDirectories),
+			);
+			return { collapsed: [...result.collapsedDirectories], standalone: [...result.standaloneFiles] };
+		};
+
+		test('collapses at the highest fully matched directory below a partially matched ignored folder', () => {
+			assert.deepStrictEqual(collapse(['.build/'], [
+				'.build/other.txt',
+				'.build/extensions/copilot/bundle.js',
+				'+.build/extensions/copilot/node_modules/a.js',
+				'+.build/extensions/copilot/node_modules/b/c.js',
+			]), {
+				collapsed: [['.build/extensions/copilot/node_modules/', 2]],
+				standalone: [],
+			});
+		});
+
+		test('collapses matched sibling subtrees separately', () => {
+			assert.deepStrictEqual(collapse(['vendor/'], [
+				'vendor/README.md',
+				'+vendor/a/node_modules/x.js',
+				'+vendor/b/node_modules/y/z.js',
+			]), {
+				collapsed: [['vendor/a/', 1], ['vendor/b/', 1]],
+				standalone: [],
+			});
+		});
+
+		test('collapses a fully matched ignored folder at its top and leaves outside files standalone', () => {
+			assert.deepStrictEqual(collapse(['node_modules/'], [
+				'+.env',
+				'+node_modules/a.js',
+				'+node_modules/b/c.js',
+			]), {
+				collapsed: [['node_modules/', 2]],
+				standalone: ['.env'],
+			});
+		});
+
+		test('keeps a matched file without a fully matched ancestor standalone', () => {
+			assert.deepStrictEqual(collapse(['.build/'], [
+				'.build/other.txt',
+				'+.build/config.json',
+				'+.build/deps/node_modules/a.js',
+			]), {
+				collapsed: [['.build/deps/', 1]],
+				standalone: ['.build/config.json'],
+			});
+		});
+
+		test('collapses nothing when every level of an ignored folder holds an unmatched file', () => {
+			assert.deepStrictEqual(collapse(['out/'], [
+				'out/log.txt',
+				'out/build/log.txt',
+				'+out/build/keep.js',
+			]), {
+				collapsed: [],
+				standalone: ['out/build/keep.js'],
+			});
 		});
 	});
 
