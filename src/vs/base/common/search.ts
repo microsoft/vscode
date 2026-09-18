@@ -7,8 +7,7 @@ import * as strings from './strings.js';
 
 export function buildReplaceStringWithCasePreserved(matches: string[] | null, pattern: string): string {
 	if (matches && (matches[0] !== '')) {
-		// The match has no cased characters (e.g. punctuation or digits), so there is
-		// no case to preserve and the replace pattern is used as-is.
+		// A caseless match has no case to preserve, so use the pattern as-is.
 		if (matches[0].toLowerCase() === matches[0].toUpperCase()) {
 			return pattern;
 		}
