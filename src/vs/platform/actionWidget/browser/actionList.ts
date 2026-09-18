@@ -303,6 +303,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
+		private readonly _stopToolbarPointerPropagation: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
 		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -530,12 +531,16 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (toolbarActions.length > 0) {
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
-			data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => {
-				e.preventDefault();
-				e.stopPropagation();
-			}));
-			data.elementDisposables.add(dom.addDisposableListener(data.toolbar, dom.EventType.CLICK, e => e.stopPropagation()));
-			data.elementDisposables.add(dom.addDisposableListener(data.toolbar, TouchEventType.Tap, e => e.stopPropagation()));
+			if (this._stopToolbarPointerPropagation) {
+				data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => {
+					e.preventDefault();
+					e.stopPropagation();
+				}));
+				data.elementDisposables.add(dom.addDisposableListener(data.toolbar, dom.EventType.CLICK, e => e.stopPropagation()));
+				data.elementDisposables.add(dom.addDisposableListener(data.toolbar, TouchEventType.Tap, e => e.stopPropagation()));
+			} else {
+				data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => e.preventDefault()));
+			}
 			actionBar.push(toolbarActions, { icon: true, label: false });
 			data.elementDisposables.add(this._registerToolbar(element, actionBar));
 		}
@@ -716,6 +721,11 @@ export interface IActionListOptions {
 	 * where this hint is misleading.
 	 */
 	readonly hideDefaultKeybindingTooltip?: boolean;
+	/**
+	 * Stops toolbar pointer events from bubbling to row selection handlers.
+	 * Use for submenus where toolbar actions mutate the list in place.
+	 */
+	readonly stopToolbarPointerPropagation?: boolean;
 
 	/**
 	 * Optional label shown on the right side of the filter row.
@@ -945,7 +955,7 @@ export class ActionListWidget<T> extends Disposable {
 		};
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), reservesSubmenuSpace, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
+			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), reservesSubmenuSpace, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._options?.stopToolbarPointerPropagation ?? false, (item, toggle) => {
 				this._standaloneToggles.set(item, toggle);
 				return toDisposable(() => {
 					if (this._standaloneToggles.get(item) === toggle) {

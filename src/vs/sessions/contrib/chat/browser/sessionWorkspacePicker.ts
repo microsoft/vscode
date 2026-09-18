@@ -1844,6 +1844,7 @@ export class WorkspacePicker extends Disposable {
 					focusFilterOnOpen: true,
 					minWidth: 180,
 					hideDefaultKeybindingTooltip: true,
+					stopToolbarPointerPropagation: true,
 				},
 			});
 		}
