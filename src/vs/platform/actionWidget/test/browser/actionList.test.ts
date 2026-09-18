@@ -1653,6 +1653,45 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('clicking remove in a wrapped submenu group keeps the submenu open', async () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [new SubmenuAction('workspacePicker.remote.options', '', [
+					Object.assign(toAction({ id: 'remove', label: 'Manage Provider remote-a', run: () => { selected.push('submenu-select'); } }), {
+						onRemove: async () => { await timeout(20); },
+					}),
+				])],
+				submenuOptions: {
+					showFilter: true,
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+			onSelect: item => selected.push(item.id),
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			selected,
+			panelVisible: panel.style.display !== 'none',
+			focusInsidePanel: panel.contains(document.activeElement),
+		}, {
+			selected: [],
+			panelVisible: true,
+			focusInsidePanel: true,
+		});
+	});
+
 	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
