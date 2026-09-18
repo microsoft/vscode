@@ -1,0 +1,24 @@
+@startuml
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+
+actor Developer as developer
+actor "Git executable" as git
+actor "Repository maintainer / reviewer" as reviewer
+
+rectangle "Visual Studio Code" {
+  usecase "Search Workspace" as search
+  usecase "Start Debug Session" as debug
+  usecase "Commit Source Changes" as commit
+}
+
+developer -- search
+developer -- debug
+developer -- commit
+git -- commit
+note right of reviewer
+  Cares about commit history,
+  but does not interact with VS Code
+end note
+@enduml
