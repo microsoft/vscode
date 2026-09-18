@@ -2128,6 +2128,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				id: getByokLmAgentModelId(m),
 				name: m.name ?? m.id,
 				maxContextWindow: m.maxContextWindowTokens,
+				maxPromptTokens: m.maxPromptTokens,
+				maxOutputTokens: m.maxOutputTokens,
 				supportsVision: m.supportsVision ?? false,
 				...(thinkingLevel ? { configSchema: { type: 'object', properties: { [ThinkingLevelConfigKey]: thinkingLevel } } satisfies ConfigSchema } : {}),
 				...(byokMeta && { _meta: byokMeta }),
