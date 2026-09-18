@@ -579,7 +579,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 
 				try {
-					await vscode.commands.executeCommand('revealFileInOS', this.serverState.server.tsServerLog.uri);
+					await vscode.commands.executeCommand('revealUriInOS', this.serverState.server.tsServerLog.uri);
 					return true;
 				} catch {
 					vscode.window.showWarningMessage(vscode.l10n.t("Could not open TS Server log file"));
