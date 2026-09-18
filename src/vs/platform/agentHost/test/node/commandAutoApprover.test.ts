@@ -654,7 +654,7 @@ suite('CommandAutoApprover', () => {
 					encoding: 'utf8',
 					input: JSON.stringify(commands),
 				});
-				if (child.error?.code === 'ENOENT') {
+				if ((child.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
 					continue;
 				}
 				assert.strictEqual(child.status, 0, child.stderr);
