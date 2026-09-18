@@ -114,6 +114,8 @@ a warning offers **Reload Window** instead. User changes and policy withdrawal r
 opt-in reloads. Exporter behavior and environment-variable precedence are unchanged.
 It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
 signal, without a new API. Normal personal settings changes do not change those defaults.
+If a recognizable enterprise OTel block was already present at initialization, later changes
+only offer a reload, including enabling a previously disabled managed configuration.
 Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
 those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
 still redirected by environment variables to a different collector or file do not qualify.

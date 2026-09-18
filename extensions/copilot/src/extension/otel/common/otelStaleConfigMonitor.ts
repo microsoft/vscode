@@ -72,7 +72,7 @@ export class OTelStaleConfigMonitor {
 			this._host.promptReload(current);
 			return drift;
 		}
-		if (active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
+		if (active.hasEnterpriseSettings || active.config.enabledExplicitly || !isPolicyEnabledOtlp(current)) {
 			this._handledFingerprint = fingerprint;
 			if (!this._policyNoticeShown) {
 				this._policyNoticeShown = true;

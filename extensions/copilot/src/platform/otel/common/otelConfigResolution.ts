@@ -38,6 +38,8 @@ export interface IOTelSettingsReader {
 export interface IResolvedOTelConfig {
 	readonly config: OTelConfig;
 	readonly defaultValues: OTelDefaultValues;
+	/** Recognizable policy-backed defaults, independent of whether export is enabled. */
+	readonly hasEnterpriseSettings: boolean;
 }
 
 export const IOTelConfigResolver = createServiceIdentifier<IOTelConfigResolver>('IOTelConfigResolver');
@@ -96,7 +98,7 @@ export function resolveOTelConfigFromSettings(
 		extensionVersion,
 		sessionId,
 	});
-	return { config, defaultValues };
+	return { config, defaultValues, hasEnterpriseSettings };
 }
 
 export const enum OTelConfigDrift {

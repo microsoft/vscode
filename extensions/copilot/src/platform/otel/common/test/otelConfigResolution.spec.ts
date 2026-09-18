@@ -25,6 +25,23 @@ describe('OTel config resolution', () => {
 		expect(otelProperties.every(([, schema]) => (schema as { scope?: string }).scope === 'application')).toBe(true);
 		expect(OTEL_SETTING_DEFAULTS).toEqual(defaults);
 		expect(resolve(new TestOTelSettings()).defaultValues).toEqual(defaults);
+		expect(resolve(new TestOTelSettings()).hasEnterpriseSettings).toBe(false);
+	});
+
+	it('recognizes an enterprise block independently of export enablement', () => {
+		const settings = new TestOTelSettings();
+		settings.policy = { enabled: false, serviceName: 'managed-service' };
+		const active = resolve(settings);
+		expect(active).toMatchObject({ hasEnterpriseSettings: true, config: { enabled: false } });
+		settings.policy = {};
+		expect(resolve(settings).hasEnterpriseSettings).toBe(false);
+		expect(active.hasEnterpriseSettings).toBe(true);
+	});
+
+	it('does not claim policy provenance for a block consisting entirely of schema defaults', () => {
+		const settings = new TestOTelSettings();
+		settings.policy = { enabled: false, otlpEndpoint: OTEL_SETTING_DEFAULTS.otlpEndpoint };
+		expect(resolve(settings).hasEnterpriseSettings).toBe(false);
 	});
 
 	it('preserves existing effective-setting resolution and env precedence', () => {
@@ -109,6 +126,7 @@ describe('OTel config resolution', () => {
 			maxAttributeSizeChars: 10,
 			dbSpanExporter: true,
 		});
+		expect(resolve(settings).hasEnterpriseSettings).toBe(false);
 	});
 
 	it('ignores subsequent personal edits while enterprise OTel applies', () => {

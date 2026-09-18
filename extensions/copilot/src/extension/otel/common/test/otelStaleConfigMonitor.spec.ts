@@ -242,6 +242,29 @@ describe('OTelStaleConfigMonitor', () => {
 		expect(host.prompts).toBe(1);
 	});
 
+	it.each([
+		{ otlpEndpoint: 'https://managed.example' },
+		{ serviceName: 'managed-service' },
+		{ headers: { managed: '1' } },
+	])('only prompts when a disabled managed block present at startup is later enabled: %j', async policy => {
+		settings.policy = { ...policy, enabled: false };
+		const resolver = new TestResolver(settings);
+		const monitor = new OTelStaleConfigMonitor(resolver, host, log);
+		host.restartError = new Error('Unexpected automatic restart');
+		expect(resolver.activeResolution.config.enabled).toBe(false);
+		settings.policy = { ...policy, enabled: true };
+		expect(await monitor.check()).toBe(OTelConfigDrift.Policy);
+		await monitor.check();
+		settings.policy = { ...settings.policy, captureContent: true };
+		await monitor.check();
+		expect({
+			restarts: host.restarts,
+			prompts: host.prompts,
+			warnings: host.warnings,
+			restartRecord: host.record,
+		}).toEqual({ restarts: 0, prompts: 1, warnings: 0, restartRecord: undefined });
+	});
+
 	it('only prompts when policy is withdrawn', async () => {
 		settings.policy = managedPolicy;
 		const monitor = newHost();
