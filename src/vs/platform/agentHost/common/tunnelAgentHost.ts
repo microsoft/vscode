@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
@@ -449,6 +450,18 @@ export interface ITunnelAgentHostMainService {
 	disconnect(connectionId: string): Promise<void>;
 }
 
+/** Persisted tunnel IDs hidden from discovery or automatic connection. */
+export interface ITunnelVisibility {
+	readonly dismissed: readonly string[];
+	readonly autoConnectSuppressed: readonly string[];
+}
+
+export interface ITunnelDiscoveryOptions {
+	readonly authProvider?: 'github' | 'microsoft';
+	readonly silent?: boolean;
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
+}
+
 /**
  * Renderer-side service that manages dev tunnel agent host connections.
  * Uses the shared-process {@link ITunnelAgentHostMainService} for
@@ -463,10 +476,14 @@ export interface ITunnelAgentHostService {
 
 	/**
 	 * Enumerate available dev tunnels with agent host support.
-	 * When {@link options.silent} is `true`, uses cached tokens without
-	 * prompting the user. Returns an empty array if no cached token.
+	 * Resolves to an empty array only when no tunnels should authoritatively be
+	 * exposed, such as after successful empty discovery or when discovery is
+	 * disabled. Rejects when discovery cannot complete, including when
+	 * authentication is unavailable. {@link options.silent} suppresses
+	 * authentication prompts but does not convert failures to empty results.
+	 * An explicit auth provider takes precedence over cached provider selection.
 	 */
-	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]>;
+	listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]>;
 
 	/**
 	 * Determine whether startup auto-connect can run silently or must first ask
@@ -492,7 +509,7 @@ export interface ITunnelAgentHostService {
 	readonly canDeleteTunnels: boolean;
 
 	/** Delete a dev tunnel and remove it from the local tunnel cache. */
-	deleteTunnel(tunnel: ITunnelInfo): Promise<void>;
+	deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void>;
 
 	/**
 	 * Disconnect from a tunnel agent host.
@@ -510,6 +527,9 @@ export interface ITunnelAgentHostService {
 
 	/** Whether the user dismissed this tunnel from the remote-host picker. */
 	isTunnelDismissed(tunnelId: string): boolean;
+
+	/** Persisted visibility decisions, including IDs absent from the current cache and discovery results. */
+	getTunnelVisibility(): ITunnelVisibility;
 
 	/** Persist that the user dismissed this tunnel from the remote-host picker. */
 	dismissTunnel(tunnelId: string): void;
@@ -534,14 +554,6 @@ export interface ITunnelAgentHostService {
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
 }
 
-// ---- Tunnel hosting (exposing the local agent host to remote clients) --------
-
-/** IPC channel name for the tunnel host service. */
-export const TUNNEL_HOST_CHANNEL = 'tunnelHost';
-
-/** Output channel ID for the tunnel host logs. */
-export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
-
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
 	readonly tunnelName: string;
@@ -559,35 +571,4 @@ export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel:
 	return sharingInfo.tunnelId !== undefined
 		? sharingInfo.tunnelId === tunnel.tunnelId
 		: sharingInfo.tunnelName === tunnel.name;
-}
-
-/** Status of the tunnel host. */
-export type TunnelHostStatus =
-	| { readonly active: false }
-	| { readonly active: true; readonly info: ITunnelHostInfo };
-
-/**
- * Shared-process service that hosts a dev tunnel using the code CLI.
- */
-export const ITunnelAgentHostHostingService = createDecorator<ITunnelAgentHostHostingService>('tunnelAgentHostHostingService');
-
-export interface ITunnelAgentHostHostingService {
-	readonly _serviceBrand: undefined;
-
-	/** Fires when the hosting status changes. */
-	readonly onDidChangeStatus: Event<TunnelHostStatus>;
-
-	/**
-	 * Start hosting a dev tunnel that exposes the local agent host.
-	 *
-	 * @param token The user's access token.
-	 * @param authProvider The auth provider that issued the token.
-	 */
-	startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo>;
-
-	/** Stop hosting and clean up the tunnel. */
-	stopHosting(): Promise<void>;
-
-	/** Get the current hosting status. */
-	getStatus(): Promise<TunnelHostStatus>;
 }

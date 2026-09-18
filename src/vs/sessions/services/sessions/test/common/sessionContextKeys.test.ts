@@ -247,4 +247,5 @@ suite('setSessionContextKeys - side chat', () => {
 			withToolChatHasSideChats: false,
 		});
 	});
+
 });

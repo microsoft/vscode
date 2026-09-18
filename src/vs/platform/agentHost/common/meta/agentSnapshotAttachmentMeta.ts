@@ -35,7 +35,6 @@ export function toHostSnapshotAttachmentMeta(contentType: string | undefined): R
 }
 
 export function readHostSnapshotAttachmentMeta(attachment: { readonly _meta?: Record<string, unknown> }): IHostSnapshotAttachmentMetadata | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced snapshot attachment slot; validated below.
 	const metadata = attachment._meta?.[HostSnapshotAttachmentMetadataKey];
 	if (!isRecord(metadata) || metadata.isSnapshot !== true) {
 		return undefined;

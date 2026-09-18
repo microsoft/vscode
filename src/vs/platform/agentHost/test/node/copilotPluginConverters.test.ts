@@ -118,6 +118,28 @@ suite('copilotPluginConverters', () => {
 			});
 		});
 
+		test('converts remote OAuth client configuration', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'slack',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					url: 'https://mcp.slack.com/mcp',
+					oauth: { clientId: 'public-client-id' },
+				},
+				customization: stubMcpCustomization('slack'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				slack: {
+					type: 'http',
+					url: 'https://mcp.slack.com/mcp',
+					tools: ['*'],
+					oauthClientId: 'public-client-id',
+				},
+			});
+		});
+
 		test('handles empty definitions', () => {
 			const result = toSdkMcpServers([]);
 			assert.deepStrictEqual(result, {});
@@ -695,6 +717,21 @@ suite('copilotPluginConverters', () => {
 			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
 			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		test('returns false for different skill invocation metadata', () => {
+			const makeSkill = (flags: Pick<IParsedSkill, 'disableModelInvocation' | 'disableUserInvocation'>): IParsedSkill => ({
+				uri: URI.file('/a/SKILL.md'),
+				name: 'a',
+				...flags,
+				customization: { ...stubSkillCustomization('a'), ...flags },
+			});
+			const defaults = makePlugin({ skills: [makeSkill({})] });
+
+			assert.deepStrictEqual([
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableModelInvocation: true })] })]),
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableUserInvocation: true })] })]),
+			], [false, false]);
 		});
 
 		test('returns false for different MCP default cwd URIs', () => {

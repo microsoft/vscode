@@ -1337,7 +1337,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
 			// An empty response (`{}`) is a successful "no policy file present" signal.
 			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;
-			if (managedSettingsCount === 0) {
+			if (managedSettingsCount === 0 && adapted.managedSettingsActive !== true) {
 				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
 			} else {
 				this.logService.info('[DefaultAccount] Managed settings applied');

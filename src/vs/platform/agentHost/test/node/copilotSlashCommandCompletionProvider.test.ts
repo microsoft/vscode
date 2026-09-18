@@ -439,13 +439,16 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 	suite('runtime skill completions', () => {
 		const session = 'copilotcli:/abc';
 
-		function skill(name: string, description?: string): SkillCustomization {
+		type SkillOptions = Pick<SkillCustomization, 'disableUserInvocation' | 'enabled'>;
+
+		function skill(name: string, description?: string, options?: SkillOptions): SkillCustomization {
 			return {
 				type: CustomizationType.Skill,
 				id: `file:///skills/${name}/SKILL.md`,
 				uri: `file:///skills/${name}/SKILL.md`,
 				name,
 				...(description !== undefined ? { description } : {}),
+				...options,
 			};
 		}
 
@@ -587,6 +590,26 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			);
 			const items = await run(provider, '/');
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-plugin:my-skill ']);
+		});
+
+		test('treats user-disabled and disabled skill children as unknown', async () => {
+			const provider = createProvider(
+				[
+					{ name: 'my-plugin:user-disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'my-plugin:disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[plugin('my-plugin', [
+					skill('user-disabled', undefined, { disableUserInvocation: true }),
+					skill('disabled', undefined, { enabled: false }),
+				])],
+			);
+
+			const items = await run(provider, '/');
+
+			assert.deepStrictEqual(runtimeOnly(items).map(item => item.insertText), [
+				'/my-plugin:disabled ',
+				'/my-plugin:user-disabled ',
+			]);
 		});
 
 		test('ignores mcp server containers when computing known skills', async () => {

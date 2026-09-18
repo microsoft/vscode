@@ -251,6 +251,7 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
 	padding: 0;
 }
@@ -258,9 +259,10 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
-	padding: 2px 2px 2px 8px;
-	justify-content: flex-start;
+	padding: 0;
+	justify-content: center;
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label.model-picker-split {
@@ -298,12 +300,17 @@
 	box-sizing: border-box;
 	width: 100%;
 	min-width: 0;
+	height: auto;
+	padding: 0;
+	cursor: default;
 }
 
 .sessions-chat-config-toolbar .action-label {
 	display: flex;
 	align-items: center;
-	height: 16px;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size60);
 	background-color: transparent;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -315,7 +322,18 @@
 	overflow: visible;
 }
 
-.sessions-chat-config-toolbar .action-label:hover {
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus {
+	outline: none;
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus-visible,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.sessions-chat-config-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
@@ -326,7 +344,7 @@
 }
 
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	margin-left: 4px;
+	margin-left: var(--vscode-spacing-size60);
 	white-space: nowrap;
 }
 
@@ -342,13 +360,12 @@
 	margin-left: 0;
 }
 
-.sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon {
+.sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
-	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
-	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
-	width: auto;
-	height: auto;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
@@ -401,6 +418,10 @@
 
 .sessions-chat-send-button .monaco-button.disabled {
 	cursor: default;
+}
+
+.sessions-chat-send-button.loading .monaco-button {
+	display: none;
 }
 
 /* Focus indicator drawn on the wrapper so it sits cleanly around the
@@ -459,12 +480,18 @@
 	color: var(--vscode-icon-foreground);
 }
 
+.sessions-chat-send-button .sessions-chat-loading-spinner {
+	width: 22px;
+	height: 22px;
+	margin-right: 0;
+}
+
 .sessions-chat-loading-spinner.visible {
 	display: flex;
 }
 
 .sessions-chat-loading-spinner .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* Attach row (pills only, above editor, inside input area) */

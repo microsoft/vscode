@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
@@ -27,11 +28,17 @@ export interface IMigratedCustomization {
 	readonly type: PromptsType;
 }
 
+export interface IMigratedCustomizationSource {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+}
+
 export interface IMigratedCustomizationsResult {
 	readonly migratedCount: number;
 	readonly failedCustomizationFileNames: readonly string[];
 	readonly unsupportedHeaderKeys: readonly string[];
 	readonly migratedCustomizations: readonly IMigratedCustomization[];
+	readonly migratedSources: readonly IMigratedCustomizationSource[];
 }
 
 export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>;
@@ -110,6 +117,7 @@ export async function migrateCustomizations(
 	const unsupportedHeaderKeys = new Set<string>();
 	const failedCustomizationFileNames: string[] = [];
 	const migratedCustomizations: IMigratedCustomization[] = [];
+	const migratedSources: IMigratedCustomizationSource[] = [];
 	let migratedCount = 0;
 	const deleteOriginalFiles = options?.deleteOriginalFiles ?? true;
 	const customizationsBySource = new ResourceMap<MigratableConfiguration[]>();
@@ -147,25 +155,44 @@ export async function migrateCustomizations(
 					}
 					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 					migratedContent = migratedSkill.content;
+				} else if (customization.type === PromptsType.skill) {
+					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
+					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, basename(dirname(customization.uri)), reservedNamesForFolder, fileService);
+					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 				} else {
 					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedFileNames);
 					targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);
 				}
 
 				await fileService.createFolder(targetFolder.uri);
-				await fileService.createFolder(dirname(targetUri));
-				await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
-				writtenTargetUris.push(targetUri);
+				if (customization.type === PromptsType.skill) {
+					const sourceFolder = dirname(customization.uri);
+					const targetSkillFolder = dirname(targetUri);
+					const stagingFolder = URI.joinPath(targetFolder.uri, `.migration-${generateUuid()}`);
+					writtenTargetUris.push(stagingFolder);
+					await fileService.copy(sourceFolder, stagingFolder, false);
+					await fileService.move(stagingFolder, targetSkillFolder, false);
+					writtenTargetUris.push(targetSkillFolder);
+				} else {
+					await fileService.createFolder(dirname(targetUri));
+					await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
+					writtenTargetUris.push(targetUri);
+				}
 				migratedSourceCustomizations.push({ uri: targetUri, type: targetType });
 			}
 
 			if (deleteOriginalFiles) {
-				await fileService.del(sourceCustomization.uri);
+				const sourceToDelete = sourceCustomization.type === PromptsType.skill ? dirname(sourceCustomization.uri) : sourceCustomization.uri;
+				await fileService.del(sourceToDelete, { recursive: sourceCustomization.type === PromptsType.skill });
 			}
 			for (const key of sourceUnsupportedHeaderKeys) {
 				unsupportedHeaderKeys.add(key);
 			}
 			migratedCustomizations.push(...migratedSourceCustomizations);
+			migratedSources.push(...sourceCustomizations.map(customization => ({
+				uri: customization.uri,
+				storage: customization.storage,
+			})));
 			migratedCount += migratedSourceCustomizations.length;
 		} catch (error) {
 			const migrationError = error instanceof Error ? error : new Error(String(error));
@@ -182,6 +209,7 @@ export async function migrateCustomizations(
 		failedCustomizationFileNames,
 		unsupportedHeaderKeys: Array.from(unsupportedHeaderKeys).sort(),
 		migratedCustomizations,
+		migratedSources,
 	};
 }
 
@@ -191,7 +219,7 @@ async function rollbackMigrationTargets(targetUris: readonly URI[], fileService:
 		const targetUri = targetUris[index];
 		try {
 			if (await fileService.exists(targetUri)) {
-				await fileService.del(targetUri);
+				await fileService.del(targetUri, { recursive: true });
 			}
 		} catch (error) {
 			errors.push(error instanceof Error ? error : new Error(String(error)));
@@ -266,7 +294,7 @@ async function getAvailableMigratedSkillName(
 ): Promise<string> {
 	let candidate = baseSkillName;
 	let counter = 2;
-	while (reservedNames.has(candidate) || await fileService.exists(createSkillFileUri(skillSourceFolder, candidate))) {
+	while (reservedNames.has(candidate) || await fileService.exists(URI.joinPath(skillSourceFolder, candidate))) {
 		const suffix = `-${counter++}`;
 		const trimmedBaseName = trimSkillName(baseSkillName, suffix.length);
 		candidate = `${trimmedBaseName}${suffix}`;

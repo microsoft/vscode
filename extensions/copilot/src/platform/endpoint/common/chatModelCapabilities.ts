@@ -142,6 +142,14 @@ export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
 }
 
 
+/**
+ * GPT-6 and its variants, including future minor versions.
+ */
+export function isGpt6Family(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	return family.startsWith('gpt-6');
+}
+
 function matchesGptModelFamily(family: string, prefix: string): boolean {
 	return family === prefix || family.startsWith(`${prefix}-`);
 }
@@ -262,7 +270,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isGpt56(model);
+		|| isGpt56(model)
+		|| isGpt6Family(model);
 }
 
 /**
@@ -276,7 +285,8 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isGpt56(model);
+		|| isGpt56(model)
+		|| isGpt6Family(model);
 }
 
 /**
@@ -327,7 +337,7 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model) || isGpt6Family(model);
 }
 
 /**
@@ -336,7 +346,7 @@ export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoi
  * only, since this is an OpenAI-specific Responses API feature.
  */
 export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGpt56(model);
+	return isGpt56(model) || isGpt6Family(model);
 }
 
 /**
@@ -348,7 +358,7 @@ export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | ICha
 	if (isVSCModelReplaceStringSet(model)) {
 		return false;
 	}
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isGpt6Family(model) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 /**
@@ -364,7 +374,7 @@ export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | ICh
  * Model can take the simple, modern apply_patch instructions.
  */
 export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isGpt6Family(model) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boolean {
@@ -451,7 +461,7 @@ export function isOpenAIModel(model: Pick<IChatEndpoint, 'family' | 'modelProvid
  * This takes a sync shortcut and should only be called when a model hash would have already been computed while rendering the prompt.
  */
 export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbosityEnabled?: boolean): 'low' | 'medium' | 'high' | undefined {
-	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini' || (isGpt56(model) && responsesApiVerbosityEnabled)) {
+	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini' || ((isGpt56(model) || isGpt6Family(model)) && responsesApiVerbosityEnabled)) {
 		return 'low';
 	}
 	return undefined;
@@ -462,7 +472,7 @@ export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbo
  * - Current-generation Claude models (4.5 and newer, including Haiku 4.5), so
  *   new and future Claude models are picked up automatically. The pre-4.5
  *   generations are denied explicitly.
- * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
+ * - OpenAI gpt-5.4, gpt-5.5, gpt-5.6, and gpt-6 families (via Responses API client-side tool search)
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
  * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
@@ -472,11 +482,11 @@ export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbo
 export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const id = typeof model === 'string' ? model : getModelId(model);
 	const family = typeof model === 'string' ? model : model.family;
-	const isGpt56Model: boolean = isGpt56(model);
+	const isGpt56OrGpt6 = isGpt56(model) || isGpt6Family(model);
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
 		// OpenAI models with client-side tool search.
-		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56Model) {
+		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56OrGpt6) {
 			return true;
 		}
 		if (!n.startsWith('claude')) {

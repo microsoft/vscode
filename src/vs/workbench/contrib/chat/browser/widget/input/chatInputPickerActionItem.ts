@@ -108,4 +108,25 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 			this.renderLabel(this.element);
 		}
 	}
+
+	override setFocusable(_focusable: boolean): void {
+		// Chat input pickers are distinct Tab stops, not only roving toolbar items.
+		this._updateTabIndex();
+	}
+
+	override blur(): void {
+		super.blur();
+		this._updateTabIndex();
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this._updateTabIndex();
+	}
+
+	private _updateTabIndex(): void {
+		if (this.element) {
+			this.element.tabIndex = this.isEnabled() ? 0 : -1;
+		}
+	}
 }

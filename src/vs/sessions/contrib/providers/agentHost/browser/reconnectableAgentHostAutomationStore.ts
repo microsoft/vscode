@@ -7,12 +7,12 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, disposableObservableValue, observableSignalFromEvent, observableValue, waitForState, type IObservable } from '../../../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, observableSignalFromEvent, observableValue, transaction, waitForState, type IObservable, type ITransaction } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import type { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { isAutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, isAutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -37,6 +37,20 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 
 	readonly automations = derived(this, reader => this._currentStore.read(reader)?.automations.read(reader) ?? this._legacySource?.automations.read(reader) ?? []);
 	readonly runs = derived(this, reader => this._currentStore.read(reader)?.runs.read(reader) ?? this._legacySource?.runs.read(reader) ?? []);
+	readonly catalogueState: IObservable<AutomationCatalogueState> = derived(this, reader => {
+		const authorityState = this._authorityState.read(reader);
+		const legacyState = this._legacySource?.catalogueState.read(reader) ?? 'ready';
+		switch (authorityState.kind) {
+			case 'initializing':
+				return legacyState === 'error' ? 'error' : 'loading';
+			case 'supported':
+				return authorityState.store.catalogueState.read(reader);
+			case 'unsupported':
+			case 'disabled':
+			case 'disconnected':
+				return legacyState === 'error' ? 'error' : 'unavailable';
+		}
+	});
 
 	constructor(
 		private readonly _providerId: string,
@@ -51,20 +65,19 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	}
 
 	override dispose(): void {
-		this._connectionBinding.clear();
-		this._migrationRetry.clear();
-		this._setAuthorityState({ kind: 'disconnected' });
+		this.clearConnection();
 		this._disposeCancellation.cancel();
 		this._disposeCancellation.dispose();
-		this._currentStore.set(undefined, undefined);
 		super.dispose();
 	}
 
 	setConnection(connection: IAgentHostAutomationConnection): void {
 		this._connectionBinding.clear();
 		this._migrationRetry.clear();
-		this._currentStore.set(undefined, undefined);
-		this._setAuthorityState({ kind: 'initializing' });
+		transaction(tx => {
+			this._currentStore.set(undefined, tx);
+			this._setAuthorityState({ kind: 'initializing' }, tx);
+		});
 		this._connectionBinding.add(autorun(reader => {
 			this._configurationChanged.read(reader);
 			const initializeResult = connection.initializeResult.read(reader);
@@ -73,9 +86,11 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 			if (!enabled) {
 				if (current) {
 					this._migrationRetry.clear();
-					this._currentStore.set(undefined, undefined);
 				}
-				this._setAuthorityState({ kind: 'disabled' });
+				transaction(tx => {
+					this._currentStore.set(undefined, tx);
+					this._setAuthorityState({ kind: 'disabled' }, tx);
+				});
 				return;
 			}
 			if (!initializeResult) {
@@ -85,15 +100,19 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 			if (!initializeResult.automations) {
 				if (current) {
 					this._migrationRetry.clear();
-					this._currentStore.set(undefined, undefined);
 				}
-				this._setAuthorityState({ kind: 'unsupported' });
+				transaction(tx => {
+					this._currentStore.set(undefined, tx);
+					this._setAuthorityState({ kind: 'unsupported' }, tx);
+				});
 				return;
 			}
 			if (!current) {
 				const store = this._instantiationService.createInstance(AgentHostAutomationStore, this._providerId, connection, this._legacySource, this._boundaryMapper);
-				this._currentStore.set(store, undefined);
-				this._setAuthorityState({ kind: 'supported', store });
+				transaction(tx => {
+					this._currentStore.set(store, tx);
+					this._setAuthorityState({ kind: 'supported', store }, tx);
+				});
 				this._completeMigration(store);
 			} else {
 				this._setAuthorityState({ kind: 'supported', store: current });
@@ -104,8 +123,10 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	clearConnection(): void {
 		this._connectionBinding.clear();
 		this._migrationRetry.clear();
-		this._currentStore.set(undefined, undefined);
-		this._setAuthorityState({ kind: 'disconnected' });
+		transaction(tx => {
+			this._currentStore.set(undefined, tx);
+			this._setAuthorityState({ kind: 'disconnected' }, tx);
+		});
 	}
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
@@ -224,13 +245,13 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		}
 	}
 
-	private _setAuthorityState(state: AutomationAuthorityState): void {
+	private _setAuthorityState(state: AutomationAuthorityState, tx?: ITransaction): void {
 		const current = this._authorityState.get();
 		if (current.kind === state.kind
 			&& (current.kind !== 'supported' || state.kind !== 'supported' || current.store === state.store)) {
 			return;
 		}
-		this._authorityState.set(state, undefined);
+		this._authorityState.set(state, tx);
 	}
 
 	private _completeMigration(store: AgentHostAutomationStore): void {

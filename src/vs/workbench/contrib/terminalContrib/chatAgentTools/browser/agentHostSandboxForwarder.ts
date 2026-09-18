@@ -9,19 +9,14 @@ import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledS
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
-import { AgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { AgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { readAgentHostSandboxValues, SANDBOX_SETTING_KEYS } from '../common/sandboxSettingsReader.js';
 
-/**
- * Workbench-side host-policy gates that affect which sandbox config the host
- * sends to the Agent Host. Changes to either of these settings invalidate
- * the cached "desired" config and trigger a re-push.
- */
 const HOST_POLICY_SETTING_KEYS: readonly string[] = [
 	AgentHostCustomTerminalToolEnabledSettingId,
 	AgentHostSdkSandboxEnabledSettingId,
@@ -29,9 +24,8 @@ const HOST_POLICY_SETTING_KEYS: readonly string[] = [
 ];
 
 /**
- * Forwards the workbench user's sandbox setting values into every connected
- * agent host (local + remote) via `RootConfigChanged` actions, so the
- * agent-host terminal sandbox engine can mirror the user's preferences.
+ * Forwards the workbench user's applicable sandbox setting values into every
+ * connected agent host (local + remote) via `RootConfigChanged` actions.
  *
  * The forwarder is deliberately one-directional: it pushes only when
  *  - a connection comes online (initial push, deferred until the host
@@ -157,26 +151,6 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		return this._desired;
 	}
 
-	/**
-	 * Compute the sandbox config to forward to the Agent Host.
-	 *
-	 *  - When the Agent Host's own terminal sandbox engine is enabled
-	 *    (`chat.agentHost.customTerminalTool.enabled === true`), forward the
-	 *    user's full `chat.agent.sandbox.*` policy verbatim. The engine reads
-	 *    those values directly.
-	 *
-	 *  - Otherwise (the SDK runs the shell tool), gate on
-	 *    `chat.agentHost.sdkSandbox.enabled` and
-	 *    `chat.agentHost.sdkSandbox.enabledWindows` independently:
-	 *      - both `'off'` (the default) — forward an empty object so any
-	 *        previously-pushed values are cleared and the SDK runs commands
-	 *        unsandboxed.
-	 *      - either `'on'` — forward the user's policy and
-	 *        set `enabled` and `enabled.windows` from their corresponding SDK
-	 *        settings. The SDK sandbox modes are independent of the
-	 *        engine sandbox mode, so the user can run the SDK sandboxed
-	 *        even when the engine sandbox is off.
-	 */
 	private _computeDesired(): Record<string, unknown> {
 		const customTerminalToolEnabled = this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
 		const values = readAgentHostSandboxValues(this._configurationService, this._logService);
@@ -187,9 +161,6 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		const windowsSdkSandbox = this._configurationService.getValue<AgentSandboxEnabledValue>(AgentHostSdkSandboxWindowsEnabledSettingId) ?? AgentSandboxEnabledValue.Off;
 		const sdkSandboxEnabled = sdkSandbox === AgentSandboxEnabledValue.On;
 		const windowsSdkSandboxEnabled = windowsSdkSandbox === AgentSandboxEnabledValue.On;
-		if (!sdkSandboxEnabled && !windowsSdkSandboxEnabled) {
-			return {};
-		}
 		values[AgentHostSandboxKey.Enabled] = sdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 		values[AgentHostSandboxKey.WindowsEnabled] = windowsSdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 		return values;

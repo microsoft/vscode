@@ -338,6 +338,43 @@ suite('RootStateSubscription', () => {
 		assert.strictEqual((sub.value as RootState).activeSessions, 0);
 	});
 
+	test('snapshot refresh buffers newer envelopes so a stale snapshot cannot drop them', () => {
+		const sub = disposables.add(new RootStateSubscription('c1', noop));
+		sub.handleSnapshot(makeRootState({ activeSessions: 1 }), 10);
+
+		// Re-subscribing an already-seated channel: the snapshot is computed at
+		// seq 23 but a newer action reaches the client first.
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 7 },
+			24,
+		));
+		assert.strictEqual((sub.value as RootState).activeSessions, 1, 'newer action is held back until the snapshot lands');
+
+		sub.handleSnapshot(makeRootState({ activeSessions: 3 }), 23);
+		assert.strictEqual((sub.value as RootState).activeSessions, 7, 'newer action wins over the older snapshot');
+	});
+
+	test('cancelling a snapshot refresh applies what it buffered', () => {
+		const sub = disposables.add(new RootStateSubscription('c1', noop));
+		sub.handleSnapshot(makeRootState({ activeSessions: 1 }), 10);
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 7 },
+			24,
+		));
+
+		sub.cancelSnapshotRefresh();
+		assert.strictEqual((sub.value as RootState).activeSessions, 7);
+
+		// Refresh mode is off again: later envelopes apply directly.
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.RootActiveSessionsChanged, activeSessions: 9 },
+			25,
+		));
+		assert.strictEqual((sub.value as RootState).activeSessions, 9);
+	});
+
 	test('setError makes value return the error', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
 		sub.handleSnapshot(makeRootState(), 0);

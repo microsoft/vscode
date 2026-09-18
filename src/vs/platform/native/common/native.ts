@@ -82,6 +82,8 @@ export interface INativeZipOptions {
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
+	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
+	readonly folderUriIsDefault?: boolean;
 	readonly sessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
 }

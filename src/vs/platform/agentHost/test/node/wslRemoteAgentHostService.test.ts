@@ -12,7 +12,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import type { IWSLConnectResult } from '../../common/wslRemoteAgentHost.js';
+import type { IWSLConnectProgress, IWSLConnectResult } from '../../common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../node/wslRemoteAgentHostService.js';
 import type WebSocket from 'ws';
 
@@ -129,7 +129,7 @@ suite('WSL Remote Agent Host Service', () => {
 		);
 	});
 
-	test('keeps a chatty bootstrap alive past the output-idle timeout', async () => {
+	test('accepts initial bootstrap output after the output-idle budget', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const service = disposables.add(createService());
 			const connect = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
@@ -137,9 +137,7 @@ suite('WSL Remote Agent Host Service', () => {
 			await Promise.resolve();
 
 			const child = service.children[0];
-			await timeout(59_000);
-			child.emitStdout('Downloading server 50%\n');
-			await timeout(59_000);
+			await timeout(60_001);
 			child.emitStdout('ws://127.0.0.1:3000?tkn=token\n');
 
 			const result = await connect;
@@ -150,7 +148,7 @@ suite('WSL Remote Agent Host Service', () => {
 		});
 	});
 
-	test('fails a silent bootstrap after the output-idle timeout', async () => {
+	test('fails a silent bootstrap after the initial-output startup budget', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const service = disposables.add(createService());
 			const rejected = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' }).then<IWSLConnectResult | Error, Error>(
@@ -160,11 +158,61 @@ suite('WSL Remote Agent Host Service', () => {
 			service.resolvePlatform();
 			await Promise.resolve();
 
+			await timeout(180_001);
+			const result = await rejected;
+
+			assert.ok(result instanceof Error);
+			assert.match(result.message, /180000ms startup budget/);
+		});
+	});
+
+	test('fails after output goes quiet for the output-idle budget', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const service = disposables.add(createService());
+			const rejected = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' }).then<IWSLConnectResult | Error, Error>(
+				result => result,
+				error => error instanceof Error ? error : new Error(String(error)),
+			);
+			service.resolvePlatform();
+			await Promise.resolve();
+
+			service.children[0].emitStdout('Downloading server 50%\n');
 			await timeout(60_001);
 			const result = await rejected;
 
 			assert.ok(result instanceof Error);
-			assert.match(result.message, /no output for 60000ms/);
+			assert.match(result.message, /60000ms output-idle budget after output started/);
+		});
+	});
+
+	test('reports redacted, throttled server download progress', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const service = disposables.add(createService());
+			const progress: IWSLConnectProgress[] = [];
+			disposables.add(service.onDidReportConnectProgress(update => progress.push(update)));
+			const connect = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+			service.resolvePlatform();
+			await Promise.resolve();
+
+			const child = service.children[0];
+			child.emitStdout('bootstrap shell noise\n');
+			for (const percentage of [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]) {
+				child.emitStdout(`Downloading server: ${percentage}/100 (${percentage}%) tkn=bootstrap-token\n`);
+			}
+			await timeout(250);
+			child.emitStdout('Downloading server: 99/100 (99%) tkn=bootstrap-token\n');
+			child.emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+			await connect;
+
+			assert.deepStrictEqual({
+				downloadMessages: progress.filter(update => update.message.startsWith('Downloading server')).map(update => update.message),
+				hasNoise: progress.some(update => update.message === 'bootstrap shell noise'),
+				hasToken: progress.some(update => update.message.includes('bootstrap-token') || update.message.includes('tkn=token')),
+			}, {
+				downloadMessages: ['Downloading server (10%)', 'Downloading server (100%)', 'Downloading server (99%)'],
+				hasNoise: false,
+				hasToken: false,
+			});
 		});
 	});
 });

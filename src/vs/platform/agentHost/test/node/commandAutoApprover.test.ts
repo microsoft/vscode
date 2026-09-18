@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { gitAutoApproveRules } from '../../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
 
 suite('CommandAutoApprover initialization', () => {
@@ -338,6 +339,28 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('SELECT-OBJECT Name', pwsh),
 				approver.shouldAutoApprove('measure-object Length', pwsh),
 			], ['approved', 'approved', 'approved']);
+		});
+
+		test('keeps the Git directory option case-sensitive in PowerShell', () => {
+			const pwsh = { language: 'powershell' } as const;
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep pattern', 'branch'];
+			const commands = [
+				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
+				'GIT -C repo DIFF',
+				...safeSubcommands.map(subcommand => `git -c key=value ${subcommand}`),
+				'git --no-pager -c core.pager=program log',
+				'git -C repo -c diff.external=program diff',
+			];
+			const expected = [
+				...safeSubcommands.map(() => 'approved'),
+				'approved',
+				...safeSubcommands.map(() => 'noMatch'),
+				'noMatch',
+				'noMatch',
+			];
+
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, pwsh)), expected);
+			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, { ...pwsh, autoApproveRules: gitAutoApproveRules })), expected);
 		});
 
 		test('does not auto-approve arbitrary PowerShell cmdlets by verb', () => {

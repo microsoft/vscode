@@ -116,6 +116,21 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
 	});
 
+	test('reapplying an unchanged inventory dispatches nothing', () => {
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+		const inventory = [
+			server('fs', starting()),
+			server('search', ready()),
+		];
+
+		controller.applyAll(inventory);
+		const firstActions = [...actions];
+		controller.applyAll(inventory.map(item => server(item.name, { ...item.state })));
+
+		assert.deepStrictEqual(actions, firstActions);
+	});
+
 	test('child-backed server: ready/error/ready transitions only update state+channel', () => {
 		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
@@ -335,7 +350,7 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(actions
 			.filter(action => action.type === ActionType.SessionCustomizationUpdated)
-			.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? isCustomizationEnabled(action.customization) : undefined), [false, false]);
+			.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? isCustomizationEnabled(action.customization) : undefined), [false]);
 	});
 
 	test('workspace plugin enablement masks and restores its child MCP server without changing the child decision', () => {
@@ -384,12 +399,6 @@ suite('McpCustomizationController', () => {
 		controller.applyOne(server('fs', ready()));
 
 		assert.deepStrictEqual(actions, [
-			{
-				type: ActionType.SessionMcpServerStateChanged,
-				id: 'mcp-child:demo:fs',
-				state: authState,
-				channel: undefined,
-			},
 			{
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',
