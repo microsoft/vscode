@@ -19,6 +19,7 @@ import { IPullRequestResources } from '../../../github/common/pullRequestResourc
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { defaultAgentMergeConfiguration } from '../../common/agentMerge.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from '../../node/agentMergeCIEvidence.js';
@@ -569,7 +570,15 @@ class CIHarness extends Disposable {
 		const logService = new NullLogService();
 		const stateManager = this._register(new AgentHostStateManager(logService));
 		const configurationService = this._register(new AgentConfigurationService(stateManager, logService));
-		this.tools = this._register(new AgentMergeTools(() => this.enabled, session => session === this.context.session ? this.context : this.peerContexts.get(session), service, logService, stateManager, configurationService));
+		this.tools = this._register(new AgentMergeTools(
+			() => this.enabled,
+			session => session === this.context.session ? this.context : this.peerContexts.get(session),
+			service,
+			logService,
+			stateManager,
+			configurationService,
+			new class extends mock<IAgentHostGitService>() { }(),
+		));
 	}
 
 	async read(request: AgentMergeCIRequest = {}, session = this.context.session): Promise<CIResult> {

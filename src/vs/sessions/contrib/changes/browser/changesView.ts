@@ -1389,10 +1389,12 @@ export class ChangesViewPane extends ViewPane {
 		}
 
 		const activeSession = this.sessionsService.activeSession.get();
-		const folder = activeSession?.workspace.get()?.folders[0];
-		if (!folder) {
+		const activeChat = activeSession?.activeChat?.get();
+		const folders = (activeChat?.workspace ?? activeSession?.workspace)?.get()?.folders;
+		if (!folders || folders.length !== 1) {
 			return undefined;
 		}
+		const folder = folders[0];
 
 		const workspaceFolderUri = folder.workingDirectory;
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from '../../../base/common/path.js';
+import { Schemas } from '../../../base/common/network.js';
 import { isEqual, isEqualOrParent, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -36,4 +37,19 @@ export function isWorktreeUnderRepository(candidate: URI, repositoryRoot: URI): 
 	const worktreesRoot = normalizePath(getWorktreesRoot(repositoryRoot));
 	const normalizedCandidate = normalizePath(candidate);
 	return isEqualOrParent(normalizedCandidate, worktreesRoot) && !isEqual(normalizedCandidate, worktreesRoot);
+}
+
+/** Derives the source repository from a worktree directly under its conventional `<repo>.worktrees` sibling. */
+export function deriveRepositoryRootFromWorktree(worktree: URI): URI | undefined {
+	if (worktree.scheme !== Schemas.file) {
+		return undefined;
+	}
+	const worktreesRoot = URI.joinPath(worktree, '..');
+	const worktreesRootName = basename(worktreesRoot.fsPath);
+	const suffix = '.worktrees';
+	if (!worktreesRootName.endsWith(suffix)) {
+		return undefined;
+	}
+	const repositoryName = worktreesRootName.slice(0, -suffix.length);
+	return repositoryName ? URI.joinPath(worktreesRoot, '..', repositoryName) : undefined;
 }

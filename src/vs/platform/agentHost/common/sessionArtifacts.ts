@@ -34,6 +34,8 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly type: SessionArtifactType;
 	readonly label: string;
+	/** Chat that recorded this entry. Absent for session-wide entries. */
+	readonly chat?: string;
 	/**
 	 * `true` for an artifact — something this session produced — and `false` for
 	 * a reference, something it only points the user at.
@@ -79,6 +81,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		id: string;
 		type: SessionArtifactType;
 		label: string;
+		chat?: string;
 		isArtifact: boolean;
 		link?: string;
 		uri?: string;
@@ -95,6 +98,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['uri'] === 'string') { artifact.uri = raw['uri']; }
 	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
 	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
+	if (typeof raw['chat'] === 'string') { artifact.chat = raw['chat']; }
 	return artifact;
 }
 

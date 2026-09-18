@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { realpath } from 'fs/promises';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { basename } from '../../../base/common/resources.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
@@ -14,6 +16,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { resolveRealPathForNonexistent } from './sessionPermissions.js';
 
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
 
@@ -57,13 +60,29 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				`Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectories?.[0];
-		if (!workingDirectoryStr) {
+		const resource = URI.parse(params.target.resource);
+		const workingDirectories = sessionState.workingDirectories;
+		if (!workingDirectories?.length) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
-
+		const canonicalResource = resource.scheme === Schemas.file
+			? await resolveRealPathForNonexistent(resource, realpath)
+			: resource;
+		let workingDirectoryStr: string | undefined;
+		for (const directory of workingDirectories) {
+			const workingDirectory = URI.parse(directory);
+			const canonicalWorkingDirectory = workingDirectory.scheme === Schemas.file
+				? await resolveRealPathForNonexistent(workingDirectory, realpath)
+				: workingDirectory;
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(canonicalResource, canonicalWorkingDirectory)) {
+				workingDirectoryStr = directory;
+				break;
+			}
+		}
+		if (!workingDirectoryStr) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Resource is outside the session working directories: ${params.target.resource}`);
+		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
-		const resource = URI.parse(params.target.resource);
 
 		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);
 

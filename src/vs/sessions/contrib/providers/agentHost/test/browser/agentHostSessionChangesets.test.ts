@@ -24,6 +24,7 @@ import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platfo
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -45,7 +46,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
-import { createChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
+import { createChangesets, filterChangesToWorkingDirectories, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
 suite('AgentHostSessionChangesets', () => {
@@ -99,19 +100,21 @@ suite('AgentHostSessionChangesets', () => {
 		};
 	}
 
-	suite('filterChangesToPrimaryWorkingDirectory', () => {
-		test('(a) multi-root: keeps only changes under the primary working directory', () => {
+	suite('filterChangesToWorkingDirectories', () => {
+		test('(a) multi-root: keeps changes under every working directory', () => {
 			const changes = [
 				makeChange('file:///repo/primary/src/a.ts'),
 				makeChange('file:///repo/primary/deep/nested/b.ts'),
 				makeChange('file:///repo/other/c.ts'),
+				makeChange('file:///outside/d.ts'),
 			];
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/other']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/other']);
 
 			assert.deepStrictEqual(uris(result), [
 				'file:///repo/primary/src/a.ts',
 				'file:///repo/primary/deep/nested/b.ts',
+				'file:///repo/other/c.ts',
 			]);
 		});
 
@@ -121,19 +124,19 @@ suite('AgentHostSessionChangesets', () => {
 				makeChange('file:///repo/other/b.ts'),
 			];
 
-			assert.strictEqual(filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary']), changes);
+			assert.strictEqual(filterChangesToWorkingDirectories(changes, ['file:///repo/primary']), changes);
 		});
 
 		test('(b) undefined working directories: returns the input list unchanged', () => {
 			const changes = [makeChange('file:///repo/primary/a.ts')];
 
-			assert.strictEqual(filterChangesToPrimaryWorkingDirectory(changes, undefined), changes);
+			assert.strictEqual(filterChangesToWorkingDirectories(changes, undefined), changes);
 		});
 
 		test('(b) empty working directories: returns the input list unchanged', () => {
 			const changes = [makeChange('file:///repo/primary/a.ts')];
 
-			assert.strictEqual(filterChangesToPrimaryWorkingDirectory(changes, []), changes);
+			assert.strictEqual(filterChangesToWorkingDirectories(changes, []), changes);
 		});
 
 		test('(c) boundary: a change exactly at the primary directory is kept; a sibling with a shared prefix is excluded', () => {
@@ -143,7 +146,7 @@ suite('AgentHostSessionChangesets', () => {
 				makeChange('file:///repo/primary-sibling/y.ts'),
 			];
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/second']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/second']);
 
 			assert.deepStrictEqual(uris(result), [
 				'file:///repo/primary',
@@ -160,9 +163,12 @@ suite('AgentHostSessionChangesets', () => {
 			// Guard the fixture itself: a real deletion must omit `modifiedUri`.
 			assert.strictEqual((changes[0] as IChatSessionFileChange2).modifiedUri, undefined);
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/other']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/other']);
 
-			assert.deepStrictEqual(uris(result), ['file:///repo/primary/gone.ts']);
+			assert.deepStrictEqual(uris(result), [
+				'file:///repo/primary/gone.ts',
+				'file:///repo/other/gone.ts',
+			]);
 		});
 
 		test('compares mapped (agent-host) changes by their preserved file path', () => {
@@ -175,9 +181,12 @@ suite('AgentHostSessionChangesets', () => {
 				makeChange('agent-host://server/repo/other/b.ts'),
 			];
 
-			const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/primary', 'file:///repo/other']);
+			const result = filterChangesToWorkingDirectories(changes, ['file:///repo/primary', 'file:///repo/other']);
 
-			assert.deepStrictEqual(uris(result), ['agent-host://server/repo/primary/a.ts']);
+			assert.deepStrictEqual(uris(result), [
+				'agent-host://server/repo/primary/a.ts',
+				'agent-host://server/repo/other/b.ts',
+			]);
 		});
 
 		test('case-differing sibling roots are not conflated (file-path case semantics)', () => {
@@ -188,7 +197,7 @@ suite('AgentHostSessionChangesets', () => {
 			if (isLinux) {
 				const changes = [makeChange('agent-host://server/repo/app/x.ts')];
 
-				const result = filterChangesToPrimaryWorkingDirectory(changes, ['file:///repo/App', 'file:///repo/other']);
+				const result = filterChangesToWorkingDirectories(changes, ['file:///repo/App', 'file:///repo/other']);
 
 				assert.deepStrictEqual(uris(result), []);
 			}
@@ -295,12 +304,18 @@ suite('AgentHostSessionChangesets', () => {
 	test('binds Agent Merge changes to completed repair turns after the last default-chat user turn', () => {
 		const sessionUri = URI.parse('ahp-session:/session-1');
 		const defaultChatUri = URI.parse('ahp-session:/session-1/chat/default');
+		const peerChatUri = URI.parse('ahp-chat://peer/session-1');
 		const modifiedAt = new Date(0).toISOString();
 		const chatSummary: ChatSummary = {
 			resource: defaultChatUri.toString(),
 			title: 'Default',
 			status: SessionStatus.Idle,
 			modifiedAt,
+		};
+		const peerChatSummary: ChatSummary = {
+			...chatSummary,
+			resource: peerChatUri.toString(),
+			title: 'Peer',
 		};
 		const sessionState: SessionState = {
 			provider: 'copilot',
@@ -344,12 +359,14 @@ suite('AgentHostSessionChangesets', () => {
 		});
 		const acquiredChangesets: string[] = [];
 		const releasedChangesets: string[] = [];
+		const acquiredChats: string[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
 			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 				switch (component) {
 					case StateComponents.Session:
 						return { object: sessionSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 					case StateComponents.Chat:
+						acquiredChats.push(resource.toString());
 						return { object: chatSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
 					case StateComponents.Changeset: {
 						const key = resource.toString();
@@ -404,21 +421,46 @@ suite('AgentHostSessionChangesets', () => {
 		});
 		chatSubscription.set({ ...createChatState(chatSummary), turns: [...repairsAfterUser3, user6] });
 		chatSubscription.set({ ...createChatState(chatSummary), turns: [...repairsAfterUser3, user6, merge7] });
+		const user8 = makeTurn('user-8', MessageKind.User);
+		const merge9 = makeTurn('merge-9', MessageKind.SystemNotification, true);
+		sessionSubscription.set({
+			...sessionState,
+			chats: [chatSummary, peerChatSummary],
+			config: {
+				schema: { type: 'object', properties: {} },
+				values: {
+					[SessionConfigKey.AgentMerge]: { enabled: true },
+					[SessionConfigKey.AgentMergeController]: {
+						target: {
+							branchName: 'feature/peer',
+							chatUri: peerChatUri.toString(),
+							workingDirectory: URI.file('/peer').toString(),
+							enabledAt: modifiedAt,
+							commentWatermark: modifiedAt,
+						},
+					},
+				},
+			},
+		});
+		chatSubscription.set({ ...createChatState(peerChatSummary), turns: [user8, merge9] });
 
 		const compareFromUser3 = `ahp-session:/session-1/changeset/compare/user-3/merge-5`;
 		const compareFromUser6 = `ahp-session:/session-1/changeset/compare/user-6/merge-7`;
+		const compareFromPeerUser = `ahp-session:/session-1/changeset/compare/user-8/merge-9`;
 		assert.deepStrictEqual({
 			id: changeset.id,
 			enabled: changeset.isEnabled.get(),
 			visibleChangeCount,
+			acquiredChats,
 			acquiredChangesets,
 			releasedChangesets,
 		}, {
 			id: AGENT_MERGE_CHANGESET_ID,
 			enabled: true,
 			visibleChangeCount: 0,
-			acquiredChangesets: [compareFromUser3, compareFromUser6],
-			releasedChangesets: [compareFromUser3],
+			acquiredChats: [defaultChatUri.toString(), peerChatUri.toString()],
+			acquiredChangesets: [compareFromUser3, compareFromUser6, compareFromPeerUser],
+			releasedChangesets: [compareFromUser3, compareFromUser6],
 		});
 	});
 

@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { deriveRepositoryRootFromWorktree } from '../../platform/agentHost/common/worktreePaths.js';
 import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
 export interface IAgentHostSessionProjectSummary {
@@ -97,6 +98,41 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 	return [workspace.label, ...folderKeys].join('\n');
 }
 
+/**
+ * Projects a chat's working-directory scope onto its owning session workspace.
+ * Returns no workspace rather than exposing a partial scope when a required folder is unavailable.
+ */
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined): ISessionWorkspace | undefined {
+	if (!sessionWorkspace || workingDirectories === undefined) {
+		return sessionWorkspace;
+	}
+
+	const folders: ISessionFolder[] = [];
+	for (const workingDirectory of workingDirectories) {
+		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory));
+		if (!folder) {
+			return undefined;
+		}
+		folders.push(folder);
+	}
+
+	if (folders.length === 0) {
+		return undefined;
+	}
+	if (folders.length === sessionWorkspace.folders.length && folders.every((folder, index) => folder === sessionWorkspace.folders[index])) {
+		return sessionWorkspace;
+	}
+
+	const primaryFolder = folders[0];
+	const usesSessionPrimary = primaryFolder === sessionWorkspace.folders[0];
+	return {
+		...sessionWorkspace,
+		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
+		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
+		folders,
+	};
+}
+
 export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProjectSummary | undefined, workingDirectories: readonly URI[] | undefined, options: IAgentHostSessionWorkspaceOptions, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState?: ISessionGitState): ISessionWorkspace | undefined {
 	const baseBranchName = gitState?.baseBranchName;
 	const baseBranchProtected = baseBranchName !== undefined
@@ -116,8 +152,22 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	// is not populated here.
 	const primary = workingDirectories?.[0];
 	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const name = basename(dir) || dir.path;
-		return { root: dir, workingDirectory: dir, name, description: options.description };
+		const repositoryRoot = deriveRepositoryRootFromWorktree(dir);
+		const root = repositoryRoot ?? dir;
+		const name = basename(root) || root.path;
+		return {
+			root,
+			workingDirectory: dir,
+			name,
+			description: options.description,
+			gitRepository: repositoryRoot ? {
+				uri: repositoryRoot,
+				workTreeUri: dir,
+				isRepository: constObservable(true),
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(undefined),
+			} : undefined,
+		};
 	});
 
 	if (project) {

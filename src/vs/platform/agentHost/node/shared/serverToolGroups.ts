@@ -25,10 +25,10 @@ import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from 
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, isCreateSessionRelationshipEnabled?: () => boolean): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
-		createSessionServerToolGroup(sessionAccessor),
+		createSessionServerToolGroup(sessionAccessor, isCreateSessionRelationshipEnabled),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 	];

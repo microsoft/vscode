@@ -2061,8 +2061,9 @@ suite('ProtocolServerHandler', () => {
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
+			const workingDirectory = 'file:///workspace/other';
 
-			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat }));
+			transport.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat, workingDirectories: [workingDirectory] }));
 			const resp = await responsePromise;
 
 			assert.deepStrictEqual({
@@ -2071,7 +2072,7 @@ suite('ProtocolServerHandler', () => {
 				inCatalog: stateManager.getSessionState(sessionUri)?.chats.some(c => c.resource === peerChat),
 			}, {
 				result: null,
-				created: [{ session: sessionUri, chat: peerChat }],
+				created: [{ session: sessionUri, chat: peerChat, options: { workingDirectories: [URI.parse(workingDirectory)] } }],
 				inCatalog: true,
 			});
 		});

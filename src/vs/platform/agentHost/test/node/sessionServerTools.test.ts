@@ -10,7 +10,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
+import type { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
@@ -62,7 +62,7 @@ suite('SessionServerTools', () => {
 		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' };
 	}
 
-	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection }) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
+	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
@@ -75,6 +75,7 @@ suite('SessionServerTools', () => {
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
+			addSessionWorkingDirectory: overrides?.addSessionWorkingDirectory ?? (async (_session, directory) => directory),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
@@ -117,11 +118,11 @@ suite('SessionServerTools', () => {
 				relationship: {
 					type: 'string',
 					enum: ['currentSession', 'independent'],
-					description: 'Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree.',
+					description: 'Whether this work belongs to the current session or is independently managed. Base this choice only on whether the work is related to the current session.',
 				},
 				prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
-				workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
-				worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
+				workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session.' },
+				worktree: { type: 'boolean', description: 'Whether to use an isolated Git worktree for the workspace. Set true only when the user explicitly asks to create a worktree; for `currentSession`, this always creates a fresh worktree even when the repository already has another session worktree. Set false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior, including inheriting and reusing it when a current-session chat adds a repository already represented in the session.' },
 				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 			},
@@ -647,10 +648,45 @@ suite('SessionServerTools', () => {
 		});
 	});
 
-	test('create_session guidance requires an explicit isolation choice and excludes currentSession', () => {
+	test('create_session guidance bases relationship only on relatedness', () => {
 		const description = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.CreateSession)?.description ?? '';
-		assert.match(description, /Only supply `worktree` when the user explicitly requests working with or without a new worktree/);
-		assert.match(description, /never combine it with `currentSession`/);
+		assert.strictEqual(description, 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the work is related to the current session, or to `independent` when it is not.');
+	});
+
+	test('create_session omits relationship from its definition when the choice is disabled', () => {
+		let relationshipEnabled = true;
+		const group = createSessionServerToolGroup(undefined, () => relationshipEnabled);
+		const getDefinition = () => group.definitions.find(definition => definition.name === SessionServerToolName.CreateSession);
+
+		const enabled = getDefinition();
+		relationshipEnabled = false;
+		const disabled = getDefinition();
+
+		assert.deepStrictEqual({
+			enabled: {
+				description: enabled?.description,
+				properties: Object.keys(enabled?.inputSchema?.properties ?? {}),
+				required: enabled?.inputSchema?.required,
+			},
+			disabled: {
+				description: disabled?.description,
+				properties: Object.keys(disabled?.inputSchema?.properties ?? {}),
+				required: disabled?.inputSchema?.required,
+				staleIndependentDisplay: group.getDisplay?.(SessionServerToolName.CreateSession, { relationship: 'independent' })?.displayName,
+			},
+		}, {
+			enabled: {
+				description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the work is related to the current session, or to `independent` when it is not.',
+				properties: ['relationship', 'prompt', 'workspace', 'worktree', 'title', 'model'],
+				required: ['relationship', 'prompt', 'title'],
+			},
+			disabled: {
+				description: 'Create delegated work as a new chat in the current session and start it with an initial prompt.',
+				properties: ['prompt', 'workspace', 'worktree', 'title', 'model'],
+				required: ['prompt', 'title'],
+				staleIndependentDisplay: 'Create Chat in Current Session',
+			},
+		});
 	});
 
 	test('getCreateSessionArgs resolves workspace by working directory and model by id/name', () => {
@@ -875,7 +911,16 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getCreateSessionArgs({ workspace: workspace.toString(), prompt: 'hi', title: 'Task' }, [], []), /relationship/);
 		assert.throws(() => getCreateSessionArgs({ relationship: 'other', prompt: 'hi', title: 'Task' }, [], []), /relationship/);
 		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', prompt: 'hi', title: 'Task' }, [], []), /workspace/);
-		assert.throws(() => getCreateSessionArgs({ relationship: 'currentSession', workspace: workspace.toString(), prompt: 'hi', title: 'Task' }, [], []), /workspace/);
+		const currentSessionArgs = getCreateSessionArgs({ relationship: 'currentSession', workspace: workspace.toString(), prompt: 'hi', title: 'Task' }, [], []);
+		assert.deepStrictEqual({
+			...currentSessionArgs,
+			workspace: currentSessionArgs.workspace?.toString(),
+		}, {
+			relationship: 'currentSession',
+			workspace: workspace.toString(),
+			prompt: 'hi',
+			title: 'Task',
+		});
 		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi' }, [], []), /title/);
 		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: ' ' }, [], []), /non-whitespace/);
 		assert.throws(() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'x'.repeat(201) }, [], []), /must not exceed 200/);
@@ -1180,21 +1225,28 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test(`create_session rejects currentSession with worktree=${worktree} before creating work`, async () => {
-			const operations: string[] = [];
+		test(`create_session honors explicit currentSession worktree=${worktree} over inherited isolation`, async () => {
+			let addOptions: Parameters<ISessionServerToolAccessor['addSessionWorkingDirectory']>[2] | undefined;
 			const accessor = createAccessor({
-				onCreate: () => operations.push('session'),
-				onCreateChat: () => operations.push('chat'),
-				onPrompt: () => operations.push('prompt'),
+				getCreationDefaults: () => ({ isolation: worktree ? 'folder' : 'worktree' }),
+				addSessionWorkingDirectory: async (_session, directory, options) => {
+					addOptions = options;
+					return directory;
+				},
 			});
 
-			await assert.rejects(applyCreateSessionTool(accessor, {
+			await applyCreateSessionTool(accessor, {
 				relationship: 'currentSession',
+				workspace: workspace.toString(),
 				worktree,
 				prompt: 'do it',
 				title: 'Task',
-			}, URI.parse('copilot:/source')), /worktree is only valid when relationship is "independent"/);
-			assert.deepStrictEqual(operations, []);
+			}, URI.parse('copilot:/source'));
+			assert.deepStrictEqual(addOptions, {
+				isolation: worktree ? 'worktree' : 'folder',
+				...(worktree ? { forceNewWorktree: true } : {}),
+				prompt: 'do it',
+			});
 		});
 	}
 
@@ -1475,6 +1527,109 @@ suite('SessionServerTools', () => {
 			hasChatLink: true,
 		});
 		store.dispose();
+	});
+
+	test('create_session forces a peer chat when relationship is disabled', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let createdSession = false;
+		const createdChatSessions: URI[] = [];
+		const accessor = createAccessor({
+			onCreate: () => { createdSession = true; },
+			onCreateChat: session => { createdChatSessions.push(session); },
+		});
+		const group = createSessionServerToolGroup(accessor, () => false);
+		const context = executionContext('copilot:/s1');
+
+		const omittedResult = await group.execute(stateManager, context, SessionServerToolName.CreateSession, {
+			prompt: 'first',
+			title: 'First Task',
+		});
+		const staleIndependentResult = await group.execute(stateManager, context, SessionServerToolName.CreateSession, {
+			relationship: 'independent',
+			prompt: 'second',
+			title: 'Second Task',
+		});
+
+		assert.deepStrictEqual({
+			createdSession,
+			createdChatSessions: createdChatSessions.map(session => session.toString()),
+			results: [omittedResult, staleIndependentResult].map(result => result.split(' (', 1)[0]),
+		}, {
+			createdSession: false,
+			createdChatSessions: ['copilot:/s1', 'copilot:/s1'],
+			results: ['Chat created in the current session', 'Chat created in the current session'],
+		});
+		store.dispose();
+	});
+
+	test('create_session with currentSession adds and scopes a requested workspace folder', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const requestedWorkspace = URI.file('/workspace/other');
+		const operations: string[] = [];
+		let createdChat: { session: URI; options?: IAgentCreateChatRequestOptions } | undefined;
+		let addOptions: Parameters<ISessionServerToolAccessor['addSessionWorkingDirectory']>[2] | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)],
+			getCreationDefaults: () => ({ isolation: 'worktree', project: workspace }),
+			addSessionWorkingDirectory: async (session, directory, options) => {
+				operations.push(`add:${session.toString()}:${directory.toString()}`);
+				addOptions = options;
+				return requestedWorkspace;
+			},
+			onCreateChat: (session, _chat, options) => {
+				operations.push('create');
+				createdChat = { session, options };
+			},
+			onRenameChat: () => operations.push('rename'),
+			onPrompt: () => operations.push('prompt'),
+		});
+
+		await createSessionServerToolGroup(accessor).execute(
+			stateManager,
+			executionContext('copilot:/s1'),
+			SessionServerToolName.CreateSession,
+			{
+				relationship: 'currentSession',
+				workspace: requestedWorkspace.toString(),
+				prompt: 'do it there',
+				title: 'Other Folder',
+			},
+		);
+
+		assert.deepStrictEqual({
+			session: createdChat?.session.toString(),
+			workingDirectories: createdChat?.options?.workingDirectories?.map(directory => directory.toString()),
+			addOptions,
+			operations,
+		}, {
+			session: 'copilot:/s1',
+			workingDirectories: [requestedWorkspace.toString()],
+			addOptions: { isolation: 'worktree', prompt: 'do it there' },
+			operations: [`add:copilot:/s1:${requestedWorkspace.toString()}`, 'create', 'rename', 'prompt'],
+		});
+		store.dispose();
+	});
+
+	test('create_session with currentSession inherits folder isolation for a requested workspace', async () => {
+		let addOptions: Parameters<ISessionServerToolAccessor['addSessionWorkingDirectory']>[2] | undefined;
+		const accessor = createAccessor({
+			getCreationDefaults: () => ({ isolation: 'folder', project: workspace }),
+			addSessionWorkingDirectory: async (_session, directory, options) => {
+				addOptions = options;
+				return directory;
+			},
+		});
+
+		await applyCreateSessionTool(accessor, {
+			relationship: 'currentSession',
+			workspace: 'file:///workspace/other',
+			prompt: 'do it there',
+			title: 'Other Folder',
+		}, URI.parse('copilot:/s1'));
+
+		assert.deepStrictEqual(addOptions, { isolation: 'folder', prompt: 'do it there' });
 	});
 
 	test('create_session with currentSession rejects a model from another provider', async () => {

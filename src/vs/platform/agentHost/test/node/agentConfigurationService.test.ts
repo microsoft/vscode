@@ -16,7 +16,7 @@ import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEnt
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -174,6 +174,25 @@ suite('AgentConfigurationService', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri, 'file:///work', 'file:///work-2'));
 			assert.deepStrictEqual(getEffectiveWorkingDirectories(manager, uri), ['file:///work', 'file:///work-2']);
+		});
+
+		test('does not collapse the session set to the default chat scope', () => {
+			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
+			manager.createSession(makeSummary(uri, 'file:///work', 'file:///work-2'));
+			manager.dispatchServerAction(buildDefaultChatUri(uri), {
+				type: ActionType.ChatWorkingDirectorySet,
+				directory: 'file:///work',
+			});
+
+			assert.deepStrictEqual({
+				mergedSessionWorkingDirectories: manager.getSessionState(uri)?.workingDirectories,
+				primaryWorkingDirectory: getEffectiveWorkingDirectory(manager, uri),
+				workingDirectories: getEffectiveWorkingDirectories(manager, uri),
+			}, {
+				mergedSessionWorkingDirectories: ['file:///work'],
+				primaryWorkingDirectory: 'file:///work',
+				workingDirectories: ['file:///work', 'file:///work-2'],
+			});
 		});
 
 		test('falls back to the parent session set for subagents', () => {

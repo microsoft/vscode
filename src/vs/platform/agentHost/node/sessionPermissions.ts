@@ -147,7 +147,7 @@ function assertPathIsSafe(fsPath: string, _isWindows = isWindows): void {
  * (or its ancestors) does not yet exist on disk. This ensures a symlink at any
  * ancestor is followed even for files that are about to be created.
  */
-async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: string) => Promise<string>): Promise<URI> {
+export async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: string) => Promise<string>): Promise<URI> {
 	const fsPath = resource.fsPath;
 	try {
 		return URI.file(await realpath(fsPath));

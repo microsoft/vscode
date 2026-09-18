@@ -16,6 +16,7 @@ import { NullLogService } from '../../../../log/common/log.js';
 import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
+import { deriveRepositoryRootFromWorktree } from '../../../common/worktreePaths.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
@@ -185,15 +186,19 @@ suite('WorktreeIsolation', () => {
 		rmSync(worktreesRoot.fsPath, { recursive: true, force: true });
 	});
 
-	test('getWorktreesRoot / getWorktreeName derive sibling paths and strip the agents/ prefix', () => {
+	test('worktree path helpers derive sibling paths and strip the agents/ prefix', () => {
 		assert.deepStrictEqual({
 			root: getWorktreesRoot(URI.file('/src/vscode')).fsPath,
+			repository: deriveRepositoryRootFromWorktree(URI.file('/src/vscode.worktrees/add-config'))?.fsPath,
+			plainFolderRepository: deriveRepositoryRootFromWorktree(URI.file('/src/worktrees/add-config')),
 			named: getWorktreeName('agents/add-config'),
 			namedFlattened: getWorktreeName('agents/feature/sub-topic'),
 			namedNoPrefix: getWorktreeName('plain-branch'),
 			namedWithBranchPrefix: getWorktreeName('users/alice/agents/add-config', 'users/alice/'),
 		}, {
 			root: URI.file('/src/vscode.worktrees').fsPath,
+			repository: URI.file('/src/vscode').fsPath,
+			plainFolderRepository: undefined,
 			named: 'add-config',
 			namedFlattened: 'feature-sub-topic',
 			namedNoPrefix: 'plain-branch',

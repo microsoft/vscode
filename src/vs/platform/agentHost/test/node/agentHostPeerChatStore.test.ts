@@ -425,15 +425,15 @@ suite('AgentHostPeerChatStore', () => {
 		);
 	});
 
-	test('refreshes provider data without dropping persisted origin or inherited turn', async () => {
+	test('refreshes provider data without dropping persisted origin, inherited turn, or working directories', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
-		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.upsert(session, first, 'old', origin, 'inherited-turn', ['file:///workspace/first']);
 
 		await store.upsert(session, first, 'refreshed');
 
 		assert.deepStrictEqual(await store.tryRead(session), [
-			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' },
+			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/first'] },
 		]);
 	});
 

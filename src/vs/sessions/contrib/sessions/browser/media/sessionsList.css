@@ -505,6 +505,16 @@
 		display: flex;
 	}
 
+	.monaco-list-row:hover .session-chat-item.has-compact-folder-label:not(.renaming) .session-compact-hover-description,
+	.monaco-list:focus-within .monaco-list-row.focused .session-chat-item.has-compact-folder-label:not(.renaming) .session-compact-hover-description {
+		display: flex;
+	}
+
+	.monaco-list-row:hover .session-chat-item.has-compact-folder-label:not(.renaming) .session-chat-title,
+	.monaco-list:focus-within .monaco-list-row.focused .session-chat-item.has-compact-folder-label:not(.renaming) .session-chat-title {
+		flex: 0 1 auto;
+	}
+
 	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
 		top: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size120));
 	}

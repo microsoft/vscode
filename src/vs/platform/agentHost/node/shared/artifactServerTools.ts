@@ -68,7 +68,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report or plan the user asked for. References are noteworthy existing resources the user will likely want to view. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. Adding an artifact promotes a matching reference, preserving its id; duplicates never downgrade artifacts.`,
+		description: `Record one or more artifacts or references for the current chat so they are surfaced next to its input. Use \`items\` and batch related entries in one call when practical. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report or plan the user asked for. References are noteworthy existing resources the user will likely want to view. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. Adding an artifact promotes a matching reference, preserving its id; duplicates never downgrade artifacts.`,
 		inputSchema: createAddArtifactInputSchema(artifactInputSchema),
 		annotations: { readOnlyHint: false },
 		deferLoading: false,
@@ -76,7 +76,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference from this session by id.',
+		description: 'Remove an artifact or reference visible to the current chat by id.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
 		deferLoading: true,
@@ -84,7 +84,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.ListArtifactsAndReferences,
 		title: 'List Artifacts and References',
-		description: 'List the artifacts and references recorded on this session, with their ids.',
+		description: 'List the artifacts and references visible to the current chat, with their ids.',
 		inputSchema: listArtifactsInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -212,7 +212,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					const result = await artifacts.mutate(collection => {
 						const messages: string[] = [];
 						for (const input of inputs) {
-							const result = collection.addOrPromoteArtifact(input, generateUuid);
+							const result = collection.addOrPromoteArtifact({ ...input, chat: context.chatUri }, generateUuid);
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
 								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
@@ -228,7 +228,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
-					const result = await artifacts.mutate(collection => collection.remove(id));
+					const result = await artifacts.mutate(collection => {
+						const artifact = collection.artifacts.find(artifact => artifact.id === id);
+						return artifact?.chat === undefined || artifact.chat === context.chatUri
+							? collection.remove(id)
+							: { artifacts: collection.artifacts, removed: undefined };
+					});
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
 					}
@@ -236,9 +241,10 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					return `${message}: ${result.removed.id}`;
 				}
 				case ArtifactServerToolName.ListArtifactsAndReferences: {
-					const current = artifacts.read().artifacts;
+					const current = artifacts.read().artifacts.filter(artifact =>
+						artifact.chat === undefined || artifact.chat === context.chatUri);
 					return current.length === 0
-						? 'No artifacts or references recorded for this session.'
+						? 'No artifacts or references recorded for this chat.'
 						: current.map(describeArtifact).join('\n');
 				}
 				default:
@@ -253,7 +259,7 @@ const artifactToolDiscoveryInstruction = `List/remove (discover if needed): \`${
 /** Compact first-turn guidance for the prompt treatment. */
 export const ARTIFACT_TOOLS_INSTRUCTION = `Artifact registration is optional; default to none. Follow \`${ArtifactServerToolName.AddArtifactOrReference}\` eligibility rules and batch related entries. ${artifactToolDiscoveryInstruction}`;
 
-const ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. ${artifactToolDiscoveryInstruction}`;
+const ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references for the current chat with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to its input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. ${artifactToolDiscoveryInstruction}`;
 
 export function getArtifactToolsInstruction(useCompactPrompts: boolean): string {
 	return useCompactPrompts ? ARTIFACT_TOOLS_INSTRUCTION : ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION;

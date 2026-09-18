@@ -9,11 +9,11 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { getChangesetSessionUri, parseChangesetUri } from '../common/changesetUri.js';
 import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
+import { type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
@@ -55,6 +55,10 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		this._throwIfCancelled(token);
 
 		const sessionUri = parsed.sessionUri;
+		const parentSessionUri = getChangesetSessionUri(params.channel);
+		if (!parentSessionUri) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Could not resolve session for changeset URI: ${params.channel}`);
+		}
 		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
@@ -65,11 +69,6 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
-
-		const gitState = readSessionGitState(sessionState._meta);
-		if (!gitState) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session's working directory is not a git repo: ${sessionUri}`);
-		}
 
 		const hasUncommitted = await this._gitService.hasUncommittedChanges(workingDirectory);
 		if (!hasUncommitted) {
@@ -98,8 +97,9 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 
 		let message: string;
 		try {
+			const branchName = await this._gitService.getCurrentBranch(workingDirectory);
 			message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
-				messages: this._buildCommitMessagePrompt(workingDirectory, gitState.branchName, diffs),
+				messages: this._buildCommitMessagePrompt(workingDirectory, branchName, diffs),
 			}, { signal }));
 		} catch (err) {
 			this._throwIfCancelled(token);
@@ -126,7 +126,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 
 		try {
-			await this._onCommitted(sessionUri);
+			await this._onCommitted(parentSessionUri);
 		} catch (err) {
 			this._logService.warn(`[AgentHostCommitOperationHandler] Post-commit refresh failed for session ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}

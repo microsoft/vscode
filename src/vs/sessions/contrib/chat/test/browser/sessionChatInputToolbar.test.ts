@@ -27,7 +27,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionChangeset, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
@@ -59,10 +59,14 @@ suite('SessionChatInputToolbar', () => {
 		return { instantiationService, visibility };
 	}
 
-	test('uses session-scoped changes rather than the last turn', () => {
+	test('uses current chat changes with session-level fallback', () => {
+		const root = URI.file('/repo');
+		const sessionWorkspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{ root, workingDirectory: root, name: 'repo', description: undefined }],
+		}));
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'provider:session',
-			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			workspace: sessionWorkspace,
 			changesets: constObservable([]),
 			changes: constObservable([{
 				modifiedUri: URI.file('/session-change.ts'),
@@ -70,21 +74,54 @@ suite('SessionChatInputToolbar', () => {
 				deletions: 4,
 			}]),
 		});
+		const chatChanges = observableValue('chatChanges', [{
+			modifiedUri: URI.file('/repo.worktrees/chat/chat-change.ts'),
+			insertions: 2,
+			deletions: 1,
+		}]);
+		const chat = upcastPartial<IChat>({
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root,
+					workingDirectory: URI.file('/repo.worktrees/chat'),
+					name: 'repo',
+					description: undefined,
+					gitRepository: {
+						uri: root,
+						workTreeUri: URI.file('/repo.worktrees/chat'),
+						baseBranchName: 'main',
+						gitHubInfo: constObservable(undefined),
+					},
+				}],
+			})),
+			changesets: constObservable([upcastPartial<ISessionChangeset>({
+				id: BRANCH_CHANGES_CHANGESET_ID,
+				isEnabled: constObservable(true),
+				changes: chatChanges,
+			})]),
+		});
 		const cache = upcastPartial<ISessionChangesStatsCache>({
 			get: () => ({ files: 2, insertions: 8, deletions: 3 }),
 		});
-		const stats = derived(reader => computeSessionInputPillStats(session, cache, reader));
+		const stats = derived(reader => computeSessionInputPillStats(session, chat, cache, reader));
+		const fallbackStats = derived(reader => computeSessionInputPillStats(session, undefined, cache, reader));
 		const pendingSession = upcastPartial<IActiveSession>({
 			...session,
 			worktreePending: constObservable(true),
 		});
-		const pendingStats = derived(reader => computeSessionInputPillStats(pendingSession, cache, reader));
+		const pendingStats = derived(reader => computeSessionInputPillStats(pendingSession, chat, cache, reader));
 
 		assert.deepStrictEqual({
-			session: stats.get(),
+			chat: stats.get(),
+			sessionFallback: fallbackStats.get(),
 			pendingWorktree: pendingStats.get(),
 		}, {
-			session: {
+			chat: {
+				files: 1,
+				insertions: 2,
+				deletions: 1,
+			},
+			sessionFallback: {
 				files: 1,
 				insertions: 10,
 				deletions: 4,
@@ -169,6 +206,75 @@ suite('SessionChatInputToolbar', () => {
 			});
 		}
 	}
+
+	test('opens Branch Changes for the current chat worktree', () => {
+		const { instantiationService } = createServices();
+		const root = URI.file('/repo');
+		const worktree = URI.file('/repo.worktrees/chat');
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:peer'),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root,
+					workingDirectory: worktree,
+					name: 'repo',
+					description: undefined,
+					gitRepository: {
+						uri: root,
+						workTreeUri: worktree,
+						baseBranchName: 'main',
+						gitHubInfo: constObservable(undefined),
+					},
+				}],
+			})),
+			changesets: constObservable([upcastPartial<ISessionChangeset>({
+				id: BRANCH_CHANGES_CHANGESET_ID,
+				isEnabled: constObservable(true),
+				changes: constObservable([{
+					modifiedUri: URI.joinPath(worktree, 'changed.ts'),
+					insertions: 2,
+					deletions: 1,
+				}]),
+			})]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([chat]),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{ root, workingDirectory: root, name: 'repo', description: undefined }],
+			})),
+			changesets: constObservable([]),
+			changes: constObservable([]),
+		});
+		const calls: { action: string; options?: ISessionChangesEditorOptions }[] = [];
+		instantiationService.stub(ISessionsService, 'setActive', () => {
+			calls.push({ action: 'activate' });
+		});
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
+		}));
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (_resource, options) => {
+				calls.push({ action: 'open', options });
+				return undefined;
+			},
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+
+		toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button')?.click();
+
+		assert.deepStrictEqual(calls, [{
+			action: 'activate',
+		}, {
+			action: 'reveal',
+		}, {
+			action: 'open',
+			options: { changesetSelection: { kind: 'id', id: BRANCH_CHANGES_CHANGESET_ID } },
+		}]);
+	});
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
 		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];

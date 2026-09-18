@@ -6,10 +6,10 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { getChangesetSessionUri, parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitState, type SessionState } from '../common/state/sessionState.js';
+import { isAhpChatChannel, readSessionGitState, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { GitRefType, IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -33,6 +33,10 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		this._throwIfCancelled(token);
 
 		const sessionUri = parsed.sessionUri;
+		const parentSessionUri = getChangesetSessionUri(params.channel);
+		if (!parentSessionUri) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Could not resolve session for changeset URI: ${params.channel}`);
+		}
 		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
@@ -44,15 +48,15 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
 
-		const gitState = readSessionGitState(sessionState._meta);
+		const cachedGitState = isAhpChatChannel(sessionUri) ? undefined : readSessionGitState(sessionState._meta);
 		const branchName = await (this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory));
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
 		}
 		this._throwIfCancelled(token);
 
-		if (gitState?.branchName && gitState.branchName !== branchName) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Current branch changed from ${gitState.branchName} to ${branchName} for ${workingDirectory}`);
+		if (cachedGitState?.branchName && cachedGitState.branchName !== branchName) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Current branch changed from ${cachedGitState.branchName} to ${branchName} for ${workingDirectory}`);
 		}
 
 		const branch = await this._gitService.getBranch(workingDirectory, branchName);
@@ -89,7 +93,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 
 		try {
-			await this._onSynced(sessionUri);
+			await this._onSynced(parentSessionUri);
 		} catch (err) {
 			this._logService.warn(`[AgentHostSyncOperationHandler] Post-sync refresh failed for session ${sessionUri}: ${err instanceof Error ? err.message : String(err)}`);
 		}

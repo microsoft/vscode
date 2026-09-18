@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
@@ -32,6 +33,10 @@ export interface IAgentHostChangeset extends Changeset {
 	 * channel; an array, including an empty one, is used as-is.
 	 */
 	readonly changes?: IObservable<readonly ISessionFileChange[] | undefined>;
+	/** Working directories used to scope the visible files for this adaptation. */
+	readonly workingDirectories?: IObservable<readonly string[] | undefined>;
+	/** Whether operations from the backing channel must be hidden for this adaptation. */
+	readonly suppressOperations?: boolean;
 }
 
 /**
@@ -48,29 +53,35 @@ function sessionFileChangeUri(change: ISessionFileChange): URI {
 }
 
 /**
- * For multi-root sessions, keeps only changes under the primary working
- * directory (`workingDirectories[0]`); single-root/empty/`undefined` inputs are
- * returned unchanged. Paths are compared on the primary's `file:` scheme so
- * `agent-host:`-wrapped changes still match and OS path-casing is respected.
+ * For multi-root sessions, keeps changes under any declared working directory;
+ * single-root/empty/`undefined` inputs are returned unchanged. Paths are
+ * compared on each working directory's `file:` scheme so `agent-host:`-wrapped
+ * changes still match and OS path-casing is respected.
  */
-export function filterChangesToPrimaryWorkingDirectory(
+export function filterChangesToWorkingDirectories(
 	changes: readonly ISessionFileChange[],
 	workingDirectories: readonly string[] | undefined
 ): readonly ISessionFileChange[] {
-	if (!isMultiRootSession(workingDirectories)) {
+	if (!workingDirectories || !isMultiRootSession(workingDirectories)) {
 		return changes;
 	}
 
-	const primary = workingDirectories?.[0];
-	if (!primary) {
+	return filterChangesToWorkspaceDirectories(changes, workingDirectories);
+}
+
+function filterChangesToWorkspaceDirectories(
+	changes: readonly ISessionFileChange[],
+	workingDirectories: readonly string[] | undefined
+): readonly ISessionFileChange[] {
+	if (!workingDirectories || workingDirectories.length === 0) {
 		return changes;
 	}
 
-	const primaryWorkingDirectory = URI.parse(primary);
-	return changes.filter(change =>
+	const workspaceFolders = workingDirectories.map(workingDirectory => URI.parse(workingDirectory));
+	return changes.filter(change => workspaceFolders.some(workspaceFolder =>
 		extUriBiasedIgnorePathCase.isEqualOrParent(
-			primaryWorkingDirectory.with({ path: sessionFileChangeUri(change).path }),
-			primaryWorkingDirectory));
+			workspaceFolder.with({ path: sessionFileChangeUri(change).path }),
+			workspaceFolder)));
 }
 
 export function createChangesets(
@@ -230,6 +241,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	readonly capabilities: ISessionChangesetCapabilities;
 
 	private readonly _locallyRunningOperationCounts = observableValue<ReadonlyMap<string, number>>(this, new Map());
+	private readonly _workingDirectories: IObservable<readonly string[] | undefined> | undefined;
 
 	protected abstract readonly channelUriObs: IObservable<URI | undefined>;
 	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
@@ -240,8 +252,9 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
 	) {
+		this._workingDirectories = changeset.workingDirectories;
 		this.capabilities = {
-			review: changeset.capabilities?.review !== undefined
+			review: !changeset.suppressOperations && changeset.capabilities?.review !== undefined
 		} satisfies ISessionChangesetCapabilities;
 
 		const providedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
@@ -342,6 +355,9 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			(operationId, metadata) => this._invokeOperation(operationId, undefined, metadata),
 		);
 		this.operations = derivedOpts({ equalsFn: arrayEqualsC(structuralEquals) }, reader => {
+			if (changeset.suppressOperations) {
+				return [];
+			}
 			const locallyRunningOperationCounts = this._locallyRunningOperationCounts.read(reader);
 			return pullRequestCreation.mapOperations(operationsObs.read(reader))
 				.map(operation => locallyRunningOperationCounts.has(operation.id) && operation.status !== SessionChangesetOperationStatus.Running
@@ -358,7 +374,9 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	 * the {@link changes} derived, so overrides may read observables via `reader`.
 	 */
 	protected _filterChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
-		return changes;
+		return this._workingDirectories
+			? filterChangesToWorkspaceDirectories(changes, this._workingDirectories.read(reader))
+			: changes;
 	}
 
 	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
@@ -510,9 +528,9 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	/**
-	 * The session's ordered working directories (index 0 is the primary), read
-	 * from the existing session-state subscription. Used to filter the last-turn
-	 * changes to the primary working directory for multi-root sessions.
+	 * The session's ordered working directories, read from the existing
+	 * session-state subscription. Used to keep last-turn changes within the
+	 * session workspace.
 	 */
 	private readonly _workingDirectoriesObs: IObservable<readonly string[] | undefined>;
 
@@ -598,13 +616,12 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	}
 
 	/**
-	 * For multi-root sessions, restrict the last-turn changes to files under the
-	 * session's primary working directory so the single-root Changes tree in the
-	 * Agents Window stays renderable. Single-root sessions are unaffected —
-	 * {@link filterChangesToPrimaryWorkingDirectory} returns the input unchanged.
+	 * For multi-root sessions, restrict the last-turn changes to files under any
+	 * session working directory. Single-root sessions are unaffected —
+	 * {@link filterChangesToWorkingDirectories} returns the input unchanged.
 	 */
 	protected override _filterChanges(changes: readonly ISessionFileChange[], reader: IReader): readonly ISessionFileChange[] {
-		return filterChangesToPrimaryWorkingDirectory(changes, this._workingDirectoriesObs.read(reader));
+		return filterChangesToWorkingDirectories(changes, this._workingDirectoriesObs.read(reader));
 	}
 }
 
@@ -639,20 +656,20 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 			constObservable(sessionUri),
 		);
 
-		const defaultChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+		const targetChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
-			return URI.parse(
-				sessionState && !(sessionState instanceof Error)
-					? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri)
-					: buildDefaultChatUri(sessionUri)
-			);
+			if (!sessionState || sessionState instanceof Error) {
+				return URI.parse(buildDefaultChatUri(sessionUri).toString());
+			}
+			const targetChatUri = readAgentMergeSessionState(sessionState.config?.values)?.target?.chatUri;
+			return URI.parse((targetChatUri ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri)).toString());
 		});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Chat,
-			defaultChatUriObs,
+			targetChatUriObs,
 		);
 
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {

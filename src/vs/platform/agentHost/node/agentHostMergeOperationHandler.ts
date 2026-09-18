@@ -10,10 +10,10 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { getChangesetSessionUri, parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { hasSessionPullRequestForBranch, readSessionGitHubState, readSessionGitState, type SessionState } from '../common/state/sessionState.js';
+import { hasSessionPullRequestForBranch, isAhpChatChannel, readSessionGitHubState, readSessionGitState, type SessionState } from '../common/state/sessionState.js';
 
 export class AgentHostMergeOperationHandler implements IChangesetOperationHandler {
 
@@ -36,6 +36,10 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		this._throwIfCancelled(token);
 
 		const sessionUri = parsed.sessionUri;
+		const parentSessionUri = getChangesetSessionUri(params.channel);
+		if (!parentSessionUri) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Could not resolve session for changeset URI: ${params.channel}`);
+		}
 		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
@@ -53,12 +57,17 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		}
 		this._throwIfCancelled(token);
 
-		const storedGitState = readSessionGitState(sessionState._meta);
-		const targetBranch = await this._resolveBaseBranchName(sessionUri);
+		const storedGitState = isAhpChatChannel(sessionUri) ? undefined : readSessionGitState(sessionState._meta);
+		const parentWorkingDirectory = this._getSessionState(parentSessionUri)?.workingDirectories?.[0];
+		const configuredBaseBranch = workingDirectoryValue === parentWorkingDirectory
+			? await this._resolveBaseBranchName(parentSessionUri)
+			: undefined;
+		const targetGitState = await this._gitService.getSessionGitState(worktreeRoot, configuredBaseBranch);
+		const targetBranch = configuredBaseBranch ?? targetGitState?.baseBranchName;
 		if (!targetBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
 		}
-		const gitState = await this._gitService.getSessionGitState(worktreeRoot, targetBranch) ?? storedGitState;
+		const gitState = targetGitState ?? storedGitState;
 		const sourceBranch = gitState?.branchName ?? await this._gitService.getCurrentBranch(worktreeRoot);
 		if (!sourceBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.sourceBranchMissing', "Could not determine the worktree branch."));
@@ -90,14 +99,14 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		let shouldRefresh = false;
 		try {
 			const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreeRoot);
-			this._throwIfPullRequestExists(sessionUri, sourceBranch);
+			this._throwIfPullRequestExists(parentSessionUri, sourceBranch);
 			if (hasUncommittedChanges) {
 				await this._gitService.commitAll(worktreeRoot, localize('agentHost.changeset.merge.commitMessage', "Agent Host changes for {0}", sourceBranch));
 				didCommit = true;
 				shouldRefresh = true;
 			}
 			this._throwIfCancelled(token);
-			this._throwIfPullRequestExists(sessionUri, sourceBranch);
+			this._throwIfPullRequestExists(parentSessionUri, sourceBranch);
 
 			this._logService.info(`[AgentHostMergeOperationHandler] Merging ${sourceBranch} into ${targetBranch} for session ${sessionUri}`);
 			try {
@@ -122,11 +131,11 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 			if (!mergeCommit) {
 				throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.commitMissing', "Changes were merged into '{0}', but the resulting commit could not be recorded.", targetBranch));
 			}
-			await this._onMerged(sessionUri, mergeCommit);
+			await this._onMerged(parentSessionUri, mergeCommit);
 		} finally {
 			if (shouldRefresh) {
 				try {
-					await this._onGitStateChanged(sessionUri);
+					await this._onGitStateChanged(parentSessionUri);
 				} catch (error) {
 					this._logService.warn(`[AgentHostMergeOperationHandler] Post-merge refresh failed for session ${sessionUri}: ${error instanceof Error ? error.message : String(error)}`);
 				}

@@ -9,6 +9,7 @@ import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IGitHubService } from '../../github/common/githubService.js';
@@ -25,7 +26,7 @@ import { deriveGitHubEndpoints } from '../common/githubEndpoints.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType } from '../common/state/protocol/common/actions.js';
 import { AuthRequiredReason } from '../common/state/sessionActions.js';
-import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -43,13 +44,13 @@ const maximumIndeterminateDuration = 30 * 60_000;
 const indeterminateObservationGap = 2 * backstopInterval;
 
 export interface IAgentMergeControllerOptions {
-	readonly startTurn: (session: string, turnId: string, prompt: string) => boolean;
-	readonly cancelTurn: (session: string, turnId: string) => void;
+	readonly startTurn: (chatUri: string, turnId: string, prompt: string) => boolean;
+	readonly cancelTurn: (chatUri: string, turnId: string) => void;
 	/**
 	 * Posts an Agent Merge state change into the session transcript. The notice
 	 * is client-visible only; it must never become part of the agent's context.
 	 */
-	readonly postNotice: (session: string, kind: AgentSystemNotificationKind, content: string) => void;
+	readonly postNotice: (chatUri: string, kind: AgentSystemNotificationKind, content: string) => void;
 }
 
 /** The configuration a session was last told about, and the overrides it was resolved from. */
@@ -431,7 +432,16 @@ export class AgentMergeController extends Disposable {
 		if (!runtime || !state || !agentMerge?.enabled || this._stateManager.hasActiveTurn(session)) {
 			return;
 		}
-		const branchName = await this._resolveCurrentBranch(session, runtime, state);
+		const targetContext = this._resolveTargetContext(session, agentMerge.target, state);
+		if (agentMerge.target && !targetContext) {
+			this._disable(session, agentMerge, agentMergeDisableReasons.targetUnavailable());
+			return;
+		}
+		const primaryWorkingDirectory = state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined;
+		const targetWorkingDirectory = targetContext?.workingDirectory && (!primaryWorkingDirectory || !isEqual(targetContext.workingDirectory, primaryWorkingDirectory))
+			? targetContext.workingDirectory
+			: undefined;
+		const branchName = await this._resolveCurrentBranch(session, runtime, state, targetWorkingDirectory);
 		if (!this._isCurrentRuntime(session, runtime)) {
 			return;
 		}
@@ -447,7 +457,14 @@ export class AgentMergeController extends Disposable {
 			const pullRequestUrl = currentGitHubState?.pullRequestBranchName === branchName
 				? getSessionRelatedPullRequestUrls(currentGitHubState)[0]
 				: undefined;
-			target = { branchName, enabledAt: now, commentWatermark: now, ...(pullRequestUrl ? { pullRequestUrl } : {}) };
+			const workingDirectory = state.workingDirectories?.[0];
+			target = {
+				branchName,
+				enabledAt: now,
+				commentWatermark: now,
+				...(workingDirectory ? { chatUri: buildDefaultChatUri(session).toString(), workingDirectory } : {}),
+				...(pullRequestUrl ? { pullRequestUrl } : {}),
+			};
 			this._logService.info(`[AgentMergeController] Captured session branch and feedback watermark: session=${session}`);
 			// Announce only on the first capture: a resumed session already has a
 			// target, so restarting the host must not repeat the notice.
@@ -459,31 +476,48 @@ export class AgentMergeController extends Disposable {
 			this._disable(session, agentMerge, agentMergeDisableReasons.branchChanged(target.branchName, branchName));
 			return;
 		}
+		if (target.announcementPending) {
+			const announcedTarget = { ...target, announcementPending: undefined };
+			this._postEnabledNotice(session, { ...agentMerge, target: announcedTarget });
+			this._updateAgentMergeState(session, agentMerge, { target: announcedTarget });
+			return;
+		}
 
-		await this._gitStateService.attachSessionGitHubPullRequest(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
-		if (!this._isCurrentRuntime(session, runtime)) {
-			return;
-		}
-		const refreshedState = this._stateManager.getSessionState(session);
-		if (!this._hasTargetBranch(refreshedState, target.branchName)) {
-			this._disable(session, agentMerge, agentMergeDisableReasons.branchChangedWhileRefreshing());
-			return;
-		}
-		const gitHubState = readSessionGitHubState(refreshedState?._meta);
-		const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
 		if (!target.pullRequestUrl) {
-			if (!pullRequestUrl) {
+			let resolvedPullRequestUrl: string | undefined;
+			if (targetWorkingDirectory) {
+				resolvedPullRequestUrl = await this._gitStateService.findPullRequestForWorkingDirectory(session, targetWorkingDirectory);
+			} else {
+				await this._gitStateService.attachSessionGitHubPullRequest(session, targetContext?.workingDirectory);
+			}
+			if (!this._isCurrentRuntime(session, runtime)) {
+				return;
+			}
+			if (targetWorkingDirectory) {
+				const currentBranch = await this._resolveCurrentBranch(session, runtime, state, targetWorkingDirectory);
+				if (!this._isCurrentRuntime(session, runtime)) {
+					return;
+				}
+				if (currentBranch !== target.branchName) {
+					this._disable(session, agentMerge, agentMergeDisableReasons.branchChangedWhileRefreshing());
+					return;
+				}
+			} else {
+				const refreshedState = this._stateManager.getSessionState(session);
+				if (!this._hasTargetBranch(refreshedState, target.branchName)) {
+					this._disable(session, agentMerge, agentMergeDisableReasons.branchChangedWhileRefreshing());
+					return;
+				}
+				resolvedPullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(refreshedState?._meta))[0];
+			}
+			if (!resolvedPullRequestUrl) {
 				this._logService.trace(`[AgentMergeController] Waiting for a pull request on the captured branch: session=${session}`);
 				runtime.backstopScheduler.schedule();
 				return;
 			}
-			target = { ...target, pullRequestUrl };
+			target = { ...target, pullRequestUrl: resolvedPullRequestUrl };
 			this._logService.info(`[AgentMergeController] Bound session to its pull request: session=${session}`);
 			this._updateAgentMergeState(session, agentMerge, { target });
-			return;
-		}
-		if (pullRequestUrl && pullRequestUrl.toLowerCase() !== target.pullRequestUrl.toLowerCase()) {
-			this._disable(session, agentMerge, agentMergeDisableReasons.differentPullRequest());
 			return;
 		}
 
@@ -576,9 +610,11 @@ export class AgentMergeController extends Disposable {
 				// the worktree the agent is about to act on. An unreadable
 				// worktree records a sentinel that no commit can match, so the
 				// session fails closed rather than authorizing a later merge.
-				const repairBaseCommit = await this._resolveLocalCommit(session) ?? AGENT_MERGE_UNKNOWN_COMMIT;
+				const repairBaseCommit = await this._resolveLocalCommit(session, target) ?? AGENT_MERGE_UNKNOWN_COMMIT;
+				const chatUri = target.chatUri ?? buildDefaultChatUri(session).toString();
 				const context: IAgentMergeTurnContext = {
 					session,
+					chatUri,
 					turnId,
 					ref,
 					headSha: gate.context.headSha,
@@ -602,7 +638,7 @@ export class AgentMergeController extends Disposable {
 				if (!this._isCurrentRuntime(session, runtime)
 					|| !this._isTargetStillCurrent(session, target)
 					|| this._stateManager.hasActiveTurn(session)
-					|| !this._options.startTurn(session, turnId, buildAgentMergePrompt(gate.actions, gate.context))) {
+					|| !this._options.startTurn(chatUri, turnId, buildAgentMergePrompt(gate.actions, gate.context))) {
 					this._logService.debug(`[AgentMergeController] Repair turn was not claimed because the session became busy, retargeted, or stopped: session=${session}`);
 					runtime.backstopScheduler.schedule();
 					return;
@@ -756,7 +792,53 @@ export class AgentMergeController extends Disposable {
 	 * runtime regardless, so any other checkout that cannot report a branch
 	 * costs a single git call rather than one per backstop.
 	 */
-	private async _resolveCurrentBranch(session: string, runtime: AgentMergeRuntime, state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): Promise<string | undefined> {
+	private _resolveTargetContext(
+		session: string,
+		target: AgentMergeTarget | undefined,
+		state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>,
+	): { readonly chatUri: string; readonly workingDirectory: URI | undefined } | undefined {
+		if (!target?.chatUri && !target?.workingDirectory) {
+			return {
+				chatUri: buildDefaultChatUri(session).toString(),
+				workingDirectory: state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined,
+			};
+		}
+		if (!target.chatUri || !target.workingDirectory) {
+			return undefined;
+		}
+		let workingDirectory: URI;
+		try {
+			workingDirectory = URI.parse(target.workingDirectory);
+			if (parseRequiredSessionUriFromChatUri(target.chatUri).toString() !== session) {
+				return undefined;
+			}
+		} catch {
+			return undefined;
+		}
+		const defaultChat = buildDefaultChatUri(session).toString();
+		if (target.chatUri !== defaultChat && !this._stateManager.getSessionChats(session).some(candidate => candidate.resource === target.chatUri)) {
+			return undefined;
+		}
+		const chatWorkingDirectories = this._stateManager.getChatWorkingDirectories(target.chatUri)
+			?? (target.chatUri === defaultChat ? state.workingDirectories : undefined);
+		if (!chatWorkingDirectories?.includes(target.workingDirectory)) {
+			return undefined;
+		}
+		return { chatUri: target.chatUri, workingDirectory };
+	}
+
+	private async _resolveCurrentBranch(
+		session: string,
+		runtime: AgentMergeRuntime,
+		state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>,
+		workingDirectory: URI | undefined,
+	): Promise<string | undefined> {
+		if (workingDirectory) {
+			const branchName = this._gitService.getCurrentBranchName
+				? await this._gitService.getCurrentBranchName(workingDirectory)
+				: undefined;
+			return branchName ?? this._gitService.getCurrentBranch(workingDirectory);
+		}
 		const gitState = readSessionGitState(state._meta);
 		if (gitState?.branchName) {
 			return gitState.branchName;
@@ -906,14 +988,11 @@ export class AgentMergeController extends Disposable {
 	/** Whether the session still sits on the branch and pull request this run was authorized for. */
 	private _isTargetStillCurrent(session: string, target: AgentMergeTarget): boolean {
 		const state = this._stateManager.getSessionState(session);
-		if (!this._hasTargetBranch(state, target.branchName)) {
-			return false;
-		}
-		if (!target.pullRequestUrl) {
-			return true;
-		}
-		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(state?._meta))[0];
-		return !pullRequestUrl || pullRequestUrl.toLowerCase() === target.pullRequestUrl.toLowerCase();
+		const currentTarget = readAgentMergeSessionState(state?.config?.values)?.target;
+		return !!state
+			&& !!currentTarget
+			&& structuralEquals(currentTarget, target)
+			&& this._resolveTargetContext(session, currentTarget, state) !== undefined;
 	}
 
 	private async _merge(session: string, runtime: AgentMergeRuntime, ref: PullRequestRef, snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, agentMerge: AgentMergeSessionState): Promise<void> {
@@ -1028,9 +1107,9 @@ export class AgentMergeController extends Disposable {
 	 * worktree cannot be read. Callers treat `undefined` as "changed" so an
 	 * unreadable worktree can never authorize an automatic merge.
 	 */
-	private async _resolveLocalCommit(session: string): Promise<string | undefined> {
+	private async _resolveLocalCommit(session: string, target: AgentMergeTarget): Promise<string | undefined> {
 		try {
-			const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+			const workingDirectory = target.workingDirectory ?? this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 			if (!workingDirectory) {
 				return undefined;
 			}
@@ -1055,10 +1134,10 @@ export class AgentMergeController extends Disposable {
 		agentMerge: AgentMergeSessionState,
 		configuration: AgentMergeConfiguration,
 	): Promise<boolean> {
-		if (configuration.mergePullRequest !== 'ifUnchanged' || agentMerge.repairBaseCommit === undefined) {
+		if (configuration.mergePullRequest !== 'ifUnchanged' || agentMerge.repairBaseCommit === undefined || !agentMerge.target) {
 			return false;
 		}
-		const currentCommit = await this._resolveLocalCommit(session);
+		const currentCommit = await this._resolveLocalCommit(session, agentMerge.target);
 		if (!shouldStopMergingAfterAgentChanges(configuration, agentMerge, currentCommit)) {
 			return false;
 		}
@@ -1140,7 +1219,13 @@ export class AgentMergeController extends Disposable {
 	 */
 	private _postNotice(session: string, kind: AgentSystemNotificationKind, content: string): void {
 		try {
-			this._options.postNotice(session, kind, content);
+			const target = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(session))?.target;
+			const defaultChatUri = buildDefaultChatUri(session).toString();
+			const chatUri = target?.chatUri
+				&& (target.chatUri === defaultChatUri || this._stateManager.getSessionChats(session).some(candidate => candidate.resource === target.chatUri))
+				? target.chatUri
+				: defaultChatUri;
+			this._options.postNotice(chatUri, kind, content);
 		} catch (error) {
 			this._logService.warn(`[AgentMergeController] Failed to post an Agent Merge notice: session=${session}`, error);
 		}
@@ -1165,9 +1250,10 @@ export class AgentMergeController extends Disposable {
 		const context = this._activeTurns.get(session);
 		if (context) {
 			this._activeTurns.delete(session);
-			if (this._stateManager.getSessionState(session)?.activeTurn?.id === context.turnId) {
+			const chatUri = context.chatUri ?? buildDefaultChatUri(session).toString();
+			if (this._stateManager.getSessionState(chatUri)?.activeTurn?.id === context.turnId) {
 				this._logService.info(`[AgentMergeController] Cancelling repair turn because Agent Merge stopped: session=${session}, turn=${context.turnId}`);
-				this._options.cancelTurn(session, context.turnId);
+				this._options.cancelTurn(chatUri, context.turnId);
 			}
 		}
 		if (this._runtimes.has(session)) {

@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, ChangesetKind, getChangesetSessionUri, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -101,13 +101,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	/**
-	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Recomputes every current changeset subscription.
+	 * Called after a provisional session is materialized.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
-		this._changesets.onWorkingDirectoryAvailable(sessionStr);
-
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
@@ -159,40 +156,41 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onFirstSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		const session = getChangesetSessionUri(resourceStr);
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
 			this.ensureSessionSubscription(resourceStr);
 			return;
 		}
 
-		if (parsed?.kind === ChangesetKind.Branch) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+		if (parsed?.kind === ChangesetKind.Branch && session) {
+			this._addSubscription(session, resourceStr);
+			this._changesets.refreshBranchChangeset(session);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, session);
 			return;
 		}
 
-		if (parsed?.kind === ChangesetKind.Uncommitted) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+		if (parsed?.kind === ChangesetKind.Uncommitted && session) {
+			this._addSubscription(session, resourceStr);
+			void this._changesets.computeUncommittedChangeset(session);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, session);
 			return;
 		}
 
-		if (parsed?.kind === ChangesetKind.Session) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+		if (parsed?.kind === ChangesetKind.Session && session) {
+			this._addSubscription(session, resourceStr);
+			this._changesets.refreshSessionChangeset(session);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, session);
 			return;
 		}
 
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined && session) {
 			// Track the new subscriber so the service's per-turn recompute
 			// gating starts including this turn. The initial snapshot is
 			// already produced by `tryHandleSubscribe → computeTurnChangeset`;
 			// subsequent deltas flow from `onToolCallEditsApplied` /
 			// `onTurnComplete` once we've added this turn id here.
-			this._addSubscription(parsed.sessionUri, resourceStr);
+			this._addSubscription(session, resourceStr);
 			return;
 		}
 	}
@@ -226,23 +224,32 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onLastSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		const session = getChangesetSessionUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Branch) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			if (session) {
+				this._removeSubscription(session, resourceStr);
+			}
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			if (session) {
+				this._removeSubscription(session, resourceStr);
+			}
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			if (session) {
+				this._removeSubscription(session, resourceStr);
+			}
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			if (session) {
+				this._removeSubscription(session, resourceStr);
+			}
 			return;
 		}
 		if (!parsed) {
@@ -270,8 +277,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed.kind === ChangesetKind.Unknown) {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
 		}
-		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
-			await restoreSession(URI.parse(parsed.sessionUri));
+		const session = getChangesetSessionUri(resourceStr);
+		if (session && !this._stateManager.getSessionState(session)) {
+			await restoreSession(URI.parse(session));
 		}
 	}
 
@@ -300,21 +308,25 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			throw new Error(`Cannot subscribe to unknown changeset resource: ${resourceStr}`);
 		}
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
+		const session = getChangesetSessionUri(resourceStr);
+		if (!session) {
+			return false;
+		}
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
-			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
+			await this._changesets.computeTurnChangeset(session, parsed.turnId);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
 			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
 			// need to participate.
-			await this._changesets.computeCompareTurnsChangeset(parsed.sessionUri, parsed.originalTurnId, parsed.modifiedTurnId);
+			await this._changesets.computeCompareTurnsChangeset(session, parsed.originalTurnId, parsed.modifiedTurnId);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /
 			// `onSessionCreated`. Re-register defensively in case the
 			// session was created in this process before the coordinator
 			// existed. The uncommitted refresh itself is fired from
 			// {@link onFirstSubscriber} on the 0→1 path.
-			this._changesets.registerStaticChangesets(parsed.sessionUri);
+			this._changesets.registerStaticChangesets(session);
 		}
 		return true;
 	}
@@ -385,14 +397,18 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * external edits, so re-attach the file monitor for the session (and its
 	 * inheriting subagents) — otherwise a folder added or removed mid-session
 	 * would not start/stop being watched until an unrelated lifecycle event.
+	 * Recompute subscribed changesets as well because their contents are scoped
+	 * to the effective working-directory set.
 	 */
 	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
 		this._changesetOperationService.updateOperations(sessionStr);
 		this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(sessionStr);
+		this._changesets.recomputeSubscribedChangesets(sessionStr);
 		for (const candidate of this._stateManager.getSessionUris()) {
 			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
 				this._changesetOperationService.updateOperations(candidate);
 				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
+				this._changesets.recomputeSubscribedChangesets(candidate);
 			}
 		}
 	}

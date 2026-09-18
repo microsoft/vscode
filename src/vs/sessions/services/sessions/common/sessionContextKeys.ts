@@ -35,7 +35,7 @@ import {
 	SessionHasSideChatsContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, getSessionGitHubPullRequestRefs, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
@@ -172,8 +172,7 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	const cachedFiles = !changesReported && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
 	keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
-	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
-	keys.hasPullRequest.set(!!pullRequest);
+	keys.hasPullRequest.set(getSessionGitHubPullRequestRefs(session, reader).length > 0);
 
 	const issues = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.issues;
 	keys.hasIssues.set(!!issues?.length);

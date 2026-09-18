@@ -78,6 +78,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
+	readonly sendMessageWorkingDirectories: { chat: URI; workingDirectories: readonly URI[] | undefined }[] = [];
 	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly releaseSessionCalls: URI[] = [];
@@ -370,10 +371,14 @@ export class MockAgent implements IAgent {
 			this._releaseSessionRecord(session);
 			return Promise.resolve();
 		},
-		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const clientType = typeof clientTypeOrContext === 'string' ? clientTypeOrContext : AgentHostClientType.Unknown;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			this._recordContext('sendMessage', chatUri, operationContext);
+			this.sendMessageWorkingDirectories.push({
+				chat: chatUri,
+				workingDirectories: URI.isUri(workingDirectoriesOrDirectory) ? [workingDirectoriesOrDirectory] : workingDirectoriesOrDirectory,
+			});
 			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},

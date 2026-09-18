@@ -149,6 +149,27 @@ suite('AgentHostCatalogProjection', () => {
 
 	});
 
+	test('preserves artifact chat attribution', () => {
+		const data = createData();
+		const chat = 'ahp-chat://peer/c2Vzc2lvbg';
+		const encoded = encode({
+			...data,
+			_meta: {
+				...data._meta,
+				[SESSION_META_ARTIFACTS_KEY]: [{
+					id: 'artifact-1',
+					type: 'website',
+					label: 'Chat artifact',
+					chat,
+					isArtifact: true,
+					link: 'https://example.com',
+				}],
+			},
+		});
+
+		assert.strictEqual(encoded.data._meta?.[SESSION_META_ARTIFACTS_KEY]?.[0].chat, chat);
+	});
+
 	test('retains detached-head state and the newest bounded artifact suffix', () => {
 		const data = createData();
 		const artifacts = Array.from({ length: AGENT_HOST_CATALOG_ARTIFACT_LIMIT + 2 }, (_, index) => ({

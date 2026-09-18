@@ -83,6 +83,7 @@ function makeAgentSession(opts: {
 	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -154,6 +155,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),

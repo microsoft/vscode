@@ -74,6 +74,26 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('deduplicates values independently for each owning chat', () => {
+		const input = parseSessionArtifactInput({ type: 'file', label: 'Plan', uri: 'file:///repo/plan.md', isArtifact: true }, TOOL);
+		const first = new SessionArtifactCollection().add({ ...input, chat: 'ahp-chat://default/first' }, createId);
+		const second = new SessionArtifactCollection(first.artifacts).add({ ...input, chat: 'ahp-chat://peer/second' }, createId);
+		const duplicate = new SessionArtifactCollection(second.artifacts).add({ ...input, chat: 'ahp-chat://default/first' }, createId);
+
+		assert.deepStrictEqual({
+			artifacts: duplicate.artifacts,
+			added: duplicate.added,
+			duplicateId: duplicate.artifact.id,
+		}, {
+			artifacts: [
+				{ id: 'id-1', ...input, chat: 'ahp-chat://default/first' },
+				{ id: 'id-2', ...input, chat: 'ahp-chat://peer/second' },
+			],
+			added: false,
+			duplicateId: 'id-1',
+		});
+	});
+
 	test('promotes a duplicate reference to an artifact while preserving its id', () => {
 		const reference = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'pullRequest', label: 'Referenced PR', link: 'https://github.com/microsoft/vscode/pull/1', isArtifact: false }, TOOL), createId);
 		const promoted = new SessionArtifactCollection(reference.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ type: 'pullRequest', label: 'Pull Request #1', link: 'https://github.com/microsoft/vscode/pull/1', isArtifact: true }, TOOL), createId);
@@ -145,7 +165,10 @@ suite('Session Artifacts', () => {
 	});
 
 	test('round-trips artifacts through the meta bag and the session database', () => {
-		const added = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'resource', label: 'Dashboard', uri: 'https://example.com/dash', isArtifact: true }, TOOL), createId);
+		const added = new SessionArtifactCollection().add({
+			...parseSessionArtifactInput({ type: 'resource', label: 'Dashboard', uri: 'https://example.com/dash', isArtifact: true }, TOOL),
+			chat: 'ahp-chat://default/session',
+		}, createId);
 		const meta = withSessionArtifacts({ other: 'kept' }, added.artifacts);
 
 		assert.deepStrictEqual({

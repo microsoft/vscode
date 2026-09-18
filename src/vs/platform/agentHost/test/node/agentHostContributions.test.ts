@@ -37,6 +37,7 @@ class FailingChangesetOperationService extends Disposable implements IAgentHostC
 		});
 	}
 
+	setChangesetTarget(): void { }
 	updateOperations(): void { }
 	getOperations() { return []; }
 	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
@@ -47,6 +48,7 @@ const nullGitStateService: IAgentHostGitStateService = {
 	onDidRefreshSessionGitState: Event.None,
 	onDidChangeSessionGitHubState: Event.None,
 	async refreshSessionGitState() { },
+	async findPullRequestForWorkingDirectory() { return undefined; },
 	getMaterializedWorktreeMeta() { return undefined; },
 	async resolveSessionBaseBranchName() { return undefined; },
 	async setSessionGitHubState() { },

@@ -12282,6 +12282,7 @@ suite('CopilotAgent', () => {
 					});
 					const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
 					(built.fake as { chatChannelUri?: URI }).chatChannelUri = identity?.chatChannelUri;
+					(built.fake as { workingDirectory?: URI }).workingDirectory = launchPlan.workingDirectory;
 					(built.fake as { appliedAdditionalDirectories?: readonly URI[] }).appliedAdditionalDirectories = launchPlan.additionalDirectories;
 					return built.fake;
 				};
@@ -12303,6 +12304,62 @@ suite('CopilotAgent', () => {
 						customizationDirectory: resolvedWorkingDirectory.toString(),
 					}],
 					storedWorkingDirectories: [resolvedWorkingDirectory.toString(), secondaryWorkingDirectory.toString()],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('sendMessage preserves an addressed backing working directory outside the parent session worktree across configuration refresh', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const worktreeIsolation = new NullAgentHostWorktreeIsolation();
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [AgentHostCopilotMultiRootEnabledConfigKey]: true },
+				worktreeIsolation,
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'route-scoped-peer');
+				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
+				const sessionWorkingDirectory = URI.file('/session-worktree');
+				const chatWorkingDirectory = URI.file('/peer-repository');
+				const resolveCalls: string[] = [];
+				worktreeIsolation.resolveWorkingDirectoryForResume = async (_session, _sessionId, workingDirectory) => {
+					resolveCalls.push(workingDirectory.toString());
+					return URI.file('/resolved-session-worktree');
+				};
+				await provisionSession(agent, { session, workingDirectories: [sessionWorkingDirectory] });
+				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'peer-sdk-id' }));
+
+				const internals = agent as unknown as ChatInternals;
+				const launches: { workingDirectory: string | undefined; customizationDirectory: string | undefined }[] = [];
+				internals._createAgentSession = (launchPlan, customizationDirectory, _activeClient, identity) => {
+					launches.push({
+						workingDirectory: launchPlan.workingDirectory?.toString(),
+						customizationDirectory: customizationDirectory?.toString(),
+					});
+					const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
+					(built.fake as { chatChannelUri?: URI }).chatChannelUri = identity?.chatChannelUri;
+					(built.fake as { workingDirectory?: URI }).workingDirectory = launchPlan.workingDirectory;
+					return built.fake;
+				};
+
+				await agent.chats.sendMessage(chatUri, 'hello peer', [chatWorkingDirectory], undefined, undefined, undefined, exactChatContext(session, chatUri));
+
+				assert.deepStrictEqual({
+					resolveCalls,
+					launches,
+				}, {
+					resolveCalls: [],
+					launches: [{
+						workingDirectory: chatWorkingDirectory.toString(),
+						customizationDirectory: chatWorkingDirectory.toString(),
+					}, {
+						workingDirectory: chatWorkingDirectory.toString(),
+						customizationDirectory: chatWorkingDirectory.toString(),
+					}],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -12339,6 +12396,7 @@ suite('CopilotAgent', () => {
 					const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
 					recorder = built.rec;
 					(built.fake as { chatChannelUri?: URI }).chatChannelUri = identity?.chatChannelUri;
+					(built.fake as { workingDirectory?: URI }).workingDirectory = launchPlan.workingDirectory;
 					(built.fake as { appliedAdditionalDirectories?: readonly URI[] }).appliedAdditionalDirectories = launchPlan.additionalDirectories;
 					return built.fake;
 				};
@@ -13788,6 +13846,7 @@ suite('CopilotAgent', () => {
 
 		interface IRefreshSessionStub {
 			sessionId: string;
+			workingDirectory: URI;
 			appliedSnapshot: IActiveClientSnapshot;
 			appliedAdditionalDirectories: readonly URI[];
 			appliedDisabledRootMcpServers: readonly string[];
@@ -13805,9 +13864,10 @@ suite('CopilotAgent', () => {
 			resetTurnState(turnId: string): void;
 		}
 
-		function refreshSessionStub(additionalDirectories: readonly URI[]): IRefreshSessionStub {
+		function refreshSessionStub(additionalDirectories: readonly URI[], workingDirectory = URI.file('/workspace/primary')): IRefreshSessionStub {
 			return {
 				sessionId: 'config-refresh-session',
+				workingDirectory,
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} },
 				appliedAdditionalDirectories: additionalDirectories,
 				appliedDisabledRootMcpServers: [],
@@ -13943,6 +14003,47 @@ suite('CopilotAgent', () => {
 					resumeCalls: [{ sessionId, workingDirectories: [primary.toString(), newSecondary.toString()] }],
 					resumedSends: ['hello'],
 					logs: [`[Copilot:${sessionId}] Session configuration changed, refreshing session: operation=sendMessage, sdkSessionId=${sessionId}, chat=${defaultChatUri(session).toString()}, turnId=refresh-turn, reason=workingDirectoryChanged, clients=[client]`],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('refreshes a live session when the host corrects its primary working directory', async () => {
+			const client = new TestCopilotClient([]);
+			const logService = new RefreshLogService();
+			const agent = createTestAgent(disposables, { copilotClient: client, logService });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const staleWorkingDirectory = URI.file('/workspace/stale');
+			const correctedWorkingDirectory = URI.file('/workspace/corrected');
+			const previousSession = refreshSessionStub([], staleWorkingDirectory);
+			const resumedSession = refreshSessionStub([], correctedWorkingDirectory);
+			const resumeCalls: string[][] = [];
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			internals._resumeSession = async (_id, _chatChannelUri, workingDirectories) => {
+				resumeCalls.push(workingDirectories?.map(directory => directory.toString()) ?? []);
+				setDefaultSessionStub(agent, sessionId, resumedSession);
+				return resumedSession as unknown as CopilotAgentSession;
+			};
+
+			try {
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello', [correctedWorkingDirectory], undefined, 'corrected-root-turn');
+
+				assert.deepStrictEqual({
+					previousDestroyCalls: previousSession.destroyCalls,
+					resumeCalls,
+					resumedSends: resumedSession.sendCalls,
+					logs: logService.messages,
+				}, {
+					previousDestroyCalls: 1,
+					resumeCalls: [[correctedWorkingDirectory.toString()]],
+					resumedSends: ['hello'],
+					logs: [`[Copilot:${sessionId}] Session configuration changed, refreshing session: operation=sendMessage, sdkSessionId=${sessionId}, chat=${defaultChatUri(session).toString()}, turnId=corrected-root-turn, reason=workingDirectoryChanged, clients=[(none)]`],
 				});
 			} finally {
 				await disposeAgent(agent);
