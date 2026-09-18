@@ -1342,7 +1342,7 @@ function applyPerTurnUsage(
 			}
 			byCallId.delete(ref.apiCallId!);
 			const turn = events[ref.index] as IChatDebugModelTurnEvent;
-			const totalTokens = record.inputTokens !== undefined ? record.inputTokens + (record.outputTokens ?? 0) : undefined;
+			const totalTokens = record.inputTokens !== undefined ? record.inputTokens + (record.outputTokens ?? ref.outputTokens ?? 0) : undefined;
 			events[ref.index] = { ...turn, inputTokens: record.inputTokens, cachedTokens: record.cacheReadTokens, totalTokens };
 			const detail = resolved.get(ref.id);
 			if (detail?.kind === 'modelTurn') {

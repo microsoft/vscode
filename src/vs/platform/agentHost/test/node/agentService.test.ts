@@ -3558,6 +3558,53 @@ suite('AgentService (node dispatcher)', () => {
 
 		});
 
+		for (const failFirstCreation of [false, true]) {
+			test(`title strategy stays aligned with provider tools during creation (failure: ${failFirstCreation})`, async () => {
+				const db = new TestSessionDatabase();
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				getConfigurationService(svc).updateRootConfig({ [AgentHostDeferredTitleGenerationConfigKey]: true });
+				const observed: ReturnType<IAgentServerToolHost['getDefinitionsForSession']>[number][] = [];
+				let attempts = 0;
+				class CreatingAgent extends TitleTestAgent {
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+						createChat: async (chat, context, options) => {
+							const session = resolveAgentChatContext(context, chat).configurationResource;
+							const rename = this.serverToolHost?.getDefinitionsForSession(session.toString()).find(tool => tool.name === SessionServerToolName.RenameChat);
+							if (rename) {
+								observed.push(rename);
+							}
+							getConfigurationService(svc).updateRootConfig({
+								[AgentHostDeferredTitleGenerationConfigKey]: false,
+								[AgentHostActiveAgentTitleGenerationConfigKey]: false,
+							});
+							if (++attempts === 1 && failFirstCreation) {
+								throw new Error('creation failed');
+							}
+							return base.createChat(chat, context, options);
+						},
+					}));
+				}
+				const agent = new CreatingAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = AgentSession.uri('copilot', 'title-strategy-creation');
+				if (failFirstCreation) {
+					await assert.rejects(svc.createSession({ provider: 'copilot', session }), /creation failed/);
+				}
+				await svc.createSession({ provider: 'copilot', session });
+				const advertised = getStateManager(svc).getSessionState(session.toString())?.serverTools?.find(tool => tool.name === SessionServerToolName.RenameChat);
+				assert.deepStrictEqual({
+					observedRenameCount: observed.length,
+					advertised,
+					strategy: await db.getMetadata('titleGenerationStrategy'),
+				}, {
+					observedRenameCount: 1,
+					advertised: failFirstCreation ? undefined : observed[0],
+					strategy: failFirstCreation ? 'utility' : 'deferred',
+				});
+			});
+		}
+
 		test('deferred title utility does not hold foreground answer or completion delivery', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			const pendingTitle = new DeferredPromise<string>();

@@ -399,6 +399,57 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		})));
 	});
 
+	test('resumed root turns retain their first cohort and do not emit duplicate timing markers', async () => {
+		const info = sinon.spy(logService, 'info');
+		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'deferred');
+		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'error');
+		await timeout(20);
+		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'utility');
+		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'success');
+		turnTracker.turnStarted(agent, defaultChatUri, 'later', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(defaultChatUri, 'later', 'success');
+
+		const markers = info.getCalls().map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as { turnId: string; hostProcessAgeMs: number });
+		assert.deepStrictEqual({
+			markers: markers.map(marker => marker.turnId),
+			completions: completedEvents().map(event => {
+				const data = event.data as { turnId: string; hostRootTurnOrdinal: number; hostProcessAgeMs: number; titleGenerationStrategy?: string };
+				return { turn: data.turnId, ordinal: data.hostRootTurnOrdinal, age: data.hostProcessAgeMs, strategy: data.titleGenerationStrategy };
+			}),
+		}, {
+			markers: ['resumed', 'resumed', 'later'],
+			completions: [
+				{ turn: 'resumed', ordinal: 1, age: markers[0].hostProcessAgeMs, strategy: 'deferred' },
+				{ turn: 'resumed', ordinal: 1, age: markers[0].hostProcessAgeMs, strategy: 'deferred' },
+				{ turn: 'later', ordinal: 2, age: markers[2].hostProcessAgeMs, strategy: undefined },
+			],
+		});
+	});
+
+	for (const cleanup of ['session', 'truncation'] as const) {
+		test(`clears completed root timing identities on ${cleanup}`, () => {
+			for (const turn of ['removed', 'kept']) {
+				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnCompleted(defaultChatUri, turn, 'error');
+			}
+			if (cleanup === 'session') {
+				turnTracker.clearSession(defaultChatUri);
+			} else {
+				turnTracker.clearTurnsExcept(defaultChatUri, new Set(['kept']));
+			}
+			for (const turn of ['removed', 'kept']) {
+				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnCompleted(defaultChatUri, turn, 'success');
+			}
+			assert.deepStrictEqual(completedEvents().map(event => (event.data as { hostRootTurnOrdinal: number }).hostRootTurnOrdinal),
+				cleanup === 'session' ? [1, 2, 3, 4] : [1, 2, 3, 2]);
+		});
+	}
+
 	test('attributes completed and failed turns to the initiating client identity', () => {
 		setupSession();
 		const clientContext: IAgentHostClientTelemetryContext = {

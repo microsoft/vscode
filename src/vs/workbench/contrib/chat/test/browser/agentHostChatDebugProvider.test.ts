@@ -240,6 +240,29 @@ suite('AgentHostChatDebugProvider - convertAgentHostEventsToDebugEvents', () => 
 		]);
 	});
 
+	for (const counters of [
+		{ inputTokens: 100, outputTokens: undefined, expected: 105 },
+		{ inputTokens: 100, outputTokens: 0, expected: 100 },
+		{ inputTokens: 100, outputTokens: 7, expected: 107 },
+		{ inputTokens: undefined, outputTokens: undefined, expected: undefined },
+	]) {
+		test(`versioned diagnostics preserve known output tokens (input: ${counters.inputTokens}, output: ${counters.outputTokens})`, () => {
+			const records = [
+				{ type: 'session.start', id: 's', parentId: null, timestamp: '2026-06-17T00:00:00.000Z', data: {} },
+				{ type: 'assistant.message', id: 'a', parentId: 's', timestamp: '2026-06-17T00:00:01.000Z', data: { apiCallId: 'call-a', outputTokens: 5 } },
+			];
+			const { events, resolved } = convertAgentHostEventsToDebugEvents(records, sessionResource, undefined, [
+				{ schemaVersion: 2, apiCallId: 'call-a', inputTokens: counters.inputTokens, outputTokens: counters.outputTokens, ts: '' },
+			]);
+			const turn = events.find((event): event is IChatDebugModelTurnEvent => event.kind === 'modelTurn');
+			const detail = resolved.get('a');
+			assert.deepStrictEqual({
+				total: turn?.totalTokens,
+				detailTotal: detail?.kind === 'modelTurn' ? detail.totalTokens : undefined,
+			}, { total: counters.expected, detailTotal: counters.expected });
+		});
+	}
+
 	test('a zero-usage session.shutdown takes precedence over the live fallback', () => {
 		// A finished session whose shutdown summary reports zero usage must NOT
 		// fall back to live AIU: zero is then a known total, not "unknown".

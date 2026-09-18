@@ -46,6 +46,8 @@ and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
 an enriched marker with the same start values and `titleGenerationStrategy`
 (`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
 retaining the known strategy rather than counting them as separate observations.
+Resuming the same turn retains its original host timing and strategy without
+advancing the ordinal. This identity is retained until chat teardown or truncation.
 `agentHost.turnCompleted` carries those host fields and the effective saved
 strategy, when available. Join its raw `turnId` and `provider` with renderer
 `requestId` and `provider`, not timestamps or differently formatted session IDs.

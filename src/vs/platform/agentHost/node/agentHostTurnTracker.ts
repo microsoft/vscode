@@ -56,6 +56,12 @@ interface ITurnBlocker {
 	readonly toolCallId: string | undefined;
 }
 
+interface IRootTurnTiming {
+	readonly hostRootTurnOrdinal: number;
+	readonly hostProcessAgeMs: number;
+	titleGenerationStrategy: AutomaticTitleGenerationStrategy | undefined;
+}
+
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
 	readonly stopWatch: StopWatch;
@@ -65,9 +71,7 @@ interface ITurnTiming {
 	readonly turnId: string;
 	readonly parentTurnId: string | undefined;
 	readonly parentToolCallId: string | undefined;
-	readonly hostRootTurnOrdinal: number | undefined;
-	readonly hostProcessAgeMs: number | undefined;
-	titleGenerationStrategy: AutomaticTitleGenerationStrategy | undefined;
+	readonly rootTiming: IRootTurnTiming | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly selectedModel: string | undefined;
@@ -149,6 +153,7 @@ export class AgentHostTurnTracker extends Disposable {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _turnTimings = new Map<string, ITurnTiming>();
+	private readonly _rootTurnTimings = new Map<string, IRootTurnTiming>();
 	private readonly _turnUsages = new Map<string, ITurnUsage>();
 	private readonly _hangWatchdogs = this._register(new DisposableMap<string>());
 	/** Maps `session:requestId` to the turn key blocked on that request. */
@@ -175,6 +180,7 @@ export class AgentHostTurnTracker extends Disposable {
 		super();
 		this._register(toDisposable(() => {
 			this._turnTimings.clear();
+			this._rootTurnTimings.clear();
 			this._turnUsages.clear();
 			this._blockerTurnKeys.clear();
 		}));
@@ -182,13 +188,15 @@ export class AgentHostTurnTracker extends Disposable {
 
 	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session)): void {
 		const key = this._key(session, turnId);
-		const previousTiming = this._turnTimings.get(key);
-		let hostRootTurnOrdinal = previousTiming?.hostRootTurnOrdinal;
-		let hostProcessAgeMs = previousTiming?.hostProcessAgeMs;
-		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(parseChatUri(session)?.session ?? session) && !previousTiming;
+		let rootTiming = this._rootTurnTimings.get(key);
+		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(parseChatUri(session)?.session ?? session) && !rootTiming;
 		if (isNewRootTurn) {
-			hostRootTurnOrdinal = ++this._hostRootTurnOrdinal;
-			hostProcessAgeMs = Math.round(process.uptime() * 1000);
+			rootTiming = {
+				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
+				hostProcessAgeMs: Math.round(process.uptime() * 1000),
+				titleGenerationStrategy: undefined,
+			};
+			this._rootTurnTimings.set(key, rootTiming);
 		}
 		const timing: ITurnTiming = {
 			stopWatch: StopWatch.create(false),
@@ -198,9 +206,7 @@ export class AgentHostTurnTracker extends Disposable {
 			turnId,
 			parentTurnId,
 			parentToolCallId,
-			hostRootTurnOrdinal,
-			hostProcessAgeMs,
-			titleGenerationStrategy: previousTiming?.titleGenerationStrategy,
+			rootTiming,
 			model,
 			modelTelemetryKind,
 			selectedModel: model,
@@ -241,8 +247,8 @@ export class AgentHostTurnTracker extends Disposable {
 	/** Captures the effective title strategy once, before sending a root turn to its provider. */
 	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (timing?.hostRootTurnOrdinal !== undefined && timing.titleGenerationStrategy === undefined) {
-			timing.titleGenerationStrategy = strategy;
+		if (timing?.rootTiming && timing.rootTiming.titleGenerationStrategy === undefined) {
+			timing.rootTiming.titleGenerationStrategy = strategy;
 			// Enrich the start marker without resampling its cohort fields.
 			this._logTurnTiming(timing);
 		}
@@ -252,9 +258,7 @@ export class AgentHostTurnTracker extends Disposable {
 		this._logService.info(`[AgentHostTurnTiming] ${JSON.stringify({
 			schemaVersion: 1, sessionId: parseChatUri(timing.session)?.session ?? timing.session,
 			chatId: timing.session, turnId: timing.turnId, provider: timing.agent.id,
-			hostRootTurnOrdinal: timing.hostRootTurnOrdinal,
-			hostProcessAgeMs: timing.hostProcessAgeMs,
-			titleGenerationStrategy: timing.titleGenerationStrategy,
+			...timing.rootTiming,
 		})}`);
 	}
 
@@ -489,9 +493,9 @@ export class AgentHostTurnTracker extends Disposable {
 			turnId,
 			parentTurnId: timing.parentTurnId,
 			parentToolCallId: timing.parentToolCallId,
-			hostRootTurnOrdinal: timing.hostRootTurnOrdinal,
-			hostProcessAgeMs: timing.hostProcessAgeMs,
-			titleGenerationStrategy: timing.titleGenerationStrategy,
+			hostRootTurnOrdinal: timing.rootTiming?.hostRootTurnOrdinal,
+			hostProcessAgeMs: timing.rootTiming?.hostProcessAgeMs,
+			titleGenerationStrategy: timing.rootTiming?.titleGenerationStrategy,
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
@@ -554,6 +558,11 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	clearSession(session: string): void {
 		const prefix = `${session}\0`;
+		for (const key of this._rootTurnTimings.keys()) {
+			if (key.startsWith(prefix)) {
+				this._rootTurnTimings.delete(key);
+			}
+		}
 		for (const [key, timing] of this._turnTimings) {
 			if (key.startsWith(prefix)) {
 				this._disposeTurn(key, timing);
@@ -574,6 +583,11 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	clearTurnsExcept(session: string, keepTurnIds: ReadonlySet<string>): void {
 		const prefix = `${session}\0`;
+		for (const key of this._rootTurnTimings.keys()) {
+			if (key.startsWith(prefix) && !keepTurnIds.has(key.slice(prefix.length))) {
+				this._rootTurnTimings.delete(key);
+			}
+		}
 		for (const [key, timing] of this._turnTimings) {
 			if (key.startsWith(prefix) && !keepTurnIds.has(timing.turnId)) {
 				this._disposeTurn(key, timing);

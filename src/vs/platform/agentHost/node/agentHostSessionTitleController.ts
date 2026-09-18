@@ -142,6 +142,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private readonly _autoTitles = new Set<ProtocolURI>();
 	private readonly _renamedTitles = new Set<ProtocolURI>();
 	private readonly _titleGenerationStrategies = new Map<ProtocolURI, AutomaticTitleGenerationStrategy>();
+	private readonly _unpersistedTitleStrategies = new Set<ProtocolURI>();
 	private readonly _restoringTitleStrategies = new Map<ProtocolURI, Promise<void>>();
 	private readonly _restoringDeferredSeeds = new Map<ProtocolURI, object>();
 	private readonly _deferredRefinementStarted = new Set<ProtocolURI>();
@@ -350,7 +351,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (strategy === 'activeAgent') {
 			return;
 		}
-		const independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+		let independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
 		// Adding the first peer snapshots the session-backed title onto its now-independent default chat.
 		if (independentChat && isDefaultChatUri(independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
 			const seed = this._lastAppliedTitle.get(channel);
@@ -392,7 +393,15 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
 			lastApplied,
 			title => this._applySeedTitle(channel, independentChat, title),
-			() => !this._renamedTitles.has(key) && this._currentSeedTitle(channel, independentChat) === this._lastAppliedTitle.get(key),
+			() => {
+				independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+				const currentKey = independentChat ?? channel;
+				if (strategy === 'deferred') {
+					this._deferredRefinementStarted.add(currentKey);
+				}
+				return !this._renamedTitles.has(key) && !this._renamedTitles.has(currentKey)
+					&& this._currentSeedTitle(channel, independentChat) === lastApplied;
+			},
 			title => this._persistAutoTitle(channel, independentChat, title),
 		);
 	}
@@ -505,6 +514,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._restoringDeferredSeeds.delete(key);
 		}
 		this._titleGenerationStrategies.delete(session);
+		this._unpersistedTitleStrategies.delete(session);
 		this._restoringTitleStrategies.delete(session);
 	}
 
@@ -895,6 +905,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	getAutomaticTitleGenerationStrategy(channel?: ProtocolURI): AutomaticTitleGenerationStrategy {
 		const existing = channel && this._titleGenerationStrategies.get(channel);
 		if (existing) {
+			if (this._unpersistedTitleStrategies.has(channel) && this._stateManager.getSessionState(channel)) {
+				this._unpersistedTitleStrategies.delete(channel);
+				if (!this._isEphemeralSession(channel)) {
+					this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, existing);
+				}
+			}
 			return existing;
 		}
 		const state = channel ? this._stateManager.getSessionState(channel) : undefined;
@@ -903,9 +919,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			? state.serverTools.some(tool => tool.name === SessionServerToolName.RenameChat) ? 'activeAgent' : 'utility'
 			: this._options.isDeferredTitleGenerationEnabled?.() === true ? 'deferred'
 				: this._options.isActiveAgentTitleGenerationEnabled?.() === true ? 'activeAgent' : 'utility';
-		if (channel && state && !this._isEphemeralSession(channel)) {
+		if (channel && !this._isEphemeralSession(channel)) {
 			this._titleGenerationStrategies.set(channel, strategy);
-			this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, strategy);
+			if (state) {
+				this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, strategy);
+			} else {
+				this._unpersistedTitleStrategies.add(channel);
+			}
 		}
 		return strategy;
 	}
@@ -1053,6 +1073,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._autoTitles.clear();
 		this._renamedTitles.clear();
 		this._titleGenerationStrategies.clear();
+		this._unpersistedTitleStrategies.clear();
 		this._restoringTitleStrategies.clear();
 		this._restoringDeferredSeeds.clear();
 		this._deferredRefinementStarted.clear();

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -249,6 +249,102 @@ suite('AgentHostSessionTitleController', () => {
 		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Dark mode setting', 'refinement should persist');
 		controller.refineTitleFromFirstTurn(session.toString());
 		assert.strictEqual(copilotApiService.utilityCalls.length, 1);
+	});
+
+	for (const { rename, generated } of [
+		{ rename: undefined, generated: 'Dark mode setting' },
+		{ rename: undefined, generated: 'Add dark mode' },
+		{ rename: 'Manual title', generated: 'Dark mode setting' },
+		{ rename: 'Add dark mode', generated: 'Dark mode setting' },
+	]) {
+		test(`pending deferred refinement follows the default chat when a peer is added (rename: ${rename}, generated: ${generated})`, async () => {
+			const { stateManager, session, copilotApiService, db } = setupDeferred();
+			const sessionData = createSessionDataService(db);
+			const chatDb = new TestSessionDatabase();
+			const chatData = createSessionDataService(chatDb);
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: {
+					...sessionData,
+					openDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).openDatabase(resource),
+					tryOpenDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).tryOpenDatabase(resource),
+				},
+				isDeferredTitleGenerationEnabled: () => true,
+				copilotApiService,
+				getGitHubCopilotToken: () => 'gh-token',
+			}, new NullLogService()));
+			const defaultChat = buildDefaultChatUri(session);
+			const pendingTitle = new DeferredPromise<string>();
+			copilotApiService.responsePromise = pendingTitle.p;
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+
+			stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+			if (rename !== undefined) {
+				stateManager.updateChatTitle(session.toString(), defaultChat, rename);
+				controller.markTitleRenamed(session.toString(), defaultChat, rename);
+			}
+			await pendingTitle.complete(generated);
+			await timeout(0);
+			controller.refineTitleFromFirstTurn(session.toString(), defaultChat);
+			await timeout(0);
+			assert.deepStrictEqual({
+				sessionTitle: stateManager.getSessionState(session.toString())?.title,
+				chatTitle: stateManager.getChatState(defaultChat)?.title,
+				persistedSessionTitle: await db.getMetadata('customTitle'),
+				persistedChatTitle: await db.getMetadata(customChatTitleMetadataKey(defaultChat)),
+				chatDatabaseTitle: await chatDb.getMetadata('customTitle'),
+				calls: copilotApiService.utilityCalls.length,
+			}, {
+				sessionTitle: 'Add dark mode',
+				chatTitle: rename ?? generated,
+				persistedSessionTitle: 'Add dark mode',
+				persistedChatTitle: rename === undefined ? generated : undefined,
+				chatDatabaseTitle: rename === undefined ? generated : 'Add dark mode',
+				calls: 1,
+			});
+		});
+	}
+
+	for (const initial of ['activeAgent', 'utility', 'deferred'] as const) {
+		test(`snapshots ${initial} before session state exists and persists only after registration`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const db = new TestSessionDatabase();
+			const session = URI.parse('agenthost-session://copilot/creating');
+			let activeAgent = initial === 'activeAgent';
+			let deferred = initial === 'deferred';
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				isActiveAgentTitleGenerationEnabled: () => activeAgent,
+				isDeferredTitleGenerationEnabled: () => deferred,
+			}, new NullLogService()));
+			const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			const beforeRegistration = await db.getMetadata('titleGenerationStrategy');
+			activeAgent = !activeAgent;
+			deferred = !deferred;
+			const duringCreation = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			stateManager.createSession(createSummary(session));
+			const registered = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			assert.deepStrictEqual({
+				first, beforeRegistration, duringCreation, registered,
+				persisted: await db.getMetadata('titleGenerationStrategy'),
+			}, { first: initial, beforeRegistration: undefined, duringCreation: initial, registered: initial, persisted: initial });
+		});
+	}
+
+	test('clears an unregistered strategy snapshot after failed creation', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = URI.parse('agenthost-session://copilot/creating');
+		let deferred = true;
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(),
+			isDeferredTitleGenerationEnabled: () => deferred,
+		}, new NullLogService()));
+		const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
+		controller.clearSession(session.toString(), []);
+		deferred = false;
+		assert.deepStrictEqual({ first, retry: controller.getAutomaticTitleGenerationStrategy(session.toString()) }, { first: 'deferred', retry: 'utility' });
 	});
 
 	for (const state of [TurnState.Cancelled, TurnState.Error]) {
