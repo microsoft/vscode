@@ -255,6 +255,7 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isVSCModelB(model)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
+		|| isGpt55(model)
 		|| isGpt56(model)
 		|| isGpt6Family(model)
 		|| isHiddenModelI(model);
@@ -270,6 +271,7 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt53Codex(model.family)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
+		|| isGpt55(model)
 		|| isGpt56(model)
 		|| isGpt6Family(model)
 		|| isHiddenModelI(model);
