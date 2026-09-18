@@ -262,6 +262,10 @@ export class ChatInputPills extends Disposable {
 		return this._pills.getPillElements();
 	}
 
+	focusFirst(): boolean {
+		return this._pills.focusFirst();
+	}
+
 	private _getTargetKind(target: HTMLElement | null): SessionChatPillKind | undefined {
 		const targetPill = this._pills.getPill(target);
 		if (!targetPill) {
@@ -277,7 +281,7 @@ export class ChatInputPills extends Disposable {
 
 	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, targetKind?: SessionChatPillKind) {
 		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, this._options.offeredKinds);
-		const restoreFocus = () => this._row.restoreFocus(() => this._pills.getPillElements());
+		const restoreFocus = () => this._row.restoreFocus(() => this._pills.getPillElements(), this._options.focusFallback);
 		const toggleAction = (entry: ISessionChatPillMenuEntry) => toAction({
 			id: `chatInputPills.toggle.${entry.kind}`,
 			label: entry.label,
@@ -291,7 +295,24 @@ export class ChatInputPills extends Disposable {
 		if (targetKind) {
 			for (const source of this._options.sources.get()) {
 				if (source.kind === targetKind && this._options.offeredKinds.includes(targetKind)) {
-					targetActions.push(...source.getContextMenuPrimaryActions?.() ?? []);
+					// A primary action can remove the entry the menu was opened from,
+					// taking its pill with it, so focus has to be placed again once the
+					// action settles instead of being left on the detached anchor.
+					targetActions.push(...(source.getContextMenuPrimaryActions?.() ?? []).map(action => toAction({
+						id: action.id,
+						label: action.label,
+						enabled: action.enabled,
+						checked: action.checked,
+						class: action.class,
+						tooltip: action.tooltip,
+						run: async () => {
+							try {
+								await action.run();
+							} finally {
+								restoreFocus();
+							}
+						},
+					})));
 				}
 			}
 			if (targetActions.length) {
@@ -309,21 +330,25 @@ export class ChatInputPills extends Disposable {
 				},
 			}));
 		}
+		const pullRequestOptions: IAction[] = [];
 		for (const source of this._options.sources.get()) {
+			const allPullRequestsFilteredOut = source.kind === SessionChatPillKind.PullRequests
+				&& kindsWithData.has(source.kind) && source.isVisible?.get() === false;
 			if (!source.kind || !this._options.offeredKinds.includes(source.kind)
-				|| (targetKind ? source.kind !== targetKind : !kindsWithData.has(source.kind))) {
+				|| (targetKind ? source.kind !== targetKind && !allPullRequestsFilteredOut : !kindsWithData.has(source.kind))) {
 				continue;
 			}
 			const actions = source.getContextMenuActions?.();
 			if (actions?.length) {
-				targetActions.push(new SubmenuAction(
+				const options = source.kind === SessionChatPillKind.PullRequests ? pullRequestOptions : targetActions;
+				options.push(new SubmenuAction(
 					`chatInputPills.options.${source.kind}`,
 					localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
 					actions,
 				));
 			}
 		}
-		return Separator.join(targetActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
+		return Separator.join(targetActions, pullRequestOptions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 	}
 }
 

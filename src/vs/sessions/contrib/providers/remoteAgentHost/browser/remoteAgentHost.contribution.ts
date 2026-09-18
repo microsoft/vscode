@@ -117,13 +117,15 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
-	readonly authRecovery = new AgentHostAuthenticationRecovery();
+	readonly authRecovery: AgentHostAuthenticationRecovery;
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
 	}
 }
 
@@ -332,10 +334,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// User-facing display name for this agent. We always include the
-		// agent's own name so that a host exposing multiple agents (e.g.
-		// `copilot` + `openai` from the same machine) produces distinct
-		// labels instead of collapsing to a single `configuredName`.
 		const hostLabel = configuredName || address;
 		const agentLabel = agent.displayName?.trim() || agent.provider;
 		const displayName = `${agentLabel} [${hostLabel}]`;

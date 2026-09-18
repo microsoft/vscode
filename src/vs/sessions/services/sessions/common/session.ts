@@ -367,9 +367,11 @@ export interface IGitHubPullRequestRef {
 	 * discovered from git state, which carry no title until they are fetched live.
 	 */
 	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 	/**
-	 * Whether this pull request originated in the session, as opposed to being
-	 * inherited from the checkout it started from or merely referenced by the agent.
+	 * Whether this pull request originated in or was explicitly recorded as the session's own artifact, as opposed to being
+	 * inherited from the checkout it started from or merely recorded as a reference by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
 }
@@ -394,6 +396,13 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 	}];
 }
 
+/** Excludes inherited checkout PRs, while accepting the primary PR from providers without provenance. */
+export function getSessionOwnedGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	return gitHubInfo?.pullRequests
+		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
+		: getGitHubPullRequestRefs(gitHubInfo);
+}
+
 /** A GitHub issue referenced by a session. */
 export interface IGitHubIssueRef {
 	/** GitHub repository owner of the issue. */
@@ -406,6 +415,8 @@ export interface IGitHubIssueRef {
 	readonly uri: URI;
 	/** Issue title recorded by the session, when known. */
 	readonly title?: string;
+	/** Stable ID of the recorded session artifact or reference represented by this entry, when recorded via `add_artifact_or_reference`. Absent for git-/session-discovered associations. */
+	readonly recordedReferenceId?: string;
 }
 
 export interface ISessionChangesSummary {
@@ -1045,6 +1056,7 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.state === y.state &&
 			x.liveState === y.liveState &&
 			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId &&
 			x.createdByThisSession === y.createdByThisSession &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
@@ -1060,7 +1072,8 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
-			x.title === y.title);
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 /**

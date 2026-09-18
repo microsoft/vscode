@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.66.0",
+  "version": "0.67.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.138.0",
+    "vscode": "^1.139.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -3207,6 +3207,25 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
+          },
+          "github.copilot.chat.cloudAgent.sessionVisibility": {
+            "type": "string",
+            "enum": [
+              "24hours",
+              "7days",
+              "30days",
+              "90days",
+              "all"
+            ],
+            "default": "30days",
+            "markdownDescription": "%github.copilot.config.cloudAgent.sessionVisibility%",
+            "enumDescriptions": [
+              "%github.copilot.config.cloudAgent.sessionVisibility.24hours%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.7days%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.30days%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.90days%",
+              "%github.copilot.config.cloudAgent.sessionVisibility.all%"
+            ]
           },
           "github.copilot.chat.localIndex.enabled": {
             "type": "boolean",

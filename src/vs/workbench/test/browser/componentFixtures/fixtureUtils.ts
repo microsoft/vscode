@@ -53,6 +53,7 @@ import { ModelService } from '../../../../editor/common/services/modelService.js
 import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ICodeLensCache } from '../../../../editor/contrib/codelens/browser/codeLensCache.js';
+import { IOutlineModelService, OutlineModelService } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { TestCodeEditorService, TestCommandService } from '../../../../editor/test/browser/editorTestServices.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { TestEditorWorkerService } from '../../../../editor/test/common/services/testEditorWorkerService.js';
@@ -100,6 +101,7 @@ import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
@@ -117,6 +119,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
 import { applyFixtureFocus, createFixtureUserInteractionService } from './fixtureFocus.js';
+import { registerFixtureLanguages, registerFixtureSyntaxHighlighting } from './fixtureSyntaxHighlighting.js';
 
 export { applyFixtureFocus, createFixtureUserInteractionService };
 
@@ -263,14 +266,21 @@ class NullStorageService implements IStorageService {
 // as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
 // comments and trailing commas the way it does in the real product.
 /* eslint-disable local/code-import-patterns */
+import dark_2026 from '../../../../../../extensions/theme-defaults/themes/2026-dark.json' with { type: 'json' };
 import dark_modern from '../../../../../../extensions/theme-defaults/themes/dark_modern.json' with { type: 'json' };
 import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_plus.json' with { type: 'json' };
 import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
 import hc_black from '../../../../../../extensions/theme-defaults/themes/hc_black.json' with { type: 'json' };
 import hc_light from '../../../../../../extensions/theme-defaults/themes/hc_light.json' with { type: 'json' };
+import light_2026 from '../../../../../../extensions/theme-defaults/themes/2026-light.json' with { type: 'json' };
 import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
 import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
+import abyss from '../../../../../../extensions/theme-abyss/themes/abyss-color-theme.json' with { type: 'json' };
+import monokai from '../../../../../../extensions/theme-monokai/themes/monokai-color-theme.json' with { type: 'json' };
+import quietlight from '../../../../../../extensions/theme-quietlight/themes/quietlight-color-theme.json' with { type: 'json' };
+import solarized_dark from '../../../../../../extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json' with { type: 'json' };
+import solarized_light from '../../../../../../extensions/theme-solarized-light/themes/solarized-light-color-theme.json' with { type: 'json' };
 /* eslint-enable local/code-import-patterns */
 
 function toThemeJsonText(theme: string | object): string {
@@ -287,6 +297,8 @@ const fileIconThemeResources = {
 const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
 const themeJsonModules: Record<string, string> = {
+	'/extensions/theme-defaults/themes/2026-dark.json': toThemeJsonText(dark_2026),
+	'/extensions/theme-defaults/themes/2026-light.json': toThemeJsonText(light_2026),
 	'/extensions/theme-defaults/themes/dark_modern.json': toThemeJsonText(dark_modern),
 	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
 	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
@@ -295,6 +307,11 @@ const themeJsonModules: Record<string, string> = {
 	'/extensions/theme-defaults/themes/light_modern.json': toThemeJsonText(light_modern),
 	'/extensions/theme-defaults/themes/light_plus.json': toThemeJsonText(light_plus),
 	'/extensions/theme-defaults/themes/light_vs.json': toThemeJsonText(light_vs),
+	'/extensions/theme-abyss/themes/abyss-color-theme.json': toThemeJsonText(abyss),
+	'/extensions/theme-monokai/themes/monokai-color-theme.json': toThemeJsonText(monokai),
+	'/extensions/theme-quietlight/themes/quietlight-color-theme.json': toThemeJsonText(quietlight),
+	'/extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json': toThemeJsonText(solarized_dark),
+	'/extensions/theme-solarized-light/themes/solarized-light-color-theme.json': toThemeJsonText(solarized_light),
 };
 
 const fixtureExtensionResourceLoaderService = new class implements IExtensionResourceLoaderService {
@@ -321,16 +338,16 @@ const fixtureExtensionResourceLoaderService = new class implements IExtensionRes
 	getExtensionGalleryResourceURL(): Promise<URI | undefined> { return Promise.resolve(undefined); }
 };
 
-function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): ColorThemeData {
+function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector, extensionName = 'theme-defaults'): ColorThemeData {
 	const location = URI.parse(`file://${themePath}`);
 	return ColorThemeData.fromExtensionTheme(
 		{ id: themePath, path: themePath, uiTheme, _watch: false },
 		location,
-		ExtensionData.fromName('vscode', 'theme-defaults', true)
+		ExtensionData.fromName('vscode', extensionName, true)
 	);
 }
 
-export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
+export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/2026-dark.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
 const lightHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_light.json', ThemeTypeSelector.HC_LIGHT);
@@ -360,8 +377,19 @@ type ComponentFixtureThemeVariant = {
 const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme } as const satisfies ComponentFixtureThemeVariant;
 const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme } as const satisfies ComponentFixtureThemeVariant;
 const additionalThemeVariants = {
+	darkModern: { label: 'DarkModern', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK) },
+	light2026: { label: 'Light2026', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/2026-light.json', ThemeTypeSelector.VS) },
+	darkPlus: { label: 'DarkPlus', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_plus.json', ThemeTypeSelector.VS_DARK) },
+	lightPlus: { label: 'LightPlus', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/light_plus.json', ThemeTypeSelector.VS) },
+	visualStudioDark: { label: 'VisualStudioDark', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_vs.json', ThemeTypeSelector.VS_DARK) },
+	visualStudioLight: { label: 'VisualStudioLight', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/light_vs.json', ThemeTypeSelector.VS) },
 	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme },
 	lightHighContrast: { label: 'LightHighContrast', background: 'light', theme: lightHighContrastTheme },
+	abyss: { label: 'Abyss', background: 'dark', theme: createBuiltInTheme('/extensions/theme-abyss/themes/abyss-color-theme.json', ThemeTypeSelector.VS_DARK, 'theme-abyss') },
+	monokai: { label: 'Monokai', background: 'dark', theme: createBuiltInTheme('/extensions/theme-monokai/themes/monokai-color-theme.json', ThemeTypeSelector.VS_DARK, 'theme-monokai') },
+	quietLight: { label: 'QuietLight', background: 'light', theme: createBuiltInTheme('/extensions/theme-quietlight/themes/quietlight-color-theme.json', ThemeTypeSelector.VS, 'theme-quietlight') },
+	solarizedDark: { label: 'SolarizedDark', background: 'dark', theme: createBuiltInTheme('/extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json', ThemeTypeSelector.VS_DARK, 'theme-solarized-dark') },
+	solarizedLight: { label: 'SolarizedLight', background: 'light', theme: createBuiltInTheme('/extensions/theme-solarized-light/themes/solarized-light-color-theme.json', ThemeTypeSelector.VS, 'theme-solarized-light') },
 } as const satisfies Record<string, ComponentFixtureThemeVariant>;
 export type ComponentFixtureAdditionalTheme = keyof typeof additionalThemeVariants;
 
@@ -580,9 +608,9 @@ export class FixtureModelService extends ModelService {
  * are automatically resolvable. URIs without a backing model fail loudly so
  * that callers don't silently receive a null `textEditorModel`.
  */
-export class FixtureTextModelService extends mock<ITextModelService>() {
+export class FixtureTextModelService extends InMemoryTextModelService {
 	constructor(@IModelService private readonly _modelService: IModelService) {
-		super();
+		super(_modelService);
 	}
 
 	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -590,19 +618,7 @@ export class FixtureTextModelService extends mock<ITextModelService>() {
 		if (!model) {
 			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
 		}
-		return {
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			object: { textEditorModel: model } as IResolvedTextEditorModel,
-			dispose() { },
-		};
-	}
-
-	override registerTextModelContentProvider(): IDisposable {
-		return { dispose() { } };
-	}
-
-	override canHandleResource(): boolean {
-		return false;
+		return super.createModelReference(resource);
 	}
 }
 
@@ -643,7 +659,9 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	define(INotificationService, TestNotificationService);
 	define(IDialogService, TestDialogService);
 	define(IUndoRedoService, UndoRedoService);
-	define(ILanguageService, LanguageService);
+	const languageService = disposables.add(new LanguageService());
+	registerFixtureLanguages(disposables, languageService);
+	defineInstance(ILanguageService, languageService);
 	define(ILanguageConfigurationService, TestLanguageConfigurationService);
 	define(IConfigurationService, TestConfigurationService);
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
@@ -664,6 +682,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
+	define(IOutlineModelService, OutlineModelService);
 	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
 	define(IInlineCompletionsService, InlineCompletionsService);
 	defineInstance(ICodeLensCache, {
@@ -674,6 +693,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	});
 	defineInstance(IHoverService, {
 		_serviceBrand: undefined,
+		getStickyHover: () => undefined,
 		showDelayedHover: () => undefined,
 		setupDelayedHover: () => ({ dispose: () => { } }),
 		setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
@@ -751,6 +771,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		isAgentHostSession: () => false,
 		showFeedbackInEditor: () => { },
 		hideFeedbackInEditor: () => { },
 		getVisibleResolvedFeedbackIds: () => new Set(),
@@ -933,7 +954,9 @@ export function createTextModel(
 	const modelService = instantiationService.get(IModelService);
 	const languageService = instantiationService.get(ILanguageService);
 	const languageSelection = languageId ? languageService.createById(languageId) : null;
-	return modelService.createModel(text, languageSelection, uri);
+	const model = modelService.createModel(text, languageSelection, uri);
+	model.tokenization.forceTokenization(model.getLineCount());
+	return model;
 }
 
 
@@ -1001,6 +1024,8 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	/** Reveal headless fixtures only after async setup and virtual-time layout have completed. */
+	deferPaint?: boolean;
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	/** Base color themes to render; defaults to both dark and light. */
@@ -1028,6 +1053,7 @@ if (logOutsideTime) {
 }
 
 let fixtureRenderCounter = 0;
+let sourceMapsInitialized = false;
 
 /**
  * Creates selected color-theme variants (Dark and Light by default), with optional additional theme variants.
@@ -1066,6 +1092,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
 			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			if (leakDetectionEnabled && !sourceMapsInitialized) {
+				// Initialize source maps before async render timeouts start, not on the first fixture error.
+				void new Error().stack;
+				sourceMapsInitialized = true;
+			}
 			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
 			// starts so its long-lived `DisposableStore` (created on first
 			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
@@ -1131,7 +1162,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							await p.run({
 								until: untilTime(clock.now + teardownDrainMs),
 								maxEvents: 1000,
-								maxTraceDepth: 5,
 							});
 						} catch (e) {
 							console.error(`[ComponentFixture] error draining virtual time during teardown: ${e instanceof Error ? e.stack : e}`);
@@ -1152,7 +1182,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			async function actualRender() {
-				const fileIconTheme = await setupTheme(container, theme, options.fileIconTheme, fixtureHost);
+				const [fileIconTheme] = await Promise.all([
+					setupTheme(container, theme, options.fileIconTheme, fixtureHost),
+					ensureThemeLoaded(darkTheme),
+				]);
+				await registerFixtureSyntaxHighlighting(disposableStore, fixtureHost, darkTheme, theme);
 
 				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
 				const updateStylesheetOrder = (input: unknown) => {
@@ -1173,7 +1207,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
 					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
-						const stackTrace = new Error().stack;
+						const stackTrace = new Error();
 						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
 						return clock.schedule({
 							time: clock.now,
@@ -1186,7 +1220,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							},
 							source: {
 								toString() { return 'runWhenIdle'; },
-								stackTrace,
+								get stackTrace() { return stackTrace.stack; },
 							},
 							trace,
 						});
@@ -1210,7 +1244,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						? p.run({
 							until: untilTime(clock.now + (options.virtualTime?.durationMs ?? 1000)),
 							maxEvents: 200,
-							maxTraceDepth: 5,
 						})
 						: Promise.resolve();
 
@@ -1238,10 +1271,21 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// setTimeout/rAF calls that led to it.
 			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
 
-			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
-				// Trace-reset escapes virtual time so it actually fires.
-				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
-			});
+			const deferPaint = options.deferPaint === true && context.host.kind === 'headless';
+			const originalOpacity = fixtureHost.style.opacity;
+			if (deferPaint) {
+				fixtureHost.style.opacity = '0';
+			}
+			try {
+				await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+					// Trace-reset escapes virtual time so it actually fires.
+					afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+				});
+			} finally {
+				if (deferPaint) {
+					fixtureHost.style.opacity = originalOpacity;
+				}
+			}
 
 			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;

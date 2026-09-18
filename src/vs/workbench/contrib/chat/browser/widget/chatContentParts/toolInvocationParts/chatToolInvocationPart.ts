@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derivedOpts, IObservable } from '../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -14,9 +16,11 @@ import { IChatRendererContent, isResponseVM } from '../../../../common/model/cha
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
+import { getCompactCodicon } from '../../../chatIcons.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
+import { getToolInvocationIcon } from '../chatThinkingContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
@@ -92,6 +96,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		return this.subPart?.codeblocksPartId;
 	}
 
+	public acceptConfirmation(): void {
+		if (this.toolInvocation.kind === 'toolInvocation' && this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			this.subPart.acceptConfirmation();
+		}
+	}
+
 	private subPart!: BaseChatToolInvocationSubPart;
 	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
 	private readonly renderedSessionCreatedResult: boolean;
@@ -128,6 +138,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
+
+		const toolIcon = context.suppressProgressShimmer ? dom.append(this.domNode, dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' })) : undefined;
+		this.domNode.classList.toggle('chat-tool-call-with-icon', !!toolIcon);
 
 		// Update the todo list service if this tool invocation contains todo data
 		if (toolInvocation.toolSpecificData?.kind === 'todoList') {
@@ -206,6 +219,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const render = () => {
 			partStore.clear();
+			if (toolIcon) {
+				const registeredIcon = toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
+				const icon = getToolInvocationIcon(toolInvocation.toolId, registeredIcon);
+				toolIcon.className = 'chat-tool-call-icon';
+				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
+			}
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden || (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
 				dom.hide(this.domNode);

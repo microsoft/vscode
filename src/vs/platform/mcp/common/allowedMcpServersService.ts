@@ -8,9 +8,9 @@ import * as nls from '../../../nls.js';
 import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Emitter } from '../../../base/common/event.js';
-import { hasKey } from '../../../base/common/types.js';
+import { hasKey, isString } from '../../../base/common/types.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
-import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from './mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, replaceMcpServerVariableReferences } from './mcpManagement.js';
 import { McpServerType } from './mcpPlatformTypes.js';
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../policy/common/copilotManagedSettings.js';
 
@@ -49,7 +49,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		const denylist = managedOnly
 			? this.getAllConfiguredMatchers(mcpDeniedServersConfig)
 			: getMcpServerMatchers(this.configurationService.getValue(mcpDeniedServersConfig));
-		switch (checkMcpServerAllowed(allowlist, denylist, identity)) {
+		switch (this.checkServerAllowedAtCurrentResolution(allowlist, denylist, identity)) {
 			case McpServerAllowResult.Denied:
 				return new MarkdownString(nls.localize('mcp server is denied', "This Model Context Protocol server is blocked by your organization's policy. Please contact your administrator for more information."));
 			case McpServerAllowResult.NotAllowed:
@@ -57,6 +57,31 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		}
 
 		return true;
+	}
+
+	private checkServerAllowedAtCurrentResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
+		if (!identity.url?.includes('${')) {
+			return checkMcpServerAllowed(allowlist, denylist, identity);
+		}
+
+		const nonUrlIdentity = { name: identity.name };
+		const nonUrlDenylist = denylist?.filter(matcher => !isString(matcher.serverUrl));
+		if (checkMcpServerAllowed(undefined, nonUrlDenylist, nonUrlIdentity) === McpServerAllowResult.Denied) {
+			return McpServerAllowResult.Denied;
+		}
+		if (allowlist === undefined) {
+			return McpServerAllowResult.Allowed;
+		}
+
+		const nonUrlAllowlist = allowlist.filter(matcher => !isString(matcher.serverUrl));
+		if (checkMcpServerAllowed(nonUrlAllowlist, undefined, nonUrlIdentity) === McpServerAllowResult.Allowed) {
+			return McpServerAllowResult.Allowed;
+		}
+
+		// URL matchers are authoritative only after runtime variable resolution.
+		return allowlist.some(matcher => isString(matcher.serverUrl))
+			? McpServerAllowResult.Allowed
+			: McpServerAllowResult.NotAllowed;
 	}
 
 	private getAllConfiguredMatchers(key: string): IMcpServerMatcher[] {
@@ -84,6 +109,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 
 		// Gallery server: match by name or a remote URL; the local command invocation is only
 		// known once the server is installed with a resolved configuration.
-		return { name: mcpServer.name, url: mcpServer.configuration.remotes?.[0]?.url };
+		const remote = mcpServer.configuration.remotes?.[0];
+		return { name: mcpServer.name, url: remote ? replaceMcpServerVariableReferences(remote.url, remote.variables) : undefined };
 	}
 }

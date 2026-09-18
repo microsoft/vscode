@@ -32,6 +32,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenContext, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
+import { getNonArchivedSessionListCount } from '../../../common/sessionsTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
 import { getAgentsWindowWorkspaceArgumentKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
@@ -106,6 +107,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			context,
 			() => this.sessionsSetUpService.initialSignInDialogShown,
 			() => this._getWindowOpenViewState(),
+			() => getNonArchivedSessionListCount(this.sessionsManagementService.getSessions()),
 			this.telemetryService,
 			this.lifecycleService,
 		);

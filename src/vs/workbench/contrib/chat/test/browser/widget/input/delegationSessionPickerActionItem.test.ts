@@ -161,43 +161,41 @@ suite('DelegationSessionPickerActionItem', () => {
 		};
 	}
 
-	for (const isSessionsWindow of [false, true]) {
-		for (const harness of harnesses) {
-			test(`shows ${harness.label} disabled without a tooltip in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, () => {
-				const { picker, element, container, getShowCount, getPendingTarget } = createPicker(harness.type, isSessionsWindow);
-				element.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
-				element.click();
-				for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
-					element.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
-				}
-				picker.show();
-				picker.setFocusable(true);
+	for (const harness of harnesses) {
+		test(`shows ${harness.label} disabled without a tooltip in the editor window`, () => {
+			const { picker, element, container, getShowCount, getPendingTarget } = createPicker(harness.type);
+			element.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+			element.click();
+			for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+				element.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			}
+			picker.show();
+			picker.setFocusable(true);
 
-				assert.deepStrictEqual({
-					label: element.textContent,
-					ariaLabel: element.ariaLabel,
-					ariaDisabled: element.getAttribute('aria-disabled'),
-					expanded: element.getAttribute('aria-expanded'),
-					tabIndex: element.tabIndex,
-					disabledStyle: container.classList.contains('disabled'),
-					enabled: picker.isEnabled(),
-					tooltip: picker.getTooltip(),
-					showCount: getShowCount(),
-					pendingTarget: getPendingTarget(),
-				}, {
-					label: harness.label,
-					ariaLabel: harness.label,
-					ariaDisabled: 'true',
-					expanded: 'false',
-					tabIndex: -1,
-					disabledStyle: true,
-					enabled: false,
-					tooltip: '',
-					showCount: 0,
-					pendingTarget: undefined,
-				});
+			assert.deepStrictEqual({
+				label: element.textContent,
+				ariaLabel: element.ariaLabel,
+				ariaDisabled: element.getAttribute('aria-disabled'),
+				expanded: element.getAttribute('aria-expanded'),
+				tabIndex: element.tabIndex,
+				disabledStyle: container.classList.contains('disabled'),
+				enabled: picker.isEnabled(),
+				tooltip: picker.getTooltip(),
+				showCount: getShowCount(),
+				pendingTarget: getPendingTarget(),
+			}, {
+				label: harness.label,
+				ariaLabel: harness.label,
+				ariaDisabled: 'true',
+				expanded: 'false',
+				tabIndex: -1,
+				disabledStyle: true,
+				enabled: false,
+				tooltip: '',
+				showCount: 0,
+				pendingTarget: undefined,
 			});
-		}
+		});
 	}
 
 	test('stays disabled before registration and refreshes the remote harness label when metadata arrives', () => {

@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
-import { type ICachedTunnel } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { type ICachedTunnel, type ITunnelVisibility } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { observableMemento, ObservableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
@@ -92,6 +92,13 @@ export class TunnelAgentHostStorage extends Disposable {
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._dismissedTunnels.get().includes(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return {
+			dismissed: [...this._dismissedTunnels.get()],
+			autoConnectSuppressed: [...this._autoConnectSuppressedTunnels.get()],
+		};
 	}
 
 	dismissTunnel(tunnelId: string): void {
