@@ -1688,9 +1688,9 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionChatTabs,
-	title: localize2('chatCompositeBar.chatTabs', "Chat Tabs"),
-	group: 'secondary/1_session',
-	order: 30,
+	title: localize2('chatCompositeBar.showChatTabs', "Show Chat Tabs"),
+	group: 'secondary/3_tabs',
+	order: 10,
 	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 });
 
@@ -1698,7 +1698,7 @@ registerAction2(class ShowMultipleChatTabsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.action.showMultipleChatTabs',
-			title: localize2('showMultipleChatTabs', "Multiple Tabs"),
+			title: localize2('showMultipleChatTabs', "Multiple"),
 			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple),
 			menu: {
 				id: Menus.SessionChatTabs,
@@ -1717,7 +1717,7 @@ registerAction2(class ShowSingleChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.action.showSingleChat',
-			title: localize2('showSingleChat', "Single Chat"),
+			title: localize2('showSingleChat', "Single"),
 			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Single),
 			menu: {
 				id: Menus.SessionChatTabs,

@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -302,11 +303,14 @@ suite('Sessions - Actions', () => {
 			.find(item => item.submenu === Menus.SessionChatTabs);
 		const items = MenuRegistry.getMenuItems(Menus.SessionChatTabs)
 			.filter(isIMenuItem)
-			.map(item => ({
-				id: item.command.id,
-				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				toggled: item.command.toggled?.serialize(),
-			}));
+			.map(item => {
+				const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
+				return {
+					id: item.command.id,
+					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+					toggled: toggled?.serialize(),
+				};
+			});
 		const updates: Array<{ key: string; value: unknown }> = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
@@ -329,18 +333,18 @@ suite('Sessions - Actions', () => {
 			updates,
 		}, {
 			submenu: {
-				title: 'Chat Tabs',
-				group: 'secondary/1_session',
-				order: 30,
+				title: 'Show Chat Tabs',
+				group: 'secondary/3_tabs',
+				order: 10,
 				when: 'sessionIsCreated && sessionSupportsMultipleChats',
 			},
 			items: [{
 				id: 'sessions.action.showMultipleChatTabs',
-				title: 'Multiple Tabs',
+				title: 'Multiple',
 				toggled: 'config.sessions.showChatTabs == \'multiple\'',
 			}, {
 				id: 'sessions.action.showSingleChat',
-				title: 'Single Chat',
+				title: 'Single',
 				toggled: 'config.sessions.showChatTabs == \'single\'',
 			}],
 			updates: [{
