@@ -32,7 +32,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	createErrorResponsePart,
@@ -59,6 +59,7 @@ import {
 	type Message,
 	type MessageAttachment,
 	type URI as ProtocolURI,
+	type ResponsePart,
 	type ToolCallResult,
 	type ToolResultContent,
 	type Turn,
@@ -841,23 +842,17 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.markActivity(sessionKey, turnId, action.type);
 		}
 
-		// Mark first visible progress for TTFT telemetry
+		// Mark first visible progress for TTFT telemetry. Any of these actions
+		// counts as *visible* progress; only some of them advance the user's
+		// request. See `isSubstantiveProgress`.
 		if (action.type === ActionType.ChatDelta
 			|| action.type === ActionType.ChatResponsePart
 			|| action.type === ActionType.ChatToolCallStart
 			|| action.type === ActionType.ChatReasoning) {
-			// Renaming the chat is host bookkeeping, not work on the user's
-			// request — and the host itself asks for it first via an injected
-			// instruction. Letting it satisfy the substantive measure would make
-			// a turn look fast while the user is still waiting for real output.
-			// Matched by predicate because providers surface host server tools
-			// under different names (Claude prefixes them `mcp__host__`).
-			const isBookkeeping = action.type === ActionType.ChatToolCallStart
-				&& isRenameChatTool(action.toolName);
-			if (isBookkeeping) {
-				this._turnTracker.markFirstProgress(sessionKey, turnId);
-			} else {
+			if (isSubstantiveProgress(action)) {
 				this._turnTracker.markFirstSubstantiveProgress(sessionKey, turnId);
+			} else {
+				this._turnTracker.markFirstProgress(sessionKey, turnId);
 			}
 		}
 
@@ -1969,6 +1964,56 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallTracker.clear();
 		this._inputRequestTracker.clear();
 		super.dispose();
+	}
+}
+
+/**
+ * Whether a visible-progress action advances the user's request, as opposed to
+ * merely establishing structure around output that has not arrived yet.
+ *
+ * Providers open a response part and then stream into it, so the opener carries
+ * no content: Claude emits empty `text`/`thinking` parts on `content_block_start`
+ * and Codex emits an empty reasoning part before its deltas. Counting those
+ * would date the metric to the moment the agent *began* thinking rather than
+ * the moment it produced something, and would populate it even for a turn that
+ * ends without ever emitting content.
+ *
+ * Callers still report plain first progress for everything rejected here, so
+ * `timeToFirstProgress` keeps its original meaning.
+ */
+function isSubstantiveProgress(action: ChatDeltaAction | ChatResponsePartAction | ChatToolCallStartAction | ChatReasoningAction): boolean {
+	switch (action.type) {
+		case ActionType.ChatDelta:
+		case ActionType.ChatReasoning:
+			return action.content.length > 0;
+		case ActionType.ChatToolCallStart:
+			// Renaming the chat is host bookkeeping, not work on the user's
+			// request — and the host itself asks for it first via an injected
+			// instruction. Matched by predicate because providers surface host
+			// server tools under different names (Claude prefixes `mcp__host__`).
+			return !isRenameChatTool(action.toolName);
+		case ActionType.ChatResponsePart:
+			return isSubstantiveResponsePart(action.part);
+	}
+}
+
+/** Whether a response part carries content, rather than opening a place for it. */
+function isSubstantiveResponsePart(part: ResponsePart): boolean {
+	switch (part.kind) {
+		case ResponsePartKind.Markdown:
+		case ResponsePartKind.Reasoning:
+			return part.content.length > 0;
+		case ResponsePartKind.ToolCall:
+			return !isRenameChatTool(part.toolCall.toolName);
+		case ResponsePartKind.ContentRef:
+		case ResponsePartKind.InputRequest:
+			return true;
+		// Host-authored notices (and the empty final-answer boundary Copilot
+		// emits) frame the response rather than answer the request. Errors
+		// arrive through `ChatErrorAction`, which is not visible progress.
+		case ResponsePartKind.SystemNotification:
+		case ResponsePartKind.Error:
+			return false;
 	}
 }
 

@@ -1249,6 +1249,57 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('an empty part opened before content dates substantive progress to the content', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// The emission sequence Claude and Codex produce: a rename, then an
+		// empty reasoning part opened by `content_block_start`, then the delta
+		// that actually fills it.
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Reasoning, id: 'r1', content: '' } });
+		await timeout(5);
+		fire({ type: ActionType.ChatReasoning, turnId: 'turn-1', partId: 'r1', content: 'thinking about it' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			bothReported: typeof data.timeToFirstProgress === 'number' && typeof data.timeToFirstSubstantiveProgress === 'number',
+			substantiveIsLater: (data.timeToFirstSubstantiveProgress as number) > (data.timeToFirstProgress as number),
+		}, {
+			bothReported: true,
+			substantiveIsLater: true,
+		});
+	});
+
+	test('a turn that only ever opens empty parts reports no substantive progress', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// Empty openers and a boundary notification, with no content ever
+		// following: visible progress happened, but nothing answered the user.
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: '' } });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Reasoning, id: 'r1', content: '' } });
+		fire({ type: ActionType.ChatDelta, turnId: 'turn-1', partId: 'p1', content: '' });
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.SystemNotification, content: '' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
 	test('attributes host pre-send time to each bounded stage up to provider dispatch', async () => {
 		setupSession();
 		startTurn('turn-1');
