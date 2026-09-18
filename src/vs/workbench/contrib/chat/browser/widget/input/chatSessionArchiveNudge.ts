@@ -45,10 +45,9 @@ export interface IChatSessionArchiveNudgeOptions {
 export class ChatSessionArchiveNudge extends Disposable {
 	readonly domNode: HTMLElement;
 
-	private readonly headerElement: HTMLElement;
+	private readonly contentElement: HTMLElement;
 	private readonly bodyElement: HTMLElement;
 	private readonly footerElement: HTMLElement;
-	private readonly actionsElement: HTMLElement;
 	private readonly iconElement: HTMLElement;
 	private readonly titleElement: HTMLElement;
 	private readonly descriptionElement: HTMLElement;
@@ -78,13 +77,15 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.domNode = dom.$('.chat-session-archive-nudge', { role: 'group', 'aria-labelledby': `${id}-title` });
 		this._register(toDisposable(() => this.domNode.remove()));
 
-		const header = this.headerElement = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-header'));
-		this.iconElement = dom.append(header, renderIcon(Codicon.gitMerge));
+		const header = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-header'));
+		this.contentElement = dom.append(header, dom.$('.chat-session-archive-nudge-content'));
+		const heading = dom.append(this.contentElement, dom.$('.chat-session-archive-nudge-heading'));
+		this.iconElement = dom.append(heading, renderIcon(Codicon.gitMerge));
 		this.iconElement.classList.add('chat-session-archive-nudge-icon');
 		this.iconElement.setAttribute('aria-hidden', 'true');
-		this.titleElement = dom.append(header, dom.$('h3.chat-session-archive-nudge-title', { id: `${id}-title` }));
+		this.titleElement = dom.append(heading, dom.$('h3.chat-session-archive-nudge-title', { id: `${id}-title` }));
 		this._register(hoverService.setupDelayedHover(this.titleElement, () => ({ content: this.titleElement.textContent ?? '' })));
-		const actions = this.actionsElement = dom.append(header, dom.$('.chat-session-archive-nudge-actions'));
+		const actions = dom.append(header, dom.$('.chat-session-archive-nudge-actions'));
 		this.dismissAction = this._register(new Action(
 			'chat.sessionArchiveNudge.dismiss',
 			localize('chat.sessionArchiveNudge.dismiss', "Dismiss Archive Suggestion"),
@@ -144,11 +145,11 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.cleanupSettingsButton.label = compact
 			? localize('chat.sessionArchiveNudge.configure', "Configure")
 			: localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
-		const parent = compact ? this.headerElement : this.domNode;
+		const parent = compact ? this.contentElement : this.domNode;
 		if (this.footerElement.parentElement !== parent) {
 			const focusedElement = dom.getActiveElement();
 			const restoreFocus = dom.isHTMLElement(focusedElement) && this.footerElement.contains(focusedElement);
-			parent.insertBefore(this.footerElement, compact ? this.actionsElement : null);
+			parent.appendChild(this.footerElement);
 			if (restoreFocus) {
 				focusedElement.focus();
 			}

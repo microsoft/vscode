@@ -345,8 +345,8 @@ suite('ChatSessionArchiveNudge', () => {
 	});
 
 	for (const width of [360, 720]) {
-		test(`keeps compact actions in one right-aligned row at width ${width}`, () => {
-			const { widget, archive, cleanupSettings, dismiss, container } = createWidget({ compact: true, hasWorktree: true }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		test(`wraps compact buttons as needed while keeping dismiss top right at width ${width}`, () => {
+			const { widget, archive, cleanupSettings, container } = createWidget({ compact: true, hasWorktree: true }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
 			container.style.width = `${width}px`;
 			widget.domNode.style.setProperty('--vscode-codiconFontSize', '16px');
 			widget.domNode.style.setProperty('--vscode-spacing-size80', '8px');
@@ -355,6 +355,7 @@ suite('ChatSessionArchiveNudge', () => {
 			const header = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-header')!;
 			const body = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-body')!;
 			const footer = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-footer')!;
+			const content = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-content')!;
 			const actions = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-actions')!;
 			const centerY = (element: HTMLElement) => {
 				const bounds = element.getBoundingClientRect();
@@ -367,11 +368,13 @@ suite('ChatSessionArchiveNudge', () => {
 				bodyDisplay: dom.getWindow(body).getComputedStyle(body).display,
 				buttons: [archive.textContent, cleanupSettings.textContent],
 				actionOrder: Array.from(header.querySelectorAll('.monaco-button, .action-label')).map(element => element.textContent || element.getAttribute('aria-label')),
-				footerInHeader: footer.parentElement === header,
-				titleBeforeButtons: title.getBoundingClientRect().right <= archive.getBoundingClientRect().left,
+				footerInContent: footer.parentElement === content,
+				buttonsWrapped: archive.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+				buttonsOnSameRow: centerY(archive) === centerY(cleanupSettings),
 				buttonsBeforeDismiss: cleanupSettings.getBoundingClientRect().right <= actions.getBoundingClientRect().left,
-				rightAligned: actions.getBoundingClientRect().right === header.getBoundingClientRect().right,
-				verticallyCentered: [archive, cleanupSettings, dismiss].every(element => centerY(element) === centerY(title)),
+				buttonsRightAligned: footer.getBoundingClientRect().right === content.getBoundingClientRect().right,
+				dismissTopRight: actions.getBoundingClientRect().right === header.getBoundingClientRect().right && actions.getBoundingClientRect().top === header.getBoundingClientRect().top,
+				titleTruncated: title.scrollWidth > title.clientWidth,
 				overflows: widget.domNode.scrollWidth > widget.domNode.clientWidth,
 				titleOverflow: dom.getWindow(title).getComputedStyle(title).textOverflow,
 			};
@@ -383,17 +386,50 @@ suite('ChatSessionArchiveNudge', () => {
 				bodyDisplay: 'none',
 				buttons: ['Mark as Done', 'Configure'],
 				actionOrder: ['Mark as Done', 'Configure', 'Dismiss Mark as Done Suggestion'],
-				footerInHeader: true,
-				titleBeforeButtons: true,
+				footerInContent: true,
+				buttonsWrapped: width === 360,
+				buttonsOnSameRow: true,
 				buttonsBeforeDismiss: true,
-				rightAligned: true,
-				verticallyCentered: true,
+				buttonsRightAligned: true,
+				dismissTopRight: true,
+				titleTruncated: false,
 				overflows: false,
 				titleOverflow: 'ellipsis',
 				shorter: true,
 			});
 		});
 	}
+
+	test('wraps compact buttons at their content-based fit threshold without losing focus', () => {
+		const { widget, archive, container } = createWidget({ compact: true }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		container.style.width = '720px';
+		widget.domNode.style.setProperty('--vscode-codiconFontSize', '16px');
+		widget.domNode.style.setProperty('--vscode-spacing-size80', '8px');
+		widget.domNode.style.setProperty('--vscode-spacing-size120', '12px');
+		const title = widget.domNode.querySelector<HTMLElement>('h3')!;
+		const content = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-content')!;
+		const footer = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-footer')!;
+		const range = document.createRange();
+		range.selectNodeContents(title);
+		const fitWidth = container.getBoundingClientRect().width - content.getBoundingClientRect().width
+			+ 16 + 8 + range.getBoundingClientRect().width + 8 + footer.getBoundingClientRect().width;
+		archive.focus();
+		const states = [Math.ceil(fitWidth) + 1, Math.floor(fitWidth) - 1, 720].map(width => {
+			container.style.width = `${width}px`;
+			return {
+				wrapped: archive.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+				focused: document.activeElement === archive,
+				titleTruncated: title.scrollWidth > title.clientWidth,
+				overflows: widget.domNode.scrollWidth > widget.domNode.clientWidth,
+			};
+		});
+
+		assert.deepStrictEqual(states, [
+			{ wrapped: false, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: true, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: false, focused: true, titleTruncated: false, overflows: false },
+		]);
+	});
 
 	test('preserves compact controls, focus, and callbacks across updates', async () => {
 		const calls: string[] = [];
