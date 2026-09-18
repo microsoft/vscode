@@ -903,13 +903,22 @@ suite('SessionChatInputToolbar', () => {
 		assert.deepStrictEqual({
 			unavailable, afterFailure, errors,
 			calls,
-			afterSuccess: { removable: !!removal(), artifacts: artifacts.get().map(artifact => artifact.id), label: toolbar.element.querySelector('.chat-pill-label')?.textContent },
+			afterSuccess: {
+				removable: !!removal(),
+				artifactRemovable: (() => {
+					const target = toolbar.element.querySelector<HTMLElement>('.chat-resource-pill-button');
+					target?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+					return menu.some(action => action.id === 'sessions.artifacts.remove.durable-artifact');
+				})(),
+				artifacts: artifacts.get().map(artifact => artifact.id),
+				label: toolbar.element.querySelector('.chat-pill-label')?.textContent,
+			},
 		}, {
 			unavailable: false,
 			afterFailure: { removable: true, artifacts: ['pr-reference', 'durable-artifact'] },
 			errors: ['Could not remove Pull Request #1: offline'],
 			calls: [{ owningSession: true, artifactId: 'pr-reference' }, { owningSession: true, artifactId: 'pr-reference' }],
-			afterSuccess: { removable: false, artifacts: ['durable-artifact'], label: undefined },
+			afterSuccess: { removable: false, artifactRemovable: true, artifacts: ['durable-artifact'], label: undefined },
 		});
 	});
 });

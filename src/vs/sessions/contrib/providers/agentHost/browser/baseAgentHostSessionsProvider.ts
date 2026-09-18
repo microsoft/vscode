@@ -377,11 +377,8 @@ function toGitHubIssueRefs(issues: readonly IRecordedGitHubReference[]): readonl
 /**
  * Maps session pull request URLs to references, preserving recency order.
  *
- * `titles` is keyed by {@link linkKey}; a URL missing from it simply carries no
- * title. A discovered pull request (no recorded id at all) is always treated
- * as the session's own. A recorded one is the session's own only when it was
- * recorded as a durable artifact — a recorded mere reference never is, even
- * though both kinds retain their removal identity.
+ * Recorded entries retain their stable removal IDs. A discovered association
+ * makes a matching recorded entry session-owned without dropping its identity.
  */
 function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequests: readonly IRecordedGitHubReference[]): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
@@ -405,13 +402,23 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
 	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
-	const recordedPullRequestLinks = new Set(recordedPullRequests.map(reference => linkKey(reference.url)));
 	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
-		.filter(url => !recordedPullRequestLinks.has(linkKey(url)))
 		.map(url => ({ url }));
 
-	// Recorded pull requests lead discovered ones, so the first is the newest.
-	const allPullRequests = toGitHubPullRequestRefs(state, [...recordedPullRequests, ...discoveredPullRequests]);
+	const allPullRequests = [...(toGitHubPullRequestRefs(state, recordedPullRequests) ?? [])];
+	const pullRequestLinks = new Map(allPullRequests.map((pullRequest, index) => [linkKey(pullRequest.uri.toString()), index]));
+	for (const pullRequest of discoveredPullRequests) {
+		const existingIndex = pullRequestLinks.get(linkKey(pullRequest.url));
+		if (existingIndex !== undefined) {
+			allPullRequests[existingIndex] = { ...allPullRequests[existingIndex], createdByThisSession: true };
+			continue;
+		}
+		const discovered = toGitHubPullRequestRefs(state, [pullRequest])?.[0];
+		if (discovered) {
+			pullRequestLinks.set(linkKey(pullRequest.url), allPullRequests.length);
+			allPullRequests.push(discovered);
+		}
+	}
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -428,7 +435,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const pullRequest = pullRequests?.at(0);
+	const pullRequest = pullRequests?.find(pullRequest => pullRequest.createdByThisSession);
 	const issues = toGitHubIssueRefs(recordedIssues)?.filter(belongsToRepository);
 
 	return {

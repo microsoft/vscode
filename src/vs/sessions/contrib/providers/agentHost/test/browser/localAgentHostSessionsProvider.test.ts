@@ -8165,6 +8165,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
 			{ id: 'a8', type: SessionArtifactType.PullRequest, label: 'Discovered', isArtifact: false, link: 'https://github.com/owner/repo/pull/42', isGitHub: true },
+			{ id: 'a9', type: SessionArtifactType.PullRequest, label: 'Unrelated reference', isArtifact: false, link: 'https://github.com/owner/repo/pull/70', isGitHub: true },
 		]);
 		agentHost.setSessionState('pr-artifacts', 'copilotcli', {
 			provider: 'copilotcli', title: 'Artifact Session', status: ProtocolSessionStatus.Idle,
@@ -8182,11 +8183,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
 			activePullRequest: 42,
-			// A recorded artifact PR (a1, a3) is the session's own; a recorded mere
-			// reference (a2, a8) is removable but not session-owned.
-			pullRequests: [[42, 'a8', false], [41, 'a3', true], [60, 'a2', false], [50, 'a1', true]],
+			// The independently-associated URL makes its recorded row session-owned,
+			// while the unrelated recorded reference cannot become the active PR.
+			pullRequests: [[70, 'a9', false], [42, 'a8', true], [41, 'a3', true], [60, 'a2', false], [50, 'a1', true]],
 			issues: [[8, 'Referenced issue', 'a7'], [7, 'Preserve promoted issue titles', 'a4']],
 			artifacts: [
+				['a9', false],
 				['a8', false],
 				['a7', false],
 				['a6', true],

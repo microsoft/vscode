@@ -459,7 +459,14 @@ export class SessionChatInputToolbar extends Disposable {
 					return removeAction ? [removeAction] : [];
 				},
 			},
-			artifacts: { sections: this._artifactSections },
+			artifacts: {
+				sections: this._artifactSections,
+				getContextMenuPrimaryActions: () => {
+					const entries = this._artifactSections.get().flatMap(section => section.entries);
+					const removeAction = entries.length === 1 ? entries[0].removeAction : undefined;
+					return removeAction ? [removeAction] : [];
+				},
+			},
 			references: {
 				sections: this._referenceSections,
 				getContextMenuPrimaryActions: () => {

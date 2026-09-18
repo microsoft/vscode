@@ -75,6 +75,14 @@ export interface IChatPillEntry {
 	open(): void;
 }
 
+export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IAction[] {
+	const actions = [...entry.toolbarActions ?? []];
+	if (entry.removeAction && !actions.includes(entry.removeAction)) {
+		actions.push(entry.removeAction);
+	}
+	return actions;
+}
+
 /** A titled group of entries, rendered as a dropdown section. */
 export interface IChatPillSection {
 	readonly title: string;
