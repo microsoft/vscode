@@ -3802,5 +3802,4 @@ pane is first mounted. View switches inside the modal are not animated. */
 	inset: 0;
 	overflow: hidden;
 	box-sizing: border-box;
-	padding: 0 var(--vscode-spacing-size160) 0 0;
 }
