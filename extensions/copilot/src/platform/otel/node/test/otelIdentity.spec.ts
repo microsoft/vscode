@@ -10,7 +10,7 @@ import type { PushMetricExporter, ResourceMetrics } from '@opentelemetry/sdk-met
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-node';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AuthenticationSession } from 'vscode';
-import { GenAiAttr, GenAiOperationName, StdAttr } from '../../common/genAiAttributes';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, StdAttr } from '../../common/genAiAttributes';
 import { resolveOTelConfig, type OTelConfigInput } from '../../common/otelConfig';
 import { agentIdentityAttributes, filterIdentityAttributes, identityResourceAttributes } from '../../common/otelIdentity';
 import type { ICompletedSpanData } from '../../common/otelService';
@@ -141,12 +141,55 @@ describe('governed OTel identity', () => {
 	it('managed false defeats local, environment, and SDK-supplied identity', async () => {
 		const { service, spanExporter } = await start({
 			settingCaptureIdentity: true, policyCaptureIdentity: false,
-			env: { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' },
+			env: { COPILOT_OTEL_CAPTURE_IDENTITY: 'true', OTEL_RESOURCE_ATTRIBUTES: 'host.name=environment-host' },
+			settingResourceAttributes: { 'user.name': 'personal-account' },
+			policyResourceAttributes: { 'process.user.name': 'managed-user', team: 'managed-team' },
 		});
 		service.startSpan('invoke_agent', { attributes: { [StdAttr.USER_NAME]: 'sdk-identity' } }).end();
 		await service.flush();
 		expect(spanExporter.spans[0].attributes).toEqual({});
+		expect(spanExporter.spans[0].resource.attributes).toMatchObject({ team: 'managed-team' });
+		for (const key of [StdAttr.USER_NAME, StdAttr.HOST_NAME, StdAttr.PROCESS_USER_NAME]) {
+			expect(spanExporter.spans[0].resource.attributes).not.toHaveProperty(key);
+		}
 	});
+
+	for (const exporterType of ['otlp-http', 'otlp-grpc', 'file', 'console'] as const) {
+		for (const captureContent of [false, true]) {
+			it(`${exporterType} primary export gates known span/event content (${captureContent}) independently of local debug retention`, async () => {
+				const { service, spanExporter } = await start({ settingExporterType: exporterType, settingCaptureContent: captureContent });
+				const content = Object.fromEntries([
+					GenAiAttr.INPUT_MESSAGES, GenAiAttr.OUTPUT_MESSAGES, GenAiAttr.SYSTEM_INSTRUCTIONS,
+					GenAiAttr.TOOL_DEFINITIONS, GenAiAttr.TOOL_CALL_ARGUMENTS, GenAiAttr.TOOL_CALL_RESULT,
+					CopilotChatAttr.USER_REQUEST, CopilotChatAttr.REASONING_CONTENT, CopilotChatAttr.PROMPT_CONTEXT,
+					CopilotChatAttr.PROMPT_INSTRUCTIONS, CopilotChatAttr.MARKDOWN_CONTENT,
+					CopilotChatAttr.HOOK_INPUT, CopilotChatAttr.HOOK_OUTPUT, 'content', 'toolDefinitions',
+				].map(key => [key, 'private content']));
+				const metadata = { [GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT, 'custom.attribute': 'not universally sanitized' };
+				const completions: ICompletedSpanData[] = [];
+				const listener = service.onDidCompleteSpan(span => completions.push(span));
+				const span = service.startSpan('invoke_agent', { attributes: { ...content, ...metadata } });
+				span.addEvent('content-event', { ...content, ...metadata });
+				span.end();
+				await service.flush();
+				listener.dispose();
+				const expected = captureContent ? { ...content, ...metadata } : metadata;
+				expect({
+					exported: spanExporter.spans[0].attributes,
+					eventName: spanExporter.spans[0].events[0].name,
+					event: spanExporter.spans[0].events[0].attributes,
+					local: completions[0].attributes,
+					localEvent: completions[0].events[0].attributes,
+				}).toEqual({
+					exported: expected,
+					eventName: 'content-event',
+					event: expected,
+					local: { ...content, ...metadata },
+					localEvent: { ...content, ...metadata },
+				});
+			});
+		}
+	}
 
 	it('revokes identity on queued spans, in-flight completions, logs, metrics, and resources before reload', async () => {
 		let allowed = true;

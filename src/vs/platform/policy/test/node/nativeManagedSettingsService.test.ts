@@ -85,6 +85,30 @@ suite('NativeManagedSettingsService', () => {
 		});
 	}
 
+	test('without observed declared telemetry keys, native delivery leaves the server block active', async () => {
+		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
+		const key = 'telemetry.capture.prompts';
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, policies, callback) => {
+			assert.deepStrictEqual({
+				block: policies.telemetry,
+				unknown: policies['telemetry.futureControl'],
+				declared: policies[key],
+			}, { block: undefined, unknown: undefined, declared: { type: 'boolean' } });
+			onDidChange = callback;
+			callback({});
+			return Disposable.None;
+		};
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+		await service.initialize();
+		const server = { [COPILOT_OTEL_CAPTURE_IDENTITY_KEY]: true };
+		const before = pickManagedSettings(service.managedSettings, server, undefined).values;
+		onDidChange?.({ [key]: false });
+		const during = pickManagedSettings(service.managedSettings, server, undefined).values;
+		onDidChange?.({ [key]: undefined });
+		const after = pickManagedSettings(service.managedSettings, server, undefined).values;
+		assert.deepStrictEqual({ before, during, after }, { before: server, during: { [key]: false }, after: server });
+	});
+
 	test('clears stale watcher values when managed-settings definitions are removed', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		let disposeCount = 0;

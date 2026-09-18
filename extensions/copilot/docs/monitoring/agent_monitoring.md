@@ -90,6 +90,13 @@ block comes from those policy values and schema defaults. Personal `settings.jso
 not used to fill omitted fields: headers and resource attributes default to empty maps, not
 the user's maps. Other VS Code settings are unaffected.
 
+An identity-only managed block (including `telemetry.capture.identity: false`) is
+recognizable enterprise OTel configuration. It therefore also replaces personally
+enabled export, endpoints, headers, and DB export with policy/schema defaults.
+To keep export enabled under that block, administrators should configure `enabled`
+and the intended exporter destination as well. Identity omission remains distinct
+from denial; it does not by itself prevent personal/environment identity opt-in.
+
 | Variable | Default | Description |
 |---|---|---|
 | `COPILOT_OTEL_ENABLED` | `false` | Enable OTel. Also enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
@@ -118,22 +125,33 @@ OTel settings replace the personal configuration block.
 Across managed sources, the highest-priority telemetry block wins as a whole:
 native MDM, then server-delivered settings, then the managed-settings file.
 Omitted identity, resource attributes, and other telemetry leaves are not filled
-from weaker managed sources. An empty block, or one containing only unsupported
-fields, still replaces the weaker block. Removing the block entirely allows the
-next managed source to apply. This does not change precedence for unrelated
-managed settings or the native runtime's own transport.
+from weaker managed sources. For server and file object sources, an empty block,
+or one containing only unsupported fields, still replaces the weaker block.
+Native MDM exposes declared flat keys, not a telemetry object: only an observed
+declared telemetry key establishes its block. Empty or unknown-only native blocks
+cannot be observed. Removing all observable telemetry keys (or the server/file
+block entirely) allows the next managed source to apply. This does not change
+precedence for unrelated managed settings or the native runtime's own transport.
 Native delivery also observes the other recognized `telemetry.capture.*` controls
 for block selection only; this does not implement those content-capture classes
 in Local or expose additional Local settings.
 
 When enabled, `user.name` is the current authenticated provider account name on
-top-level and subagent `invoke_agent` spans. Each invocation reads the current
-authentication session, so account changes and sign-out do not reuse a cached name.
+top-level, subagent, and inline `invoke_agent` spans. Each invocation reads the
+authentication service's current session rather than caching an account name in
+the telemetry service. Account changes and sign-out take effect once the
+authentication service has refreshed its session.
 No anonymous identity is invented, and `enduser.pseudo.id` is unchanged.
 `process.user.name` and `host.name` are resource attributes. Explicit
 `OTEL_RESOURCE_ATTRIBUTES` overrides detected OS/host values; managed
 `resourceAttributes` overrides environment attributes. Identity attributes are
 removed when capture is off, even if explicitly supplied as resource attributes.
+
+> **Compatibility note:** Explicit `host.name`, `process.user.name`, and `user.name`
+> resource attributes from environment variables, personal settings, or managed
+> `resourceAttributes` do not bypass the identity gate. They are removed by default
+> and under an explicit managed denial, not just omitted from automatic detection.
+> Other custom resource attributes are unaffected.
 
 Enabling capture still requires the normal reload/recovery flow. Disabling is
 checked before subsequent exports and local completion events, including queued
@@ -246,9 +264,9 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `copilot_chat.repo.head_commit_hash` | **Legacy** — prefer `github.copilot.git.commit_sha` | `deadbeef...` |
 | `copilot_chat.turn_count` | Always | `4` |
 | `error.type` | On error | `Error` |
-| `gen_ai.input.messages` | Always for the foreground agent | `[{"role":"user",...}]` |
-| `gen_ai.output.messages` | Always for the foreground agent | `[{"role":"assistant",...}]` |
-| `gen_ai.tool.definitions` | Always for the foreground agent | `[{"type":"function",...}]` |
+| `gen_ai.input.messages` | Export opt-in (captureContent); retained locally for foreground debugging | `[{"role":"user",...}]` |
+| `gen_ai.output.messages` | Export opt-in (captureContent); retained locally for foreground debugging | `[{"role":"assistant",...}]` |
+| `gen_ai.tool.definitions` | Export opt-in (captureContent); retained locally for foreground debugging | `[{"type":"function",...}]` |
 
 **`chat`** — one span per LLM API call (span kind: `CLIENT`).
 
@@ -302,10 +320,10 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `github.copilot.tool.parameters.file_path` | File tools, opt-in (captureContent) | `/src/app.ts` |
 | `github.copilot.tool.parameters.mcp_server_name` | MCP tools, opt-in (captureContent) | `github` |
 | `error.type` | On error | `FileNotFoundError` |
-| `gen_ai.tool.call.arguments` | Always (bounded) | `{"filePath":"/src/index.ts"}` |
-| `gen_ai.tool.call.result` | Always (bounded) | `(file contents or summary)` |
+| `gen_ai.tool.call.arguments` | Export opt-in (captureContent); retained locally (bounded) | `{"filePath":"/src/index.ts"}` |
+| `gen_ai.tool.call.result` | Export opt-in (captureContent); retained locally (bounded) | `(file contents or summary)` |
 
-**`execute_hook`** — one span per local hook command (span kind: `INTERNAL`). Hook input and successful output are retained for the Agent Debug Log and are therefore captured regardless of `captureContent`; `maxAttributeSizeChars` still applies.
+**`execute_hook`** — one span per local hook command (span kind: `INTERNAL`). Hook input and successful output are retained for the Agent Debug Log regardless of `captureContent`, but require `captureContent` for primary span export; `maxAttributeSizeChars` still applies.
 
 | Attribute | Requirement | Example |
 |---|---|---|
@@ -313,8 +331,8 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
 | `copilot_chat.hook_type` | Required | `PreToolUse` |
 | `copilot_chat.hook_command` | Always | `./scripts/check.sh` |
-| `copilot_chat.hook_input` | Always (bounded) | `{"tool_name":"run_in_terminal",...}` |
-| `copilot_chat.hook_output` | On successful output (bounded) | `ok` |
+| `copilot_chat.hook_input` | Export opt-in (captureContent); retained locally (bounded) | `{"tool_name":"run_in_terminal",...}` |
+| `copilot_chat.hook_output` | Export opt-in (captureContent); retained locally on success (bounded) | `ok` |
 | `copilot_chat.hook_result_kind` | On completion | `success` \| `error` \| `non_blocking_error` |
 | `github.copilot.hook.tool_names` | When available | `["run_in_terminal"]` |
 | `github.copilot.hook.duration` | On completion (seconds) | `0.25` |
@@ -589,13 +607,19 @@ These custom attributes are included in all traces, metrics, and events, allowin
 
 > **Note:** `OTEL_RESOURCE_ATTRIBUTES` uses comma-separated `key=value` pairs. The extension splits on commas, trims surrounding whitespace, and does not percent-decode values. Use the `github.copilot.chat.otel.resourceAttributes` object setting when a value needs to contain a comma.
 
+The governed identity keys (`user.name`, `process.user.name`, `host.name`) are
+excluded even when explicitly configured unless identity capture is allowed.
+See [Governed identity capture](#governed-identity-capture).
+
 ---
 
 ## Content Capture
 
-The `captureContent` setting controls content on individual LLM `chat` spans and inference events. Some content required by the Agent Debug Log is captured on foreground `invoke_agent`, `execute_tool`, and `execute_hook` spans regardless of this setting, including user and final assistant messages, tool definitions, tool arguments/results, and hook command input/output. These attributes are exported when extension OTel export is enabled.
+The `captureContent` setting controls content on individual LLM `chat` spans and inference events. It also gates known content attributes on spans and span events sent through the Local harness's primary exporters: OTLP, file, and console. When off, the export boundary removes input/output messages, system instructions, tool definitions, tool arguments/results, user requests, reasoning, prompt context/instructions, markdown content, hook input/output, and generic `content`/`toolDefinitions` attributes. Span events can remain without their content attributes.
 
-To capture full LLM request and response content as well, add to your VS Code settings:
+Foreground `invoke_agent`, `execute_tool`, and `execute_hook` spans still retain content needed by the Agent Debug Log and the separate local SQLite exporter, regardless of this setting. Primary file export is not the SQLite debug exporter. Identity filtering applies to both paths independently.
+
+To include these content attributes in primary exports and capture full LLM request and response content, add to your VS Code settings:
 
 ```json
 {
@@ -614,7 +638,7 @@ This additionally populates content attributes on `chat` spans and inference eve
 
 Content attributes are not truncated by default. Set `github.copilot.chat.otel.maxAttributeSizeChars` to a positive value when the backend imposes a per-attribute limit.
 
-> **Warning:** Exported foreground spans can contain sensitive information such as code, file contents, commands, and user prompts even when `captureContent` is off. Enabling `captureContent` adds full LLM request and response content. Configure export only for trusted environments.
+> **Warning:** This is filtering of known content attributes, not universal payload sanitization. Other metadata, span names, status messages, or unrecognized attributes may still contain sensitive information. Local debug content retention is separate. Enabling `captureContent` includes prompt, response, and tool content in primary exports. Configure export only for trusted environments.
 
 ---
 
@@ -879,7 +903,7 @@ Refer to each backend's documentation for OTLP ingestion setup.
 ## Security & Privacy
 
 - **Export is off by default.** No OTel data is sent to an external exporter unless explicitly enabled. When disabled, the OTel SDK is not loaded; a lightweight in-memory service still records data needed by the Agent Debug Log.
-- **Content capture is split.** Full LLM request/response content requires `captureContent`, but foreground agent, tool, and hook spans retain content needed by the Agent Debug Log even when that setting is off. Review [Content Capture](#content-capture) before enabling export.
+- **Content export and local debug retention are separate.** Known span and span-event content attributes require `captureContent` in primary OTLP, file, and console exports. Foreground agent, tool, and hook spans retain content for local debugging even when that setting is off. This is not universal sanitization; review [Content Capture](#content-capture) before enabling export.
 - **Treat exported content as sensitive.** User messages, file contents, commands, tool payloads, and hook data can contain personal or confidential information.
 - **User-configured endpoints.** Data goes only where you point it — no phone-home behavior.
 - **Dynamic imports only.** OTel SDK packages are loaded on-demand, ensuring zero bundle impact when disabled.

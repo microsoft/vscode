@@ -419,6 +419,8 @@ export interface IManagedSettingsPick {
 	readonly values: ManagedSettingsData;
 	/** Per-key provenance: how each key resolved and which channels were overridden. */
 	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
+	/** Telemetry keys supplied only by weaker blocks, retained for diagnostics but never applied. */
+	readonly suppressedTelemetry: ReadonlyMap<string, readonly IManagedSettingsContribution[]>;
 	/** The channels that supplied at least one *winning* key, in precedence order. */
 	readonly activeSources: readonly ManagedSettingsChannel[];
 }
@@ -430,7 +432,8 @@ export interface IManagedSettingsPick {
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
  * a lower channel. Telemetry instead selects the highest-priority block in its entirety, including
- * empty or unrecognized blocks; omitted leaves cannot inherit from a weaker managed source.
+ * empty or unrecognized server/file object blocks; native delivery observes declared flat keys only.
+ * Omitted leaves cannot inherit from a weaker managed source.
  * The runtime-owned `sandbox.enabled` control is force-on-wins, so harness selection cannot
  * discard a sandbox requirement from another channel.
  *
@@ -445,6 +448,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 
 	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
+	const suppressedTelemetry = new Map<string, IManagedSettingsContribution[]>();
 	let telemetrySource: ManagedSettingsChannel | undefined;
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
@@ -462,6 +466,9 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			if (isTelemetrySettingKey(key)) {
 				telemetrySource ??= channel;
 				if (channel !== telemetrySource && !existing) {
+					const contributions = suppressedTelemetry.get(key) ?? [];
+					contributions.push({ channel, value });
+					suppressedTelemetry.set(key, contributions);
 					continue;
 				}
 			}
@@ -488,6 +495,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 		// Build via Object.fromEntries (define-property semantics) rather than bracket assignment so
 		// an untrusted `__proto__` key can't corrupt the merged bag's prototype chain.
 		values: Object.fromEntries(entries),
+		suppressedTelemetry,
 		resolutions,
 		// Preserve precedence order for a stable, readable report.
 		activeSources: MANAGED_SETTINGS_CHANNELS.filter(channel => activeSources.has(channel)),

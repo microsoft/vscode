@@ -35,10 +35,20 @@ describe('OTel config resolution', () => {
 
 	it('recognizes identity-only policy false even though capture is default-off', () => {
 		const settings = new TestOTelSettings();
+		settings.user = {
+			enabled: true, otlpEndpoint: 'https://personal.example',
+			headers: { personal: 'header' }, 'dbSpanExporter.enabled': true,
+		};
 		settings.policy = { captureIdentity: false };
-		expect(resolve(settings).hasEnterpriseSettings).toBe(true);
+		expect(resolve(settings)).toMatchObject({
+			hasEnterpriseSettings: true,
+			config: {
+				enabled: false, captureIdentity: false, headers: {}, dbSpanExporter: false,
+				otlpEndpoint: '',
+			},
+		});
 		settings.policy = {};
-		expect(resolve(settings).hasEnterpriseSettings).toBe(false);
+		expect(resolve(settings)).toMatchObject({ hasEnterpriseSettings: false, config: { enabled: true } });
 	});
 
 	it('identity policy true overrides environment denial without enabling content', () => {

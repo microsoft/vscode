@@ -10,7 +10,7 @@ import type { ICompletedSpanData } from './otelService';
 
 const identityAttributes = new Set<string>([StdAttr.USER_NAME, StdAttr.PROCESS_USER_NAME, StdAttr.HOST_NAME]);
 
-/** Read the current provider session for every invocation, never a cached account or fallback ID. */
+/** Read the authentication service's current session for each invocation, without caching a separate account name. */
 export function agentIdentityAttributes(config: OTelConfig, authentication: Pick<IAuthenticationService, 'anyGitHubSession'>): Record<string, string> {
 	const name = config.captureIdentity ? authentication.anyGitHubSession?.account.label : undefined;
 	return name ? { [StdAttr.USER_NAME]: name } : {};
