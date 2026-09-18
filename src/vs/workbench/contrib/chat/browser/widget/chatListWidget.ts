@@ -726,7 +726,8 @@ export class ChatListWidget extends Disposable {
 			}
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
-				|| e.affectsConfiguration(ChatConfiguration.RichLinks)) {
+				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
+				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)) {
 				this._settingChangeCounter++;
 				this.refresh();
 			}

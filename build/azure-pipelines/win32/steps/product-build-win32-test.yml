@@ -200,4 +200,4 @@ steps:
         }
     displayName: Kill lingering test processes
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: always()

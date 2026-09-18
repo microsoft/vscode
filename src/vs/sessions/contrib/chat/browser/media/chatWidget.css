@@ -134,6 +134,25 @@
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
+	.monaco-action-bar .actions-container {
+		gap: 0;
+	}
+
+	.action-label:not(.separator) {
+		background: transparent;
+	}
+
+	.action-label:not(.separator):hover,
+	.action-label:not(.separator)[aria-expanded='true'] {
+		background-image: unset !important;
+		background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground)) !important;
+		color: var(--vscode-foreground);
+
+		> .codicon {
+			color: inherit;
+		}
+	}
+
 	.sync-changes-action-view-item {
 		display: flex;
 		align-items: center;
@@ -143,7 +162,16 @@
 			color: inherit;
 		}
 	}
+}
 
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container.has-no-actions {
+	display: none;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar.has-no-actions {
@@ -166,6 +194,16 @@
 	flex-shrink: 0;
 	min-width: 30px;
 	overflow: visible;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator {
+	min-width: 0;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item.repository-config-separator .action-label.separator {
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	height: var(--vscode-spacing-size120);
+	margin: 0 !important;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot:not(.compact-picker) .sessions-chat-dropdown-label,
@@ -225,7 +263,7 @@
  * (e.g. session control pickers and repo config pickers) so they align with the
  * model picker font in the input toolbar. Each item carries its own opaque
  * surface so a chat background cannot show through it. */
-.new-chat-widget-container .new-chat-bottom-container .action-label {
+.new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator) {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
@@ -245,12 +283,33 @@
 
 /* Over a chat background, use the same opaque secondary-control surface as the
  * in-session toolbar rather than relying on the transparent session view. */
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.separator) {
 	background-color: var(--vscode-chat-list-background, var(--session-view-background));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-button-secondaryForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar {
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	background-color: var(--vscode-chat-list-background, var(--session-view-background));
+	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .action-label:not(.separator) {
+	background-color: transparent;
+	background-image: none;
+	border: none;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover .monaco-action-bar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar {
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):not(.disabled):hover {

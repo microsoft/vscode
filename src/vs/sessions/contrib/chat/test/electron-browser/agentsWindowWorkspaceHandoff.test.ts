@@ -18,6 +18,7 @@ import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../.
 import { SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 
 const startWindowOpenTelemetry = Reflect.get(SelectAgentsFolderContribution.prototype, '_startWindowOpenTelemetry') as (
 	source: AgentsWindowOpenSource,
@@ -36,8 +37,9 @@ suite('Agents Window workspace handoff telemetry', () => {
 			_windowOpenTelemetry: disposables.add(new MutableDisposable<SessionsWindowOpenTelemetry>()),
 			_workspaceSelectionTelemetry: disposables.add(new MutableDisposable()),
 			instantiationService: { createInstance: () => Disposable.None },
-			storageService: { getNumber: () => 0 },
+			storageService: disposables.add(new InMemoryStorageService()),
 			telemetryService: upcastPartial<ITelemetryService>({ publicLog2: (name, data) => { events.push({ name, data }); } }),
+			sessionsManagementService: { getSessions: () => [] },
 			sessionsSetUpService: { initialSignInDialogShown: false },
 			_getWindowOpenViewState: () => ({ workspacePreselected: false, workspacePreselectionSource: 'none', viewKind: 'noComposer' }),
 			lifecycleService,
@@ -58,6 +60,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 			isDefault: data?.workspaceArgumentIsDefault,
 			hasSessionArgument: data?.hasSessionArgument,
 			handoff: data?.workspaceHandoffStateAtEmission,
+			nonArchivedSessionListCount: data?.nonArchivedSessionListCount,
 		}, {
 			eventNames: ['agents/windowSessionStart', 'agents/firstTimeWindowOpen'],
 			hasInitialTracker: true,
@@ -67,6 +70,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 			isDefault: true,
 			hasSessionArgument: false,
 			handoff: 'waitingForProvider',
+			nonArchivedSessionListCount: 0,
 		});
 	});
 

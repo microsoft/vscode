@@ -321,7 +321,7 @@ export function setup(logger: Logger, quality: Quality) {
 					} else {
 						await app.workbench.agentsWindow.connectTunnelHost(fixture.name, workspacePath);
 					}
-					await app.workbench.agentsWindow.selectSessionType(`Copilot [${fixture.name}]`);
+					await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
 					await app.workbench.agentsWindow.selectDevContainer(workspaceLabel);
 					const requestsBefore = context.mockServer.requestCount();
 					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
@@ -335,6 +335,21 @@ export function setup(logger: Logger, quality: Quality) {
 					await app.workbench.agentsWindow.waitForAssistantText(reply);
 				} catch (error) {
 					logger.log(`Agents Window (${label} Dev Container) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					if (fixture.dumpConnectionDiagnostics) {
+						let uiState: string;
+						try {
+							uiState = await app.workbench.agentsWindow.getRemoteConnectionDiagnostics();
+						} catch (diagnosticError) {
+							uiState = `UI state unavailable: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+						}
+						try {
+							await fixture.dumpConnectionDiagnostics(uiState);
+						} catch (diagnosticError) {
+							const message = `Agents Window (${label} Dev Container) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+							logger.log(message);
+							console.error(message);
+						}
+					}
 					await dumpFailureDiagnostics(app, logger, `Agents Window (${label} Dev Container)`, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 					throw error;
 				}
