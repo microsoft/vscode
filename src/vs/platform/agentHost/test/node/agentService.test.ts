@@ -2239,7 +2239,7 @@ suite('AgentService (node dispatcher)', () => {
 			let failProviderDataWrite = false;
 			class FailingProviderDataDatabase extends TestSessionDatabase {
 				override async setMetadata(key: string, value: string): Promise<void> {
-					if (failProviderDataWrite && key === 'defaultChatProviderData') {
+					if (failProviderDataWrite && key === CHAT_PROVIDER_DATA_METADATA_KEY) {
 						throw new Error('provider data write failed');
 					}
 					return super.setMetadata(key, value);
