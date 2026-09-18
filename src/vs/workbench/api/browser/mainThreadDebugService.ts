@@ -28,7 +28,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private readonly _toDispose = new DisposableStore();
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
-	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
+	private readonly _debugConfigurationProviders = this._toDispose.add(new DisposableMap<number>());
 	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
 	private readonly _extHostKnownSessions: Set<DebugSessionUUID>;
 	private readonly _visualizerHandles = new Map<string, IDisposable>();
@@ -86,7 +86,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		}));
 
 		this._debugAdapters = new Map();
-		this._debugConfigurationProviders = new Map();
 		this._debugAdapterDescriptorFactories = new Map();
 		this._extHostKnownSessions = new Set();
 
@@ -273,18 +272,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return this._proxy.$resolveDebugConfigurationWithSubstitutedVariables(handle, folder, config, token);
 			};
 		}
-		this._debugConfigurationProviders.set(handle, provider);
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
+		this._debugConfigurationProviders.set(handle, this.debugService.getConfigurationManager().registerDebugConfigurationProvider(provider));
 
 		return Promise.resolve(undefined);
 	}
 
 	public $unregisterDebugConfigurationProvider(handle: number): void {
-		const provider = this._debugConfigurationProviders.get(handle);
-		if (provider) {
-			this._debugConfigurationProviders.delete(handle);
-			this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(provider);
-		}
+		this._debugConfigurationProviders.deleteAndDispose(handle);
 	}
 
 	public $registerDebugAdapterDescriptorFactory(debugType: string, handle: number): Promise<void> {
