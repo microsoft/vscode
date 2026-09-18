@@ -15,7 +15,7 @@ import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAge
 import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
-import { hasKey, isString } from '../../../../../../../base/common/types.js';
+import { isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { parseCommand } from '../terminalCommandParser.js';
@@ -479,8 +479,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	private _isFileNotFound(error: unknown): boolean {
+		if (!(error instanceof Error)) {
+			return false;
+		}
 		return toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND ||
-			typeof error === 'object' && error !== null && hasKey(error, { code: true }) && error.code === 'ENOENT';
+			(error as Error & { code?: string }).code === 'ENOENT';
 	}
 
 	/**
