@@ -344,6 +344,96 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	});
 
+	for (const width of [360, 720]) {
+		test(`keeps compact actions in one right-aligned row at width ${width}`, () => {
+			const { widget, archive, cleanupSettings, dismiss, container } = createWidget({ compact: true, hasWorktree: true }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+			container.style.width = `${width}px`;
+			widget.domNode.style.setProperty('--vscode-codiconFontSize', '16px');
+			widget.domNode.style.setProperty('--vscode-spacing-size80', '8px');
+			widget.domNode.style.setProperty('--vscode-spacing-size120', '12px');
+			const title = widget.domNode.querySelector<HTMLElement>('h3')!;
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-header')!;
+			const body = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-body')!;
+			const footer = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-footer')!;
+			const actions = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-actions')!;
+			const centerY = (element: HTMLElement) => {
+				const bounds = element.getBoundingClientRect();
+				return Math.round(bounds.top + bounds.height / 2);
+			};
+			const compactHeight = widget.domNode.getBoundingClientRect().height;
+			const layout = {
+				compact: widget.domNode.classList.contains('compact'),
+				heading: title.textContent,
+				bodyDisplay: dom.getWindow(body).getComputedStyle(body).display,
+				buttons: [archive.textContent, cleanupSettings.textContent],
+				actionOrder: Array.from(header.querySelectorAll('.monaco-button, .action-label')).map(element => element.textContent || element.getAttribute('aria-label')),
+				footerInHeader: footer.parentElement === header,
+				titleBeforeButtons: title.getBoundingClientRect().right <= archive.getBoundingClientRect().left,
+				buttonsBeforeDismiss: cleanupSettings.getBoundingClientRect().right <= actions.getBoundingClientRect().left,
+				rightAligned: actions.getBoundingClientRect().right === header.getBoundingClientRect().right,
+				verticallyCentered: [archive, cleanupSettings, dismiss].every(element => centerY(element) === centerY(title)),
+				overflows: widget.domNode.scrollWidth > widget.domNode.clientWidth,
+				titleOverflow: dom.getWindow(title).getComputedStyle(title).textOverflow,
+			};
+			widget.setOptions(options({ hasWorktree: true }));
+
+			assert.deepStrictEqual({ ...layout, shorter: compactHeight < widget.domNode.getBoundingClientRect().height }, {
+				compact: true,
+				heading: 'PR merged. Mark this session as done?',
+				bodyDisplay: 'none',
+				buttons: ['Mark as Done', 'Configure'],
+				actionOrder: ['Mark as Done', 'Configure', 'Dismiss Mark as Done Suggestion'],
+				footerInHeader: true,
+				titleBeforeButtons: true,
+				buttonsBeforeDismiss: true,
+				rightAligned: true,
+				verticallyCentered: true,
+				overflows: false,
+				titleOverflow: 'ellipsis',
+				shorter: true,
+			});
+		});
+	}
+
+	test('preserves compact controls, focus, and callbacks across updates', async () => {
+		const calls: string[] = [];
+		const callbacks = {
+			onArchive: async () => { calls.push('done'); },
+			onOpenCleanupSettings: async () => { calls.push('configure'); },
+			onDismiss: () => { calls.push('dismiss'); },
+		};
+		const { widget, archive, cleanupSettings, dismiss } = createWidget({ compact: true, ...callbacks }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		archive.focus();
+		widget.setOptions(options({ compact: true, pullRequestCount: 2, ...callbacks }));
+		const sameFocusedControl = document.activeElement === archive && widget.domNode.querySelector('.monaco-button') === archive;
+		pressKey(archive, 'Enter', 13);
+		await timeout(0);
+		cleanupSettings.focus();
+		pressKey(cleanupSettings, ' ', 32);
+		await timeout(0);
+		dismiss.focus();
+		pressKey(dismiss, 'Tab', 9);
+		pressKey(dismiss, 'Enter', 13);
+		archive.focus();
+		widget.setOptions(options());
+
+		assert.deepStrictEqual({
+			sameFocusedControl,
+			calls,
+			expandedFocus: document.activeElement === archive,
+			expandedFooter: archive.parentElement?.parentElement === widget.domNode,
+			expandedConfigureLabel: cleanupSettings.textContent,
+			bodyHidden: widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-body')!.hidden,
+		}, {
+			sameFocusedControl: true,
+			calls: ['done', 'configure', 'dismiss'],
+			expandedFocus: true,
+			expandedFooter: true,
+			expandedConfigureLabel: 'Configure Automatic Cleanup',
+			bodyHidden: false,
+		});
+	});
+
 	test('updates wording live without losing expansion or focus, including while busy', async () => {
 		const pending = new DeferredPromise<void>();
 		const { widget, archive, configurationService } = createWidget({ onArchive: () => pending.p });
