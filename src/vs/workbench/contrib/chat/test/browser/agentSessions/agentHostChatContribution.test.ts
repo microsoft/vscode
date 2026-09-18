@@ -5019,6 +5019,64 @@ suite('AgentHostChatContribution', () => {
 
 	suite('progress routing', () => {
 
+		for (const { content, eager } of ['', ' \n', 'final answer'].flatMap(content => [false, true].map(eager => ({ content, eager })))) {
+			test(`first response timing records root text presence for ${JSON.stringify(content)} (eager=${eager})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+				const sessionResource = eager ? URI.from({ scheme: 'agent-host-copilot', path: '/eager-firstresponse' }) : undefined;
+				if (eager) {
+					const sessionUri = AgentSession.uri('copilot', 'eager-firstresponse');
+					agentHostService.sessionStates.set(sessionUri.toString(), {
+						...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+						lifecycle: SessionLifecycle.Ready, turns: [],
+					});
+				}
+				const records: { outcome: string; hasResponseText: boolean; firstResponseTextMs?: number; sessionTurnKind: string; invocationKind: string }[] = [];
+				instantiationService.get(ILogService).info = message => {
+					if (message?.startsWith('[AgentHostFirstResponse] ')) {
+						records.push(JSON.parse(message.substring('[AgentHostFirstResponse] '.length)));
+					}
+				};
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+				fire({ type: 'chat/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content } } as ChatAction);
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+				assert.deepStrictEqual(records.map(record => ({
+					outcome: record.outcome, hasResponseText: record.hasResponseText,
+					hasDuration: typeof record.firstResponseTextMs === 'number', sessionTurnKind: record.sessionTurnKind, invocationKind: record.invocationKind,
+				})), [{ outcome: 'success', hasResponseText: !!content.trim(), hasDuration: !!content.trim(), sessionTurnKind: 'first', invocationKind: 'newTurn' }]);
+			}));
+		}
+
+		test('first response timing reports cancellation before preparation without text', async () => {
+			const { chatAgentService, instantiationService } = createContribution(disposables);
+			const records: { outcome: string; hasResponseText: boolean }[] = [];
+			instantiationService.get(ILogService).info = message => {
+				if (message?.startsWith('[AgentHostFirstResponse] ')) {
+					records.push(JSON.parse(message.substring('[AgentHostFirstResponse] '.length)));
+				}
+			};
+			await chatAgentService.registeredAgents.get('agent-host-copilot')!.impl.invoke(makeRequest(), () => { }, [], CancellationToken.Cancelled);
+			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText })), [{ outcome: 'cancelled', hasResponseText: false }]);
+		});
+
+		test('first response timing excludes reasoning and error messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			const records: { outcome: string; hasResponseText: boolean }[] = [];
+			instantiationService.get(ILogService).info = message => {
+				if (message?.startsWith('[AgentHostFirstResponse] ')) {
+					records.push(JSON.parse(message.substring('[AgentHostFirstResponse] '.length)));
+				}
+			};
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/responsePart', session, turnId, part: { kind: ResponsePartKind.Reasoning, id: 'thought', content: 'thinking' } } as ChatAction);
+			fire({
+				type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z', turnId,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'connection_error', message: 'connection lost' } },
+			} as ChatAction);
+			await turnPromise;
+			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText })), [{ outcome: 'error', hasResponseText: false }]);
+		}));
+
 		test('delta events become markdownContent progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -6720,7 +6778,13 @@ suite('AgentHostChatContribution', () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
 			]);
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { languageModels });
+			const timings: { invocationKind: string; hasResponseText: boolean; outcome: string }[] = [];
+			instantiationService.get(ILogService).info = message => {
+				if (message?.startsWith('[AgentHostFirstResponse] ')) {
+					timings.push(JSON.parse(message.substring('[AgentHostFirstResponse] '.length)));
+				}
+			};
 			agentHostService.setRootState({
 				agents: [{
 					provider: 'copilot',
@@ -6832,6 +6896,12 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			const retryResult = await retryPromise;
+			assert.deepStrictEqual(timings.map(timing => ({
+				kind: timing.invocationKind, text: timing.hasResponseText, outcome: timing.outcome,
+			})), [
+				{ kind: 'newTurn', text: true, outcome: 'error' },
+				{ kind: 'existingTurn', text: false, outcome: 'success' },
+			]);
 			const retryUsage = retryProgress.flat().filter((part): part is IChatUsage => part.kind === 'usage').at(-1);
 			assert.deepStrictEqual({
 				details: retryResult.details,
@@ -12857,7 +12927,13 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('server-initiated turn streams progress through progressObs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			const invocationTimings: string[] = [];
+			instantiationService.get(ILogService).info = message => {
+				if (message?.startsWith('[AgentHostFirstResponse] ')) {
+					invocationTimings.push(message);
+				}
+			};
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-server-progress' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -12918,6 +12994,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
+			assert.strictEqual(invocationTimings.length, 1, 'only the local invocation has a renderer timing origin');
 		}));
 
 		test('stale completion from a replaced server turn does not complete the next response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

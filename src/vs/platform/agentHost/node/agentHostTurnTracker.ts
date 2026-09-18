@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
-import type { ITurnTokenTotal, ToolCallContributor } from '../common/state/sessionState.js';
+import { isSubagentChatUri, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
@@ -140,6 +140,7 @@ interface ITurnUsage {
 export const IAgentHostTurnTracker = createDecorator<AgentHostTurnTracker>('agentHostTurnTracker');
 
 export class AgentHostTurnTracker extends Disposable {
+	private _hostRootTurnOrdinal = 0;
 
 	declare readonly _serviceBrand: undefined;
 
@@ -177,6 +178,13 @@ export class AgentHostTurnTracker extends Disposable {
 
 	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session)): void {
 		const key = this._key(session, turnId);
+		if (!parentTurnId && !isSubagentChatUri(session) && !this._turnTimings.has(key)) {
+			this._logService.info(`[AgentHostTurnTiming] ${JSON.stringify({
+				schemaVersion: 1, sessionId: parseChatUri(session)?.session ?? session, chatId: session, turnId, provider: agent.id,
+				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
+				hostProcessAgeMs: Math.round(process.uptime() * 1000),
+			})}`);
+		}
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
 			agent,

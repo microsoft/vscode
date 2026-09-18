@@ -329,6 +329,26 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
 	});
 
+	test('logs actual root-turn ordinals and process age for diagnostic cohort joins', () => {
+		const info = sinon.spy(logService, 'info');
+		setupSession();
+		startTurn('first');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'first', duration: 1 });
+		startTurn('later');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'later', duration: 1 });
+		const records = info.getCalls()
+			.map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as { turnId: string; hostRootTurnOrdinal: number; hostProcessAgeMs: number });
+		assert.deepStrictEqual(records.map(record => ({
+			turn: record.turnId, ordinal: record.hostRootTurnOrdinal,
+			hasProcessAge: Number.isFinite(record.hostProcessAgeMs) && record.hostProcessAgeMs >= 0,
+		})), [
+			{ turn: 'first', ordinal: 1, hasProcessAge: true },
+			{ turn: 'later', ordinal: 2, hasProcessAge: true },
+		]);
+	});
+
 	test('attributes completed and failed turns to the initiating client identity', () => {
 		setupSession();
 		const clientContext: IAgentHostClientTelemetryContext = {
