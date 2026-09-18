@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableFromEventOpts, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../../common/customizationLockdown.js';
+import { ICustomizationMcpServerCompatibility, ICustomizationMcpServerCompatibilityScope } from '../../../common/customizationHarnessService.js';
 import { IMcpService, IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from './agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from './agentHostMcpServerSupport.js';
 
 const MCP_SUPPORT_UPDATE_DEBOUNCE_DELAY = 50;
 
@@ -34,6 +38,37 @@ export interface IAgentHostMcpServerSupportScope extends IDisposable {
 	readonly isResolved: IObservable<boolean>;
 	/** Resolves after the latest scheduled support assessment settles or the scope is disposed. */
 	whenResolved(): Promise<void>;
+}
+
+export function createCustomizationMcpServerCompatibilityScope(
+	onDidChange: Event<void>,
+	getWorkingDirectories: () => readonly URI[],
+	acquireScope: (roots: readonly URI[]) => IAgentHostMcpServerSupportScope | undefined,
+): ICustomizationMcpServerCompatibilityScope {
+	const store = new DisposableStore();
+	const servers = observableValue<readonly ICustomizationMcpServerCompatibility[]>('mcpServerCompatibility', []);
+	const workingDirectories = observableFromEventOpts(
+		{ equalsFn: (a, b) => equals(a, b, isEqual) },
+		onDidChange,
+		getWorkingDirectories,
+	);
+	store.add(autorun(reader => {
+		const scope = acquireScope(workingDirectories.read(reader));
+		if (!scope) {
+			servers.set([], undefined);
+			return;
+		}
+		reader.store.add(scope);
+		reader.store.add(autorun(reader => {
+			servers.set(scope.support.read(reader).servers
+				.filter(server => server.applicability !== AgentHostMcpServerApplicability.OutsideCurrentScope)
+				.map(server => ({ id: server.id, kind: server.compatibility.kind })), undefined);
+		}));
+	}));
+	return {
+		servers,
+		dispose: () => store.dispose(),
+	};
 }
 
 /** Owns MCP support assessment and refreshes it while at least one consumer holds a reference. */

@@ -44,6 +44,7 @@ import {
 	getBuiltinMcpServerEnablementActions,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
+	getMcpCompatibilityPresentation,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
@@ -58,6 +59,7 @@ import {
 	McpServerItemRenderer,
 	registerMcpInlineButtonAction,
 	type IMcpStatusRenderInput,
+	updateMcpCompatibilityBadge,
 	updateMcpCardRuntimePresentation,
 	hasSameMcpMembership,
 	setPrimaryMcpServerEnablement,
@@ -292,6 +294,33 @@ suite('mcpListWidget', () => {
 			statusText: 'Error',
 			ariaLabel: 'Server, Error',
 			description: 'Updated description',
+		});
+	});
+
+	test('renders harness compatibility separately from runtime status', () => {
+		const badge = document.createElement('span');
+		updateMcpCompatibilityBadge(badge, 'partiallySupported');
+
+		assert.deepStrictEqual({
+			presentations: [
+				getMcpCompatibilityPresentation('supported'),
+				getMcpCompatibilityPresentation('partiallySupported'),
+				getMcpCompatibilityPresentation('unsupported'),
+				getMcpCompatibilityPresentation('unknown'),
+			],
+			badgeClass: badge.className,
+			badgeText: badge.textContent,
+			badgeDisplay: badge.style.display,
+		}, {
+			presentations: [
+				undefined,
+				{ label: 'Partially supported', className: 'partially-supported' },
+				{ label: 'Unsupported', className: 'unsupported' },
+				{ label: 'Support unknown', className: 'support-unknown' },
+			],
+			badgeClass: 'plugin-list-item-status mcp-compatibility-status-badge partially-supported',
+			badgeText: 'Partially supported',
+			badgeDisplay: '',
 		});
 	});
 
@@ -938,6 +967,7 @@ suite('mcpListWidget', () => {
 			};
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
+				() => undefined,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -962,6 +992,7 @@ suite('mcpListWidget', () => {
 				customizationHarnessService,
 				workspaceService: { isSessionsWindow },
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
+				mcpServerCompatibility: observableValue<ReadonlyMap<string, never>>(widget, new Map<string, never>()),
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
 			const ariaSubscription = store.add(new MutableDisposable());

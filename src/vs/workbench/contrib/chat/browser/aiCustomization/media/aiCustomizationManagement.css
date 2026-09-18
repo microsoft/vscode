@@ -2853,6 +2853,19 @@ per-word capitalization does not survive translation. */
 	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
 }
 
+.plugin-list-widget .mcp-compatibility-status-badge {
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge.partially-supported,
+.plugin-list-widget .mcp-compatibility-status-badge.support-unknown {
+	background-color: color-mix(in srgb, var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground)) 18%, transparent);
+}
+
+.plugin-list-widget .mcp-compatibility-status-badge.unsupported {
+	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
+}
+
 .plugin-list-widget .plugin-list-item-action {
 	display: flex;
 	align-items: center;

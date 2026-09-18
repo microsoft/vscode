@@ -50,7 +50,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -740,6 +740,7 @@ interface IRenderEditorOptions {
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
+	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
@@ -776,6 +777,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Prompts,
 	];
+	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor(),
 		{
@@ -785,6 +787,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
 			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
+			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
+				acquire: () => ({
+					servers: constObservable(mcpServerCompatibility),
+					dispose() { },
+				}),
+			} : undefined,
 		},
 	];
 
@@ -1451,6 +1459,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -1591,6 +1600,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -1731,6 +1741,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -1761,6 +1772,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
+				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2052,6 +2064,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
+		}),
+	}),
+
+	McpServersTabCopilotCompatibility: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['light2026', 'lightHighContrast'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, the component-explorer MCP server has a Partially supported badge and PostgreSQL has separate Unsupported and Error badges. Compatibility badges sit beside the server name without replacing runtime status.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			mcpServerCompatibility: [
+				{ id: 'component-explorer', kind: 'partiallySupported' },
+				{ id: 'mcp-postgres', kind: 'unsupported' },
+			],
 		}),
 	}),
 
