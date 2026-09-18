@@ -21,6 +21,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
+import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -919,6 +920,76 @@ suite('SessionChatInputToolbar', () => {
 			errors: ['Could not remove Pull Request #1 from this session: offline'],
 			calls: [{ owningSession: true, artifactId: 'pr-reference' }, { owningSession: true, artifactId: 'pr-reference' }],
 			afterSuccess: { removable: false, artifactRemovable: true, artifacts: ['durable-artifact'], label: undefined },
+		});
+	});
+
+	test('keeps derived changes and browser pills out of session record removal', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
+			id: 'durable-artifact', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.file('/repo/plan.md'),
+		}]);
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		// A browser the agent opened, and a file diff: both are live/derived state
+		// rather than recorded artifact records, so neither may offer record removal.
+		const browser = upcastPartial<BrowserEditorInput>({
+			id: 'browser-1', title: 'Example Page', url: 'https://example.com', onDidChangeLabel: Event.None,
+			model: upcastPartial<BrowserEditorInput['model']>({ owner: { type: 'agent', sessionId: chat.resource.toString() } }),
+		});
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'owning-session', resource: URI.parse('session:owning'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
+			chats: constObservable([chat]), changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file('/repo/changed.ts'), insertions: 3, deletions: 1 }]),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root: URI.file('/repo'), workingDirectory: URI.file('/repo'), name: 'repo', description: undefined,
+					gitRepository: { uri: URI.file('/repo'), workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+				}],
+			})),
+		});
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None, getKnownBrowserViews: () => new Map([['browser-1', browser]]),
+		}));
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+		}));
+		instantiationService.stub(ISessionChatPillVisibilityService, store.add(instantiationService.createInstance(SessionChatPillVisibility)));
+		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			visibleSessions: constObservable([]), activeSession: constObservable(undefined),
+		}));
+		const removeCalls: string[] = [];
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			removeSessionArtifact: async (_target, artifactId) => { removeCalls.push(artifactId); },
+		}));
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+
+		const pills = Array.from(toolbar.element.querySelectorAll<HTMLElement>(
+			'.chat-pill-button, .chat-changes-pill-button, .chat-dropdown-pill-button, .chat-resource-pill-button'));
+		const removeActions: IAction[] = [];
+		for (const pill of pills) {
+			menu = [];
+			pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			removeActions.push(...menu.filter(action => /remove/i.test(action.id)));
+		}
+		for (const action of removeActions) {
+			await action.run();
+		}
+
+		assert.deepStrictEqual({
+			// The browsers and changes pills rendered, so the negative result below is not vacuous.
+			renderedPills: pills.length >= 3,
+			removeActionIds: removeActions.map(action => action.id),
+			removeCalls,
+		}, {
+			renderedPills: true,
+			// Only the recorded artifact is removable; the browser and the file diff are not.
+			removeActionIds: ['sessions.artifacts.remove.durable-artifact'],
+			removeCalls: ['durable-artifact'],
 		});
 	});
 });
