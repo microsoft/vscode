@@ -53,7 +53,7 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../comm
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType, isChatAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/protocol/channels-chat/reducer.js';
-import { createChatState, TurnState, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { isHostNoticeTurn, lastAttributableTurnId, createChatState, TurnState, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -11128,7 +11128,7 @@ suite('ClaudeAgent — SDK-initiated turns', () => {
 
 	for (const canonicalFirst of [false, true]) {
 		test(`background continuation reaches completed chat state (canonicalFirst=${canonicalFirst})`, async () => {
-			const { agent, sdk } = createTestContext(disposables);
+			const { agent, sdk, proxy } = createTestContext(disposables);
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 			const sid = created.sdkSessionId;
@@ -11139,6 +11139,10 @@ suite('ClaudeAgent — SDK-initiated turns', () => {
 				if (signal.kind === 'action' && signal.resource.toString() === chat.toString() && isChatAction(signal.action)) {
 					state = chatReducer(state, signal.action);
 				}
+			}));
+			const usage: unknown[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatUsage) { usage.push(signal.action.usage._meta?.copilotUsage); }
 			}));
 			const finished = new DeferredPromise<void>();
 			sdk.nextQueryMessages = [
@@ -11152,62 +11156,115 @@ suite('ClaudeAgent — SDK-initiated turns', () => {
 				makeStreamEvent(sid, makeMessageStop()),
 				makeResultSuccess(sid),
 			];
-			sdk.queryAdvance = async index => { if (index === sdk.nextQueryMessages.length) { finished.complete(); } };
+			sdk.queryAdvance = async index => {
+				if (index === 1) { proxy.onDidReportCreditsEmitter.fire({ sessionId: sid, totalNanoAiu: 100 }); }
+				if (index === 2) { proxy.onDidReportCreditsEmitter.fire({ sessionId: sid, totalNanoAiu: 20 }); }
+				if (index === sdk.nextQueryMessages.length) { finished.complete(); }
+			};
 			await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
 			await finished.p;
 
 			assert.strictEqual(state.turns.length, 2);
 			const resumed = state.turns[1];
 			assert.notStrictEqual(resumed.id, 'turn-1');
-			assert.strictEqual(resumed.message.origin?.kind, MessageKind.SystemNotification);
+			assert.deepStrictEqual(usage, [{ totalNanoAiu: 100 }, { totalNanoAiu: 20 }]);
+			assert.strictEqual(resumed.message.origin?.kind, MessageKind.Agent);
 			assert.strictEqual(resumed.state, TurnState.Complete);
+			assert.strictEqual(isHostNoticeTurn(resumed), false);
+			assert.strictEqual(lastAttributableTurnId(state.turns), resumed.id);
 			assert.ok(resumed.responseParts.some(part => part.kind === ResponsePartKind.Markdown && part.content === 'background done'));
 			assert.strictEqual(state.activeTurn, undefined);
 		});
 	}
 
-	for (const ending of ['abort', 'stream failure'] as const) {
-		test(`SDK-initiated turn closes on ${ending}`, async () => {
+	for (const ending of ['client abort', 'abort during rebind', 'stream failure', 'dispose'] as const) {
+		test(`SDK-initiated turn has exactly one terminal action on ${ending}`, async () => {
 			const { agent, sdk } = createTestContext(disposables);
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 			const sid = created.sdkSessionId;
 			const chat = defaultChatUri(created.session);
+			let state = createChatState({ resource: chat.toString(), title: 'Test', status: SessionStatus.Idle, modifiedAt: new Date().toISOString() });
+			state = chatReducer(state, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(), message: { text: 'inspect', origin: { kind: MessageKind.User } } });
 			const ready = new DeferredPromise<void>();
 			const advance = new DeferredPromise<void>();
-			const cancelled = new DeferredPromise<void>();
-			let startedTurnId: string | undefined;
+			const terminalActions: string[] = [];
 			disposables.add(agent.onDidChatProgress(signal => {
-				if (signal.kind !== 'action') {
-					return;
-				}
-				if (signal.action.type === ActionType.ChatTurnStarted) {
-					startedTurnId = signal.action.turnId;
-				}
-				if (signal.action.type === ActionType.ChatTurnCancelled && signal.action.turnId === startedTurnId) {
-					cancelled.complete();
+				if (signal.kind !== 'action' || !isChatAction(signal.action)) { return; }
+				state = chatReducer(state, signal.action);
+				if ((signal.action.type === ActionType.ChatTurnCancelled || signal.action.type === ActionType.ChatTurnComplete) && signal.action.turnId !== 'turn-1') {
+					terminalActions.push(signal.action.type);
 				}
 			}));
-			sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), makeStreamEvent(sid, makeMessageStart())];
+			sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), makeStreamEvent(sid, makeMessageStart()), makeResultSuccess(sid)];
 			sdk.queryAdvance = async index => {
 				if (index === 3) {
 					ready.complete();
 					await advance.p;
-					if (ending === 'stream failure') {
-						throw new Error('stream failed');
-					}
+					if (ending === 'stream failure') { throw new Error('stream failed'); }
 				}
 			};
 			await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
 			await ready.p;
-			assert.ok(startedTurnId);
-			if (ending === 'abort') {
+			assert.ok(state.activeTurn);
+			const turnId = state.activeTurn.id;
+			const startupReached = new DeferredPromise<void>();
+			const startupGate = new DeferredPromise<void>();
+			let rebound: Promise<void> | undefined;
+			const session = agent.getSessionForTesting(created.session)!;
+			if (ending === 'abort during rebind') {
+				sdk.startupAdvance = async () => { startupReached.complete(); await startupGate.p; };
+				rebound = session.rebindForClientTools().catch(() => { });
+				await startupReached.p;
+			}
+			if (ending === 'client abort' || ending === 'abort during rebind') {
+				const action = { type: ActionType.ChatTurnCancelled, turnId, duration: 0 } as const;
+				state = chatReducer(state, action);
+				terminalActions.push(action.type);
 				await agent.chats.abort(chat, chatContext(chat));
 			}
+			if (ending === 'dispose') { session.dispose(); }
 			advance.complete();
-			await cancelled.p;
+			startupGate.complete();
+			await rebound;
+			await tick();
+			assert.deepStrictEqual(terminalActions, [ActionType.ChatTurnCancelled]);
+			assert.strictEqual(state.activeTurn, undefined);
+			assert.strictEqual(state.turns.at(-1)?.state, TurnState.Cancelled);
 		});
 	}
+
+	test('idle registered subagent output and terminal notification are routed', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sid = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const ready = new DeferredPromise<void>();
+		const advance = new DeferredPromise<void>();
+		const finished = new DeferredPromise<void>();
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid), makeResultSuccess(sid),
+			{ ...makeAssistantMessage(sid, [{ type: 'text', text: 'child finished', citations: null }]), parent_tool_use_id: 'child-1' },
+			{ type: 'system', subtype: 'task_notification', task_id: 'task-1', tool_use_id: 'child-1', status: 'completed', output_file: '/tmp/output', summary: 'done', session_id: sid, uuid: '00000000-0000-0000-0000-000000000001' },
+		];
+		sdk.queryAdvance = async index => {
+			if (index === 2) { ready.complete(); await advance.p; }
+			if (index === 4) { finished.complete(); }
+		};
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await ready.p;
+		const registry = agent.getSessionForTesting(created.session)!.subagents;
+		registry.recordSpawn('child-1', { subagentType: 'Explore', prompt: 'inspect' }).background = true;
+		advance.complete();
+		await finished.p;
+		assert.ok(signals.some(signal => signal.kind === 'action' && signal.parentToolCallId === 'child-1' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown && signal.action.part.content === 'child finished'));
+		assert.strictEqual(signals.filter(signal => signal.kind === 'subagent_completed' && signal.toolCallId === 'child-1').length, 1);
+		assert.strictEqual(registry.getSpawn('child-1'), undefined);
+		assert.ok(!signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted));
+	});
 
 	test('idle subagent output does not start a parent turn', async () => {
 		const { agent, sdk } = createTestContext(disposables);

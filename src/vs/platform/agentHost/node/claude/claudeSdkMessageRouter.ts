@@ -71,9 +71,6 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);
 		}
-		if (turnId === undefined) {
-			return;
-		}
 		try {
 			const signals = mapSDKMessageToAgentSignals(
 				message,

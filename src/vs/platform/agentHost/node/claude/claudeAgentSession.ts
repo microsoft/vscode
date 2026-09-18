@@ -682,7 +682,12 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
+		this._register(pipeline.onDidProduceSignal(s => {
+			if (s.kind === 'action' && (s.action.type === ActionType.ChatTurnComplete || s.action.type === ActionType.ChatTurnCancelled)) {
+				this._currentTurnNanoAiu = 0;
+			}
+			this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)));
+		}));
 		this._pipeline = pipeline;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {
@@ -1653,6 +1658,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._pendingClientToolCalls.rejectAll(new CancellationError());
+		this._pipeline?.dispose();
 		super.dispose();
 	}
 }

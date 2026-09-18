@@ -313,6 +313,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * still exists, and the dying process would otherwise recreate it).
 	 */
 	async shutdownAndWait(): Promise<void> {
+		this._cancelSdkTurn();
 		this._abortController.abort();
 		try {
 			await this._warm[Symbol.asyncDispose]();
@@ -503,6 +504,8 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * (the rebind discards the new pair and surfaces a cancellation).
 	 */
 	abort(): void {
+		// The caller has already applied the protocol cancellation.
+		this._sdkInitiatedTurn = undefined;
 		if (this._abortController.signal.aborted) {
 			return;
 		}
@@ -542,7 +545,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				type: ActionType.ChatTurnStarted,
 				turnId,
 				startedAt: new Date().toISOString(),
-				message: withMessageRequestHiddenFromTranscript({ text: '', origin: { kind: MessageKind.SystemNotification } }, true),
+				message: withMessageRequestHiddenFromTranscript({ text: '', origin: { kind: MessageKind.Agent } }, true),
 			},
 		});
 	}
@@ -567,7 +570,6 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	private _wireAbortHandler(controller: AbortController): void {
 		controller.signal.addEventListener('abort', () => {
-			this._cancelSdkTurn();
 			this._queue.notifyAborted();
 		}, { once: true });
 	}

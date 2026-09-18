@@ -230,7 +230,7 @@ function fileEditToolDelta(chat: URI, turnId: string, toolCallId: string, invoca
 export function mapSDKMessageToAgentSignals(
 	message: SDKMessage,
 	chat: URI,
-	turnId: string,
+	turnId: string | undefined,
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
@@ -244,6 +244,17 @@ export function mapSDKMessageToAgentSignals(
 		} catch {
 			logService.trace(`[claudeMapSessionEvents] SDK message type=${message.type} (unserializable)`);
 		}
+	}
+	if (turnId === undefined) {
+		if (message.type === 'system') {
+			return mapSubagentSystemMessage(message, chat, registry);
+		}
+		const parentToolUseId = message.type === 'assistant' || message.type === 'stream_event' || message.type === 'user' ? message.parent_tool_use_id : undefined;
+		if (!parentToolUseId || !registry.getSpawn(parentToolUseId)) {
+			return [];
+		}
+		// Tagged child actions are remapped to the child's active turn by the host.
+		turnId = parentToolUseId;
 	}
 	switch (message.type) {
 		case 'stream_event':
