@@ -177,7 +177,7 @@ export class IssueReporterOverlay {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
 		this.includeExtensionData = hasStandaloneExtensionData;
-		this.model = new IssueReporterModel({
+		this.model = this.disposables.add(new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
@@ -188,7 +188,7 @@ export class IssueReporterOverlay {
 			includeExtensions: true,
 			includeExperiments: true,
 			includeExtensionData: hasStandaloneExtensionData,
-		});
+		}));
 		this.selectedIssueType = data.issueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
 
