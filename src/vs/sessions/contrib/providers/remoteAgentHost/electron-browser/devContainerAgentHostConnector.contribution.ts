@@ -314,7 +314,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 		if (workspaceUri.scheme !== Schemas.file && !sourceEntry) {
-			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container Agent Hosts require a local, SSH, or Tunnel workspace."));
+			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container Agent Hosts require a local, SSH, Tunnel, or WSL workspace."));
 		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

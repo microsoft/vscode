@@ -17,6 +17,7 @@ import { PromptsStorage } from '../../common/promptSyntax/service/promptsService
 import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 
 const $ = DOM.$;
+const focusPreferredTarget = Symbol('focusPreferredTarget');
 
 export interface ICustomizationMigrationDashboardDestination {
 	readonly targetType: PromptsType;
@@ -81,7 +82,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	private readonly focusTargets = new Map<string, HTMLElement>();
 	private readonly expandedActivity = new Set<string>();
 	private readonly activityDetails = new Map<string, HTMLDetailsElement>();
-	private pendingFocus: string | undefined;
+	private pendingFocus: string | typeof focusPreferredTarget | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -142,12 +143,23 @@ export class CustomizationMigrationDashboard extends Disposable {
 			this.renderActivity(page, overview.activity);
 		}
 		this.callbacks.onDidChangeContent?.();
-		if (focusedKey) {
+		if (focusedKey === focusPreferredTarget) {
+			this.focus();
+		} else if (focusedKey) {
 			(this.focusTargets.get(focusedKey) ?? this.focusTargets.get('checklist'))?.focus();
 		}
 	}
 
 	focus(): void {
+		const reviewAction = [...this.focusTargets].find(([key]) => key.startsWith('review:'))?.[1];
+		const firstAction = [...this.focusTargets.values()].find(element => element.getAttribute('role') === 'button');
+		const preferredTarget = reviewAction ?? firstAction ?? this.focusTargets.get('checklist');
+		if (preferredTarget) {
+			preferredTarget.focus();
+			return;
+		}
+
+		this.pendingFocus = focusPreferredTarget;
 		this.focusTargets.get('title')?.focus();
 	}
 
