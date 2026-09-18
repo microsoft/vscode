@@ -1613,7 +1613,7 @@ class SignatureHelpAdapter {
 		const vscodeContext = this.reviveContext(context);
 
 		const value = await this._provider.provideSignatureHelp(doc, pos, token, vscodeContext);
-		if (value) {
+		if (value && !token.isCancellationRequested) {
 			const id = this._cache.add([value]);
 			return { ...typeConvert.SignatureHelp.from(value), id };
 		}
@@ -1945,7 +1945,7 @@ class CallHierarchyAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		const items = await this._provider.prepareCallHierarchy(doc, pos, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return undefined;
 		}
 
@@ -2025,7 +2025,7 @@ class TypeHierarchyAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		const items = await this._provider.prepareTypeHierarchy(doc, pos, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return undefined;
 		}
 
