@@ -60,6 +60,7 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _extensionKind: vscode.ExtensionKind,
 		microsoft: IMicrosoftAuthentication,
 		accountLinks: AccountLinks,
+		private readonly _isCustomUserDataDir: boolean,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
@@ -168,7 +169,8 @@ export class GitHubServer implements IGitHubServer {
 			extensionHost: isNodeEnvironment
 				? this._extensionKind === vscode.ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
-			isSupportedClient: supportedClient
+			isSupportedClient: supportedClient,
+			isCustomUserDataDir: this._isCustomUserDataDir
 		});
 
 

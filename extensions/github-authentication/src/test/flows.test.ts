@@ -258,6 +258,21 @@ suite('getFlows', () => {
 			assert.strictEqual(flows[0].label, Flows.UrlHandlerFlow);
 		});
 	});
+
+	test('returns device code flow first when the user data directory is explicit', () => {
+		const flows = getFlows({
+			extensionHost: ExtensionHost.Local,
+			isSupportedClient: true,
+			isCustomUserDataDir: true,
+			target: GitHubTarget.DotCom
+		});
+
+		assert.deepStrictEqual(flows.map(flow => flow.label), [
+			Flows.DeviceCodeFlow,
+			Flows.LocalServerFlow,
+			Flows.UrlHandlerFlow
+		]);
+	});
 });
 
 suite('isSignInProvider', () => {
