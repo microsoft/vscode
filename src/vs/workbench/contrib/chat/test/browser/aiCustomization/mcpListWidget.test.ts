@@ -63,6 +63,7 @@ import {
 	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
+import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -239,6 +240,19 @@ suite('mcpListWidget', () => {
 				entry: {
 					type: 'session-server-item',
 					server: createAgentHostServer({
+						id: 'workspace-disabled',
+						enabled: false,
+						enablement: [
+							{ kind: CustomizationEnablementKind.Workspace, enabled: false, uri: URI.file('/workspace').toString() },
+							{ kind: CustomizationEnablementKind.Global, enabled: true },
+						],
+					}),
+				},
+			},
+			{
+				entry: {
+					type: 'session-server-item',
+					server: createAgentHostServer({
 						id: 'plugin-disabled',
 						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 						disabledReason: {
@@ -256,6 +270,32 @@ suite('mcpListWidget', () => {
 		];
 
 		assert.strictEqual(widget.itemCount, 1);
+	});
+
+	test('effective count includes enabled active-session-only MCP servers', () => {
+		const servers = [
+			createAgentHostServer({
+				id: 'enabled',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			}),
+			createAgentHostServer({
+				id: 'workspace-disabled',
+				enabled: false,
+				enablement: [
+					{ kind: CustomizationEnablementKind.Workspace, enabled: false, uri: URI.file('/workspace').toString() },
+					{ kind: CustomizationEnablementKind.Global, enabled: true },
+				],
+			}),
+			createAgentHostServer({
+				id: 'globally-disabled',
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			}),
+		];
+
+		const count = derived(reader => getEffectiveMcpServerCount([], servers, reader, undefined));
+
+		assert.strictEqual(count.get(), 1);
 	});
 
 	test('classifies active-session-only MCP servers as built-in entries', () => {
