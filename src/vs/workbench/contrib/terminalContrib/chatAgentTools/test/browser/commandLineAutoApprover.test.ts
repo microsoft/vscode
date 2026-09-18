@@ -39,7 +39,7 @@ suite('CommandLineAutoApprover', () => {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
-	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean | null }) {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
@@ -144,7 +144,7 @@ suite('CommandLineAutoApprover', () => {
 		test('auto-approves exact lockfile install commands', async () => {
 			const commands = [
 				'npm ci',
-				'npm   ci   ',
+				'npm ci   ',
 				'yarn install --frozen-lockfile',
 				'yarn  install  --frozen-lockfile   ',
 				'pnpm install --frozen-lockfile',
@@ -171,6 +171,30 @@ suite('CommandLineAutoApprover', () => {
 				'pnpm install --frozen-lockfile --no-frozen-lockfile',
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+		});
+
+		test('preserves persisted legacy package manager overrides', async () => {
+			const defaultRules = terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>;
+			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
+			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
+
+			setAutoApproveWithCommandLine({
+				...defaultRules,
+				'npm ci': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+			});
+			deepStrictEqual(await Promise.all(exactCommands.map(isAutoApproved)), exactCommands.map(() => true));
+			deepStrictEqual(await Promise.all(commandsWithOptions.map(isAutoApproved)), commandsWithOptions.map(() => false));
+
+			setAutoApproveWithCommandLine({
+				...defaultRules,
+				'npm ci': null,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
+			});
+			deepStrictEqual(await Promise.all(exactCommands.map(isAutoApproved)), exactCommands.map(() => false));
+			deepStrictEqual(await Promise.all(commandsWithOptions.map(isAutoApproved)), commandsWithOptions.map(() => false));
 		});
 	});
 
