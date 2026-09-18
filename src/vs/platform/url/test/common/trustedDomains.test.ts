@@ -113,12 +113,23 @@ suite('trustedDomains', () => {
 		});
 
 		test('path-scoped trust matches the resolved destination', () => {
-			const paths = ['/allowed/../outside', '/allowed/%2e%2e/outside', '/outside', '/allowed/child/../page'];
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+				'/outside',
+				'/allowed/child/../page',
+			];
 			const rules = ['https://example.com/allowed', 'https://example.com/allowed/*'];
 
 			assert.deepStrictEqual(
 				paths.map(path => rules.map(rule => isURLDomainTrusted(URI.parse(`https://example.com${path}`), [rule]))),
 				[
+					[false, false],
+					[false, false],
+					[false, false],
 					[false, false],
 					[false, false],
 					[false, false],

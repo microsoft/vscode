@@ -13,9 +13,9 @@ function normalizeURL(url: string | URI, resolvePath = false): URI {
 	const uri = typeof url === 'string' ? URI.parse(url) : url;
 	let path = uri.path;
 	if (resolvePath && matchesSomeScheme(uri, Schemas.http, Schemas.https)) {
-		// Normalize the decoded path without reparsing its authority or decoding percent escapes again.
+		// Apply browser preprocessing without reparsing the authority or decoding percent escapes again.
 		const pathUrl = new URL(`${Schemas.http}://localhost`);
-		pathUrl.pathname = encodeURI(path.toWellFormed().replace(/\\/g, '/'));
+		pathUrl.pathname = encodeURI(path.toWellFormed().replace(/[\t\n\r]/g, '').replace(/\\/g, '/'));
 		path = URI.parse(pathUrl.href).path;
 	}
 

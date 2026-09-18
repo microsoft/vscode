@@ -76,6 +76,31 @@ suite('urlGlob', () => {
 			);
 		});
 
+		test('HTTP paths remove ASCII tabs and newlines before resolving dot segments', () => {
+			const whitespace = ['\t', '\n', '\r'];
+
+			assert.deepStrictEqual(
+				whitespace.map(character => ['http', 'https'].map(scheme => {
+					const url = `${scheme}://example.com/allowed/.${character}./outside`;
+					const glob = `${scheme}://example.com/allowed`;
+					return {
+						browserPath: new URL(url).pathname,
+						string: testUrlMatchesGlob(url, glob),
+						uri: testUrlMatchesGlob(URI.parse(url), glob),
+						wildcard: testUrlMatchesGlob(url, `${glob}/*`),
+						withinScope: testUrlMatchesGlob(`${scheme}://example.com/allowed/in${character}side`, glob),
+					};
+				})),
+				whitespace.map(() => ['http', 'https'].map(() => ({
+					browserPath: '/outside',
+					string: false,
+					uri: false,
+					wildcard: false,
+					withinScope: true,
+				})))
+			);
+		});
+
 		test('dot segments that stay within allowed paths still match', () => {
 			const paths = ['/allowed/./page', '/allowed/child/../page', '/allowed/child/..'];
 

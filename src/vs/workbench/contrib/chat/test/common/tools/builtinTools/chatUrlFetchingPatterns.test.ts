@@ -143,7 +143,14 @@ suite('ChatUrlFetchingPatterns', () => {
 		});
 
 		test('path-scoped request and response approval uses the resolved destination', () => {
-			const paths = ['/allowed/../outside', '/allowed/%2e%2e/outside', '/allowed/child/../page'];
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+				'/allowed/child/../page',
+			];
 			const approved = { 'https://example.com/allowed/*': { approveRequest: true, approveResponse: true } };
 
 			assert.deepStrictEqual(
@@ -155,6 +162,9 @@ suite('ChatUrlFetchingPatterns', () => {
 					};
 				}),
 				[
+					{ request: false, response: false },
+					{ request: false, response: false },
+					{ request: false, response: false },
 					{ request: false, response: false },
 					{ request: false, response: false },
 					{ request: true, response: true },
@@ -324,7 +334,13 @@ suite('ChatUrlFetchingPatterns', () => {
 		});
 
 		test('dot segments cannot select an approved path outside the resolved destination', () => {
-			const paths = ['/allowed/../outside', '/allowed/%2e%2e/outside'];
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+			];
 			const approved = { 'https://example.com/allowed/*': true };
 
 			assert.deepStrictEqual(
