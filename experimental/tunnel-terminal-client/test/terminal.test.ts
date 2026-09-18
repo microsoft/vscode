@@ -17,6 +17,7 @@ import { action, Input, messages, Output, peer, reply, rpc } from './helpers.js'
 async function fixture(t: TestContext, options: {
 	snapshotContent?: string;
 	exited?: boolean;
+	title?: string;
 	input?: Input;
 	output?: Output;
 	onSubscribe?(socket: WebSocket, channel: string): void;
@@ -45,6 +46,7 @@ async function fixture(t: TestContext, options: {
 					resource: channel,
 					fromSeq: 2,
 					state: {
+						title: options.title,
 						content: [{ type: 'unclassified', value: options.snapshotContent ?? '' }],
 						lifecycle: options.exited ? { status: 'exited', exitCode: 4 } : { status: 'running' },
 					},
@@ -84,6 +86,94 @@ test('renders snapshot once, ordered streaming output, and propagates exit statu
 test('handles a shell that already exited before subscription', { timeout: 5000 }, async t => {
 	const state = await fixture(t, { exited: true, snapshotContent: 'finished' });
 	assert.deepEqual({ code: await runTerminal(state.client, state), output: state.output.value }, { code: 4, output: `finished${disableWin32InputMode}` });
+});
+
+test('initializes a PowerShell prompt before forwarding keyboard input', { timeout: 5000 }, async t => {
+	let script = '';
+	let acknowledge!: (value: { socket: WebSocket; channel: string; id: string }) => void;
+	const sent = new Promise<{ socket: WebSocket; channel: string; id: string }>(resolve => { acknowledge = resolve; });
+	const state = await fixture(t, {
+		title: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+		onAction(socket, channel, value) {
+			if (value.type !== 'terminal/input') { return; }
+			script += text(value.data, 'input');
+			if (script.endsWith('\r')) {
+				const id = /\]777;tunnel-prompt;(?<id>[\da-f-]+);ok/.exec(script)?.groups?.id;
+				if (id) { acknowledge({ socket, channel, id }); }
+			}
+		},
+	});
+	const raw = once(state.input, 'raw');
+	const done = runTerminal(state.client, { ...state, tunnelName: 'my-machine' });
+	const ack = await sent;
+	assert.deepEqual({ raw: state.input.isRaw, dataListeners: state.input.listenerCount('data') }, { raw: false, dataListeners: 0 });
+	state.input.write('echo ready\r');
+	assert.ok(state.actions.filter(value => value.type === 'terminal/input').every(value => !text(value.data, 'input').includes('echo ready')));
+	const marker = `\x1b]777;tunnel-prompt;${ack.id};ok\x07`;
+	action(ack.socket, ack.channel, 3, { type: 'terminal/data', data: `setup output\r\n${marker.slice(0, 15)}` });
+	action(ack.socket, ack.channel, 4, { type: 'terminal/data', data: `${marker.slice(15)}[my-machine] PS> ` });
+	await raw;
+	state.input.write('\x1d');
+	await done;
+	assert.match(state.output.value, /\[my-machine\] PS> /);
+	assert.doesNotMatch(state.output.value, /\x1b\]777;tunnel-prompt;/);
+	assert.ok(state.actions.some(value => value.type === 'terminal/input' && text(value.data, 'input').includes('echo ready')));
+});
+
+test('prompt initialization failure prevents keyboard handoff and disposes the terminal', { timeout: 5000 }, async t => {
+	let script = '';
+	const state = await fixture(t, {
+		title: 'powershell.exe',
+		onAction(socket, channel, value) {
+			if (value.type !== 'terminal/input') { return; }
+			script += text(value.data, 'input');
+			const id = /\]777;tunnel-prompt;(?<id>[\da-f-]+);error/.exec(script)?.groups?.id;
+			if (id && script.endsWith('\r')) {
+				action(socket, channel, 3, { type: 'terminal/data', data: `setup failed\r\n\x1b]777;tunnel-prompt;${id};error\x07` });
+			}
+		},
+	});
+	await assert.rejects(runTerminal(state.client, { ...state, tunnelName: 'my-machine' }), /Remote prompt initialization failed/);
+	assert.deepEqual({ raw: state.input.isRaw, lastRequest: state.requests.at(-1) }, { raw: false, lastRequest: 'disposeTerminal' });
+	assert.match(state.output.value, /setup failed/);
+});
+
+test('missing prompt acknowledgement times out without forwarding keyboard input', { timeout: 5000 }, async t => {
+	const state = await fixture(t, { title: 'pwsh.exe' });
+	await assert.rejects(runTerminal(state.client, { ...state, tunnelName: 'my-machine', promptTimeoutMs: 20 }), /prompt initialization.*timed out/i);
+	assert.deepEqual({ raw: state.input.isRaw, lastRequest: state.requests.at(-1) }, { raw: false, lastRequest: 'disposeTerminal' });
+});
+
+test('cancelling prompt initialization exits promptly and disposes the terminal', { timeout: 5000 }, async t => {
+	let script = '';
+	let sent!: () => void;
+	const commandSent = new Promise<void>(resolve => { sent = resolve; });
+	const state = await fixture(t, {
+		title: 'pwsh.exe',
+		onAction(_socket, _channel, value) {
+			if (value.type === 'terminal/input') {
+				script += text(value.data, 'input');
+				if (script.endsWith('\r')) { sent(); }
+			}
+		},
+	});
+	const done = runTerminal(state.client, { ...state, tunnelName: 'my-machine' });
+	await commandSent;
+	state.signals.emit('SIGTERM');
+	assert.deepEqual({ code: await done, raw: state.input.isRaw, lastRequest: state.requests.at(-1) }, {
+		code: 143, raw: false, lastRequest: 'disposeTerminal',
+	});
+});
+
+test('unsupported shells receive a warning, not a PowerShell initialization command', { timeout: 5000 }, async t => {
+	const state = await fixture(t, { title: 'cmd.exe' });
+	const raw = once(state.input, 'raw');
+	const done = runTerminal(state.client, { ...state, tunnelName: 'my-machine' });
+	await raw;
+	state.input.write('\x1d');
+	await done;
+	assert.match(state.output.value, /Prompt prefix not installed/);
+	assert.equal(state.actions.some(value => value.type === 'terminal/input'), false);
 });
 
 test('forwards Unicode input and Ctrl+C, resizes, and uses Ctrl+] only for local exit', { timeout: 5000 }, async t => {

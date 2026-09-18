@@ -13,9 +13,9 @@ import { runTerminal } from '../src/terminal.js';
 import { deadline, record, text } from '../src/wire.js';
 import { Input, Output, rpc } from './helpers.js';
 
-test('opt-in: real local agent host creates and disposes a shell', {
+test('opt-in: real local agent host initializes a prefixed shell and disposes it', {
 	skip: !process.env.TUNNEL_TERMINAL_TEST_ENDPOINT,
-	timeout: 30_000,
+	timeout: 60_000,
 }, async t => {
 	const descriptor = record(JSON.parse(await readFile(process.env.TUNNEL_TERMINAL_TEST_ENDPOINT!, 'utf8')), 'test endpoint');
 	const endpoint = record(descriptor.endpoint, 'endpoint address');
@@ -32,7 +32,7 @@ test('opt-in: real local agent host creates and disposes a shell', {
 	const signals = new EventEmitter();
 	t.after(() => { input.destroy(); output.destroy(); });
 	const ready = once(input, 'raw');
-	const done = runTerminal(client, { input, output, signals });
+	const done = runTerminal(client, { input, output, signals, tunnelName: 'tunnel-smoke' });
 	// Race readiness against setup failure so an incompatible host fails promptly.
 	await deadline(Promise.race([ready, done.then(() => { throw new Error('Shell exited before input became ready.'); })]), 'Live terminal startup');
 	output.columns = 120;
@@ -41,5 +41,6 @@ test('opt-in: real local agent host creates and disposes a shell', {
 	input.write('echo TUNNEL_REAL_HOST_SUCCESS\rexit 7\r');
 	assert.equal(await done, 7);
 	assert.match(output.value, /TUNNEL_REAL_HOST_SUCCESS/);
+	assert.match(output.value, /\[tunnel-smoke\]/);
 	assert.equal(input.isRaw, false);
 });

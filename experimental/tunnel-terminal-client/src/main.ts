@@ -25,6 +25,7 @@ With multiple choices, choose interactively. Use --new-host to request a new hos
   --cluster ID              Disambiguate matching tunnels
   --instance ID             Select an existing gateway agent host
   --new-host                Explicitly request a dedicated agent host
+  --no-prompt-prefix        Skip session-only PowerShell/Bash prompt initialization
   --cwd FILE_URI            Remote directory, e.g. file:///C:/work or file:///home/me
   --provider github|microsoft  Tunnel account provider (default: github)
   --client-id ID            Your GitHub OAuth app ID for device sign-in
@@ -36,6 +37,8 @@ token for either provider. No VS Code extensions or local VS Code are needed.
 
 Requires Node.js 22.x or 24.x and an agent-host-capable remote tunnel (launcher v5+, AHP 0.9.0).
 Opens a NEW default shell, not an existing integrated terminal.
+PowerShell and Bash prompts are prefixed with [machine-name]. The PowerShell
+session's wsl wrapper preserves that prefix in interactive WSL Bash sessions.
 Ctrl+C is sent to the remote shell. Ctrl+] exits locally and requests shell
 disposal. No automatic reconnect or input replay; after a network failure
 the remote shell may still be running. See README.md for host setup.
@@ -51,6 +54,7 @@ async function main(): Promise<number> {
 			cluster: { type: 'string' },
 			instance: { type: 'string' },
 			'new-host': { type: 'boolean' },
+			'no-prompt-prefix': { type: 'boolean' },
 			cwd: { type: 'string' },
 			provider: { type: 'string', default: 'github' },
 			'client-id': { type: 'string' },
@@ -138,7 +142,10 @@ async function main(): Promise<number> {
 			console.error('Opening a new default shell as the remote host user. Ctrl+] closes it; Ctrl+C goes to the shell.');
 			const client = new ProtocolClient(tunnel.connection);
 			try {
-				return await runTerminal(client, { cwd: values.cwd });
+				return await runTerminal(client, {
+					cwd: values.cwd,
+					tunnelName: values['no-prompt-prefix'] ? undefined : machine.name,
+				});
 			} finally {
 				client.dispose();
 			}

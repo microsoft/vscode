@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { Readable, Writable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
+import { createPromptInitialization } from './promptInitialization.js';
 import { disableWin32InputMode } from './terminalModes.js';
 import { deadline, maxBufferedBytes, ProtocolClient, record, text } from './wire.js';
 
@@ -24,6 +25,8 @@ export interface TerminalOutput extends Writable {
 
 export interface TerminalOptions {
 	cwd?: string;
+	tunnelName?: string;
+	promptTimeoutMs?: number;
 	input?: TerminalInput;
 	output?: TerminalOutput;
 	signals?: EventEmitter;
@@ -70,6 +73,8 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 	let earlyBytes = 0;
 	let outputBytes = 0;
 	let outputError: Error | undefined;
+	let promptInitialization: ReturnType<typeof createPromptInitialization>;
+	let shellTitle = '';
 	const earlyActions: Record<string, unknown>[] = [];
 	let drain: (() => void) | undefined;
 	let complete!: (code: number) => void;
@@ -89,6 +94,7 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 		}
 	};
 	const write = (data: string): void => {
+		if (!data) { return; }
 		if (outputBytes + Buffer.byteLength(data) > maxBufferedBytes) {
 			throw new Error('Terminal output exceeded the buffer limit. The local terminal is too slow.');
 		}
@@ -114,9 +120,11 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 		lastSeq = serverSeq;
 		const action = record(envelope.action, 'terminal action');
 		switch (action.type) {
-			case 'terminal/data':
-				write(text(action.data, 'terminal output'));
+			case 'terminal/data': {
+				const data = text(action.data, 'terminal output');
+				write(promptInitialization ? promptInitialization.accept(data) : data);
 				break;
+			}
 			case 'terminal/exited':
 				finish(undefined, exitCode(action.exitCode));
 				break;
@@ -143,21 +151,24 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 		cols: Math.max(1, Math.min(65535, output.columns ?? 80)),
 		rows: Math.max(1, Math.min(65535, output.rows ?? 24)),
 	});
+	const sendInput = (data: string): void => {
+		// Chunk pastes and initialization scripts without splitting UTF-16 surrogate pairs.
+		for (let offset = 0; offset < data.length;) {
+			let end = Math.min(offset + 4096, data.length);
+			if (end < data.length && /[\uD800-\uDBFF]/.test(data[end - 1])) {
+				end--;
+			}
+			client.dispatch(channel, { type: 'terminal/input', data: data.slice(offset, end) });
+			offset = end;
+		}
+	};
 	const onData = (chunk: Buffer | string): void => {
 		if (finished) { return; }
 		try {
 			const value = typeof chunk === 'string' ? chunk : decoder.write(chunk);
 			const escape = value.indexOf('\x1d');
 			const data = escape < 0 ? value : value.slice(0, escape);
-			// Chunk large pastes instead of exceeding the protocol's per-action input limit.
-			for (let offset = 0; offset < data.length;) {
-				let end = Math.min(offset + 4096, data.length);
-				if (end < data.length && /[\uD800-\uDBFF]/.test(data[end - 1])) {
-					end--;
-				}
-				client.dispatch(channel, { type: 'terminal/input', data: data.slice(offset, end) });
-				offset = end;
-			}
+			sendInput(data);
 			if (escape >= 0) { finish(); }
 		} catch (error) {
 			finish(error instanceof Error ? error : new Error('Unable to send terminal input.'));
@@ -207,7 +218,7 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 			await client.request('createTerminal', {
 				channel,
 				claim: { kind: 'client', clientId },
-				name: 'Standalone Tunnel Terminal',
+				...(options.tunnelName === undefined ? { name: 'Standalone Tunnel Terminal' } : {}),
 				...(options.cwd ? { cwd: options.cwd } : {}),
 				...dimensions(),
 			});
@@ -221,6 +232,7 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 			}
 			lastSeq = sequence(snapshot.fromSeq);
 			const state = record(snapshot.state, 'terminal state');
+			shellTitle = typeof state.title === 'string' ? state.title : '';
 			if (!Array.isArray(state.content)) {
 				throw new Error('Malformed terminal snapshot content.');
 			}
@@ -242,6 +254,24 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 				handleAction(action);
 			}
 			earlyActions.length = 0;
+		}
+		if (!finished && options.tunnelName !== undefined) {
+			promptInitialization = createPromptInitialization(shellTitle, options.tunnelName);
+			client.dispatch(channel, { type: 'terminal/titleChanged', title: 'Standalone Tunnel Terminal' });
+			if (promptInitialization) {
+				sendInput(promptInitialization.command);
+				await deadline(
+					Promise.race([promptInitialization.ready, completion]),
+					'Remote prompt initialization (reconnect with --no-prompt-prefix to skip)',
+					undefined,
+					options.promptTimeoutMs ?? 30_000,
+				);
+				write(promptInitialization.flush());
+				promptInitialization.dispose();
+				promptInitialization = undefined;
+			} else {
+				write('\r\nPrompt prefix not installed: the remote host did not identify PowerShell or Bash. Continuing without a prefix.\r\n');
+			}
 		}
 		if (!finished) {
 			input.setRawMode!(true);
@@ -267,7 +297,11 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 		removeNotification();
 		removeFailure();
 		try {
+			const pendingPromptOutput = promptInitialization?.flush();
+			promptInitialization?.dispose();
+			promptInitialization = undefined;
 			if (!outputError) {
+				if (pendingPromptOutput) { write(pendingPromptOutput); }
 				write(disableWin32InputMode);
 				if (outputBytes > 0) {
 					await deadline(new Promise<void>(resolve => { drain = resolve; }), 'Terminal output flush', undefined, 5000);

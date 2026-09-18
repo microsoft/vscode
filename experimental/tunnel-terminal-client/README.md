@@ -204,6 +204,9 @@ npm start
    host may download/start server components.
 3. The client creates a **new default shell** in the remote home directory.
    You are not attaching to any existing integrated terminal.
+4. PowerShell and Bash receive a session-only prompt prefix, such as
+   `[krwaraksa-pc]`. The client waits for initialization to succeed before
+   forwarding keyboard input.
 
 Useful commands:
 
@@ -213,6 +216,7 @@ node .\out\src\main.js --list
 node .\out\src\main.js --tunnel my-machine
 node .\out\src\main.js --tunnel my-machine --new-host --cwd file:///C:/work
 node .\out\src\main.js --tunnel my-machine --instance EXISTING_INSTANCE_ID
+node .\out\src\main.js --tunnel my-machine --no-prompt-prefix
 ```
 
 For a Linux/macOS working directory use a URI such as `file:///home/me/work`.
@@ -227,6 +231,44 @@ Machine names are not assumed to be unique. Use `--tunnel ID --cluster ID` from
 `tunnel.cmd --tunnel my-machine` after linking the command,
 or `node D:\code\vscode\experimental\tunnel-terminal-client\out\src\main.js --tunnel my-machine`
 to avoid selecting the same machine on every launch. No URL is needed.
+
+## Session-only prompt prefix and WSL
+
+Each supported shell prompt is prefixed with the selected tunnel's name:
+
+```text
+[krwaraksa-pc] PS C:\work>
+[krwaraksa-pc] user@host:~/work$
+```
+
+The client obtains the default shell's executable title from the newly created
+terminal. For PowerShell (`pwsh` or `powershell`) and Bash, it sends a one-time
+encoded initialization command through terminal input. Encoding avoids quoting
+problems; it is not encryption or an attempt to hide code. The command may be
+echoed or recorded in shell history. Other shells get an explicit warning and
+continue without a prefix; the client does not guess their command language.
+
+PowerShell keeps the original prompt and adds a **session-local `wsl` function**.
+Recognized interactive invocations (`wsl`, `wsl -d Ubuntu`, and combinations of
+`-d`/`--distribution`, `-u`/`--user`, and `--cd`) start Bash with temporary startup
+configuration that loads the normal Bash configuration and adds the same prefix.
+No saved PowerShell profile or Bash startup file is edited. Ordinary local
+terminals are unaffected.
+
+Other WSL invocations, including listing distributions and executing commands,
+pass through unchanged. Calling `wsl.exe` directly bypasses the wrapper. Arbitrary
+nested shells, SSH sessions, and tmux panes are not automatically instrumented.
+After leaving WSL, the PowerShell prompt still has the same prefix. Full-screen
+programs may hide the prompt, as usual.
+
+Initialization failures and timeouts are reported and the new terminal is cleaned
+up rather than accepting input under a falsely assumed prefix. Use
+`tunnel --no-prompt-prefix` to leave prompt behavior unchanged or to work around
+incompatible shell customizations. Explicitly opting out also disables the
+session-local WSL wrapper.
+Profiles that ask for interactive input during startup are not supported by this
+initialization flow; use the opt-out for those sessions. A theme that replaces the
+prompt function or `PROMPT_COMMAND` later may also replace the prefix.
 
 ## Input, accessibility, and lifetime
 
@@ -325,10 +367,19 @@ service. Start a throwaway foreground host with a separate `--user-data-dir`,
 then point `TUNNEL_TERMINAL_TEST_ENDPOINT` at that host's published JSON endpoint
 entry in `agent-host/local-endpoint/entries` under that directory. Run
 `node --test out/test/live.test.js`. The test accepts only loopback TCP endpoints,
-creates its own terminal, runs an echo command, resizes it, and exits with code 7.
+creates its own terminal, initializes the prefix in PowerShell or Bash, runs an
+echo command, resizes it, and exits with code 7.
 It never prints the endpoint's connection token. Stop the throwaway host afterward.
 This test passed against the locally installed VS Code **1.138.0** host during
 development; that does not verify the Dev Tunnels relay or other published builds.
+
+With the same loopback endpoint and a PowerShell default shell, set
+`TUNNEL_TERMINAL_TEST_WSL` to an installed distribution name (for example
+`Ubuntu-22.04`) and run `node --test out/test/liveWsl.test.js`. This opt-in test
+checks the prefix in PowerShell, enters real WSL Bash through the session wrapper,
+verifies the same prefix there, and exits back to PowerShell. It creates and
+disposes its own terminal, but uses that distribution's normal user startup
+configuration.
 
 Live acceptance requires an authorized account and a compatible remote host:
 discover its machine, select the intended host, run `hostname`, resize the
