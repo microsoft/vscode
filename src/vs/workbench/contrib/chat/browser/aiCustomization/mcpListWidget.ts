@@ -2510,6 +2510,7 @@ export class McpListWidget extends Disposable {
 			...otherBuiltinServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
+		this.installedEntries.sort((a, b) => Number(this.isInstalledEntryEnabled(b.entry)) - Number(this.isInstalledEntryEnabled(a.entry)));
 
 		// Compute sidebar badge directly from the data arrays (same source as group headers)
 		this.filteredBuiltinCount = builtinServers.length;
