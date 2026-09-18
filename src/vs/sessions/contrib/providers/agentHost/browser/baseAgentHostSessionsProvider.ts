@@ -1077,17 +1077,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const isPrimaryPullRequest = (pullRequest: IGitHubPullRequestRef) =>
 				pullRequest.number === baseGitHubInfo.pullRequest?.number &&
 				isEqual(pullRequest.uri, baseGitHubInfo.pullRequest.uri);
-			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map(pullRequest => ({
+			const baseRefs = getGitHubPullRequestRefs(baseGitHubInfo);
+			const primaryIndex = Math.max(0, baseRefs.findIndex(isPrimaryPullRequest));
+			const pullRequests = baseRefs.map((pullRequest, index) => ({
 				...pullRequest,
 				...computePullRequestRefPresentation(
 					reader,
 					this._gitHubService,
 					this._pullRequestIconCache,
 					pullRequest,
-					isPrimaryPullRequest(pullRequest) ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
+					index === primaryIndex ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
 				)
 			}));
-			const primaryPullRequest = pullRequests.find(isPrimaryPullRequest) ?? pullRequests[0];
+			const primaryPullRequest = pullRequests[primaryIndex];
 			return {
 				...baseGitHubInfo,
 				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
