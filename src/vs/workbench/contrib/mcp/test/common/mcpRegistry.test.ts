@@ -290,8 +290,8 @@ suite('Workbench - MCP - Registry', () => {
 		} as unknown as IConfigurationChangeEvent);
 
 		assert.deepStrictEqual(registry.collections.get().map(collection => collection.id), [pluginCollection.id]);
-		assert.deepStrictEqual(registry.getServerDefinition(testCollection, baseDefinition).get(), { collection: undefined, server: undefined });
-		assert.deepStrictEqual(registry.getServerDefinition(spoofedCollection, baseDefinition).get(), { collection: undefined, server: undefined });
+		assert.deepStrictEqual(registry.getServerDefinition(testCollection, baseDefinition).get(), { collection: undefined, server: undefined, blockedByPolicy: true });
+		assert.deepStrictEqual(registry.getServerDefinition(spoofedCollection, baseDefinition).get(), { collection: undefined, server: undefined, blockedByPolicy: true });
 		assert.strictEqual(registry.getServerDefinition(pluginCollection, baseDefinition).get().server, baseDefinition);
 	});
 

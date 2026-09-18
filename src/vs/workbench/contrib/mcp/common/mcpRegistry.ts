@@ -32,7 +32,7 @@ import { ConfigurationResolverExpression, IResolvedValue } from '../../../servic
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
-import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
+import { IMcpHostDelegate, IMcpRegistry, IMcpResolvedServerDefinition, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
@@ -137,14 +137,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		};
 	}
 
-	public getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
+	public getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<IMcpResolvedServerDefinition> {
 		const collectionObs = this._collections.map(cols => cols.find(c => c.id === collectionRef.id));
 		return collectionObs.map((collection, reader) => {
 			if (collection && !this.isCollectionAllowed(collection, this._strictPluginOnlyCustomization.read(reader))) {
-				return { collection: undefined, server: undefined };
+				return { collection: undefined, server: undefined, blockedByPolicy: true };
 			}
 			const server = collection?.serverDefinitions.read(reader).find(s => s.id === definitionRef.id);
-			return { collection, server };
+			return { collection, server, blockedByPolicy: false };
 		});
 	}
 

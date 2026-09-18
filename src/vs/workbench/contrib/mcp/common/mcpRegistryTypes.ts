@@ -67,6 +67,12 @@ export interface IMcpResolveConnectionOptions {
 	taskManager: McpTaskManager;
 }
 
+export interface IMcpResolvedServerDefinition {
+	readonly server: McpServerDefinition | undefined;
+	readonly collection: McpCollectionDefinition | undefined;
+	readonly blockedByPolicy: boolean;
+}
+
 export interface IMcpRegistry {
 	readonly _serviceBrand: undefined;
 
@@ -79,7 +85,7 @@ export interface IMcpRegistry {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Helper function to observe a definition by its reference. */
-	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
+	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<IMcpResolvedServerDefinition>;
 
 	/** Discover new collections, returning newly-discovered ones. */
 	discoverCollections(): Promise<McpCollectionDefinition[]>;
