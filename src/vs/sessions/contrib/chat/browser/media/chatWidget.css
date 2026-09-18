@@ -164,6 +164,10 @@
 	}
 }
 
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container.has-no-actions {
+	display: none;
+}
+
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container:hover,
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container[data-picker-open='true'] {
 	background-color: var(--vscode-toolbar-hoverBackground);

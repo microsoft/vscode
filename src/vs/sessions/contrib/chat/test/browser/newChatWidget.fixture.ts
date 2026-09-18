@@ -386,6 +386,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
+	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
 		const separators = view.element.querySelectorAll<HTMLElement>('.new-chat-repo-config-container .action-item.repository-config-separator');
 		const separatorLabel = separators[0]?.querySelector<HTMLElement>('.action-label.separator');
@@ -404,6 +405,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				const style = targetWindow.getComputedStyle(action);
 				return style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.backgroundImage === 'none' && style.borderTopStyle === 'none';
 			}));
+	} else if (withChatBackground) {
+		assert(!!repositoryConfigContainer
+			&& repositoryConfigContainer.classList.contains('has-no-actions')
+			&& targetWindow.getComputedStyle(repositoryConfigContainer).display === 'none');
 	}
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
