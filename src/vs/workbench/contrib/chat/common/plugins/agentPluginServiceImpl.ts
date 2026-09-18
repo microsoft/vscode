@@ -19,7 +19,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -923,7 +923,9 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			const version = ++setupVersion;
 			const root = await this._getInstalledPluginsDir();
 			let watchRoot = root;
+			let pathToWatch = root;
 			while (!(await this._pathExists(watchRoot))) {
+				pathToWatch = watchRoot;
 				const parent = dirname(watchRoot);
 				if (isEqual(parent, watchRoot)) {
 					return;
@@ -933,18 +935,27 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			if (version !== setupVersion || this._store.isDisposed) {
 				return;
 			}
-
 			const store = new DisposableStore();
-			store.add(this._fileService.watch(watchRoot, { recursive: true, excludes: [] }));
-			store.add(this._fileService.onDidFilesChange(event => {
-				if (!event.affects(root)) {
+			const recursive = isEqual(watchRoot, root);
+			const onDidChange = (event: FileChangesEvent) => {
+				const watchedPathChanged = recursive
+					? event.affects(root)
+					: event.affects(pathToWatch) || event.contains(watchRoot, FileChangeType.DELETED);
+				if (!watchedPathChanged) {
 					return;
 				}
 				scheduler.schedule();
-				if (!isEqual(watchRoot, root) || event.contains(root, FileChangeType.DELETED)) {
+				if (!recursive || event.contains(root, FileChangeType.DELETED)) {
 					setupWatcherScheduler.schedule();
 				}
-			}));
+			};
+			if (recursive) {
+				store.add(this._fileService.watch(watchRoot, { recursive: true, excludes: [] }));
+				store.add(this._fileService.onDidFilesChange(onDidChange));
+			} else {
+				const ancestorWatcher = store.add(this._fileService.createWatcher(watchRoot, { recursive: false, excludes: [] }));
+				store.add(ancestorWatcher.onDidChange(onDidChange));
+			}
 			watcher.value = store;
 		};
 

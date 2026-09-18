@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
@@ -15,6 +17,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { FileChangesEvent, FileChangeType } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -135,6 +138,81 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 				resource: installedPluginsRoot.toString(),
 				recursive: true,
 			}],
+		});
+	}));
+
+	test('uses non-recursive ancestors until the install root exists and recovers after root replacement', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await fileService.createFolder(userHome);
+		const ancestorEvents = store.add(new Emitter<FileChangesEvent>());
+		const ancestorWatcherReady = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const rootWatcherReady = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		let ancestorWatcherCount = 0;
+		let rootWatcherCount = 0;
+		const createWatcherSpy = sinon.stub(fileService, 'createWatcher').callsFake(() => {
+			ancestorWatcherReady[ancestorWatcherCount++]?.complete();
+			return {
+				onDidChange: ancestorEvents.event,
+				dispose: () => { },
+			};
+		});
+		const originalWatch = fileService.watch.bind(fileService);
+		const watchSpy = sinon.stub(fileService, 'watch').callsFake((resource, options) => {
+			rootWatcherReady[rootWatcherCount++]?.complete();
+			return originalWatch(resource, options);
+		});
+		const discovery = createDiscovery();
+		discovery.start(enablementModel);
+
+		await waitForState(discovery.plugins, plugins => plugins?.length === 0);
+		await ancestorWatcherReady[0].p;
+
+		const pluginUri = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(pluginUri, 'spark-v1');
+		ancestorEvents.fire(new FileChangesEvent([{
+			resource: joinPath(userHome, '.copilot'),
+			type: FileChangeType.ADDED,
+		}], false));
+		const installedPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v1');
+		assert.ok(installedPlugins);
+		await rootWatcherReady[0].p;
+
+		await fileService.del(installedPluginsRoot, { recursive: true });
+		await waitForState(discovery.plugins, plugins => plugins?.length === 0);
+		await ancestorWatcherReady[1].p;
+
+		await writePlugin(pluginUri, 'spark-v2');
+		ancestorEvents.fire(new FileChangesEvent([{
+			resource: installedPluginsRoot,
+			type: FileChangeType.ADDED,
+		}], false));
+		const reinstalledPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v2');
+		assert.ok(reinstalledPlugins);
+		await rootWatcherReady[1].p;
+
+		const ancestorWatcherCalls = createWatcherSpy.getCalls().map(call => ({
+			resource: call.args[0].toString(),
+			recursive: call.args[1]?.recursive,
+		}));
+		const rootWatcherCalls = watchSpy.getCalls().map(call => ({
+			resource: call.args[0].toString(),
+			recursive: call.args[1]?.recursive,
+		}));
+		assert.deepStrictEqual({
+			firstAncestorWatcher: ancestorWatcherCalls[0],
+			lastRootWatcher: rootWatcherCalls.at(-1),
+			hasRecursiveAncestor: ancestorWatcherCalls.some(call => call.recursive),
+			labels: [installedPlugins[0].label, reinstalledPlugins[0].label],
+		}, {
+			firstAncestorWatcher: {
+				resource: userHome.toString(),
+				recursive: false,
+			},
+			lastRootWatcher: {
+				resource: installedPluginsRoot.toString(),
+				recursive: true,
+			},
+			hasRecursiveAncestor: false,
+			labels: ['spark-v1', 'spark-v2'],
 		});
 	}));
 });
