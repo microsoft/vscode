@@ -321,7 +321,8 @@ export function setup(logger: Logger, quality: Quality) {
 					} else {
 						await app.workbench.agentsWindow.connectTunnelHost(fixture.name, workspacePath);
 					}
-					await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
+					// The selected remote folder scopes the provider; a single session type has no dropdown.
+					await app.workbench.agentsWindow.selectSessionType('Copilot');
 					await app.workbench.agentsWindow.selectDevContainer(workspaceLabel);
 					const requestsBefore = context.mockServer.requestCount();
 					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
