@@ -8,14 +8,25 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
-import { ChatReferenceBinaryData, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseAutoModeTierPart, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatReferenceBinaryData, ChatResponseAutoModeTierPart as ExtHostChatResponseAutoModeTierPart, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
 import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
 suite('extHostTypeConverters', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('roundtrips Auto tier metadata including cleared attribution', () => {
+		assert.deepStrictEqual(([undefined, 'efficiency', 'balance', 'intelligence', 'fast'] as const).map(autoTier => {
+			const part = new ExtHostChatResponseAutoModeTierPart(autoTier);
+			const dto = ChatResponseAutoModeTierPart.from(part);
+			return { dto, roundtrip: ChatResponseAutoModeTierPart.to(dto).autoTier };
+		}), [undefined, 'efficiency', 'balance', 'intelligence', 'fast'].map(autoTier => ({
+			dto: { kind: 'autoModeTier', autoTier },
+			roundtrip: autoTier,
+		})));
+	});
 
 	test('converts voice progress to hidden chat progress', () => {
 		assert.deepStrictEqual(

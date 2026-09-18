@@ -189,6 +189,7 @@ class NullAutomodeService implements IAutomodeService {
 	}
 
 	readonly onDidRoute = Event.None;
+	readonly onDidResolveTier = Event.None;
 
 	invalidateRouterCache(): void { }
 }

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -287,6 +288,95 @@ suite('ChatModel', () => {
 			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
 			completionTokenCount: 5,
 			responseContent: '',
+		});
+	});
+
+	suite('Auto tier attribution', () => {
+		function createModel() {
+			return testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		}
+
+		function addRequest(model: ChatModel, modelId = 'copilot/auto') {
+			return model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, modelId);
+		}
+
+		test('updates only the originating request without visible response parts', () => {
+			const model = createModel();
+			const first = addRequest(model);
+			const later = addRequest(model);
+			model.acceptResponseProgress(later, { kind: 'autoModeTier', autoTier: 'intelligence' });
+			model.acceptResponseProgress(first, { kind: 'autoModeTier', autoTier: 'efficiency' });
+
+			assert.deepStrictEqual(model.getRequests().map(request => ({
+				tier: request.response?.autoTier,
+				content: request.response?.response.value,
+			})), [
+				{ tier: 'efficiency', content: [] },
+				{ tier: 'intelligence', content: [] },
+			]);
+		});
+
+		test('does not infer missing tiers or apply Auto metadata to other models', () => {
+			const model = createModel();
+			addRequest(model);
+			const other = addRequest(model, 'copilot/gpt-5');
+			model.acceptResponseProgress(other, { kind: 'autoModeTier', autoTier: 'balance' });
+			const failed = addRequest(model);
+			model.acceptResponseProgress(failed, { kind: 'autoModeTier', autoTier: 'fast' });
+			model.acceptResponseProgress(failed, { kind: 'autoModeTier', autoTier: undefined });
+
+			assert.deepStrictEqual(model.getRequests().map(request => request.response?.autoTier), [undefined, undefined, undefined]);
+		});
+
+		for (const isNotebook of [false, true]) {
+			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
+				const model = createModel();
+				const request = addRequest(model);
+				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
+				const operationLog = new ChatSessionOperationLog();
+				const buffers = [operationLog.createInitial(model)];
+
+				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined] as const) {
+					model.acceptResponseProgress(request, { kind: 'autoModeTier', autoTier });
+					model.acceptResponseProgress(request, {
+						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false,
+					}, true);
+					const mutation = operationLog.write(model);
+					if (mutation.op === 'replace') {
+						buffers.length = 0;
+					}
+					buffers.push(mutation.data);
+					operationLog.confirmWrite();
+				}
+
+				const serialized = [model.toJSON(), operationLog.read(VSBuffer.concat(buffers))];
+				assert.deepStrictEqual(serialized.map(value => {
+					const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					const response = restored.getRequests()[0].response!;
+					return {
+						autoTier: response.autoTier,
+						parts: response.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
+							? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
+							: { kind: part.kind }),
+					};
+				}), serialized.map(() => ({
+					autoTier: undefined,
+					parts: [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined], batches: 4 }],
+				})));
+			});
+		}
+
+		test('restores the resolved tier, not the picker configuration', () => {
+			const model = createModel();
+			const request = addRequest(model);
+			model.acceptResponseProgress(request, { kind: 'autoModeTier', autoTier: 'fast' });
+			const serialized = model.toJSON();
+			serialized.requests[0].modelConfiguration = { tier: 'balance' };
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: serialized, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			delete serialized.requests[0].autoTier;
+			const legacy = testDisposables.add(instantiationService.createInstance(ChatModel, { value: serialized, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+			assert.deepStrictEqual([restored, legacy].map(model => model.getRequests()[0].response?.autoTier), ['fast', undefined]);
 		});
 	});
 

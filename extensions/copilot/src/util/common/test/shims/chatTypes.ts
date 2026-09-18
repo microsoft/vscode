@@ -200,6 +200,13 @@ export class ChatResponseAutoModeResolutionPart {
 	}
 }
 
+export class ChatResponseAutoModeTierPart {
+	autoTier: 'efficiency' | 'balance' | 'intelligence' | 'fast' | undefined;
+	constructor(autoTier?: 'efficiency' | 'balance' | 'intelligence' | 'fast') {
+		this.autoTier = autoTier;
+	}
+}
+
 
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;

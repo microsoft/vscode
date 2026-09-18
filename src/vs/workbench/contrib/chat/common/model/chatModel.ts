@@ -33,7 +33,7 @@ import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVar
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { IChatRequestOrigin, ISerializableChatRequestOrigin, reviveChatRequestOrigin, serializeChatRequestOrigin } from '../chatRequestOrigin.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatAutoModeTierPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -178,9 +178,15 @@ export interface IChatTextEditGroupState {
 	applied: number;
 }
 
+export interface IChatEditMetadata {
+	readonly autoTier?: IChatAutoModeTierPart['autoTier'];
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
+	/** Attribution snapshots aligned with the edit batches. */
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 	done: boolean | undefined;
@@ -204,6 +210,7 @@ export interface ICellTextEditOperation {
 export interface IChatNotebookEditGroup {
 	uri: URI;
 	edits: (ICellTextEditOperation[] | ICellEditOperation[])[];
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
 	done: boolean | undefined;
@@ -344,6 +351,7 @@ export interface IChatResponseModel {
 	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
+	readonly autoTier?: IChatAutoModeTierPart['autoTier'];
 	readonly usage?: IChatUsage;
 	readonly usageObs: IObservable<IChatUsage | undefined>;
 	readonly completionTokenCount: number | undefined;
@@ -900,7 +908,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._contentChanged(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, editMetadata?: IChatEditMetadata): void {
 		if (progress.kind !== 'thinking') {
 			this.finalizeReasoningDuration();
 		}
@@ -983,14 +991,14 @@ export class Response extends AbstractResponse implements IDisposable {
 
 			if (progress.kind === 'textEdit' && !notebookUri) {
 				// Text edits to a regular (non-notebook) file
-				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			} else if (progress.kind === 'textEdit') {
 				// Text edits to a notebook cell - convert to ICellTextEditOperation
 				const cellEdits = progress.edits.map(edit => ({ uri: progress.uri, edit }));
-				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit, editMetadata);
 			} else {
 				// Notebook cell edits (ICellEditOperation)
-				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressTask') {
@@ -1098,26 +1106,34 @@ export class Response extends AbstractResponse implements IDisposable {
 		return false;
 	}
 
-	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'textEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
-	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'notebookEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
 	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate): void {
@@ -1204,6 +1220,7 @@ export interface IChatResponseModelParameters {
 	timestamp?: number;
 	vote?: ChatAgentVoteDirection;
 	result?: IChatAgentResult;
+	autoTier?: IChatAutoModeTierPart['autoTier'];
 	followups?: ReadonlyArray<IChatFollowup>;
 	isCompleteAddedRequest?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
@@ -1244,6 +1261,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _modelState = observableValue<ResponseModelStateT>(this, { value: ResponseModelState.Pending });
 	private _vote?: ChatAgentVoteDirection;
 	private _result?: IChatAgentResult;
+	private _autoTier?: IChatAutoModeTierPart['autoTier'];
+
+	get autoTier(): IChatAutoModeTierPart['autoTier'] {
+		return this._autoTier;
+	}
 	private readonly _usageObs = observableValue<IChatUsage | undefined>(this, undefined);
 	private _parentUsage: IChatUsage | undefined;
 	private readonly _subagentCopilotCredits = new Map<string, number>();
@@ -1458,6 +1480,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._elapsedMs = params.elapsedMs;
 		this._vote = params.vote;
 		this._result = params.result;
+		this._autoTier = params.autoTier;
 		this._followups = params.followups ? [...params.followups] : undefined;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this._shouldBeRemovedOnSend = params.shouldBeRemovedOnSend;
@@ -1562,7 +1585,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 * Apply a progress update to the actual response content.
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean) {
-		this._response.updateContent(responsePart, quiet);
+		this._response.updateContent(responsePart, quiet, this.request?.modelId === 'copilot/auto' ? { autoTier: this.autoTier } : undefined);
+	}
+
+	setAutoTier(autoTier: IChatAutoModeTierPart['autoTier']): void {
+		this._autoTier = this.request?.modelId === 'copilot/auto' ? autoTier : undefined;
+		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean {
@@ -1807,6 +1835,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return {
 			responseId: this.id,
 			result: this.result,
+			autoTier: this.autoTier,
 			responseMarkdownInfo: this.codeBlockInfos?.map<ISerializableMarkdownInfo>(info => ({ suggestionId: info.suggestionId })),
 			followups: this.followups,
 			modelState: modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput ? { value: ResponseModelState.Cancelled, completedAt: Date.now() } : modelState,
@@ -1911,6 +1940,7 @@ export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 interface ISerializableChatResponseData {
 	responseId?: string;
 	result?: IChatAgentResult; // Optional for backcompat
+	autoTier?: IChatAutoModeTierPart['autoTier'];
 	responseMarkdownInfo?: ISerializableMarkdownInfo[];
 	followups?: ReadonlyArray<IChatFollowup>;
 	modelState?: ResponseModelStateT;
@@ -3042,6 +3072,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				vote: raw.vote,
 				timestamp: typeof raw.responseTimestamp === 'number' && raw.responseTimestamp > 0 ? raw.responseTimestamp : requestTimestamp,
 				result,
+				autoTier: raw.autoTier,
 				followups: raw.followups,
 				restoredId: raw.responseId,
 				timeSpentWaiting: raw.timeSpentWaiting,
@@ -3304,6 +3335,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'usage') {
 			request.response.setUsage(progress);
+		} else if (progress.kind === 'autoModeTier') {
+			request.response.setAutoTier(progress.autoTier);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'codeCitation') {

@@ -21,7 +21,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IEditorPane } from '../../../../common/editor.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatProgress, IChatWorkspaceEdit } from '../chatService/chatService.js';
-import { ChatModel, IChatRequestDisablement, IChatResponseModel } from '../model/chatModel.js';
+import { ChatModel, IChatEditMetadata, IChatRequestDisablement, IChatResponseModel } from '../model/chatModel.js';
 import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -74,9 +74,9 @@ export interface WorkingSetDisplayMetadata {
 }
 
 export interface IStreamingEdits {
-	pushText(edits: TextEdit[], isLastEdits: boolean): void;
-	pushNotebookCellText(cell: URI, edits: TextEdit[], isLastEdits: boolean): void;
-	pushNotebook(edits: ICellEditOperation[], isLastEdits: boolean): void;
+	pushText(edits: TextEdit[], isLastEdits: boolean, metadata?: IChatEditMetadata): void;
+	pushNotebookCellText(cell: URI, edits: TextEdit[], isLastEdits: boolean, metadata?: IChatEditMetadata): void;
+	pushNotebook(edits: ICellEditOperation[], isLastEdits: boolean, metadata?: IChatEditMetadata): void;
 	/** Marks edits as done, idempotent */
 	complete(): void;
 }

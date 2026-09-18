@@ -2244,6 +2244,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseHookPart: extHostTypes.ChatResponseHookPart,
 			ChatResponseVoiceProgressPart: extHostTypes.ChatResponseVoiceProgressPart,
 			ChatResponseAutoModeResolutionPart: extHostTypes.ChatResponseAutoModeResolutionPart,
+			ChatResponseAutoModeTierPart: extHostTypes.ChatResponseAutoModeTierPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseReferencePart2: extHostTypes.ChatResponseReferencePart,
 			ChatResponseCodeCitationPart: extHostTypes.ChatResponseCodeCitationPart,

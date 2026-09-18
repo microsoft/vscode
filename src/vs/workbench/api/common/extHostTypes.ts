@@ -3289,6 +3289,13 @@ export class ChatResponseAutoModeResolutionPart {
 	}
 }
 
+export class ChatResponseAutoModeTierPart {
+	autoTier: vscode.ChatResponseAutoModeTierPart['autoTier'];
+	constructor(autoTier?: vscode.ChatResponseAutoModeTierPart['autoTier']) {
+		this.autoTier = autoTier;
+	}
+}
+
 export class ChatResponseWarningPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {

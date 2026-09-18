@@ -30,7 +30,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
@@ -173,7 +173,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return diff ? diff.identical : false;
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata = { autoTier: responseModel?.autoTier }): Promise<{ rewriteRatio: number; maxLineNumber: number }> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedModel.uri), ' INVALID args, can only edit THIS document');
@@ -182,7 +182,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		let maxLineNumber = 0;
 		let rewriteRatio = 0;
 
-		const source = this._createEditSource(responseModel);
+		const source = this._createEditSource(responseModel, metadata);
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
@@ -255,14 +255,14 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return { rewriteRatio, maxLineNumber };
 	}
 
-	private _createEditSource(responseModel: IChatResponseModel | undefined) {
+	private _createEditSource(responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata) {
 
 		if (!responseModel) {
 			return EditSources.unknown({ name: 'editSessionUndoRedo' });
 		}
 
 		const sessionId = chatSessionResourceToId(responseModel.session.sessionResource);
-		const request = responseModel.session.getRequests().at(-1);
+		const request = responseModel.request;
 		const languageId = this.modifiedModel.getLanguageId();
 		const agent = responseModel.agent;
 		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
@@ -271,7 +271,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 			return EditSources.inlineChatApplyEdit({
 				modelId: request?.modelId,
-				requestId: request?.id,
+				autoTier: metadata.autoTier,
+				requestId: responseModel.requestId,
 				sessionId,
 				languageId,
 				extensionId,
@@ -280,7 +281,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		return EditSources.chatApplyEdits({
 			modelId: request?.modelId,
-			requestId: request?.id,
+			autoTier: metadata.autoTier,
+			requestId: responseModel.requestId,
 			sessionId,
 			languageId,
 			mode: request?.modeInfo?.telemetryModeId,

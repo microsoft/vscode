@@ -632,6 +632,11 @@ export interface IChatAutoModeResolutionPart {
 	resolved?: { readonly id: string; readonly name: string };
 }
 
+export interface IChatAutoModeTierPart {
+	kind: 'autoModeTier';
+	autoTier: 'efficiency' | 'balance' | 'intelligence' | 'fast' | undefined;
+}
+
 /**
  * A progress part representing the execution result of a hook.
  * Aligned with the hook output JSON structure: { stopReason, systemMessage, hookSpecificOutput }.
@@ -1561,6 +1566,7 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 
 export type IChatProgress =
 	| IChatMarkdownContent
+	| IChatAutoModeTierPart
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatUsage
 	| IChatTreeData

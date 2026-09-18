@@ -407,6 +407,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseAutoModeResolutionPart ||
+						part instanceof extHostTypes.ChatResponseAutoModeTierPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -424,6 +425,8 @@ export class ChatAgentResponseStream {
 					} else if (part instanceof extHostTypes.ChatResponseAutoModeResolutionPart) {
 						const dto = typeConvert.ChatResponseAutoModeResolutionPart.from(part);
 						_report(dto);
+					} else if (part instanceof extHostTypes.ChatResponseAutoModeTierPart) {
+						_report(typeConvert.ChatResponseAutoModeTierPart.from(part));
 					} else if (part instanceof extHostTypes.ChatResponseAnchorPart) {
 						const dto = typeConvert.ChatResponseAnchorPart.from(part);
 
