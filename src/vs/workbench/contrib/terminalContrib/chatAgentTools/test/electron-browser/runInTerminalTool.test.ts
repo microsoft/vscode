@@ -1170,7 +1170,6 @@ suite('RunInTerminalTool', () => {
 			'git show --format=%B HEAD',
 			'git show --output-format=text HEAD',
 			'git diff main',
-			'git grep "TODO"',
 
 			// PowerShell commands
 			'Get-ChildItem',
@@ -1264,6 +1263,7 @@ suite('RunInTerminalTool', () => {
 			// git show file output
 			'git show --format=%B --output=message.txt HEAD',
 			'git show --output message.txt HEAD',
+			'git grep "TODO"',
 
 			// Dangerous file operations
 			'rm README.md',
