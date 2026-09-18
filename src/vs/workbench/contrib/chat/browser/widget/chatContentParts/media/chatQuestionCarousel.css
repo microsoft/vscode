@@ -13,7 +13,7 @@
 .interactive-session .chat-question-carousel-container {
 	margin: 8px 0;
 	container-type: inline-size;
-	max-height: min(420px, 45vh);
+	max-height: min(300px, 35vh);
 	position: relative;
 }
 
@@ -189,6 +189,7 @@
 			}
 
 			.chat-question-list-label-desc {
+				display: none;
 				font-weight: var(--vscode-fontWeight-regular);
 				color: var(--vscode-descriptionForeground);
 			}
