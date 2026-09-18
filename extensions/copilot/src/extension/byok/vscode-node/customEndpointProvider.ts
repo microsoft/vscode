@@ -91,6 +91,10 @@ interface _CustomEndpointModelConfig {
 	name: string;
 	url: string;
 	apiType?: CustomEndpointApiType;
+	description?: string;
+	icon?: string;
+	maxTokens?: number;
+	credits?: { input?: number; output?: number; cacheRead?: number };
 	/** Optional when {@link contextWindow} is set; then derived as `contextWindow - maxOutputTokens`. */
 	maxInputTokens?: number;
 	maxOutputTokens: number;
@@ -160,11 +164,15 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
-			contextWindow: modelConfiguration?.contextWindow,
+			contextWindow: modelConfiguration?.contextWindow ?? modelConfiguration?.maxTokens,
 			toolCalling: !!model.capabilities?.toolCalling || false,
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
+			description: modelConfiguration?.description,
+			icon: modelConfiguration?.icon,
+			credits: modelConfiguration?.credits,
+			maxTokens: modelConfiguration?.maxTokens,
 			thinking: modelConfiguration?.thinking ?? false,
 			adaptiveThinking: modelConfiguration?.adaptiveThinking,
 			minThinkingBudget: modelConfiguration?.minThinkingBudget,
