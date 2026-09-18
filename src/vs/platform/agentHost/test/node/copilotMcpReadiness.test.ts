@@ -17,7 +17,7 @@ class TestClock {
 suite('CopilotMcpReadinessTracker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reports the slowest parallel server as the startup window', () => {
+	test('reports the slowest individual server startup', () => {
 		const clock = new TestClock();
 		const tracker = new CopilotMcpReadinessTracker(clock);
 		for (const name of ['fast', 'slow', 'broken', 'waiting']) {
@@ -40,7 +40,25 @@ suite('CopilotMcpReadinessTracker', () => {
 		});
 	});
 
-	test('keeps the first settle time when a server is re-reported', () => {
+	test('excludes idle time between an early server settling and a later one starting', () => {
+		const clock = new TestClock();
+		const tracker = new CopilotMcpReadinessTracker(clock);
+		tracker.observe('a', 'pending');
+		clock.advanceTo(100);
+		tracker.observe('a', 'connected');
+
+		// Ten minutes later a second server is added and takes one second.
+		clock.advanceTo(600_000);
+		tracker.observe('b', 'pending');
+		clock.advanceTo(601_000);
+		tracker.observe('b', 'connected');
+
+		assert.deepStrictEqual(tracker.snapshot(), {
+			serverCount: 2, readyCount: 2, failedCount: 0, unresolvedCount: 0, stoppedCount: 0, slowestServerMs: 1000,
+		});
+	});
+
+	test('keeps the first duration when a server is re-reported', () => {
 		const clock = new TestClock();
 		const tracker = new CopilotMcpReadinessTracker(clock);
 		tracker.observe('server', 'pending');
@@ -54,35 +72,41 @@ suite('CopilotMcpReadinessTracker', () => {
 		});
 	});
 
-	test('treats needs-auth as unsettled and reports no window until something settles', () => {
+	test('reports no duration for startups it did not observe end to end', () => {
 		const clock = new TestClock();
-		const tracker = new CopilotMcpReadinessTracker(clock);
-		tracker.observe('auth', 'needs-auth');
+		// Still starting.
+		const unresolved = new CopilotMcpReadinessTracker(clock);
+		unresolved.observe('auth', 'needs-auth');
+		// First seen already connected, e.g. an inventory seed after the fact.
+		const seeded = new CopilotMcpReadinessTracker(clock);
+		seeded.observe('already-up', 'connected');
 		clock.advanceTo(2000);
 
-		assert.deepStrictEqual([tracker.snapshot(), new CopilotMcpReadinessTracker(new TestClock()).snapshot()], [
+		assert.deepStrictEqual([unresolved.snapshot(), seeded.snapshot(), new CopilotMcpReadinessTracker(new TestClock()).snapshot()], [
 			{ serverCount: 1, readyCount: 0, failedCount: 0, unresolvedCount: 1, stoppedCount: 0, slowestServerMs: undefined },
+			{ serverCount: 1, readyCount: 1, failedCount: 0, unresolvedCount: 0, stoppedCount: 0, slowestServerMs: undefined },
 			{ serverCount: 0, readyCount: 0, failedCount: 0, unresolvedCount: 0, stoppedCount: 0, slowestServerMs: undefined },
 		]);
 	});
 
-	test('excludes servers that never start from the window rather than reporting zero', () => {
+	test('excludes servers that never start, and times one that starts after being disabled', () => {
 		const clock = new TestClock();
 		const allStopped = new CopilotMcpReadinessTracker(clock);
 		allStopped.observe('off', 'disabled');
 		allStopped.observe('absent', 'not_configured');
 
-		// A stopped server observed first must not anchor the window early.
-		const mixed = new CopilotMcpReadinessTracker(clock);
-		mixed.observe('off', 'disabled');
+		// Disabled first, then enabled and takes a second: the disabled
+		// observation must not anchor or short-circuit the measurement.
+		const enabledLater = new CopilotMcpReadinessTracker(clock);
+		enabledLater.observe('later', 'disabled');
 		clock.advanceTo(1000);
-		mixed.observe('real', 'pending');
-		clock.advanceTo(4000);
-		mixed.observe('real', 'connected');
+		enabledLater.observe('later', 'pending');
+		clock.advanceTo(2000);
+		enabledLater.observe('later', 'connected');
 
-		assert.deepStrictEqual([allStopped.snapshot(), mixed.snapshot()], [
+		assert.deepStrictEqual([allStopped.snapshot(), enabledLater.snapshot()], [
 			{ serverCount: 2, readyCount: 0, failedCount: 0, unresolvedCount: 0, stoppedCount: 2, slowestServerMs: undefined },
-			{ serverCount: 2, readyCount: 1, failedCount: 0, unresolvedCount: 0, stoppedCount: 1, slowestServerMs: 3000 },
+			{ serverCount: 1, readyCount: 1, failedCount: 0, unresolvedCount: 0, stoppedCount: 0, slowestServerMs: 1000 },
 		]);
 	});
 });

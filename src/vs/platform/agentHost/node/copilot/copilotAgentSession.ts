@@ -3063,7 +3063,13 @@ export class CopilotAgentSession extends Disposable {
 
 		const sdkAttachments = await this._toSdkAttachments(attachments);
 
+		// Preparation is timed separately from the send: it awaits several RPCs,
+		// including an MCP inventory refresh that can itself wait on live server
+		// discovery. Folding the two together would attribute a preparation stall
+		// to the provider call, or hide it entirely.
+		const prepareWatch = StopWatch.create(false);
 		await this._prepareSdkTurn(mode);
+		const prepareBlockedMs = Math.round(prepareWatch.elapsed());
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 		const sendingTurn = this._currentTurn.value;
 		sendingTurn?.markProviderCallPending();
@@ -3087,10 +3093,10 @@ export class CopilotAgentSession extends Disposable {
 			sendingTurn?.markProviderCallRejected();
 			throw error;
 		} finally {
-			// Measured around `session.send()` alone: the provider holds this call
-			// until session startup (notably MCP server readiness) settles, and the
-			// user is already waiting with nothing on screen. It ends before the
-			// turn begins, so no turn telemetry covers it.
+			// Reported as two separate phases so a stall can be attributed. The
+			// send is the provider call alone; preparation precedes it and awaits
+			// an MCP inventory refresh that can wait on live server discovery.
+			// Host turn timing covers both in its total but attributes neither.
 			//
 			// Guarded because this runs in a `finally`: a throw from reporting here
 			// would replace the provider error the `catch` above is rethrowing,
@@ -3099,14 +3105,16 @@ export class CopilotAgentSession extends Disposable {
 				const sendBlockedMs = Math.round(sendWatch.elapsed());
 				const mcp = this._mcpReadiness.snapshot();
 				this._telemetryReporter.providerSendBlocked(
-					this.resourceUri.scheme,
-					this.resourceUri.toString(),
+					this._ownerSessionUri.scheme,
+					this._ownerSessionUri.toString(),
+					this._turnId,
+					prepareBlockedMs,
 					sendBlockedMs,
 					isFirstSendOfSession,
 					sendFailed,
 					mcp,
 				);
-				this._logService.info(`[Copilot:${this.sessionId}] session.send() blocked for ${sendBlockedMs}ms (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
+				this._logService.info(`[Copilot:${this.sessionId}] send phases: prepare=${prepareBlockedMs}ms, send=${sendBlockedMs}ms (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
 			} catch (err) {
 				this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`);
 			}

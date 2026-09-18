@@ -36,11 +36,11 @@ export interface IMcpReadinessSnapshot {
 	/** Servers that never started because they are `disabled` or `not_configured`. */
 	readonly stoppedCount: number;
 	/**
-	 * Milliseconds from the first server that started to the last one to settle,
-	 * or `undefined` when no server has settled — including a session whose
-	 * servers are all disabled, which has no startup window at all rather than a
-	 * zero-length one. Startup is parallel, so this is the cost of the slowest
-	 * server rather than the sum.
+	 * The longest startup any single server took, in milliseconds, or
+	 * `undefined` when no server's startup was observed end to end. Servers
+	 * start in parallel, so this is the cost that gates readiness rather than
+	 * the sum. Measured per server, so idle time between one server settling
+	 * and another starting later in the session is excluded.
 	 */
 	readonly slowestServerMs: number | undefined;
 }
@@ -48,35 +48,46 @@ export interface IMcpReadinessSnapshot {
 /**
  * Tracks MCP server startup timing for a single Copilot SDK session.
  *
- * Servers start in parallel, so the wall-clock cost of MCP startup is set by
- * the slowest server. This records when the first server started and when the
- * last one settled, which is the window a blocked first turn overlaps with.
+ * Each server is timed individually, from the first observation showing it
+ * starting to the observation showing it settled, and the reported figure is
+ * the longest of those. Measuring per server rather than across the whole
+ * session keeps the figure meaningful when servers are added or restarted
+ * later in a long-lived session: idle time between an early server settling
+ * and a later one starting is not part of any server's startup.
+ *
  * Servers that never start (`disabled` / `not_configured`) are counted in the
- * inventory but excluded from that window, so a session of only disabled
- * servers reports no window rather than a zero-length one.
+ * inventory but contribute no duration, and a server first seen already
+ * settled contributes none either — its startup was not observed, which is
+ * different from it having taken no time.
  *
  * Only forward progress is recorded: a server that settles and is later
- * re-reported keeps its original settle time, so repeated inventory snapshots
+ * re-reported keeps its original duration, so repeated inventory snapshots
  * do not inflate the measurement.
  */
 export class CopilotMcpReadinessTracker {
 
 	private readonly _statuses = new Map<string, SdkMcpServerStatus>();
-	private readonly _settledAtMs = new Map<string, number>();
-	private _firstStartedMs: number | undefined;
+	private readonly _startedAtMs = new Map<string, number>();
+	private readonly _durationMs = new Map<string, number>();
 
 	constructor(private readonly _clock: Pick<StopWatch, 'elapsed'> = StopWatch.create()) { }
 
-	/** Records `status` for `name`, stamping the settle time the first time it finishes starting. */
+	/** Records `status` for `name`, closing that server's startup interval once it settles. */
 	observe(name: string, status: SdkMcpServerStatus): void {
 		const now = this._clock.elapsed();
 		this._statuses.set(name, status);
 		if (!isParticipatingStatus(status)) {
 			return;
 		}
-		this._firstStartedMs ??= now;
-		if (isSettledStatus(status) && !this._settledAtMs.has(name)) {
-			this._settledAtMs.set(name, now);
+		if (!isSettledStatus(status)) {
+			if (!this._startedAtMs.has(name)) {
+				this._startedAtMs.set(name, now);
+			}
+			return;
+		}
+		const startedAtMs = this._startedAtMs.get(name);
+		if (startedAtMs !== undefined && !this._durationMs.has(name)) {
+			this._durationMs.set(name, now - startedAtMs);
 		}
 	}
 
@@ -96,17 +107,13 @@ export class CopilotMcpReadinessTracker {
 				unresolvedCount++;
 			}
 		}
-		const lastSettledMs = this._settledAtMs.size > 0 ? Math.max(...this._settledAtMs.values()) : undefined;
-		const firstStartedMs = this._firstStartedMs;
 		return {
 			serverCount: this._statuses.size,
 			readyCount,
 			failedCount,
 			unresolvedCount,
 			stoppedCount,
-			slowestServerMs: lastSettledMs !== undefined && firstStartedMs !== undefined
-				? Math.round(lastSettledMs - firstStartedMs)
-				: undefined,
+			slowestServerMs: this._durationMs.size > 0 ? Math.round(Math.max(...this._durationMs.values())) : undefined,
 		};
 	}
 }

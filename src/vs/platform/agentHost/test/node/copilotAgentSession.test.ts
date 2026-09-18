@@ -673,16 +673,28 @@ class CapturingTelemetryService implements ITelemetryService {
 
 /**
  * Projects `agentHost.providerSendBlocked` payloads into a stable shape for
- * assertions: the two duration fields are wall-clock measurements, so only
- * their presence is comparable.
+ * assertions: the duration fields are wall-clock measurements, so only their
+ * presence is comparable.
  */
 function providerSendBlockedEvents(telemetryService: CapturingTelemetryService): unknown[] {
 	return telemetryService.events
 		.filter(event => event.eventName === 'agentHost.providerSendBlocked')
 		.map(event => {
-			const { sendBlockedMs, slowestMcpServerMs, agentSessionId, ...rest } = event.data as Record<string, unknown>;
-			return { ...rest, hasBlockedMs: typeof sendBlockedMs === 'number', hasSlowestMcpServerMs: typeof slowestMcpServerMs === 'number' };
+			const { sendBlockedMs, prepareBlockedMs, slowestMcpServerMs, agentSessionId, ...rest } = event.data as Record<string, unknown>;
+			return {
+				...rest,
+				hasBlockedMs: typeof sendBlockedMs === 'number',
+				hasPrepareMs: typeof prepareBlockedMs === 'number',
+				hasSlowestMcpServerMs: typeof slowestMcpServerMs === 'number',
+			};
 		});
+}
+
+/** Raw payload of the single `agentHost.providerSendBlocked` event, for timing assertions. */
+function singleProviderSendBlockedEvent(telemetryService: CapturingTelemetryService): Record<string, number> {
+	const events = telemetryService.events.filter(event => event.eventName === 'agentHost.providerSendBlocked');
+	assert.strictEqual(events.length, 1, 'expected exactly one providerSendBlocked event');
+	return events[0].data as Record<string, number>;
 }
 
 /**
@@ -3209,14 +3221,14 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [
 			{
-				provider: 'copilot', isFirstSendOfSession: true, sendFailed: false,
+				provider: 'copilot', turnId: 'turn-1', isFirstSendOfSession: true, sendFailed: false,
 				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
-				hasBlockedMs: true, hasSlowestMcpServerMs: true,
+				hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
 			},
 			{
-				provider: 'copilot', isFirstSendOfSession: false, sendFailed: false,
+				provider: 'copilot', turnId: 'turn-2', isFirstSendOfSession: false, sendFailed: false,
 				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
-				hasBlockedMs: true, hasSlowestMcpServerMs: true,
+				hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
 			},
 		]);
 	});
@@ -3229,10 +3241,34 @@ suite('CopilotAgentSession', () => {
 		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
 
 		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [{
-			provider: 'copilot', isFirstSendOfSession: true, sendFailed: true,
+			provider: 'copilot', turnId: 'turn-failed', isFirstSendOfSession: true, sendFailed: true,
 			mcpServerCount: 0, mcpReadyCount: 0, mcpFailedCount: 0, mcpUnresolvedCount: 0, mcpStoppedCount: 0,
-			hasBlockedMs: true, hasSlowestMcpServerMs: false,
+			hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
 		}]);
+	});
+
+	test('a slow turn preparation is attributed to the prepare phase, not the provider send', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+
+		// `_prepareSdkTurn` awaits several RPCs before the send, including an MCP
+		// inventory refresh that can itself wait on live server discovery. Gate one
+		// of those awaits: the delay must land in `prepareBlockedMs`, never in
+		// `sendBlockedMs`, or a preparation stall would be misread as a slow send.
+		let releasePrepare = () => { };
+		const prepareGate = new Promise<void>(resolve => { releasePrepare = resolve; });
+		mockSession.rpc.mode.set = async () => { await prepareGate; };
+
+		const sent = session.send('hello', undefined, 'turn-slow-prepare', 'plan');
+		await timeout(40);
+		releasePrepare();
+		await sent;
+
+		const event = singleProviderSendBlockedEvent(telemetryService);
+		assert.ok(
+			event.prepareBlockedMs >= 30 && event.sendBlockedMs < 30,
+			`preparation delay must not be attributed to the send: ${JSON.stringify(event)}`,
+		);
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {

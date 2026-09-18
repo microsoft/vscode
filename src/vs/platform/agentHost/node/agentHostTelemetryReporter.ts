@@ -200,6 +200,8 @@ export interface IAgentHostClientConnectionReport {
 export interface IAgentHostProviderSendBlockedEvent {
 	provider: string;
 	agentSessionId: string;
+	turnId: string;
+	prepareBlockedMs: number;
 	sendBlockedMs: number;
 	isFirstSendOfSession: boolean;
 	sendFailed: boolean;
@@ -224,17 +226,19 @@ export interface IAgentHostMcpReadinessReport {
 export type IAgentHostProviderSendBlockedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
-	sendBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the provider send call blocked before returning. This precedes turn start, so it is not covered by turn timings.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn this send belongs to, so the phases can be joined to the turn and first-response timings.' };
+	prepareBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent preparing the turn before the provider send call, including the MCP inventory refresh that can wait on live server discovery.' };
+	sendBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the provider send call itself blocked before returning, excluding turn preparation.' };
 	isFirstSendOfSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this was the first send on a newly created provider session, where startup costs are paid.' };
 	sendFailed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the provider send call threw instead of returning normally.' };
 	mcpServerCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers observed for the session when the send returned.' };
 	mcpReadyCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had connected when the send returned.' };
 	mcpFailedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had failed when the send returned.' };
 	mcpUnresolvedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers still starting or awaiting authentication when the send returned.' };
-	mcpStoppedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that never started because they are disabled or not configured, and so took no part in the startup window.' };
-	slowestMcpServerMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed MCP server to the last one to settle; absent when none had settled.' };
+	mcpStoppedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that never started because they are disabled or not configured, and so contributed no startup time.' };
+	slowestMcpServerMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The longest startup any single MCP server took, in milliseconds; absent when no server startup was observed end to end.' };
 	owner: 'vijayupadya';
-	comment: 'Measures how long the provider send call blocks before a turn can start, with the MCP server startup context it overlaps.';
+	comment: 'Measures the turn-preparation and provider-send phases that precede provider execution, with the MCP server startup context they overlap.';
 };
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
@@ -1059,15 +1063,19 @@ export class AgentHostTelemetryReporter {
 	}
 
 	/**
-	 * Reports how long a provider send call blocked before returning. This
-	 * window sits before turn start, so it is invisible to turn telemetry even
-	 * though the user is already waiting. MCP counts describe the server
-	 * startup this window overlaps, which is the usual reason it is long.
+	 * Reports the two phases that precede provider execution: turn preparation
+	 * (which awaits an MCP inventory refresh that can wait on live server
+	 * discovery) and the provider send call itself. Host turn timing covers
+	 * both inside its total but attributes neither, so a stall in one cannot
+	 * be told from a stall in the other. MCP counts describe the server startup
+	 * these phases overlap, which is the usual reason either is long.
 	 */
-	providerSendBlocked(provider: string, session: string, sendBlockedMs: number, isFirstSendOfSession: boolean, sendFailed: boolean, mcp: IAgentHostMcpReadinessReport): void {
+	providerSendBlocked(provider: string, session: string, turnId: string, prepareBlockedMs: number, sendBlockedMs: number, isFirstSendOfSession: boolean, sendFailed: boolean, mcp: IAgentHostMcpReadinessReport): void {
 		this._telemetryService.publicLog2<IAgentHostProviderSendBlockedEvent, IAgentHostProviderSendBlockedClassification>('agentHost.providerSendBlocked', {
 			provider,
 			agentSessionId: AgentSession.id(session),
+			turnId,
+			prepareBlockedMs,
 			sendBlockedMs,
 			isFirstSendOfSession,
 			sendFailed,
