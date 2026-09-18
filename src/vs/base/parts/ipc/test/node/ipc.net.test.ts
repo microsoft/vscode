@@ -639,26 +639,38 @@ flakySuite('IPC, create handle', () => {
 		return testIPCHandle(createRandomIPCHandle());
 	});
 
+	test('createRandomIPCHandle falls back when the runtime directory is missing', () => {
+		if (process.platform !== 'linux') {
+			return;
+		}
+
+		const missingRuntimeDir = `${tmpdir()}/vscode-ipc-missing-${process.pid}-${Date.now()}`;
+		const handle = createRandomIPCHandle(missingRuntimeDir);
+		assert.ok(handle.startsWith(`${tmpdir()}/`));
+		return testIPCHandle(handle);
+	});
+
+	test('createRandomIPCHandle falls back when the runtime path is not a directory', () => {
+		if (process.platform !== 'linux') {
+			return;
+		}
+
+		const handle = createRandomIPCHandle(process.execPath);
+		assert.ok(handle.startsWith(`${tmpdir()}/`));
+		return testIPCHandle(handle);
+	});
+
 	test('createStaticIPCHandle', async () => {
 		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test', '1.64.0'));
 	});
 
 	function testIPCHandle(handle: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
-			const pipeName = createRandomIPCHandle();
-
 			const server = createServer();
-
-			server.on('error', () => {
-				return new Promise(() => server.close(() => reject()));
-			});
-
-			server.listen(pipeName, () => {
+			server.once('error', reject);
+			server.listen(handle, () => {
 				server.removeListener('error', reject);
-
-				return new Promise(() => {
-					server.close(() => resolve());
-				});
+				server.close(error => error ? reject(error) : resolve());
 			});
 		});
 	}
