@@ -17,20 +17,38 @@ import './media/chatEditStatsButton.css';
 export function aggregateChatEditDiffs(diffs: Iterable<IChatContentPartDiffData>): IChatContentPartDiffData {
 	let added = 0;
 	let removed = 0;
-	const resources = new Map<string, IChatContentPartDiffResource>();
+	const intervalsByFile = new Map<string, IChatContentPartDiffResource[]>();
 	for (const diff of diffs) {
 		added += diff.added;
 		removed += diff.removed;
 		for (const resource of diff.resources) {
+			if (resource.originalURI === undefined && resource.modifiedURI === undefined) {
+				continue;
+			}
 			const key = getComparisonKey(resource.resource);
-			const first = resources.get(key);
-			resources.set(key, first ? { ...resource, originalURI: first.originalURI } : resource);
+			const intervals = intervalsByFile.get(key) ?? [];
+			intervalsByFile.set(key, intervals);
+			// Only intervals that provably follow each other are joined. Sources can arrive in any
+			// order (restored subagent history is inserted next to its launch entry), so unrelated
+			// snapshots stay separate rather than being spliced into a diff nobody made.
+			const successor = intervals.findIndex(interval => isSameSnapshot(interval.modifiedURI, resource.originalURI));
+			if (successor >= 0) {
+				intervals[successor] = { ...intervals[successor], resource: resource.resource, modifiedURI: resource.modifiedURI };
+				continue;
+			}
+			const predecessor = intervals.findIndex(interval => isSameSnapshot(resource.modifiedURI, interval.originalURI));
+			if (predecessor >= 0) {
+				intervals[predecessor] = { ...intervals[predecessor], originalURI: resource.originalURI };
+				continue;
+			}
+			intervals.push(resource);
 		}
 	}
-	return {
-		added, removed,
-		resources: [...resources.values()].filter(resource => resource.originalURI !== undefined || resource.modifiedURI !== undefined),
-	};
+	return { added, removed, resources: [...intervalsByFile.values()].flat() };
+}
+
+function isSameSnapshot(a: URI | undefined, b: URI | undefined): boolean {
+	return a !== undefined && b !== undefined && getComparisonKey(a) === getComparisonKey(b);
 }
 
 export class ChatEditStatsButton extends Button {

@@ -718,6 +718,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly pendingStickyScrollStateRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly templateDataByRow = new WeakMap<HTMLElement, IChatListItemTemplate>();
 	private readonly thinkingPartOwners = new WeakMap<IChatContentPart, ChatThinkingContentPart>();
+	/** Subagent markdown items by the no-content shim that stands in for them, so a re-render can retire the previous revision. */
+	private readonly subagentMarkdownItems = new WeakMap<IChatContentPart, { subagentPart: ChatSubagentContentPart; codeblocksPartId: string }>();
 	private readonly subagentDisclosureObservers = new WeakMap<ChatSubagentContentPart, DisposableMap<string>>();
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 
@@ -3084,6 +3086,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					alreadyRenderedPart.dispose();
 				}
 
+				// A subagent markdown item is re-rendered as a new part with a new id, so retire the
+				// revision it replaces before it is appended again.
+				const subagentMarkdownItem = this.subagentMarkdownItems.get(alreadyRenderedPart);
+				if (subagentMarkdownItem) {
+					subagentMarkdownItem.subagentPart.removeMarkdownItemByPartId(subagentMarkdownItem.codeblocksPartId);
+				}
+
 				// Replace old DOM from thinking wrapper to prevent accumulation
 				// of duplicate entries when re-rendering pinned parts.
 				if (alreadyRenderedPart.domNode) {
@@ -5208,10 +5217,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						markdownPart,
 						markdownPart,
 					);
-					return this.renderNoContent(other =>
+					const shim = this.renderNoContent(other =>
 						other.kind === 'markdownContent'
 						&& other.content.value === markdown.content.value
 						&& extractSubAgentInvocationIdFromText(other.content.value) === subAgentInvocationId);
+					this.subagentMarkdownItems.set(shim, { subagentPart, codeblocksPartId: markdownPart.codeblocksPartId });
+					return shim;
 				}
 			}
 
@@ -5534,17 +5545,13 @@ export function isWaitingForMcpServers(parts: readonly IChatRendererContent[]): 
 
 /**
  * The participant-authored progress text a persistent footer should show instead of a generic
- * working phrase: the trailing progress message, or an unfinished progress task.
+ * working phrase. Only trailing progress messages qualify: they are hidden once anything follows
+ * them, so the footer is their only surface. A pending progress task keeps its own visible row
+ * (and announcement), so repeating it here would show the text twice.
  */
 export function getTrailingProgressLabel(parts: readonly IChatRendererContent[]): IMarkdownString | undefined {
 	const lastPart = parts.at(-1);
-	if (lastPart?.kind === 'progressMessage') {
-		return lastPart.content;
-	}
-	if (lastPart?.kind === 'progressTask' && !lastPart.deferred.isSettled) {
-		return lastPart.content;
-	}
-	return undefined;
+	return lastPart?.kind === 'progressMessage' ? lastPart.content : undefined;
 }
 
 function isEmptyThinkingPart(part: IChatRendererContent | undefined): boolean {

@@ -40,6 +40,7 @@ import { ChatSubagentContentPart } from '../../../browser/widget/chatContentPart
 import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
@@ -2149,22 +2150,64 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('trailing progress labels come from the last progress message or unfinished task', () => {
+	test('trailing progress labels come from the last progress message only', () => {
 		const message = (text: string) => ({ kind: 'progressMessage' as const, content: new MarkdownString(text) });
-		const task = (text: string, settled: boolean) => new class extends mock<IChatTask>() {
-			override readonly kind = 'progressTask' as const;
-			override readonly content = new MarkdownString(text);
-			override readonly deferred = new class extends mock<DeferredPromise<string | void>>() {
-				override get isSettled() { return settled; }
-			}();
-		}();
+		const task = (text: string, settled: boolean): IChatTask => {
+			const deferred = new DeferredPromise<string | void>();
+			if (settled) {
+				deferred.complete();
+			}
+			return { kind: 'progressTask', content: new MarkdownString(text), deferred, progress: [], onDidAddProgress: Event.None, add: () => { }, complete: result => deferred.complete(result), task: () => deferred.p, isSettled: () => deferred.isSettled, toJSON: () => ({ kind: 'progressTaskSerialized', content: new MarkdownString(text), progress: [] }) };
+		};
 		assert.deepStrictEqual({
 			message: getTrailingProgressLabel([message('Searching'), message('Reading results')])?.value,
-			task: getTrailingProgressLabel([task('Running tests', false)])?.value,
+			// A pending task renders its own visible row, so the footer must not repeat it.
+			pendingTask: getTrailingProgressLabel([task('Running tests', false)]),
 			settledTask: getTrailingProgressLabel([task('Running tests', true)]),
 			followedByContent: getTrailingProgressLabel([message('Searching'), { kind: 'markdownContent', content: new MarkdownString('Done.') }]),
 			empty: getTrailingProgressLabel([]),
-		}, { message: 'Reading results', task: 'Running tests', settledTask: undefined, followedByContent: undefined, empty: undefined });
+		}, { message: 'Reading results', pendingTask: undefined, settledTask: undefined, followedByContent: undefined, empty: undefined });
+	});
+
+	test('persistent footer leaves a pending progress task to its own row', async () => {
+		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const host = dom.$('div');
+		setARIAContainer(host);
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		// The live regions alternate and only keep the last two alerts, so record them as they are set.
+		const announced: string[] = [];
+		const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (node.textContent) { announced.push(node.textContent); } })));
+		observer.observe(host, { childList: true, characterData: true, subtree: true });
+		try {
+			const deferred = new DeferredPromise<string | void>();
+			const task: IChatTask = {
+				kind: 'progressTask',
+				content: new MarkdownString('Running the test suite'),
+				deferred,
+				progress: [],
+				onDidAddProgress: Event.None,
+				add: () => { },
+				complete: result => deferred.complete(result),
+				task: () => deferred.p,
+				isSettled: () => deferred.isSettled,
+				toJSON: () => ({ kind: 'progressTaskSerialized', content: task.content, progress: task.progress }),
+			};
+			model.acceptResponseProgress(request, task);
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			const footer = template.value.querySelector('.chat-working-progress');
+			const rows = [...template.value.querySelectorAll<HTMLElement>('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim());
+			const footerText = footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+			// The task row announces itself once; the footer announces its own (different) label, never the task text again.
+			assert.deepStrictEqual({
+				rows,
+				footerRepeatsTask: footerText === 'Running the test suite',
+				announced,
+			}, { rows: ['Running the test suite'], footerRepeatsTask: false, announced: ['Running the test suite', footerText] });
+		} finally {
+			observer.disconnect();
+			host.remove();
+		}
 	});
 
 	test('carousel-hosted tool parts do not carry the persistent gutter icon', async () => {
@@ -3039,16 +3082,17 @@ suite('ChatListRenderer', () => {
 						return undefined;
 					}
 				}());
-				const edit = (file: string, version: string, added: number, removed: number) => ({
-					kind: 'externalEdit' as const, uri: URI.file(`/workspace/${file}`), editKind: 'edit' as const, undoStopId: version,
-					beforeContentUri: URI.file(`/snapshots/${version}/before/${file}`),
-					afterContentUri: URI.file(`/snapshots/${version}/after/${file}`),
+				// Each edit starts from the snapshot the previous one produced, as the editing session records them.
+				const edit = (file: string, before: string, after: string, added: number, removed: number) => ({
+					kind: 'externalEdit' as const, uri: URI.file(`/workspace/${file}`), editKind: 'edit' as const, undoStopId: after,
+					beforeContentUri: URI.file(`/snapshots/${before}/${file}`),
+					afterContentUri: URI.file(`/snapshots/${after}/${file}`),
 					diff: { added, removed },
 				});
-				model.acceptResponseProgress(request, edit('app.ts', 'first', 5, 1));
-				model.acceptResponseProgress(request, { ...edit('removed.ts', 'only', 2, 3), editKind: 'delete', afterContentUri: undefined });
+				model.acceptResponseProgress(request, edit('app.ts', 'first', 'middle', 5, 1));
+				model.acceptResponseProgress(request, { ...edit('removed.ts', 'only', 'gone', 2, 3), editKind: 'delete', afterContentUri: undefined });
 				model.acceptResponseProgress(request, { kind: 'thinking', id: 'review', value: '**Reviewing changes**\nCheck the remaining edit.' });
-				model.acceptResponseProgress(request, edit('app.ts', 'last', 4, 2));
+				model.acceptResponseProgress(request, edit('app.ts', 'middle', 'last', 4, 2));
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Finished updating the files.') });
 				if (!initiallyComplete) {
 					renderer.renderElement(node, 0, template);
@@ -3088,14 +3132,39 @@ suite('ChatListRenderer', () => {
 					opened: persistent ? [{
 						label: 'Response File Changes',
 						resources: [
-							{ original: 'file:///snapshots/first/before/app.ts', modified: 'file:///snapshots/last/after/app.ts', file: 'file:///workspace/app.ts' },
-							{ original: 'file:///snapshots/only/before/removed.ts', modified: undefined, file: 'file:///workspace/removed.ts' },
+							{ original: 'file:///snapshots/first/app.ts', modified: 'file:///snapshots/last/app.ts', file: 'file:///workspace/app.ts' },
+							{ original: 'file:///snapshots/only/removed.ts', modified: undefined, file: 'file:///workspace/removed.ts' },
 						],
 					}] : [],
 				});
 			});
 		}
 	}
+
+	test('edit totals keep unrelated intervals apart and only join provable successors', () => {
+		const interval = (file: string, before: string | undefined, after: string | undefined, added = 1, removed = 1): IChatContentPartDiffData => ({
+			added, removed,
+			resources: [{ resource: URI.file(`/workspace/${file}`), originalURI: before ? URI.file(`/snapshots/${before}/${file}`) : undefined, modifiedURI: after ? URI.file(`/snapshots/${after}/${file}`) : undefined }],
+		});
+		const describe = (diff: IChatContentPartDiffData) => diff.resources.map(resource => `${resource.originalURI?.path.split('/')[2] ?? '∅'}->${resource.modifiedURI?.path.split('/')[2] ?? '∅'}`);
+		assert.deepStrictEqual({
+			// Restored subagent history lists the child's edit (b->c) before the parent's earlier edit (a->b).
+			outOfOrderChain: describe(aggregateChatEditDiffs([interval('app.ts', 'b', 'c'), interval('app.ts', 'a', 'b')])),
+			inOrderChain: describe(aggregateChatEditDiffs([interval('app.ts', 'a', 'b'), interval('app.ts', 'b', 'c')])),
+			// Two edits whose snapshots do not meet are shown as two diffs rather than a fabricated one.
+			disjoint: describe(aggregateChatEditDiffs([interval('app.ts', 'a', 'b'), interval('app.ts', 'x', 'y')])),
+			deleteAfterEdit: describe(aggregateChatEditDiffs([interval('app.ts', 'a', 'b'), interval('app.ts', 'b', undefined)])),
+			createThenEdit: describe(aggregateChatEditDiffs([interval('new.ts', undefined, 'a'), interval('new.ts', 'a', 'b')])),
+			totals: (() => { const diff = aggregateChatEditDiffs([interval('app.ts', 'b', 'c', 4, 1), interval('app.ts', 'a', 'b', 5, 0)]); return [diff.added, diff.removed]; })(),
+		}, {
+			outOfOrderChain: ['a->c'],
+			inOrderChain: ['a->c'],
+			disjoint: ['a->b', 'x->y'],
+			deleteAfterEdit: ['a->∅'],
+			createThenEdit: ['∅->b'],
+			totals: [9, 1],
+		});
+	});
 
 	test('completed edit totals count a chain once even when hooks reuse it', async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
@@ -3169,6 +3238,84 @@ suite('ChatListRenderer', () => {
 			counts: stats ? [...stats.children].map(child => child.textContent) : undefined,
 		}, { pillCounts: ['+7', '-3'], chainDiff: { added: 7, removed: 3 }, counts: ['+7', '-3'] });
 	});
+
+	test('re-streamed subagent edit markdown replaces its previous revision instead of adding to it', async () => {
+		const diff = {
+			originalURI: URI.file('/snapshots/before/tests.ts'), modifiedURI: URI.file('/workspace/tests.ts'),
+			modifiedSnapshotURI: URI.file('/snapshots/after/tests.ts'),
+			added: 7, removed: 3, identical: false, quitEarly: false, isFinal: true, isBusy: false,
+		};
+		const setup = createPersistentProgressRenderer({
+			chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always,
+			editingSession: new MockChatEditingSession([diff], { synchronousDiffs: true }),
+		});
+		const { configurationService, model, request, renderer, template, node } = setup;
+		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+		const subagent = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work', toolSpecificData: { kind: 'subagent', description: 'Write tests', isActive: true } },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'subagent-1', undefined, {},
+		);
+		model.acceptResponseProgress(request, subagent);
+		renderer.renderElement(node, 0, template);
+		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(subagentPart instanceof ChatSubagentContentPart);
+		subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
+		const edit = (suffix: string) => ({
+			kind: 'markdownContent' as const,
+			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit subAgentInvocationId="subagent-1">file:///workspace/tests.ts</vscode_codeblock_uri>\nexport const tests = true;\n```' + suffix),
+		});
+		model.acceptResponseProgress(request, edit(''));
+		renderer.renderElement(node, 0, template);
+		await timeout(0);
+		const first = { ...subagentPart.diffData.get(), pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length };
+		// The stream appends trailing text to the same markdown part, which re-renders it as a new part.
+		model.acceptResponseProgress(request, edit('\n\n'));
+		renderer.renderElement(node, 0, template);
+		await timeout(0);
+		const second = subagentPart.diffData.get();
+		assert.deepStrictEqual({
+			first: { added: first.added, removed: first.removed, pills: first.pills },
+			second: { added: second.added, removed: second.removed, resources: second.resources.length, pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length },
+		}, {
+			first: { added: 7, removed: 3, pills: 1 },
+			second: { added: 7, removed: 3, resources: 1, pills: 1 },
+		});
+	});
+
+	for (const expandBeforeCompletion of [false, true]) {
+		test(`a background subagent that outlives a persistent response shows its own working row (expanded ${expandBeforeCompletion ? 'before' : 'after'} completion)`, async () => {
+			const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			const child = new ChatToolInvocation(
+				{ invocationMessage: 'Compute in the background', toolSpecificData: { kind: 'subagent', hasStarted: true, isActive: true, description: 'Compute in the background' } },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Task', source: ToolDataSource.Internal },
+				'background', undefined, { mode: 'background' },
+			);
+			model.acceptResponseProgress(request, child);
+			await child.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background.' }] });
+			renderer.renderElement(node, 0, template);
+			const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+			assert.ok(subagentPart instanceof ChatSubagentContentPart);
+			const spinnerVisible = () => [...template.value.querySelectorAll<HTMLElement>('.chat-subagent-part .chat-thinking-spinner-item')].filter(row => dom.getWindow(container).getComputedStyle(row).display !== 'none').length;
+			const expand = () => subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
+			if (expandBeforeCompletion) {
+				expand();
+			}
+			const whileStreaming = { footer: !!template.value.querySelector('.chat-working-progress'), childSpinners: spinnerVisible() };
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			if (!expandBeforeCompletion) {
+				expand();
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ whileStreaming, afterCompletion: { footer: !!template.value.querySelector('.chat-working-progress'), childActive: subagentPart.getIsActive(), childSpinners: spinnerVisible() } }, {
+				whileStreaming: { footer: true, childSpinners: 0 },
+				afterCompletion: { footer: false, childActive: true, childSpinners: 1 },
+			});
+		});
+	}
 
 	test('completed edit totals include subagent edits', async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });

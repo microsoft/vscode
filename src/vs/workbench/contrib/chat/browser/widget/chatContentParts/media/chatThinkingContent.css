@@ -20,7 +20,9 @@
 	will-change: background-position;
 }
 
-.interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box .chat-thinking-spinner-item {
+/* Only while the footer owns progress: a background subagent can keep working after its parent
+	response completes, and then its own working row is the only indicator left. */
+.interactive-session .interactive-response.chat-persistent-progress.chat-response-loading .value .chat-thinking-box .chat-thinking-spinner-item {
 	display: none;
 }
 
