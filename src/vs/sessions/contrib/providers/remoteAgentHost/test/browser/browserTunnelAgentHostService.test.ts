@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { IConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { type ITunnelApplicationConfig } from '../../../../../../base/common/product.js';
@@ -115,22 +116,26 @@ function createRemoteAgentHostService(): IRemoteAgentHostService {
 
 function createBrowserTunnelService(
 	store: Pick<DisposableStore, 'add'>,
-	sessions: readonly AuthenticationSession[],
-	listTunnels: () => Promise<readonly IDevTunnelsWebTunnel[]>,
+	sessions: readonly AuthenticationSession[] | ((provider: string) => readonly AuthenticationSession[]),
+	listTunnels: (authorization: string) => Promise<readonly IDevTunnelsWebTunnel[]>,
+	deleteTunnel?: (authorization: string) => Promise<boolean>,
 ): BrowserTunnelAgentHostService {
 	class FakeManagementClient implements IDevTunnelsWebManagementClient {
-		constructor(_userAgent: string, _apiVersion: object, _userTokenCallback: () => Promise<string>) {
+		constructor(_userAgent: string, _apiVersion: object, private readonly _userTokenCallback: () => Promise<string>) {
 		}
 
-		listTunnels(): Promise<readonly IDevTunnelsWebTunnel[]> {
-			return listTunnels();
+		async listTunnels(): Promise<readonly IDevTunnelsWebTunnel[]> {
+			return listTunnels(await this._userTokenCallback());
 		}
 
 		getTunnel(): Promise<IDevTunnelsWebTunnel | null> {
 			throw new Error('Not used by discovery tests');
 		}
 
-		deleteTunnel(): Promise<boolean> {
+		async deleteTunnel(): Promise<boolean> {
+			if (deleteTunnel) {
+				return deleteTunnel(await this._userTokenCallback());
+			}
 			throw new Error('Not used by discovery tests');
 		}
 	}
@@ -142,12 +147,12 @@ function createBrowserTunnelService(
 		TunnelAccessScopes: {},
 	};
 	const authenticationService = new class extends mock<IAuthenticationService>() {
-		override getSessions(): Promise<readonly AuthenticationSession[]> {
-			return Promise.resolve(sessions);
+		override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
+			return typeof sessions === 'function' ? sessions(provider) : sessions;
 		}
 	}();
 	const tunnelApplicationConfig: ITunnelApplicationConfig = {
-		authenticationProviders: { github: { scopes: ['tunnel'] } },
+		authenticationProviders: { github: { scopes: ['tunnel'] }, microsoft: { scopes: ['tunnel'] } },
 		editorWebUrl: '',
 		extension: { extensionId: 'test.remote-tunnels', friendlyName: 'Remote Tunnels' },
 	};
@@ -190,8 +195,59 @@ suite('BrowserTunnelAgentHostService', () => {
 
 	test('rejects discovery when authentication is unavailable', async () => {
 		const service = createBrowserTunnelService(store, [], async () => []);
+		const events: IConnectionDiagnosticEvent[] = [];
 
-		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+		await assert.rejects(service.listTunnels({ silent: true, onDiagnostic: event => events.push(event) }), /No authentication is available to enumerate tunnels/);
+		assert.deepStrictEqual({
+			lastPhase: events.at(-1)?.phase,
+			outcome: events.at(-1)?.outcome,
+			error: events.at(-1)?.error?.message,
+			enumerated: events.some(event => event.phase === 'discovery.enumeration'),
+		}, {
+			lastPhase: 'discovery.authentication',
+			outcome: 'failed',
+			error: 'No authentication is available to enumerate tunnels.',
+			enumerated: false,
+		});
+	});
+
+	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {
+		const sessions = new Map<string, AuthenticationSession>();
+		const session = (provider: string): AuthenticationSession => ({
+			id: provider, accessToken: `${provider}-token`, scopes: ['tunnel'], account: { id: provider, label: provider },
+		});
+		sessions.set('microsoft', session('microsoft'));
+		const calls: { operation: string; authorization: string }[] = [];
+		const service = createBrowserTunnelService(store, provider => sessions.has(provider) ? [sessions.get(provider)!] : [], async authorization => {
+			calls.push({ operation: 'list', authorization });
+			return [];
+		}, async authorization => {
+			calls.push({ operation: 'delete', authorization });
+			return true;
+		});
+		await service.listTunnels({ silent: true });
+		sessions.set('github', session('github'));
+		await service.listTunnels({ authProvider: 'github' });
+		await service.listTunnels({ authProvider: 'microsoft', silent: true });
+		await service.deleteTunnel(tunnel, 'github');
+		await service.listTunnels({ authProvider: 'github' });
+
+		assert.deepStrictEqual(calls, [
+			{ operation: 'list', authorization: 'Bearer microsoft-token' },
+			{ operation: 'list', authorization: 'github github-token' },
+			{ operation: 'list', authorization: 'Bearer microsoft-token' },
+			{ operation: 'delete', authorization: 'github github-token' },
+			{ operation: 'list', authorization: 'github github-token' },
+		]);
+	});
+
+	test('does not fall back to another provider when the explicit provider has no session', async () => {
+		const service = createBrowserTunnelService(store, provider => provider === 'microsoft'
+			? [{ id: 'microsoft', accessToken: 'token', scopes: ['tunnel'], account: { id: 'account', label: 'Account' } }]
+			: [], async () => []);
+		await service.getAuthProvider({ silent: true });
+
+		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'github' }), /No authentication is available to enumerate tunnels/);
 	});
 
 	test('rejects SDK tunnel enumeration failures', async () => {

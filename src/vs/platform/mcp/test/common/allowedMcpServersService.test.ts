@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { AllowedMcpServersService } from '../../common/allowedMcpServersService.js';
-import { IInstallableMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from '../../common/mcpManagement.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IInstallableMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, TransportType } from '../../common/mcpManagement.js';
 import { McpServerType } from '../../common/mcpPlatformTypes.js';
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../policy/common/copilotManagedSettings.js';
 import { IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -83,6 +83,60 @@ suite('AllowedMcpServersService', () => {
 
 		const blocked: IInstallableMcpServer = { name: 'anything', config: { type: McpServerType.REMOTE, url: 'https://other.example.org/api' } };
 		assert.notStrictEqual(service.isAllowed(blocked), true);
+	});
+
+	test('isAllowed defers URL policies for installable remote servers with unresolved inputs', () => {
+		const server: IInstallableMcpServer = {
+			name: 'templated',
+			config: { type: McpServerType.REMOTE, url: 'https://${input:environment}.example.com/mcp' }
+		};
+		const allowedByUrl = createService({ [mcpAllowedServersConfig]: [{ serverUrl: 'https://allowed.example.com/*' }] });
+		const deniedByUrl = createService({ [mcpDeniedServersConfig]: [{ serverUrl: 'https://denied.example.com/*' }] });
+		const allowedByDifferentName = createService({ [mcpAllowedServersConfig]: [{ serverName: 'different' }] });
+		const deniedByName = createService({ [mcpDeniedServersConfig]: [{ serverName: server.name }] });
+
+		assert.deepStrictEqual({
+			allowedByUrl: allowedByUrl.isAllowed(server) === true,
+			deniedByUrl: deniedByUrl.isAllowed(server) === true,
+			allowedByDifferentName: allowedByDifferentName.isAllowed(server) === true,
+			deniedByName: deniedByName.isAllowed(server) === true,
+		}, {
+			allowedByUrl: true,
+			deniedByUrl: true,
+			allowedByDifferentName: false,
+			deniedByName: false,
+		});
+	});
+
+	test('isAllowed normalizes gallery URL variables before applying policy', () => {
+		const createGallery = (value?: string): IGalleryMcpServer => ({
+			name: 'templated',
+			displayName: 'Templated',
+			description: '',
+			version: '1.0.0',
+			isLatest: true,
+			status: GalleryMcpServerStatus.Active,
+			publisher: 'test',
+			configuration: {
+				remotes: [{
+					type: TransportType.STREAMABLE_HTTP,
+					url: 'https://{environment}.example.com/mcp',
+					variables: { environment: value === undefined ? { description: 'Environment' } : { value } }
+				}]
+			}
+		});
+		const allowedByUrl = createService({ [mcpAllowedServersConfig]: [{ serverUrl: 'https://allowed.example.com/*' }] });
+		const deniedByUrl = createService({ [mcpDeniedServersConfig]: [{ serverUrl: 'https://denied.example.com/*' }] });
+
+		assert.deepStrictEqual({
+			interactiveAllowed: allowedByUrl.isAllowed(createGallery()) === true,
+			fixedAllowed: allowedByUrl.isAllowed(createGallery('allowed')) === true,
+			fixedDenied: deniedByUrl.isAllowed(createGallery('denied')) === true,
+		}, {
+			interactiveAllowed: true,
+			fixedAllowed: true,
+			fixedDenied: false,
+		});
 	});
 
 	test('managed-only mode ignores user allow entries and uses the policy allowlist', () => {

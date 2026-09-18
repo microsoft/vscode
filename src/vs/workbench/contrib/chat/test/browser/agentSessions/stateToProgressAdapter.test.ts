@@ -854,19 +854,19 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
-		test('preserves selected models independently of routed models in restored requests', () => {
+		test('preserves selected models and configuration independently of routed models in restored requests', () => {
 			const turns = [
 				createTurn({ message: { ...message('Auto'), model: { id: 'auto' } }, usage: { model: 'gpt-5', inputTokens: 100, outputTokens: 20 } }),
-				createTurn({ message: { ...message('Explicit model'), model: { id: 'opus-4.7' } }, usage: { inputTokens: 100, outputTokens: 20 } }),
+				createTurn({ message: { ...message('Explicit model'), model: { id: 'opus-4.7', config: { reasoningEffort: 'xhigh' } } }, usage: { inputTokens: 100, outputTokens: 20 } }),
 			];
 			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'opus-4.7': 'Claude Opus 4.7' }, 'opus-4.7'));
 
 			assert.deepStrictEqual(history.map(item => item.type === 'request'
-				? { type: item.type, modelId: item.modelId }
+				? { type: item.type, modelId: item.modelId, modelConfiguration: item.modelConfiguration }
 				: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
-				{ type: 'request', modelId: 'agent-host-copilot:auto' },
+				{ type: 'request', modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
 				{ type: 'response', details: 'GPT-5', actualModelId: 'agent-host-copilot:gpt-5' },
-				{ type: 'request', modelId: 'agent-host-copilot:opus-4.7' },
+				{ type: 'request', modelId: 'agent-host-copilot:opus-4.7', modelConfiguration: { reasoningEffort: 'xhigh' } },
 				{ type: 'response', details: 'Claude Opus 4.7', actualModelId: undefined },
 			]);
 		});
@@ -2677,6 +2677,25 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'markdownContent');
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
+		});
+
+		test('restores an ended response round as a hidden thinking-section boundary', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content: 'Assessing final output steps' },
+				{ kind: ResponsePartKind.SystemNotification, content: '', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }) },
+				{ kind: ResponsePartKind.Markdown, id: 'streaming-text', content: '' },
+			]), undefined);
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', value: '' },
+			]);
+		});
+
+		test('drops an empty system notification without boundary metadata', () => {
+			assert.deepStrictEqual(activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.SystemNotification, content: '' },
+			]), undefined), []);
 		});
 
 		test('produces system notification for system notification response part', () => {

@@ -231,7 +231,7 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined> } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
@@ -257,8 +257,9 @@ function createSessionsManagementService(
 	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	const view = createView(instantiationService, service, disposables, customViewService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService };
+	const focusSession = disposables.add(new Emitter<string | undefined>());
+	const view = createView(instantiationService, service, disposables, customViewService, new TestSessionsPartService(focusSession.event));
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession };
 }
 
 /**
@@ -266,7 +267,9 @@ function createSessionsManagementService(
  * exercise the view/model behaviour, so the calls are no-ops.
  */
 class TestSessionsPartService extends mock<ISessionsPartService>() {
-	override readonly onDidFocusSession = Event.None;
+	constructor(override readonly onDidFocusSession: Event<string | undefined> = Event.None) {
+		super();
+	}
 	override readonly onDidToggleMaximizeSession = Event.None;
 	override updateVisibleSessions(): void { }
 	override focusSession(): void { }
@@ -297,9 +300,10 @@ function createView(
 	service: ISessionsManagementService,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
+	sessionsPartService: ISessionsPartService = new TestSessionsPartService(),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
-	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	instantiationService.stub(ISessionsPartService, sessionsPartService);
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
@@ -309,6 +313,26 @@ function createView(
 suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('activates an existing empty composer from part focus without replacing its sibling session', async () => {
+		const session = stubSession({ sessionId: 'existing', providerId: 'test' });
+		const { view, focusSession } = createSessionsManagementService(session, disposables);
+		await view.openSession(session.resource);
+		await view.openNewSession({ toSide: true });
+		focusSession.fire(session.sessionId);
+		const before = view.activeSession.get()?.sessionId;
+		focusSession.fire(undefined);
+
+		assert.deepStrictEqual({
+			before,
+			active: view.activeSession.get()?.sessionId,
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+		}, {
+			before: 'existing',
+			active: undefined,
+			visible: ['existing', undefined],
+		});
+	});
 
 	test('routes artifact removal to the owning provider and propagates errors', async () => {
 		const session = stubSession({
@@ -1637,6 +1661,63 @@ suite('SessionsManagementService', () => {
 		await service.sendNewChatRequest(session, { query: 'hi' });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
+
+	for (const isolation of ['worktree', 'folder'] as const) {
+		for (const sendKind of ['foreground', 'background', 'headless'] as const) {
+			test(`${sendKind} new session captures ${isolation} configuration before the draft is replaced`, async () => {
+				const session = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const committed = { ...session, sessionId: 'committed', status: constObservable(SessionStatus.InProgress) };
+				const newSessionConfig = { isolation, providerConfig: { branch: 'main', providerOption: { enabled: true } } };
+				const configuration = new DeferredPromise<void>();
+				const capturing = new DeferredPromise<void>();
+				const calls: string[] = [];
+				const provider = new class extends TestSessionsProvider {
+					override resolveWorkspace(folder: URI): ISessionWorkspace {
+						return { uri: folder, label: 'repo', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+					}
+					override async getNewSessionConfig(sessionId: string) {
+						calls.push(`capture:${sessionId}`);
+						await capturing.complete();
+						await configuration.p;
+						return newSessionConfig;
+					}
+					override async prepareNewSession() {
+						calls.push('prepare');
+						return { session: { ...session, sessionId: 'prepared' } };
+					}
+					override async sendRequest(): Promise<ISession> {
+						calls.push('send');
+						return committed;
+					}
+				}(session);
+				const { service } = createSessionsManagementService(session, disposables, provider);
+				if (sendKind !== 'headless') {
+					service.createNewSession(URI.file('/repo'), { providerId: provider.id });
+				}
+				const sent = Event.toPromise(service.onDidSendRequest);
+				const options = { query: 'hi', background: sendKind === 'background' };
+				const sending = sendKind === 'headless'
+					? service.createAndSendNewChatRequest(URI.file('/repo'), options, { providerId: provider.id })
+					: service.sendNewChatRequest(session, options);
+				await capturing.p;
+				const beforeConfiguration = [...calls];
+				await configuration.complete();
+				await sending;
+				const event = await sent;
+
+				assert.deepStrictEqual({
+					beforeConfiguration, calls,
+					session: event.session, newSessionConfig: event.newSessionConfig,
+					isNewSession: event.isNewSession, sameOptions: event.options === options,
+				}, {
+					beforeConfiguration: ['capture:draft'],
+					calls: sendKind === 'headless' ? ['capture:draft', 'send'] : ['capture:draft', 'prepare', 'send'],
+					session: committed, newSessionConfig,
+					isNewSession: true, sameOptions: true,
+				});
+			});
+		}
+	}
 
 	test('sendNewChatRequest routes a prepared draft through its replacement provider', async () => {
 		const folder = URI.file('/workspace');

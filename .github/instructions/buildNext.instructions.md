@@ -38,6 +38,7 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
 - **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
+- **[standalone.ts](../../build/next/standalone.ts)** - Unbundled desktop Electron preloads and their source-map publication
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 - **[svg.ts](../../build/next/svg.ts)** - Production-only SVG finishing, independent of the legacy gulp infrastructure
@@ -194,6 +195,23 @@ Focused regression tests (no workbench compilation required):
 node --test build/next/test/resources.test.ts build/next/test/transpile.test.ts build/next/test/source-map-url.test.ts build/next/test/svg.test.ts
 ```
 
+### Standalone Electron Preload Source Maps
+
+[standalone.ts](../../build/next/standalone.ts) compiles all three desktop preloads: [preload.ts](../../src/vs/base/parts/sandbox/electron-browser/preload.ts), [preload-aux.ts](../../src/vs/base/parts/sandbox/electron-browser/preload-aux.ts), and [preload-browserView.ts](../../src/vs/platform/browserView/electron-browser/preload-browserView.ts). These special-context scripts retain `bundle: false`, `format: 'cjs'`, the existing target and copyright banner. They must not use the normal ESM bundle options or receive NLS/private-field post-processing.
+
+- Both minified and non-minified bundle outputs embed the original TypeScript in `sourcesContent`. Finalization uses the existing [rewriteSourceMappingURL()](../../build/next/source-map-url.ts), including platform-independent URL separators, before writing JavaScript. Only the trailing map comment changes; executable bytes and esbuild's mappings are preserved.
+- With an omitted or empty `--source-map-base-url`, the sibling `*.js.map` reference remains local. Development transpile/watch/build-fast paths remain separate and retain their inline maps without embedded sources.
+- `core-ci` supplies `https://main.vscode-cdn.net/sourcemaps/<commit>/core`. [upload-sourcemaps.ts](../../build/azure-pipelines/upload-sourcemaps.ts) uploads each map under `sourcemaps/<commit>/core/<output-relative-path>.map`. No extra `out/` or `src/` belongs in the JavaScript's CDN URL.
+- The bundle command awaits all standalone writes before downstream packaging. CI packaging strips local JS/CSS maps and computes the existing `preload.js` integrity checksum from final JavaScript bytes; do not move URL rewriting after checksum calculation.
+
+Focused tests compile the real three entrypoints into temporary outputs and check CDN/local modes, exact original source content and identity, representative line/column mappings, unchanged CommonJS output, non-desktop omission, development maps, and the upload/map-stripping/checksum assumptions. The packaging check exercises the real file streams and filter, not a complete Electron distribution or a manual debugger session.
+
+```bash
+node --test build/next/test/standalone.test.ts build/next/test/source-map-url.test.ts
+```
+
+This repairs production debugging/source publication, not startup performance.
+
 ---
 
 ## Testing the Fix
@@ -223,7 +241,7 @@ npm run gulp vscode-reh-web-darwin-arm64-min
 
 4. **Validation** - Official platform and web pipelines invoke `core-ci`, which checks the API proposal registry and type-checks with tsgo before bundling. Required bootstrap entries must fail the build if missing. Post-processing syntax checks remain enabled.
 
-5. **Source maps** - Core bundles, copied JavaScript resources, and the additional Dev Tunnels browser bundle preserve source content and honor the configured CDN map URL. The SDK writer only touches its own emitted files. Standalone preload publication is fixed separately in [#336204](https://github.com/microsoft/vscode/pull/336204); do not duplicate that pending implementation. [resources.ts](../../build/next/resources.ts) continues to export the shared `BuildTarget` type for that producer.
+5. **Source maps** - Core bundles, copied JavaScript resources, standalone preloads, and the additional Dev Tunnels browser bundle preserve source content and honor the configured CDN map URL. Standalone preload publication lives in [standalone.ts](../../build/next/standalone.ts), which uses the shared `BuildTarget` type exported by [resources.ts](../../build/next/resources.ts). The SDK writer only touches its own emitted files.
 
 6. **Deferred Unicode validation** - The legacy minifier's whole-output rejection of JS/CSS characters above U+00FF has not been ported. Keep that validation policy separate from infrastructure removal; the separate Unicode escaping work does not itself restore this check.
 

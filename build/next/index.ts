@@ -25,6 +25,7 @@ import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpile
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
+import { compileStandaloneFiles } from './standalone.ts';
 
 const globAsync = promisify(glob);
 
@@ -263,51 +264,6 @@ function readISODate(outDir: string): string {
 	} catch {
 		return getGitCommitDate();
 	}
-}
-
-/**
- * Standalone TypeScript files that need to be compiled separately (not bundled).
- * These run in special contexts (e.g., Electron preload) where bundling isn't appropriate.
- * Only needed for desktop target.
- */
-const desktopStandaloneFiles = [
-	'vs/base/parts/sandbox/electron-browser/preload.ts',
-	'vs/base/parts/sandbox/electron-browser/preload-aux.ts',
-	'vs/platform/browserView/electron-browser/preload-browserView.ts',
-];
-
-async function compileStandaloneFiles(outDir: string, doMinify: boolean, target: BuildTarget): Promise<void> {
-	// Only desktop needs preload scripts
-	if (target !== 'desktop') {
-		return;
-	}
-
-	console.log(`[standalone] Compiling ${desktopStandaloneFiles.length} standalone files...`);
-
-	const banner = `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/`;
-
-	await Promise.all(desktopStandaloneFiles.map(async (file) => {
-		const entryPath = path.join(REPO_ROOT, SRC_DIR, file);
-		const outPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
-
-		await esbuild.build({
-			entryPoints: [entryPath],
-			outfile: outPath,
-			bundle: false, // Don't bundle - these are standalone scripts
-			format: 'cjs', // CommonJS for Electron preload
-			platform: 'node',
-			target: ['es2024'],
-			sourcemap: 'linked',
-			sourcesContent: false,
-			minify: doMinify,
-			banner: { js: banner },
-			logLevel: 'warning',
-		});
-	}));
-
-	console.log(`[standalone] Done`);
 }
 
 /**
@@ -720,7 +676,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	await copyResources(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
-	await compileStandaloneFiles(outDir, doMinify, target);
+	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({

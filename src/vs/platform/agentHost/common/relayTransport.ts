@@ -141,7 +141,7 @@ export class ReconnectingRelayTransport extends ReconnectingTransport {
 	constructor(
 		establish: () => Promise<IRelayConnectionHandle>,
 		channel: IRelayChannel,
-		createAhpLogger: () => AhpJsonlLogger | undefined,
+		createAhpLogger: (connectionId: string) => AhpJsonlLogger | undefined,
 		logService: ILogService,
 		logPrefix: string,
 		clientConnectionKind: AgentHostClientConnectionKind,
@@ -153,7 +153,7 @@ export class ReconnectingRelayTransport extends ReconnectingTransport {
 				// is what owns and disposes it, so a logger built before `establish`
 				// resolves would be leaked on every failed attempt.
 				return {
-					transport: new RelayTransport(connectionHandle.connectionId, channel, createAhpLogger(), logService, logPrefix, clientConnectionKind),
+					transport: new RelayTransport(connectionHandle.connectionId, channel, createAhpLogger(connectionHandle.connectionId), logService, logPrefix, clientConnectionKind),
 					close: connectionHandle.close,
 				};
 			},

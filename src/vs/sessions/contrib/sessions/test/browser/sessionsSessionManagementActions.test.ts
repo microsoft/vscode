@@ -141,9 +141,19 @@ suite('Sessions - Session management actions', () => {
 	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
+		const inlineRenamedSessions: ISession[] = [];
+		const inlineRenamedChats: ISessionChatItem[] = [];
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
+			beginRenameSession: session => {
+				inlineRenamedSessions.push(session);
+				return true;
+			},
+			beginRenameChat: item => {
+				inlineRenamedChats.push(item);
+				return true;
+			},
 		});
 		const sessionsView = upcastPartial<SessionsView>({ sessionsControl });
 		const getViewWithId = <T extends IView>(id: string): T | null => id === SessionsViewId ? sessionsView as unknown as T : null;
@@ -165,7 +175,7 @@ suite('Sessions - Session management actions', () => {
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService };
+		return { instantiationService, managementService, inlineRenamedSessions, inlineRenamedChats };
 	}
 
 	test('routes session and chat rename commands to their focused targets', async () => {
@@ -206,17 +216,21 @@ suite('Sessions - Session management actions', () => {
 		await inactiveArchiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 
 		assert.deepStrictEqual({
-			listRename: listHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
+			listInlineRename: listHarness.inlineRenamedSessions.map(session => session.sessionId),
+			listPromptRename: listHarness.managementService.renamed,
 			sessionRenameFromChat: chatHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
 			activeChatRename: chatHarness.managementService.renamedChats.map(({ session, chatResource, title }) => ({ sessionId: session.sessionId, chatResource: chatResource.toString(), title })),
-			nestedChatRename: nestedChatHarness.managementService.renamedChats.map(({ session, chatResource, title }) => ({ sessionId: session.sessionId, chatResource: chatResource.toString(), title })),
+			nestedChatInlineRename: nestedChatHarness.inlineRenamedChats.map(item => item.chat.resource.toString()),
+			nestedChatPromptRename: nestedChatHarness.managementService.renamedChats,
 			archived: archiveHarness.managementService.archived.map(session => session.sessionId),
 			inactiveArchived: inactiveArchiveHarness.managementService.archived,
 		}, {
-			listRename: [{ sessionId: listSession.sessionId, title: 'Renamed' }],
+			listInlineRename: [listSession.sessionId],
+			listPromptRename: [],
 			sessionRenameFromChat: [{ sessionId: activeSession.sessionId, title: 'Renamed' }],
 			activeChatRename: [{ sessionId: activeSession.sessionId, chatResource: peerChat.resource.toString(), title: 'Renamed' }],
-			nestedChatRename: [{ sessionId: activeSession.sessionId, chatResource: peerChat.resource.toString(), title: 'Renamed' }],
+			nestedChatInlineRename: [peerChat.resource.toString()],
+			nestedChatPromptRename: [],
 			archived: [archiveSession.sessionId],
 			inactiveArchived: [],
 		});

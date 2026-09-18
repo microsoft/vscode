@@ -22,6 +22,9 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - template: ../../copilot/pull-test-cache.yml@self
 
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: ../../common/ensure-test-artifact-directories.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile

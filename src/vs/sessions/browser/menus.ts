@@ -61,6 +61,8 @@ export const Menus = {
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
 	SessionChatItemContext: new MenuId('SessionsSessionChatItemContext'),
 	SessionChatBackgroundContext: new MenuId('SessionsSessionChatBackgroundContext'),
+	SessionItemToolbar: new MenuId('SessionItemToolbar'),
+	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),

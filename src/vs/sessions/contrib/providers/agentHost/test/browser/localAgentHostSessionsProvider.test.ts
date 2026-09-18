@@ -3671,6 +3671,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(connectCalls, 0);
 	});
 
+	test('waits for preferred Dev Container availability before preparing a request', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const events: string[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override isAvailable(): Promise<boolean> { return availability.p; }
+			}(),
+			requestWorkspaceTrust: async () => {
+				events.push('container trust');
+				return false;
+			},
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		provider.preferDevContainer(session.sessionId);
+		const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello').then(
+			() => events.push('host request'),
+			error => {
+				assert.ok(error instanceof WorkspaceNotTrustedError);
+				events.push('trust declined');
+			},
+		);
+		await timeout(0);
+		events.push('availability resolved');
+		availability.complete(true);
+		await preparation;
+
+		assert.deepStrictEqual(events, ['availability resolved', 'container trust', 'trust declined']);
+	});
+
 	test('prepareNewSession releases the Dev Container connection when post-connect setup fails', async () => {
 		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
 		const setupError = new Error('failed to trust mapped workspace');
@@ -4363,6 +4392,62 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await barrier.complete();
 			await configRefresh;
 		}
+	});
+
+	test('new session config snapshots all resolved values without requiring a worktree', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const initialConfig = await provider.getNewSessionConfig(session.sessionId);
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		const providerOption = { enabled: true };
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'main', providerOption },
+		};
+		const changing = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		let captured = false;
+		const capture = provider.getNewSessionConfig(session.sessionId).then(config => {
+			captured = true;
+			return config;
+		});
+		await timeout(0);
+		const capturedBeforeResolution = captured;
+		await barrier.complete();
+		await changing;
+		const selectedConfig = await capture;
+		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		liveConfig.isolation = 'worktree';
+		providerOption.enabled = false;
+
+		assert.deepStrictEqual({
+			initialConfig,
+			capturedBeforeResolution,
+			selectedConfig,
+			hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
+		}, {
+			initialConfig: { isolation: 'worktree', providerConfig: { isolation: 'worktree' } },
+			capturedBeforeResolution: false,
+			selectedConfig: { isolation: 'folder', providerConfig: { isolation: 'folder', branch: 'main', providerOption: { enabled: true } } },
+			hasWorktree: false,
+		});
+	});
+
+	test('new session config leaves unrecognized isolation values provider-specific', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await provider.getNewSessionConfig(session.sessionId);
+		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		const snapshots = [];
+		for (const isolation of ['unexpected', { kind: 'worktree' }, undefined]) {
+			liveConfig[SessionConfigKey.Isolation] = isolation;
+			snapshots.push(await provider.getNewSessionConfig(session.sessionId));
+		}
+
+		assert.deepStrictEqual(snapshots, [
+			{ isolation: undefined, providerConfig: { isolation: 'unexpected' } },
+			{ isolation: undefined, providerConfig: { isolation: { kind: 'worktree' } } },
+			{ isolation: undefined, providerConfig: { isolation: undefined } },
+		]);
 	});
 
 	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
