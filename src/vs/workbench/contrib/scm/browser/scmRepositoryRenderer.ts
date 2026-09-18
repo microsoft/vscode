@@ -151,6 +151,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		if (this.scmViewService.explorerEnabledConfig.get() === false) {
 			label = repository.provider.name;
 		} else {
+			// Include the parent name when repositories are shown as a tree.
 			const parentRepository = this.scmViewService.repositories
 				.find(r => r.provider.id === repository.provider.parentId);
 
