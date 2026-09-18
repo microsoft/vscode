@@ -33,18 +33,16 @@ const IS_WINDOWS = process.platform === 'win32';
 const NPM = IS_WINDOWS ? 'npm.cmd' : 'npm';
 
 /**
- * Allowlist for npm version / range specifiers before they are interpolated
- * into `npm view <pkg>@<spec>` argument strings. These specs come from
+ * Allowlist for npm versions and dist-tags before they are interpolated into
+ * `npm view <pkg>@<spec>` argument strings. These specs come from
  * queue-time pipeline parameters and from registry responses, and on Windows
- * the npm calls run with `shell: true` — so restrict to the characters that
- * appear in valid semver versions, ranges and dist-tags and reject anything a
- * shell could otherwise interpret.
+ * the npm calls run with `shell: true`, so shell metacharacters must be rejected.
  */
-const SAFE_SPEC = /^[\w.+~^><=|* -]+$/;
+const SAFE_SPEC = /^[\w.+-]+$/;
 
 function assertSafeSpec(label: string, value: string): void {
 	if (!SAFE_SPEC.test(value)) {
-		throw new Error(`[canary-override] Refusing unsafe ${label} "${value}": only semver versions, ranges and dist-tags are allowed.`);
+		throw new Error(`[canary-override] Refusing unsafe ${label} "${value}": only exact versions and dist-tags are allowed.`);
 	}
 }
 

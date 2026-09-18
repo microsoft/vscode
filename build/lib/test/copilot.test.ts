@@ -178,6 +178,10 @@ suite('copilot', () => {
 					const packageRoot = path.join(tempDir, 'package');
 					fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'darwin-x64'), { recursive: true });
 					fs.mkdirSync(path.join(packageRoot, 'sdk'), { recursive: true });
+					for (const skill of ['customize-cloud-agent', 'github-pr-media']) {
+						fs.mkdirSync(path.join(packageRoot, 'builtin-skills', skill), { recursive: true });
+						fs.writeFileSync(path.join(packageRoot, 'builtin-skills', skill, 'SKILL.md'), '');
+					}
 					fs.writeFileSync(path.join(packageRoot, 'sdk', 'index.js'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'copilot-runtime'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'runtime.node'), '');
@@ -188,10 +192,13 @@ suite('copilot', () => {
 			});
 
 			assert.deepStrictEqual({
+				builtinSkills: ['customize-cloud-agent', 'github-pr-media'].map(skill =>
+					fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'builtin-skills', skill, 'SKILL.md'))),
 				sdk: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'sdk', 'index.js')),
 				runtime: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'prebuilds', 'darwin-x64', 'copilot-runtime')),
 				native: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')),
 			}, {
+				builtinSkills: [true, true],
 				sdk: true,
 				runtime: true,
 				native: true,

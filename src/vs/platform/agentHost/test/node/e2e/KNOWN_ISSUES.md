@@ -252,6 +252,30 @@ A user can run a failing command through Copilot's custom terminal tool and expe
     --grep "custom terminal tool preserves a nonzero"
   ```
 
+### Copilot client-plugin hooks do not execute on Windows
+
+A user can contribute lifecycle hooks through a client-pushed Copilot plugin to observe session creation, submitted prompts, tool calls, results, and session disposal. On Windows, the plugin's skill and MCP server work, but none of its hook commands write their expected output, so hook-driven automation never runs.
+
+- Tests:
+  - `plugin SessionStart hook runs when the provider materializes`
+  - `plugin UserPromptSubmit hook receives the submitted prompt`
+  - `plugin PreToolUse hook runs before an MCP tool`
+  - `plugin PostToolUse hook runs after an MCP tool result`
+  - `plugin SessionEnd hook runs when the session is disposed`
+  - `failing plugin hook is non-fatal to the provider turn`
+  - `non-JSON plugin hook output is ignored without failing the provider turn`
+- Scope: Copilot client-pushed plugins on Windows.
+- Expected: each configured hook executes and writes its event payload; failure and non-JSON variants remain non-fatal to the provider turn.
+- Observed: each scenario completes its provider turn, but the expected hook log is never created or updated.
+- Gate: all seven Windows variants use the platform-scoped `pluginHookTest` registration in `mcpPluginSuite.ts`.
+- Reproduce on Windows:
+
+  ```powershell
+  .\scripts\test-integration.bat --run `
+    src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `
+    --grep "plugin .* hook|failing plugin hook|non-JSON plugin hook"
+  ```
+
 ### Copilot file edit metadata is lost after a host restart
 
 A user can reopen an Agent Host session and ask Copilot to edit a file. The file changes successfully, but the restored provider does not publish the before-and-after edit metadata, so the completed edit renders as a generic tool call instead of an edit pill and edit attribution is unavailable.
