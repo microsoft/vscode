@@ -267,6 +267,38 @@ suite('ChatService', () => {
 		assert.strictEqual(await captured.p, true);
 	});
 
+	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: boolean[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		await service.sendRequest(model.sessionResource, '');
+		const first = await service.sendRequest(model.sessionResource, 'first');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		await service.resendRequest(model.getRequests()[0]);
+		const system = await service.sendRequest(model.sessionResource, 'system', { isSystemInitiated: true });
+		ChatSendResult.assertSent(system);
+		await system.data.responseCompletePromise;
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
+		service.processPendingRequests(model.sessionResource);
+		await timeout(10);
+		assert.deepStrictEqual(accepted, [true, false, false]);
+	});
+
+	test('only the first accepted message starts a session even when queued or removed', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: boolean[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		await service.sendRequest(model.sessionResource, 'queued first', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		const pending = model.getPendingRequests()[0];
+		service.removePendingRequest(model.sessionResource, pending.request.id);
+		await service.sendRequest(model.sessionResource, 'replacement', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.deepStrictEqual(accepted, [true, false]);
+	});
+
 	test('retains submitted model configuration for sent, queued and steering requests', async () => {
 		const service = createChatService();
 		const model = testDisposables.add(startSessionModel(service)).object;

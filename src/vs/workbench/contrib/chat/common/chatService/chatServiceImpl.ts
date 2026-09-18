@@ -44,7 +44,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, getRestoredChatR
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatRequestSubmittedEvent, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatRequestAcceptedEvent, IChatRequestSubmittedEvent, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
@@ -220,6 +220,9 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _onDidSubmitRequest = this._register(new Emitter<IChatRequestSubmittedEvent>());
 	public readonly onDidSubmitRequest = this._onDidSubmitRequest.event;
+	private readonly _onDidAcceptRequest = this._register(new Emitter<IChatRequestAcceptedEvent>());
+	readonly onDidAcceptRequest = this._onDidAcceptRequest.event;
+	private readonly _modelsWithAcceptedRequests = new WeakSet<ChatModel>();
 
 	public get onDidCreateModel() { return this._sessionModels.onDidCreateModel; }
 
@@ -1232,6 +1235,10 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
+		return this.sendRequestInternal(sessionResource, request, options, true);
+	}
+
+	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 		const hasExplicitFileOrImageAttachment = [...(options?.attachedContext ?? []), ...(options?.resolvedVariables ?? [])].some(isExplicitFileOrImageVariableEntry);
@@ -1265,6 +1272,8 @@ export class ChatService extends Disposable implements IChatService {
 			};
 		}
 
+		const startsNewSession = !model.hasRequests && model.getPendingRequests().length === 0;
+
 		// Internally blank widgets use special sessions with an untitled- path.
 		// We do not want these leaking out to the rest of code. On the first
 		// send, convert the untitled session into a real session (idempotent
@@ -1283,9 +1292,17 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
+		const isNewSession = startsNewSession && !this._modelsWithAcceptedRequests.has(model);
+		const notifyAccepted = () => {
+			this._modelsWithAcceptedRequests.add(model);
+			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
+				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+			}
+		};
 
 		if (options?.queue) {
 			const queued = this.queuePendingRequest(model, sessionResource, request, options);
+			notifyAccepted();
 			if (!options.pauseQueue) {
 				this.processPendingRequests(sessionResource);
 			}
@@ -1321,7 +1338,7 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
-		return {
+		const result: ChatSendResultSent = {
 			kind: 'sent',
 			newSessionResource,
 			data: {
@@ -1330,6 +1347,8 @@ export class ChatService extends Disposable implements IChatService {
 				slashCommand: agentSlashCommandPart?.command,
 			},
 		};
+		notifyAccepted();
+		return result;
 	}
 
 	/**
@@ -2356,10 +2375,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		// Re-send remaining queued requests
 		for (const pending of pendingRequests) {
-			void this.sendRequest(targetResource, pending.request.message.text, {
+			void this.sendRequestInternal(targetResource, pending.request.message.text, {
 				...pending.sendOptions,
 				queue: pending.kind,
-			});
+			}, false);
 		}
 	}
 
@@ -2482,13 +2501,13 @@ export class ChatService extends Disposable implements IChatService {
 			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
 			let result: ChatSendResult | undefined;
 			try {
-				result = await this.sendRequest(sessionResource, message, sendOptions);
+				result = await this.sendRequestInternal(sessionResource, message, sendOptions, false);
 			} catch (err) {
 				this.logService.error('sendPendingRequestImmediately: re-send failed', err);
 			}
 			if (!result || result.kind === 'rejected') {
 				this.info('sendPendingRequestImmediately', `Re-send was not accepted (${result?.kind ?? 'error'}); restoring pending message to the queue`);
-				await this.sendRequest(sessionResource, message, { ...sendOptions, attachedContext, queue: target.kind });
+				await this.sendRequestInternal(sessionResource, message, { ...sendOptions, attachedContext, queue: target.kind }, false);
 			}
 			return;
 		}
