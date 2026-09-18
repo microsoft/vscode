@@ -341,6 +341,77 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.agenticCommitPlannerGenerate",
+        "title": "%command.agenticCommitPlannerGenerate%",
+        "category": "Git",
+        "icon": "$(sparkle)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.agenticCommitPlannerAgentCommits",
+        "title": "%command.agenticCommitPlannerAgentCommits%",
+        "category": "Git",
+        "icon": "$(sparkle)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.agenticCommitPlannerCreateAll",
+        "title": "%command.agenticCommitPlannerCreateAll%",
+        "category": "Git",
+        "icon": "$(check)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.agenticCommitPlannerRegenerate",
+        "title": "%command.agenticCommitPlannerRegenerate%",
+        "category": "Git",
+        "icon": "$(sparkle)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.agenticCommitPlannerDiscard",
+        "title": "%command.agenticCommitPlannerDiscard%",
+        "category": "Git",
+        "icon": "$(close)"
+      },
+      {
+        "command": "git.agenticCommitPlannerCreateCommit",
+        "title": "%command.agenticCommitPlannerCreateCommit%",
+        "category": "Git",
+        "icon": "$(check)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.agenticCommitPlannerEditMessage",
+        "title": "%command.agenticCommitPlannerEditMessage%",
+        "category": "Git",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "git.agenticCommitPlannerRemoveCommit",
+        "title": "%command.agenticCommitPlannerRemoveCommit%",
+        "category": "Git",
+        "icon": "$(close)"
+      },
+      {
+        "command": "git.agenticCommitPlannerViewChanges",
+        "title": "%command.agenticCommitPlannerViewChanges%",
+        "category": "Git",
+        "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "git.agenticCommitPlannerMoveResources",
+        "title": "%command.agenticCommitPlannerMoveResources%",
+        "category": "Git",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "git.agenticCommitPlannerRemoveResources",
+        "title": "%command.agenticCommitPlannerRemoveResources%",
+        "category": "Git",
+        "icon": "$(close)"
+      },
+      {
         "command": "git.commitAmend",
         "title": "%command.commitAmend%",
         "category": "Git",
@@ -1226,6 +1297,42 @@
           "when": "false"
         },
         {
+          "command": "git.agenticCommitPlannerCreateAll",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerRegenerate",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerDiscard",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerCreateCommit",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerEditMessage",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerRemoveCommit",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerViewChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerMoveResources",
+          "when": "false"
+        },
+        {
+          "command": "git.agenticCommitPlannerRemoveResources",
+          "when": "false"
+        },
+        {
           "command": "git.clone",
           "when": "config.git.enabled && !git.missing"
         },
@@ -1922,11 +2029,43 @@
           "when": "false"
         }
       ],
+      "scm/inputBox": [
+        {
+          "command": "git.agenticCommitPlannerGenerate",
+          "group": "1_planner@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.agenticCommitPlannerAgentCommits",
+          "group": "1_planner@2",
+          "when": "scmProvider == git"
+        }
+      ],
       "scm/title": [
         {
           "command": "git.commit",
           "group": "navigation",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.agenticCommitPlannerGenerate",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.agenticCommitPlannerCreateAll",
+          "group": "navigation@1",
+          "when": "scmProvider == gitAgenticCommitPlanner"
+        },
+        {
+          "command": "git.agenticCommitPlannerRegenerate",
+          "group": "navigation@2",
+          "when": "scmProvider == gitAgenticCommitPlanner"
+        },
+        {
+          "command": "git.agenticCommitPlannerDiscard",
+          "group": "navigation@3",
+          "when": "scmProvider == gitAgenticCommitPlanner"
         },
         {
           "command": "git.refresh",
@@ -2267,6 +2406,46 @@
       ],
       "scm/resourceGroup/context": [
         {
+          "command": "git.agenticCommitPlannerViewChanges",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.agenticCommitPlannerEditMessage",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "inline@2"
+        },
+        {
+          "command": "git.agenticCommitPlannerCreateCommit",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "inline@3"
+        },
+        {
+          "command": "git.agenticCommitPlannerRemoveCommit",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "inline@4"
+        },
+        {
+          "command": "git.agenticCommitPlannerEditMessage",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "git.agenticCommitPlannerCreateCommit",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "1_modification@2"
+        },
+        {
+          "command": "git.agenticCommitPlannerRemoveCommit",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "1_modification@3"
+        },
+        {
+          "command": "git.agenticCommitPlannerViewChanges",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroupState == commit",
+          "group": "2_view@1"
+        },
+        {
           "command": "git.stageAllMerge",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
@@ -2435,6 +2614,21 @@
         }
       ],
       "scm/resourceState/context": [
+        {
+          "command": "git.agenticCommitPlannerMoveResources",
+          "when": "scmProvider == gitAgenticCommitPlanner",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.agenticCommitPlannerMoveResources",
+          "when": "scmProvider == gitAgenticCommitPlanner",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "git.agenticCommitPlannerRemoveResources",
+          "when": "scmProvider == gitAgenticCommitPlanner && scmResourceGroup != unassigned",
+          "group": "1_modification@2"
+        },
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
