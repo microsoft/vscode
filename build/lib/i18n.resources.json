@@ -757,6 +757,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/remoteSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessions",
 			"project": "vscode-sessions"
 		},
