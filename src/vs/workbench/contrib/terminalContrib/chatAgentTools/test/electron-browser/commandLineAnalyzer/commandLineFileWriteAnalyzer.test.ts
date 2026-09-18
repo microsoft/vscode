@@ -473,6 +473,25 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		});
 	});
 
+	test('PowerShell UNC path preserves the file authority', async () => {
+		const cwd = URI.file('C:/workspace/project');
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(cwd)]));
+
+		const result = await analyzer.analyze({
+			commandLine: 'Write-Host "hello" > \\\\server\\share\\file.txt',
+			cwd,
+			shell: 'pwsh',
+			os: OperatingSystem.Windows,
+			treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
+			terminalToolSessionId: 'test',
+			chatSessionResource: undefined,
+		});
+
+		strictEqual(result.isAutoApproveAllowed, false);
+		strictEqual(result.disclaimers?.length, 1);
+	});
+
 	(isWindows ? suite : suite.skip)('pwsh', () => {
 		const cwd = URI.file('C:/workspace/project');
 

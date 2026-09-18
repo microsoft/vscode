@@ -169,6 +169,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					// Absolute
 					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(value) : posix.isAbsolute(value);
 					if (isAbsolute) {
+						if (options.os === OperatingSystem.Windows && uriPath.startsWith('//') && !cwd.authority) {
+							const authorityEnd = uriPath.indexOf('/', 2);
+							return cwd.with({
+								authority: uriPath.substring(2, authorityEnd === -1 ? undefined : authorityEnd),
+								path: authorityEnd === -1 ? '/' : uriPath.substring(authorityEnd),
+							});
+						}
 						// Ensure cwd's scheme and authority is retained
 						return cwd.with({ path: uriPath });
 					}
