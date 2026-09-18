@@ -876,6 +876,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	max-width: 100%;
+	user-select: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container .button-link {
@@ -1117,7 +1118,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link {
 	border: inherit;
-	user-select: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner {
