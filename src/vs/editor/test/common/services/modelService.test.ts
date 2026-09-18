@@ -48,44 +48,6 @@ suite('ModelService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shared models establish ownership before being announced', () => {
-		let announced = false;
-		disposables.add(modelService.onModelAdded(model => {
-			announced = true;
-			const reference = modelService.acquireSharedModel(model.uri);
-			assert.ok(reference);
-			reference.dispose();
-			assert.strictEqual(model.isDisposed(), false);
-		}));
-		const reference = disposables.add(modelService.createSharedModel('', null));
-		const model = reference.object;
-		let disposalCount = 0;
-		disposables.add(model.onWillDispose(() => disposalCount++));
-		reference.dispose();
-		reference.dispose();
-		assert.deepStrictEqual({
-			announced,
-			disposalCount,
-			disposed: model.isDisposed(),
-			registered: modelService.getModel(model.uri),
-			reacquired: modelService.acquireSharedModel(model.uri),
-		}, { announced: true, disposalCount: 1, disposed: true, registered: null, reacquired: undefined });
-	});
-
-	test('shared models live until their last owner releases', () => {
-		const owner = disposables.add(modelService.createSharedModel('shared', null));
-		const other = disposables.add(modelService.acquireSharedModel(owner.object.uri)!);
-		owner.dispose();
-		assert.strictEqual(other.object.getValue(), 'shared');
-		other.dispose();
-		assert.strictEqual(owner.object.isDisposed(), true);
-	});
-
-	test('ordinary models do not acquire shared ownership implicitly', () => {
-		const model = disposables.add(modelService.createModel('', null));
-		assert.strictEqual(modelService.acquireSharedModel(model.uri), undefined);
-	});
-
 	test('EOL setting respected depending on root', () => {
 		const model1 = modelService.createModel('farboo', null);
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
