@@ -127,9 +127,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 			assert.deepStrictEqual({
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
+				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
 			}, {
 				conversationDescription: true,
+				menuAvailability: true,
 				sessionListAction: true,
 			});
 		});
