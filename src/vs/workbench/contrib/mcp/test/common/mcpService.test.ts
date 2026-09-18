@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -107,8 +107,129 @@ suite('Workbench - MCP - McpService', () => {
 				return transport;
 			};
 			mcpService.updateCollectedServers();
-			return { server: mcpService.servers.get()[0], configurationService, resolution, transports };
+			return { server: mcpService.servers.get()[0], configurationService, resolution, transports, registry, mcpService, definition };
 		};
+
+		const setDeniedUrls = async (configurationService: TestConfigurationService, urls: string[]) => {
+			await configurationService.setUserConfiguration(mcpDeniedServersConfig, urls.map(serverUrl => ({ serverUrl })));
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([mcpDeniedServersConfig]),
+				change: { keys: [mcpDeniedServersConfig], overrides: [] },
+				affectsConfiguration: key => key === mcpDeniedServersConfig,
+			});
+		};
+
+		test('retains a resolved policy block and suppresses cached metadata after disposal', async () => {
+			const { server, configurationService, registry, definition } = createPolicyServer('https://${input:host}/mcp', 'https://trusted.example/mcp');
+			const createTransport = registry.makeTestTransport;
+			registry.makeTestTransport = () => {
+				const transport = createTransport();
+				transport.setResponder('initialize', message => ({
+					jsonrpc: MCP.JSONRPC_VERSION,
+					id: (message as MCP.JSONRPCRequest).id,
+					result: {
+						protocolVersion: MCP.LATEST_PROTOCOL_VERSION,
+						serverInfo: { name: 'Policy Fixture', version: '1.0.0' },
+						capabilities: { tools: {}, prompts: {} },
+					}
+				}));
+				transport.setResponder('tools/list', message => ({
+					jsonrpc: MCP.JSONRPC_VERSION, id: (message as MCP.JSONRPCRequest).id,
+					result: { tools: [{ name: 'cached_tool', inputSchema: { type: 'object', properties: {} } }] },
+				}));
+				transport.setResponder('prompts/list', message => ({
+					jsonrpc: MCP.JSONRPC_VERSION, id: (message as MCP.JSONRPCRequest).id,
+					result: { prompts: [{ name: 'cached_prompt' }] },
+				}));
+				return transport;
+			};
+
+			await server.start({ promptType: 'never', errorOnUserInteraction: true });
+			await Promise.all([
+				waitForState(server.tools, tools => tools.length === 1),
+				waitForState(server.prompts, prompts => prompts.length === 1),
+			]);
+			const snapshot = () => ({
+				state: server.connectionState.get().state,
+				connected: !!server.connection.get(),
+				tools: server.tools.get().length,
+				prompts: server.prompts.get().length,
+			});
+			const before = snapshot();
+			await setDeniedUrls(configurationService, ['https://trusted.example/*']);
+			const blocked = snapshot();
+			setServerDefinition(registry, { ...definition, launch: { ...definition.launch } });
+			const equivalentDefinition = snapshot();
+			await setDeniedUrls(configurationService, []);
+			const allowedAgain = snapshot();
+
+			assert.deepStrictEqual({ before, blocked, equivalentDefinition, allowedAgain }, {
+				before: { state: McpConnectionState.Kind.Running, connected: true, tools: 1, prompts: 1 },
+				blocked: { state: McpConnectionState.Kind.Error, connected: false, tools: 0, prompts: 0 },
+				equivalentDefinition: { state: McpConnectionState.Kind.Error, connected: false, tools: 0, prompts: 0 },
+				allowedAgain: { state: McpConnectionState.Kind.Stopped, connected: false, tools: 1, prompts: 1 },
+			});
+		});
+
+		test('a changed definition releases the retained resolved policy block', async () => {
+			const { server, registry, definition, transports } = createPolicyServer('https://${input:host}/mcp', 'https://blocked.example/mcp');
+			const result = await server.start({ promptType: 'never', errorOnUserInteraction: true });
+			const blocked = server.connectionState.get().state;
+			setServerDefinition(registry, {
+				...definition,
+				cacheNonce: 'b',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://trusted.example/mcp'), headers: [] }
+			});
+			assert.deepStrictEqual({
+				result: result.state,
+				blocked,
+				changed: server.connectionState.get().state,
+				transports: transports.length,
+			}, {
+				result: McpConnectionState.Kind.Error,
+				blocked: McpConnectionState.Kind.Error,
+				changed: McpConnectionState.Kind.Stopped,
+				transports: 0,
+			});
+		});
+
+		test('policy revocation during Starting settles startup and permits a later retry', async () => {
+			const { server, configurationService, registry, transports } = createPolicyServer('https://${input:host}/mcp', 'https://trusted.example/mcp');
+			const starting = new DeferredPromise<void>();
+			registry.delegates.set([{
+				...registry.delegates.get()[0],
+				start: () => {
+					const transport = registry.makeTestTransport();
+					if (transports.length === 1) {
+						void starting.complete();
+					} else {
+						transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+					}
+					return transport;
+				},
+			}], undefined);
+
+			const pending = server.start({ promptType: 'never', errorOnUserInteraction: true });
+			await starting.p;
+			await setDeniedUrls(configurationService, ['https://trusted.example/*']);
+			const revoked = await raceTimeout(pending, 1000);
+			assert.ok(revoked, 'Startup must settle when policy disposes a Starting connection');
+			const blocked = server.connectionState.get().state;
+			await setDeniedUrls(configurationService, []);
+			const retried = await raceTimeout(server.start({ promptType: 'never', errorOnUserInteraction: true }), 1000);
+			assert.deepStrictEqual({
+				revoked: revoked.state,
+				blocked,
+				retried: retried?.state,
+				transports: transports.length,
+			}, {
+				revoked: McpConnectionState.Kind.Error,
+				blocked: McpConnectionState.Kind.Error,
+				retried: McpConnectionState.Kind.Running,
+				transports: 2,
+			});
+		});
 
 		for (const [host, reason] of [
 			['attacker.example', 'not in the list of servers allowed by your organization'],

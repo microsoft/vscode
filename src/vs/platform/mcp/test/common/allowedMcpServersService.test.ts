@@ -66,6 +66,36 @@ suite('AllowedMcpServersService', () => {
 	});
 
 	suite('URL policy resolution', () => {
+		test('preliminary checks do not defer incomplete variable markers', () => {
+			const service = createService({
+				[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
+				[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
+			});
+			const fragments = ['${', '${input:host', '${outer{inner}'];
+			assert.deepStrictEqual(
+				fragments.map(fragment => ['trusted.example', 'blocked.example', 'other.example'].map(host => service.isAllowed({
+					name: 'server',
+					config: { type: McpServerType.REMOTE, url: `https://${host}/mcp#${fragment}` }
+				}) === true)),
+				fragments.map(() => [true, false, false])
+			);
+		});
+
+		test('preliminary checks preserve balanced and nested variable deferral', () => {
+			const service = createService({
+				[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
+				[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
+			});
+			const variables = ['${input:host}', '${input:${env:HOST}}', '${incomplete${env:HOST}'];
+			assert.deepStrictEqual(
+				variables.map(variable => service.isAllowed({
+					name: 'server',
+					config: { type: McpServerType.REMOTE, url: `https://blocked.example/${variable}` }
+				}) === true),
+				variables.map(() => true)
+			);
+		});
+
 		for (const fragment of ['${', '${input:literal}']) {
 			test(`enforces the resolved URL allowlist with fragment ${fragment}`, () => {
 				const service = createService({

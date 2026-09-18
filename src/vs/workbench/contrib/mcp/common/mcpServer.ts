@@ -402,22 +402,12 @@ export class McpServer extends Disposable implements IMcpServer {
 	public readonly collection: McpCollectionReference;
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
+	private readonly _resolvedPolicyIdentity = observableValue<{ definition: McpServerDefinition; identity: IMcpServerIdentity } | undefined>(this, undefined);
 
 	public readonly connection = this._connection;
 
-	/**
-	 * Reactively evaluates the `chat.mcp.allowedServers` / `chat.mcp.deniedServers` policy against
-	 * this server's identity. Holds an error state while blocked, `undefined` while allowed.
-	 *
-	 * Being a derived, it recomputes whenever the policy changes (via {@link _policyEpoch}), the
-	 * server definition changes, or a connection resolves — so it always evaluates the *resolved*
-	 * launch of a live connection and falls back to the definition otherwise. This also means a
-	 * blocked server surfaces the block at rest (before any start), which hides its cached tools
-	 * and prompts and lets the UI show the reason.
-	 *
-	 * Initialized in the constructor because it depends on the injected allowed-servers service.
-	 */
 	private readonly _policyEpoch: IObservable<void>;
+	/** Retains policy enforcement for the last resolved launch while its definition is unchanged. */
 	private readonly _policyBlock: IObservable<McpConnectionState.Error | undefined>;
 	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._policyBlock.read(reader) ?? this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
 
@@ -547,6 +537,11 @@ export class McpServer extends Disposable implements IMcpServer {
 				// Authoritative: the connection carries the fully resolved launch.
 				return this._evaluatePolicy(this._identityFromLaunch(connection.launchDefinition));
 			}
+			const definition = this._fullDefinitions.read(reader).server;
+			const resolved = this._resolvedPolicyIdentity.read(reader);
+			if (resolved && definition && McpServerDefinition.equals(resolved.definition, definition)) {
+				return this._evaluatePolicy(resolved.identity);
+			}
 			// At rest, only decide when we have a concrete, fully-resolved launch. If the definition
 			// has not been provided yet (e.g. a lazy/extension server before activation) or the launch
 			// still contains unresolved `${...}` variables (inputs, workspace or env vars), a
@@ -554,7 +549,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			// — which re-checks the fully resolved launch — to avoid over-eagerly blocking (and hiding
 			// the cached tools of) a server that will actually be allowed once resolved. `chat.mcp.access`
 			// and deny-by-name are still enforced at start(), and access also by the enablement layer.
-			const launch = this._fullDefinitions.read(reader).server?.launch;
+			const launch = definition?.launch;
 			if (!launch) {
 				return undefined;
 			}
@@ -754,8 +749,6 @@ export class McpServer extends Disposable implements IMcpServer {
 		interaction?.participants.set(this.definition.id, { s: 'unknown' });
 
 		return this._connectionSequencer.queue<McpConnectionState>(async () => {
-			// Evaluated against the definition here (no connection yet). `_policyBlock` re-evaluates
-			// against the resolved launch once the connection exists (checked again below).
 			const preStartBlock = this._policyBlock.get();
 			if (preStartBlock) {
 				return preStartBlock;
@@ -808,7 +801,11 @@ export class McpServer extends Disposable implements IMcpServer {
 					return { state: McpConnectionState.Kind.Stopped };
 				}
 
-				this._connection.set(connection, undefined);
+				const resolvedPolicyIdentity = { definition: connection.definition, identity: this._identityFromLaunch(connection.launchDefinition) };
+				transaction(tx => {
+					this._resolvedPolicyIdentity.set(resolvedPolicyIdentity, tx);
+					this._connection.set(connection, tx);
+				});
 
 				if (connection.definition.devMode) {
 					this.showOutput();
@@ -845,6 +842,11 @@ export class McpServer extends Disposable implements IMcpServer {
 					return r.value;
 				}
 			});
+
+			const policyBlock = this._policyBlock.get();
+			if (policyBlock) {
+				return policyBlock;
+			}
 
 			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
 				state: McpConnectionState.toKindString(state.state),

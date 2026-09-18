@@ -7,6 +7,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { hasConfigurationVariable } from '../../configuration/common/configurationVariables.js';
 import { Emitter } from '../../../base/common/event.js';
 import { hasKey, isString } from '../../../base/common/types.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
@@ -67,7 +68,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	}
 
 	private checkServerAllowedBeforeResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
-		if (!identity.url?.includes('${')) {
+		if (!identity.url || !hasConfigurationVariable(identity.url)) {
 			return checkMcpServerAllowed(allowlist, denylist, identity);
 		}
 
