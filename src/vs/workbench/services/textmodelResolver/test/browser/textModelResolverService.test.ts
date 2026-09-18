@@ -14,12 +14,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../..
 import { TextFileEditorModel } from '../../../textfile/common/textFileEditorModel.js';
 import { snapshotToString } from '../../../textfile/common/textfiles.js';
 import { TextFileEditorModelManager } from '../../../textfile/common/textFileEditorModelManager.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
 import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
+import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
+import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 
 suite('Workbench - TextModelResolverService', () => {
 
@@ -226,6 +232,88 @@ suite('Workbench - TextModelResolverService', () => {
 		await p;
 		assert(textModel.isDisposed(), 'the inMemory text model should be disposed after the reference is released');
 	});
+
+	for (const releaseCreatorFirst of [false, true]) {
+		test(`shared model survives until both owners release (creator first: ${releaseCreatorFirst})`, async () => {
+			const owner = disposables.add(accessor.modelService.createSharedModel('shared', null));
+			const model = owner.object;
+			let disposalCount = 0;
+			disposables.add(model.onWillDispose(() => disposalCount++));
+			const reference = disposables.add(await accessor.textModelResolverService.createModelReference(model.uri));
+			if (releaseCreatorFirst) {
+				owner.dispose();
+			} else {
+				reference.dispose();
+				await timeout(0);
+			}
+			assert.deepStrictEqual({ value: model.getValue(), disposalCount }, { value: 'shared', disposalCount: 0 });
+
+			const disposed = Event.toPromise(model.onWillDispose);
+			owner.dispose();
+			reference.dispose();
+			await disposed;
+			assert.deepStrictEqual({ disposed: model.isDisposed(), disposalCount }, { disposed: true, disposalCount: 1 });
+		});
+	}
+
+	test('shared model is retained while a resolver reference is still opening', async () => {
+		const owner = disposables.add(accessor.modelService.createSharedModel('shared', null));
+		const pending = accessor.textModelResolverService.createModelReference(owner.object.uri);
+		owner.dispose();
+		const reference = disposables.add(await pending);
+		assert.strictEqual(reference.object.textEditorModel.getValue(), 'shared');
+		const disposed = Event.toPromise(owner.object.onWillDispose);
+		reference.dispose();
+		await disposed;
+	});
+
+	test('shared model can be reacquired during pending resolver disposal', async () => {
+		const owner = disposables.add(accessor.modelService.createSharedModel('shared', null));
+		const first = disposables.add(await accessor.textModelResolverService.createModelReference(owner.object.uri));
+		first.dispose();
+		const pending = accessor.textModelResolverService.createModelReference(owner.object.uri);
+		owner.dispose();
+		const second = disposables.add(await pending);
+		assert.strictEqual(second.object.textEditorModel.getValue(), 'shared');
+		const disposed = Event.toPromise(owner.object.onWillDispose);
+		second.dispose();
+		await disposed;
+	});
+
+	for (const added of [false, true]) {
+		test(`multi-diff synthetic side shares its lifetime with document references (added: ${added})`, async () => {
+			const services = disposables.add(instantiationService.createChild(new ServiceCollection(
+				[IDiffProviderFactoryService, new TestDiffProviderFactoryService()],
+			)));
+			const textModel = accessor.modelService.createModel('content', null);
+			const source = new DiffItemSource(textModel.uri, textModel);
+			const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: added ? undefined : source,
+				modified: added ? source : undefined,
+			}, textModel));
+			const parent = disposables.add(new MultiDiffEditorViewModel({ documents: ValueWithChangeEvent.const([]) }, services));
+			const item = disposables.add(services.createInstance(DocumentDiffItemViewModel, document, parent));
+			const diffReference = disposables.add(item.diffEditorViewModelRef.createNewRef());
+			const empty = added ? item.diffEditorViewModel.model.original : item.diffEditorViewModel.model.modified;
+			const first = disposables.add(await accessor.textModelResolverService.createModelReference(empty.uri));
+			first.dispose();
+			await timeout(0);
+			assert.deepStrictEqual({
+				empty: empty.getValue(),
+				missingUri: added ? item.originalUri : item.modifiedUri,
+				alive: item.isAlive.get(),
+			}, { empty: '', missingUri: undefined, alive: true });
+
+			const second = disposables.add(await accessor.textModelResolverService.createModelReference(empty.uri));
+			item.dispose();
+			assert.strictEqual(empty.isDisposed(), false);
+			diffReference.dispose();
+			assert.strictEqual(empty.isDisposed(), false);
+			const disposed = Event.toPromise(empty.onWillDispose);
+			second.dispose();
+			await disposed;
+		});
+	}
 
 	test('resolve inMemory throws when model not found', async () => {
 		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/nonExistent' });
