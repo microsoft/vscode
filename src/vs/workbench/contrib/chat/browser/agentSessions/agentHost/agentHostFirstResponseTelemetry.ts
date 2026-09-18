@@ -18,7 +18,7 @@ export interface IAgentHostFirstResponseEvent {
 	schemaVersion: 1;
 	requestId: string;
 	provider: string;
-	sessionId?: string;
+	agentHostSessionId?: string;
 	chatId?: string;
 	outcome: AgentHostFirstResponseOutcome;
 	sessionTurnKind: 'first' | 'later' | 'unknown';
@@ -37,7 +37,7 @@ export type AgentHostFirstResponseClassification = {
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Version of the invocation timing contract.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Actual client request and protocol turn identifier.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent Host provider identifier.' };
-	sessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Backend session identifier.' };
+	agentHostSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent Host session identifier.' };
 	chatId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Backend chat identifier.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal invocation outcome, including cancellation before dispatch.' };
 	sessionTurnKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the observed chat has prior turns; unknown before state hydration.' };
