@@ -20,9 +20,9 @@ At a minimum your TODO must contain the following:
 4. Compile,
 5. fix
 6. test
-7. Repease steps Compile, fix and tests until all tests are passing
+7. Repeat the compile, fix, and test steps until all tests pass
 8. Run integration tests
-9. Repeate Compile, Fix, Test, until all tests are passing
+9. Repeat the compile, fix, and test steps until all tests pass
 11. Create a summary
 
 Note:
@@ -34,7 +34,7 @@ Follow these steps exactly:
 Take a snapshot of node_modules/@github/copilot/sdk/index.d.ts to compare against after the upghttps://github.com/microsoft/vscode/issues/291457rade.
 
 ### 2. Update the package using command `npm install @github/copilot@latest`
-After this you MSUT run `npm run postinstall`
+After this you MUST run `npm run postinstall`
 
 ### 3. Compare differences in type definitions
 * Use mode=background for comparing the files and when done, just let me know its done
@@ -60,7 +60,7 @@ npx tsc --noEmit --project tsconfig.json
 ```bash
 npm run test:unit
 ```
-- Do NOT change the behavour of the code just to make the tests pass.
+- Do NOT change the behavior of the code just to make the tests pass.
 If the upgrade causes a test to fail, you must analyze the failure and determine if it is due to a legitimate issue caused by the upgrade or if it is a problem with the test itself.
 - Ensure all tests are passing before proceeding to the next step.
 
@@ -69,6 +69,6 @@ If the upgrade causes a test to fail, you must analyze the failure and determine
 - After successfully upgrading the @github/copilot package and ensuring that all tests are passing, you must create a summary of the changes that were made during the upgrade process.
 - Give a summary of the changes in the code base
 - Give a summary of the changes in the tests
-- Give a summary of the differenes in the type definitions between the old and new versions of the @github/copilot package.
+- Give a summary of the differences in the type definitions between the old and new versions of the @github/copilot package.
   - Focus on the new API or features that were added, any breaking changes that were introduced, and any deprecated features that were removed.
 - Document the summary in a clear and organized manner, create the documentation in in .build/upgrade-notes.md

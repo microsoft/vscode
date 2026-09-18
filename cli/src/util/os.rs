@@ -6,7 +6,7 @@
 #[cfg(windows)]
 pub fn os_release() -> Result<String, std::io::Error> {
 	// The windows API *had* nice GetVersionEx/A APIs, but these were deprecated
-	// in Winodws 8 and there's no newer win API to get version numbers. So
+	// in Windows 8 and there's no newer win API to get version numbers. So
 	// instead read the registry.
 
 	use winreg::{enums::HKEY_LOCAL_MACHINE, RegKey};
