@@ -825,6 +825,102 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(engineA, engineB, 'Sandbox engine should be cached across calls');
 	});
 
+	for (const shellType of ['bash', 'powershell'] as const) {
+		for (const scenario of [
+			{ name: 'blocks input when unsandboxed execution is disabled', enabled: true, allowUnsandboxed: false, confirmation: 'approve', error: 'unsandboxed_disabled', requests: 0 },
+			{ name: 'blocks input without an approval handler', enabled: true, allowUnsandboxed: true, confirmation: 'missing', error: 'sandbox_blocked', requests: 0 },
+			{ name: 'blocks input when approval is declined', enabled: true, allowUnsandboxed: true, confirmation: 'deny', error: 'sandbox_blocked', requests: 1 },
+			{ name: 'sends input only after approval', enabled: true, allowUnsandboxed: true, confirmation: 'approve', error: undefined, requests: 1 },
+			{ name: 'rechecks policy after approval', enabled: true, allowUnsandboxed: true, confirmation: 'disable', error: 'unsandboxed_disabled', requests: 1 },
+			{ name: 'preserves input when sandboxing is disabled', enabled: false, allowUnsandboxed: false, confirmation: 'missing', error: undefined, requests: 0 },
+		] as const) {
+			test(`write_${shellType} ${scenario.name}`, async () => {
+				const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: scenario.enabled });
+				terminalManager.defaultShell = shellType === 'bash' ? '/bin/bash' : 'pwsh';
+				agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, scenario.allowUnsandboxed);
+				const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+				const shellRef = await shellManager.getOrCreateShell(shellType, TEST_CHAT_URI, 'turn-1', 'tool-1');
+				markCreatedTerminalsExist(terminalManager);
+				shellRef.dispose();
+				const requests: IUnsandboxedCommandConfirmationRequest[] = [];
+				const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(),
+					scenario.confirmation === 'missing' ? undefined : async request => {
+						assert.strictEqual(terminalManager.sentTexts.length, 0);
+						requests.push(request);
+						if (scenario.confirmation === 'disable') {
+							agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, false);
+						}
+						return scenario.confirmation !== 'deny';
+					});
+				const toolName = `write_${shellType}`;
+				const writeTool = tools.find(tool => tool.name === toolName);
+				assert.ok(writeTool);
+				const command = 'answer\n';
+				const invocation: ToolInvocation = {
+					sessionId: 'session-1',
+					toolCallId: 'tool-2',
+					toolName,
+					arguments: { command },
+				};
+				const result = await writeTool.handler!({ command }, invocation) as ToolResultObject;
+
+				assert.deepStrictEqual({
+					resultType: result.resultType,
+					error: result.error,
+					writes: terminalManager.writes.map(write => write.data),
+					requests: requests.map(request => ({
+						toolCallId: request.toolCallId,
+						toolName: request.toolName,
+						command: request.command,
+						shellExecutable: request.shellExecutable,
+					})),
+				}, {
+					resultType: scenario.error ? 'failure' : 'success',
+					error: scenario.error,
+					writes: scenario.error ? [] : ['answer\r'],
+					requests: scenario.requests ? [{
+						toolCallId: 'tool-2',
+						toolName,
+						command,
+						shellExecutable: terminalManager.defaultShell,
+					}] : [],
+				});
+			});
+		}
+
+		test(`write_${shellType} observes sandbox enablement after tool creation`, async () => {
+			const { instantiationService, terminalManager, agentConfigurationService } = createServices();
+			terminalManager.defaultShell = shellType === 'bash' ? '/bin/bash' : 'pwsh';
+			agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, false);
+			const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+			const shellRef = await shellManager.getOrCreateShell(shellType, TEST_CHAT_URI, 'turn-1', 'tool-1');
+			markCreatedTerminalsExist(terminalManager);
+			shellRef.dispose();
+			const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
+			agentConfigurationService.setSandboxValue(AgentHostSandboxKey.Enabled, AgentSandboxEnabledValue.On);
+			agentConfigurationService.setSandboxValue(AgentHostSandboxKey.WindowsEnabled, AgentSandboxEnabledValue.On);
+			const toolName = `write_${shellType}`;
+			const writeTool = tools.find(tool => tool.name === toolName);
+			assert.ok(writeTool);
+			const invocation: ToolInvocation = {
+				sessionId: 'session-1',
+				toolCallId: 'tool-2',
+				toolName,
+				arguments: { command: 'answer\n' },
+			};
+			const result = await writeTool.handler!(invocation.arguments, invocation) as ToolResultObject;
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				error: result.error,
+				writes: terminalManager.writes,
+			}, {
+				resultType: 'failure',
+				error: 'unsandboxed_disabled',
+				writes: [],
+			});
+		});
+	}
+
 	test('custom terminal sandbox follows its owner selection and live managed floor', async () => {
 		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		const owner = 'copilot:/session-1';
