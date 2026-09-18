@@ -193,6 +193,7 @@ suite('Combined mode and permissions picker', () => {
 
 	test('the Experimental badge respects focus and high-contrast colors with a neutral fill', () => {
 		const { service, popup } = setup(true);
+		popup.style.setProperty('--vscode-strokeThickness', '1px');
 		popup.style.setProperty('--vscode-foreground', '#cccccc');
 		popup.style.setProperty('--vscode-contrastBorder', '#ffffff');
 		service.focusItemById('Assisted permissions');
@@ -202,10 +203,12 @@ suite('Combined mode and permissions picker', () => {
 
 		assert.deepStrictEqual({
 			background: badgeStyle.backgroundColor,
+			borderWidth: badgeStyle.borderWidth,
 			borderColor: badgeStyle.borderColor,
 			matchesRowColor: badgeStyle.color === dom.getWindow(row).getComputedStyle(row).color,
 		}, {
 			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
+			borderWidth: '1px',
 			borderColor: 'rgb(255, 255, 255)',
 			matchesRowColor: true,
 		});
