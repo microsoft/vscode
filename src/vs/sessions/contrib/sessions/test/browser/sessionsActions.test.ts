@@ -41,6 +41,7 @@ import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('Sessions - Actions', () => {
 
@@ -292,6 +293,63 @@ suite('Sessions - Actions', () => {
 			chatsWhen: 'sessionHasSideChats && sessionIsCreated && !sessionIsArchived',
 			addChatGroup: 'secondary/3_newChat',
 			addChatOrder: 10,
+		});
+	});
+
+	test('contributes chat tab presentation to the session header overflow', async () => {
+		const submenu = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.SessionChatTabs);
+		const items = MenuRegistry.getMenuItems(Menus.SessionChatTabs)
+			.filter(isIMenuItem)
+			.map(item => ({
+				id: item.command.id,
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				toggled: item.command.toggled?.serialize(),
+			}));
+		const updates: Array<{ key: string; value: unknown }> = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				updates.push({ key, value });
+				return Promise.resolve();
+			}
+		}());
+		await CommandsRegistry.getCommand('sessions.action.showSingleChat')?.handler(instantiationService);
+		await CommandsRegistry.getCommand('sessions.action.showMultipleChatTabs')?.handler(instantiationService);
+
+		assert.deepStrictEqual({
+			submenu: {
+				title: submenu && (typeof submenu.title === 'string' ? submenu.title : submenu.title.value),
+				group: submenu?.group,
+				order: submenu?.order,
+				when: submenu?.when?.serialize(),
+			},
+			items,
+			updates,
+		}, {
+			submenu: {
+				title: 'Chat Tabs',
+				group: 'secondary/1_session',
+				order: 30,
+				when: 'sessionIsCreated && sessionSupportsMultipleChats',
+			},
+			items: [{
+				id: 'sessions.action.showMultipleChatTabs',
+				title: 'Multiple Tabs',
+				toggled: 'config.sessions.showChatTabs == \'multiple\'',
+			}, {
+				id: 'sessions.action.showSingleChat',
+				title: 'Single Chat',
+				toggled: 'config.sessions.showChatTabs == \'single\'',
+			}],
+			updates: [{
+				key: SESSIONS_CHAT_TABS_SETTING,
+				value: SessionsChatTabsMode.Single,
+			}, {
+				key: SESSIONS_CHAT_TABS_SETTING,
+				value: SessionsChatTabsMode.Multiple,
+			}],
 		});
 	});
 
