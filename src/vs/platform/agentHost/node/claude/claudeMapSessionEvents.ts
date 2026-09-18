@@ -236,6 +236,7 @@ export function mapSDKMessageToAgentSignals(
 	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
 	turnDuration?: number,
+	isIntermediateResult = false,
 ): AgentSignal[] {
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
@@ -254,7 +255,7 @@ export function mapSDKMessageToAgentSignals(
 				registry,
 			);
 		case 'result':
-			return mapResult(message, chat, turnId, turnDuration, state, logService, registry);
+			return mapResult(message, chat, turnId, turnDuration, state, logService, registry, isIntermediateResult);
 		case 'assistant':
 			return tagWithParent(
 				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientToolOwner),
@@ -454,6 +455,7 @@ function mapResult(
 	state: ClaudeMapperState,
 	logService: ILogService,
 	registry: SubagentRegistry,
+	isIntermediateResult: boolean,
 ): AgentSignal[] {
 	const signals: AgentSignal[] = [];
 	if (message.subtype === 'success') {
@@ -505,11 +507,10 @@ function mapResult(
 			},
 		});
 	}
-	// `ChatTurnComplete` is emitted by the session via
-	// `ClaudeSdkPipeline.onTurnComplete`, NOT here. The pipeline knows
-	// when the protocol Turn is truly done (queue fully drained vs an
-	// intermediate result during a steering preempt — CONTEXT.md M10);
-	// the mapper does not have that state.
+	// Pending tools belong to the protocol turn, which can span several SDK results.
+	if (isIntermediateResult) {
+		return signals;
+	}
 	state.clearPendingToolCalls(logService);
 	// Phase 12 — drain orphaned subagent-spawning entries (foreground
 	// only; background entries survive across turns by design). The
@@ -530,7 +531,8 @@ function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): s
 		return message.is_error ? message.result : undefined;
 	}
 	if (message.subtype === 'error_during_execution') {
-		return message.errors?.join('\n');
+		const errors = message.errors?.filter(error => !error.startsWith('[ede_diagnostic]'));
+		return errors?.length ? errors.join('\n') : undefined;
 	}
 	return undefined;
 }

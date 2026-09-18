@@ -683,6 +683,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				try {
 					await this._router.handle(message, turnId, {
 						turnDuration,
+						isIntermediateResult: message.type === 'result' && this._queue.hasPendingAfterHead,
 						mode: this._currentPermissionMode,
 						clientContext,
 					});

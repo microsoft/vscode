@@ -18,6 +18,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
+	readonly isIntermediateResult?: boolean;
 	readonly mode?: PermissionMode;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 }
@@ -84,6 +85,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				this._subagents,
 				this._clientToolOwner,
 				context?.turnDuration,
+				context?.isIntermediateResult,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);

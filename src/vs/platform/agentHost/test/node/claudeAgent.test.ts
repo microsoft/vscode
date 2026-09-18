@@ -20,6 +20,7 @@ import {
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
+	makeResultError,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeSystemInitMessage,
@@ -8123,6 +8124,43 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 			models: reboundQuery.recordedModels,
 			efforts: reboundQuery.recordedFlagSettings.map(s => s.effortLevel),
 		}, { models: ['claude-sonnet-4-6'], efforts: ['high'] });
+	});
+
+	test('steering preserves a foreground subagent until its tool result arrives', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/work')] });
+		const sid = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const ready = new DeferredPromise<void>();
+		const advance = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async index => {
+			if (index === 3) {
+				ready.complete();
+				await advance.p;
+			}
+		};
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeStreamEvent(sid, makeContentBlockStartToolUse(0, 'task-1', 'Task')),
+			makeAssistantMessage(sid, [{ type: 'tool_use', id: 'task-1', name: 'Task', input: { description: 'Inspect', subagent_type: 'Explore', prompt: 'inspect' } }]),
+			makeResultError(sid, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null']),
+			makeUserToolResultMessage(sid, 'task-1', 'done'),
+			makeResultSuccess(sid),
+		];
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const sent = ctx.agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await ready.p;
+		ctx.agent.setPendingMessages!(chat, { id: 'steer-1', message: { text: 'also check tests', origin: { kind: MessageKind.User } } }, []);
+		await tick();
+		advance.complete();
+		await sent;
+
+		assert.ok(signals.some(signal => signal.kind === 'subagent_completed' && signal.toolCallId === 'task-1'));
+		assert.ok(signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'task-1'));
+		assert.strictEqual(signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete).length, 1);
+		assert.ok(!signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError));
 	});
 
 	test('intermediate result during steering does NOT complete the in-flight sendMessage or fire ChatTurnComplete', async () => {

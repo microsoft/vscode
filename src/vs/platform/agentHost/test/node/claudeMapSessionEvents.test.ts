@@ -145,6 +145,53 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
 	});
 
+	test('error_during_execution result with only an [ede_diagnostic] error emits no ChatError', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null']),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+			undefined,
+			123,
+		);
+
+		assert.ok(!signals.some(s => s.kind === 'action' && s.action.type === ActionType.ChatError), 'an internal diagnostic must not render a ChatError');
+	});
+
+	test('error_during_execution result surfaces the real error alongside an [ede_diagnostic] marker', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null', 'CAPI request failed: 500']),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+			undefined,
+			123,
+		);
+
+		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
+		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
+		assert.strictEqual(errorSignal.action.part.error.message, 'CAPI request failed: 500');
+	});
+
+	test('a final diagnostic-only result still drains pending foreground subagents', () => {
+		const state = new ClaudeMapperState();
+		const log = new NullLogService();
+		const registry = r();
+		mapSDKMessageToAgentSignals(
+			makeAssistantMessage(SESSION_ID, [{ type: 'tool_use', id: 'task-1', name: 'Task', input: {} }]),
+			SESSION, TURN_ID, state, log, registry,
+		);
+		mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null']),
+			SESSION, TURN_ID, state, log, registry,
+		);
+		assert.strictEqual(registry.getSpawn('task-1'), undefined);
+	});
+
 	test('successful result is_error with a proxy marker emits a ChatError carrying _meta', () => {
 		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } });
 		const result = makeResultSuccess(SESSION_ID);
