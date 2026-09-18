@@ -126,6 +126,10 @@ export interface SessionMetadata {
 	 * chat that sets none operates against this full set.
 	 */
 	workingDirectories?: URI[];
+	/** Immutable requested source, separate from the host-resolved working directories. */
+	repositorySource?: URI;
+	/** Immutable requested revision, not the checkout's current HEAD. */
+	repositoryRevision?: string;
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -174,12 +178,7 @@ export interface SessionState extends SessionMetadata {
 	 * this over the session's lifetime.
 	 */
 	defaultChat?: URI;
-	/**
-	 * Session configuration schema and current values. For repository-backed
-	 * creation, this includes the advertised standard properties and requested
-	 * `repositorySource` and optional `repositoryRevision` values throughout
-	 * `creating`, `ready`, and `failed`, so clients can recover intent from state.
-	 */
+	/** Provider-specific session configuration schema and current values. */
 	config?: SessionConfigState;
 	/**
 	 * Top-level customizations active in this session.
@@ -562,19 +561,6 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 
 /**
  * A JSON Schema object describing available session configuration metadata.
- *
- * Repository-backed creation uses the standard optional config keys
- * `repositorySource` (a credential-free repository URI) and
- * `repositoryRevision` (a branch, tag, or commit). Support is advertised by
- * `properties.repositorySource`; `properties.repositoryRevision` MUST NOT be
- * advertised without it. Each advertised property MUST have `type: 'string'`
- * and MUST NOT have `readOnly: true` or `sessionMutable: true`.
- *
- * The host MUST NOT accept repository inputs unless their corresponding
- * properties are advertised. Values travel through `resolveSessionConfig.config`
- * and `createSession.config`; schema discovery MUST NOT prepare a repository.
- * Neither key is globally required. Without repository intent, existing
- * directory/default behavior is unchanged. Other property ids remain host-defined.
  *
  * @category Session Config Types
  */

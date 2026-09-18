@@ -170,6 +170,8 @@ export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<Re
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly repositorySource?: URI;
+	readonly repositoryRevision?: string;
 }
 
 export interface IAgentSessionProjectInfo {
@@ -413,6 +415,9 @@ export interface IAgentCreateSessionConfig {
 	 * the compatibility phase callers supply exactly one directory (`[dir]`).
 	 */
 	readonly workingDirectories?: readonly URI[];
+	/** Requested source identity, separate from the resolved working directories. */
+	readonly repositorySource?: URI;
+	readonly repositoryRevision?: string;
 	readonly config?: Record<string, unknown>;
 	/**
 	 * Eagerly claim the active client role for the new session. When provided,
@@ -829,8 +834,12 @@ export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConf
 	readonly query?: string;
 }
 
-export type IAgentResolveSessionConfigParams = IAgentResolveChatConfigParams;
-export type IAgentSessionConfigCompletionsParams = IAgentChatConfigCompletionsParams;
+export interface IAgentResolveSessionConfigParams extends IAgentResolveChatConfigParams {
+	readonly repositorySource?: URI;
+	readonly repositoryRevision?: string;
+}
+
+export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessionConfigParams, IAgentChatConfigCompletionsParams { }
 
 /** Serializable model information from the agent host. */
 export interface IAgentModelInfo {

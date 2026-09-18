@@ -155,6 +155,8 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	agentHostRepositorySource?: URI;
+	agentHostRepositoryRevision?: string;
 	/** Provider-specific request metadata, separate from the prompt. */
 	metadata?: Record<string, unknown>;
 	userSelectedModelId?: string;

@@ -23,14 +23,8 @@ import type { MessageAttachment } from '../channels-chat/state.js';
  * updates. The server also broadcasts a `root/sessionAdded` notification to all
  * clients.
  *
- * For repository intent advertised by {@link SessionConfigSchema.properties},
- * the host MUST authorize the request before repository side effects and
- * prepare the repository before executing turns. It MUST publish the requested
- * `repositorySource` and optional `repositoryRevision` in
- * {@link SessionState.config} from the initial `creating` snapshot and retain
- * them through `ready` or `failed`. Any resolved `workingDirectories` MUST be
- * published before `session/ready` or `session/creationFailed`. Clients recover
- * the outcome from session state, not progress notifications.
+ * Repository preparation MUST finish before `session/ready` or executing turns.
+ * Clients recover the outcome from session state, not progress notifications.
  *
  * @category Commands
  * @method createSession
@@ -73,22 +67,18 @@ export interface CreateSessionParams extends BaseParams {
 	 * and ignores the rest. Dispatch working-directory actions to change the set
 	 * after the session has started.
 	 *
-	 * A non-empty list and repository intent in `config` are mutually exclusive.
+	 * A non-empty list and `repositorySource` are mutually exclusive.
 	 * A repository URI identifies the source, not a working-directory URI; one
 	 * source may produce multiple directories.
 	 */
 	workingDirectories?: URI[];
+	/** Credential-free source to prepare; requires the agent's repositorySource capability. */
+	repositorySource?: URI;
+	/** Requested branch, tag, or commit; requires a source and the capability's revision option. */
+	repositoryRevision?: string;
 	/**
 	 * Session configuration values collected via `resolveSessionConfig`.
-	 * Keys and values correspond to the schema returned by the server.
-	 * Repository intent uses the standard `repositorySource` and optional
-	 * `repositoryRevision` keys only when advertised by
-	 * {@link SessionConfigSchema.properties}. Values MUST be non-empty strings;
-	 * the source MUST be a credential-free repository URI. A revision without a
-	 * source, unsupported input, or conflicting directories MUST produce
-	 * `InvalidParams` (`-32602`), not silently fall back. Omitting repository
-	 * intent preserves existing directory/default behavior. Other keys remain
-	 * host-defined.
+	 * Keys and values follow the advertised {@link SessionConfigSchema}.
 	 */
 	config?: Record<string, unknown>;
 	/**

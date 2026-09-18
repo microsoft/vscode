@@ -1339,6 +1339,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			_meta: config?._meta,
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
+			...(config?.repositorySource !== undefined ? { repositorySource: config.repositorySource.toString() } : {}),
+			...(config?.repositoryRevision !== undefined ? { repositoryRevision: config.repositoryRevision } : {}),
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
@@ -1386,6 +1388,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			...(params.repositorySource !== undefined ? { repositorySource: params.repositorySource.toString() } : {}),
+			...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
 			config: params.config,
 		});
 	}
@@ -1395,6 +1399,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: ROOT_STATE_URI,
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			...(params.repositorySource !== undefined ? { repositorySource: params.repositorySource.toString() } : {}),
+			...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
 			config: params.config,
 			property: params.property,
 			query: params.query,
@@ -1659,6 +1665,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			activity: s.activity,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
 			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
+			...(s.repositorySource !== undefined ? { repositorySource: URI.parse(s.repositorySource) } : {}),
+			...(s.repositoryRevision !== undefined ? { repositoryRevision: s.repositoryRevision } : {}),
 			changes: s.changes,
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),

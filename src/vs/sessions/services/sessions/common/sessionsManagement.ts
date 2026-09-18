@@ -61,6 +61,9 @@ export interface IProviderSessionType {
  * Options for {@link ISessionsManagementService.createNewSession}.
  */
 export interface ICreateNewSessionOptions {
+	/** Repository creation intent, not a resolved host directory. */
+	readonly repositorySource?: URI;
+	readonly repositoryRevision?: string;
 	/**
 	 * Force creation through a specific provider. When omitted, the service
 	 * iterates registered providers and picks the first one whose

@@ -657,6 +657,39 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
 	});
 
+	test('listSessions preserves repository source identity separately from mapped directories', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [{
+					resource: 'ahp-session:/repository',
+					provider: 'copilot',
+					title: 'Repository',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					repositorySource: 'file:///sources/project',
+					repositoryRevision: 'main',
+					workingDirectories: ['file:///worktrees/project'],
+				}],
+			},
+		});
+		const sessions = await resultPromise;
+		assert.deepStrictEqual(sessions.map(session => ({
+			source: session.repositorySource?.toString(),
+			revision: session.repositoryRevision,
+			directories: session.workingDirectories,
+		})), [{
+			source: 'file:///sources/project',
+			revision: 'main',
+			directories: [toAgentHostUri(URI.file('/worktrees/project'), agentHostAuthority('test.example:1234'))],
+		}]);
+	});
+
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
 		const { client, transport } = createClient();
 		const remoteDirectory = URI.parse('vscode-remote://ssh-remote+host/workspace');
@@ -854,6 +887,64 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
 		assert.strictEqual(await creation, session);
 	});
+
+	for (const repositorySource of [URI.parse('https://git.example.org:8443/team/app.git'), URI.file('/sources/project')]) {
+		test(`createSession sends repository source as a typed field (${repositorySource.scheme})`, async () => {
+			const { client, transport } = createClient();
+			const session = URI.parse('ahp-session:/source-test');
+			const creation = client.createSession({
+				provider: 'copilot',
+				session,
+				repositorySource,
+				repositoryRevision: 'refs/tags/v1',
+				config: { mode: 'plan' },
+			});
+			const request = transport.sentMessages[0] as JsonRpcRequest;
+			assert.deepStrictEqual(request.params, {
+				channel: session.toString(),
+				provider: 'copilot',
+				_meta: undefined,
+				workingDirectories: undefined,
+				repositorySource: repositorySource.toString(),
+				repositoryRevision: 'refs/tags/v1',
+				config: { mode: 'plan' },
+				activeClient: undefined,
+				progressToken: undefined,
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await creation;
+		});
+	}
+
+	for (const method of ['resolveSessionConfig', 'sessionConfigCompletions'] as const) {
+		test(`${method} sends typed repository context outside config`, async () => {
+			const { client, transport } = createClient();
+			const context = {
+				provider: 'copilot',
+				repositorySource: URI.parse('https://git.example.org:8443/team/app.git'),
+				repositoryRevision: 'main',
+				config: { target: 'worktree' },
+			};
+			const resultPromise = method === 'resolveSessionConfig'
+				? client.resolveSessionConfig(context)
+				: client.sessionConfigCompletions({ ...context, property: 'branch', query: 'feature' });
+			const request = transport.sentMessages[0] as JsonRpcRequest;
+			assert.deepStrictEqual({ method: request.method, params: request.params }, {
+				method,
+				params: {
+					channel: ROOT_STATE_URI,
+					provider: 'copilot',
+					workingDirectory: undefined,
+					repositorySource: context.repositorySource.toString(),
+					repositoryRevision: 'main',
+					config: { target: 'worktree' },
+					...(method === 'sessionConfigCompletions' ? { property: 'branch', query: 'feature' } : {}),
+				},
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: method === 'resolveSessionConfig' ? { schema: { type: 'object', properties: {} }, values: context.config } : { items: [] } });
+			await resultPromise;
+		});
+	}
 
 	suite('createChat', () => {
 		const sessionUri = URI.parse('ahp-session:/test');

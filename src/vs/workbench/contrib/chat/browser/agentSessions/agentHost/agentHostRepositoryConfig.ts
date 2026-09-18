@@ -7,97 +7,73 @@ import { raceCancellationError } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { validateRepositorySource } from '../../../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
-import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
-import { SessionConfigState, SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { RepositorySourceCapability } from '../../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
+import { SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
-/** Validate the standard repository inputs advertised in the configuration schema. */
-export function supportsRepositorySessionConfig(schema: SessionConfigSchema | undefined): boolean {
-	const properties = schema?.properties;
-	const hasSource = properties && Object.hasOwn(properties, SessionConfigKey.RepositorySource);
-	const hasRevision = properties && Object.hasOwn(properties, SessionConfigKey.RepositoryRevision);
-	if (!hasSource && !hasRevision) {
-		return false;
+/** Read the per-agent capability, independently of provider configuration. */
+export function getRepositorySourceCapability(connection: IAgentConnection, provider: string): RepositorySourceCapability | undefined {
+	const root = connection.rootState.value;
+	if (root instanceof Error) {
+		throw root;
 	}
-	const isInput = (property: string) => properties?.[property]?.type === 'string'
-		&& properties[property].readOnly !== true && properties[property].sessionMutable !== true;
-	if (!hasSource || !isInput(SessionConfigKey.RepositorySource) || (hasRevision && !isInput(SessionConfigKey.RepositoryRevision))) {
-		throw new Error(localize('agentHost.invalidRepositoryConfig', "The agent host advertised an invalid repository configuration."));
+	const capability = root?.agents.find(agent => agent.provider === provider)?.capabilities?.repositorySource;
+	if (capability === undefined) {
+		return undefined;
 	}
-	return true;
+	if (!capability || typeof capability !== 'object' || Array.isArray(capability)
+		|| (capability.revision !== undefined && typeof capability.revision !== 'boolean')) {
+		throw new Error(localize('agentHost.invalidRepositoryCapability', "The agent host advertised an invalid repository source capability."));
+	}
+	return capability;
 }
 
-/** Read the standard repository source and validate its optional revision. */
-export function getRepositorySessionSource(config: SessionConfigState | undefined): string | undefined {
-	const supported = supportsRepositorySessionConfig(config?.schema);
-	const value = config?.values[SessionConfigKey.RepositorySource];
-	const revision = config?.values[SessionConfigKey.RepositoryRevision];
+/** Preserve HTTPS repository selections without treating ordinary file directories as sources. */
+export function getRepositorySourceFromSelection(connection: IAgentConnection, provider: string, selected: URI | undefined): URI | undefined {
+	if (selected?.scheme !== Schemas.https) {
+		return undefined;
+	}
+	const defaultDirectory = connection.initializeResult.get()?.defaultDirectory;
+	const defaultScheme = defaultDirectory ? (URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory) : URI.parse(defaultDirectory)).scheme : undefined;
+	return defaultScheme !== Schemas.https
+		&& getRepositorySourceCapability(connection, provider) ? selected : undefined;
+}
+
+/** Read immutable requested intent from session metadata, including restored sessions. */
+export function getRepositorySessionSource(state: Pick<SessionState, 'repositorySource' | 'repositoryRevision'> | undefined): string | undefined {
+	const value = state?.repositorySource;
+	const revision = state?.repositoryRevision;
 	if (value === undefined && revision === undefined) {
 		return undefined;
 	}
-	if (!supported || typeof value !== 'string' || !value.trim()) {
+	if (typeof value !== 'string' || !value.trim()) {
 		throw new Error(localize('agentHost.invalidRepositoryValue', "The agent host returned an invalid repository selection."));
 	}
-	if (revision !== undefined) {
-		if (!config || !Object.hasOwn(config.schema.properties, SessionConfigKey.RepositoryRevision)) {
-			throw new Error(localize('agentHost.unsupportedRepositoryRevision', "The agent host does not advertise repository revision selection."));
-		}
-		if (typeof revision !== 'string' || !revision.trim()) {
-			throw new Error(localize('agentHost.invalidRepositoryRevision', "The repository revision must be a nonempty string."));
-		}
+	if (revision !== undefined && (typeof revision !== 'string' || !revision.trim())) {
+		throw new Error(localize('agentHost.invalidRepositoryRevision', "The repository revision must be a nonempty string."));
 	}
 	return value;
 }
 
-/** Resolve a selected repository through advertised session configuration; absence retains the legacy path. */
-export async function resolveAgentHostRepositoryConfig(connection: IAgentConnection, provider: string, repository: URI, config: Record<string, unknown> | undefined, token: CancellationToken): Promise<Record<string, unknown> | undefined> {
+/** Resolve provider configuration with typed repository context, without preparing a checkout. */
+export async function resolveAgentHostRepositoryConfig(connection: IAgentConnection, provider: string, repository: URI, config: Record<string, unknown> | undefined, token: CancellationToken, revision?: string): Promise<Record<string, unknown>> {
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
-	if (!repository.authority || repository.authority.includes('@') || repository.query || repository.fragment) {
-		throw new Error(localize('agentHost.invalidRepositoryUri', "Select a repository URL without credentials, a query, or a fragment."));
-	}
-	const source = repository.toString();
-	const existing = config?.[SessionConfigKey.RepositorySource];
-	if (existing !== undefined && existing !== source) {
-		throw new Error(localize('agentHost.conflictingRepository', "The selected repository conflicts with the session configuration."));
-	}
-	const hasExplicitRepositoryConfig = existing !== undefined || config?.[SessionConfigKey.RepositoryRevision] !== undefined;
-	let initial: ResolveSessionConfigResult;
-	try {
-		initial = await raceCancellationError(connection.resolveSessionConfig({ provider, config }), token);
-	} catch (error) {
-		if (error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound && !hasExplicitRepositoryConfig) {
-			return undefined;
-		}
-		throw error;
-	}
-	if (!supportsRepositorySessionConfig(initial.schema)) {
-		if (hasExplicitRepositoryConfig) {
-			throw new Error(localize('agentHost.unsupportedRepositoryConfig', "The agent host does not advertise repository-backed session creation."));
-		}
-		return undefined;
-	}
-	const requested = { ...initial.values, ...config, [SessionConfigKey.RepositorySource]: source };
-	getRepositorySessionSource({ schema: initial.schema, values: requested });
-	const resolved = await raceCancellationError(connection.resolveSessionConfig({ provider, config: requested }), token);
-	if (!supportsRepositorySessionConfig(resolved.schema)) {
-		throw new Error(localize('agentHost.repositoryConfigChanged', "The agent host changed its repository configuration while resolving the session."));
-	}
-	const values = { ...resolved.values, ...config, [SessionConfigKey.RepositorySource]: source };
-	getRepositorySessionSource({ schema: resolved.schema, values });
-	return values;
+	const inputs = { repositorySource: repository, ...(revision !== undefined ? { repositoryRevision: revision } : {}), config };
+	validateRepositorySource(inputs, getRepositorySourceCapability(connection, provider));
+	const resolved = await raceCancellationError(connection.resolveSessionConfig({ provider, ...inputs }), token);
+	validateRepositorySource({ ...inputs, config: resolved.values }, getRepositorySourceCapability(connection, provider));
+	return resolved.values;
 }
 
 /** Wait for opted-in repository initialization, preserving other sessions' existing lifecycle handling. */
-export function waitForRepositorySessionReady(subscription: IAgentSubscription<SessionState>, token: CancellationToken, expectedRepository?: URI, expectedConfig?: Readonly<Record<string, unknown>>): Promise<SessionState> {
+export function waitForRepositorySessionReady(subscription: IAgentSubscription<SessionState>, token: CancellationToken, expectedRepository?: URI, expectedRevision?: string): Promise<SessionState> {
 	return new Promise<SessionState>((resolve, reject) => {
 		const store = new DisposableStore();
 		const fail = (error: unknown) => {
@@ -116,7 +92,7 @@ export function waitForRepositorySessionReady(subscription: IAgentSubscription<S
 				if (!state) {
 					return;
 				}
-				const repository = getRepositorySessionSource(state.config);
+				const repository = getRepositorySessionSource(state);
 				if (repository !== undefined || expectedRepository) {
 					if (state.lifecycle === SessionLifecycle.Creating) {
 						return;
@@ -124,11 +100,10 @@ export function waitForRepositorySessionReady(subscription: IAgentSubscription<S
 					if (state.lifecycle === SessionLifecycle.Failed) {
 						throw new Error(state.creationError?.message ?? localize('agentHost.repositoryCreationFailed', "The agent host could not prepare this repository session."));
 					}
-					const expectedRevision = expectedConfig?.[SessionConfigKey.RepositoryRevision];
-					const actualRevision = state.config?.values[SessionConfigKey.RepositoryRevision];
+					const actualRevision = state.repositoryRevision;
 					if (state.lifecycle !== SessionLifecycle.Ready || !repository
 						|| (expectedRepository && repository !== expectedRepository.toString())
-						|| (expectedRevision !== undefined && actualRevision !== expectedRevision)
+						|| ((expectedRepository !== undefined || expectedRevision !== undefined) && actualRevision !== expectedRevision)
 						|| !Array.isArray(state.workingDirectories) || !state.workingDirectories.length
 						|| state.workingDirectories.some(directory => typeof directory !== 'string' || !URI.parse(directory).scheme)) {
 						throw new Error(localize('agentHost.repositoryNotReady', "The agent host did not report a ready checkout for the selected repository."));

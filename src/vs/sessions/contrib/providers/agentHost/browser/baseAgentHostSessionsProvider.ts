@@ -21,6 +21,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { validateRepositorySource } from '../../../../../platform/agentHost/common/agentHostRepositorySource.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -47,6 +48,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
+import { getRepositorySourceCapability, getRepositorySourceFromSelection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
@@ -1922,6 +1924,8 @@ function flattenActiveClientCustomizations(state: SessionState): ClientPluginCus
  * Inputs needed to construct a {@link NewSession}.
  */
 interface INewSessionConstructionContext {
+	readonly repositorySource?: URI;
+	readonly repositoryRevision?: string;
 	/**
 	 * Workspace the session is scoped to, or `undefined` for a **quick chat**
 	 * (a workspace-less session not bound to any folder). When `undefined`,
@@ -2015,6 +2019,8 @@ class NewSession extends Disposable {
 	/** This draft's URI as the host's registry is keyed by it. */
 	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
+	readonly repositorySource: URI | undefined;
+	readonly repositoryRevision: string | undefined;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
 	readonly isQuickChat: boolean;
@@ -2130,6 +2136,8 @@ class NewSession extends Disposable {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
+		this.repositorySource = ctx.repositorySource;
+		this.repositoryRevision = ctx.repositoryRevision;
 		this.isQuickChat = this._kind.isQuickChat;
 		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
@@ -2446,9 +2454,16 @@ class NewSession extends Disposable {
 		const values = this._config?.values ?? this._unresolvedConfigValues;
 		this._isResolvingConfig.set(true, undefined);
 		try {
+			validateRepositorySource({
+				repositorySource: this.repositorySource,
+				repositoryRevision: this.repositoryRevision,
+				config: values,
+			}, this.repositorySource || this.repositoryRevision !== undefined ? getRepositorySourceCapability(connection, this.agentProvider) : undefined);
 			const result = await connection.resolveSessionConfig({
 				provider: this.agentProvider,
-				workingDirectory: this.workspaceUri,
+				workingDirectory: this.repositorySource ? undefined : this.workspaceUri,
+				...(this.repositorySource !== undefined ? { repositorySource: this.repositorySource } : {}),
+				...(this.repositoryRevision !== undefined ? { repositoryRevision: this.repositoryRevision } : {}),
 				config: values,
 			});
 			if (seq !== this._configRequestSeq) {
@@ -2461,6 +2476,9 @@ class NewSession extends Disposable {
 		} catch (error) {
 			if (seq !== this._configRequestSeq) {
 				return false;
+			}
+			if (this.repositorySource) {
+				this._logService.warn('Failed to resolve repository session configuration', error);
 			}
 			this._config = undefined;
 			this._unresolvedConfigValues = values;
@@ -2480,7 +2498,9 @@ class NewSession extends Disposable {
 	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined) {
 		return connection.sessionConfigCompletions({
 			provider: this.agentProvider,
-			workingDirectory: this.workspaceUri,
+			workingDirectory: this.repositorySource ? undefined : this.workspaceUri,
+			...(this.repositorySource !== undefined ? { repositorySource: this.repositorySource } : {}),
+			...(this.repositoryRevision !== undefined ? { repositoryRevision: this.repositoryRevision } : {}),
 			config: this._config?.values,
 			property,
 			query,
@@ -2540,6 +2560,11 @@ class NewSession extends Disposable {
 			let createdWithActiveClient: SessionActiveClient | undefined;
 
 			try {
+				validateRepositorySource({
+					repositorySource: this.repositorySource,
+					repositoryRevision: this.repositoryRevision,
+					config: this._config?.values,
+				}, this.repositorySource || this.repositoryRevision !== undefined ? getRepositorySourceCapability(connection, this.agentProvider) : undefined);
 				await this._activeClientScope.whenResolved();
 				if (this._backendUri?.toString() !== backendUri.toString()) {
 					return;
@@ -2550,7 +2575,9 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					...(this._initialSessionTemplate?.modelId ? { model: this.getSelectedModel() } : {}),
-					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
+					workingDirectories: !this.repositorySource && this.workspaceUri ? [this.workspaceUri] : undefined,
+					...(this.repositorySource !== undefined ? { repositorySource: this.repositorySource } : {}),
+					...(this.repositoryRevision !== undefined ? { repositoryRevision: this.repositoryRevision } : {}),
 					config: this._config?.values,
 					_meta: this._initialMetadata,
 					// MCP-style opt-in: offer to receive `progress` for any
@@ -3219,11 +3246,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeCustomizations.fire();
 	}
 
-	/**
-	 * Reconcile {@link _sessionTypes} against the agents advertised by the
-	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
-	 * id/label set actually changed.
-	 */
+	/** Reconcile session types and creation capabilities with the host's root state. */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
 		this._syncAgentCapabilities(rootState.agents);
 		const next = rootState.agents
@@ -3231,6 +3254,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.map((agent): ISessionType => ({
 				id: agent.provider,
 				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				...(agent.capabilities?.repositorySource ? {
+					supportsRepositorySource: true,
+					supportsRepositoryRevision: agent.capabilities.repositorySource.revision === true,
+				} : {}),
 				authRequirement: resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
@@ -3241,7 +3268,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 
 		const prev = this._sessionTypes;
-		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement)) {
+		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label && t.authRequirement === next[i].authRequirement
+			&& t.supportsRepositorySource === next[i].supportsRepositorySource && t.supportsRepositoryRevision === next[i].supportsRepositoryRevision)) {
 			return;
 		}
 		this._sessionTypes = next;
@@ -3566,8 +3594,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			workspace,
 			false,
-			options?.metadata,
-			options?.automationConfiguration,
+			options,
 		);
 	}
 
@@ -3580,6 +3607,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+		if (options?.repositorySource !== undefined || options?.repositoryRevision !== undefined) {
+			throw new Error(localize('agentHost.repositoryQuickChat', "Repository inputs require a workspace-bound session, not a quick chat."));
+		}
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
 			throw new Error(this._noAgentsErrorMessage());
@@ -3595,8 +3625,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			sessionType,
 			undefined,
 			true,
-			options?.metadata,
-			options?.automationConfiguration,
+			options,
 		);
 	}
 
@@ -3605,26 +3634,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * given session type. Shared by {@link createNewSession} (workspace-bound)
 	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
 	 */
-	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, initialMetadata?: Record<string, unknown>, initialAutomationConfiguration?: IAutomationSessionConfiguration): ISession {
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean, options?: ISessionsProviderCreateSessionOptions): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
 		// be in flight at once (e.g. one sending in the background while the
 		// composer re-seeds a fresh draft).
 		const connection = this.connection;
+		const initialMetadata = options?.metadata;
+		const initialAutomationConfiguration = options?.automationConfiguration;
+		const repositorySource = options?.repositorySource
+			?? (connection ? getRepositorySourceFromSelection(connection, sessionType.id, workspace?.folders[0]?.root) : undefined);
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
-		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
 		const initialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
 				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
 			}
 			: this._initialNewSessionConfig(workspace);
+		if (connection) {
+			validateRepositorySource({
+				repositorySource,
+				repositoryRevision: options?.repositoryRevision,
+				config: initialConfigValues,
+			}, repositorySource || options?.repositoryRevision !== undefined ? getRepositorySourceCapability(connection, sessionType.id) : undefined);
+		}
+		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, repositorySource ? [] : workspace?.folders.map(folder => folder.root) ?? []);
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
 				workspace,
+				repositorySource,
+				repositoryRevision: options?.repositoryRevision,
 				quickChat,
 				sessionType,
 				providerId: this.id,
@@ -3728,6 +3770,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
+
+		// Prepare repository drafts on first send, after the user finishes choosing configuration.
+		if (newSession.repositorySource) {
+			return;
+		}
 
 		// Defense-in-depth: never eagerly spawn an agent backend in an
 		// untrusted folder. The interactive trust prompt lives at folder-pick
@@ -5215,6 +5262,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
+			...(newSession.repositorySource !== undefined ? { agentHostRepositorySource: newSession.repositorySource } : {}),
+			...(newSession.repositoryRevision !== undefined ? { agentHostRepositoryRevision: newSession.repositoryRevision } : {}),
 			hideFromTranscript: options.hideFromTranscript,
 			metadata: options.metadata,
 		};

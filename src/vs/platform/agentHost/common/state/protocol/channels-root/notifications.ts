@@ -177,8 +177,7 @@ export interface SessionSummaryChangedParams {
  *   reconnect. A client that never receives the terminal frame SHOULD expire
  *   the indicator after an idle timeout.
  * - Completion of reported work does not establish session readiness.
- *   Repository-backed creation uses session state and the existing
- *   `session/ready` or `session/creationFailed` actions for its durable outcome.
+ *   Observe session lifecycle state for the durable outcome.
  *
  * @category Protocol Notifications
  * @method root/progress

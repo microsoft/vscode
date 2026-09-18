@@ -289,6 +289,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: resolvedWorkingDir ? [resolvedWorkingDir] : undefined,
+				...(config.repositorySource !== undefined ? { repositorySource: config.repositorySource.toString() } : {}),
+				...(config.repositoryRevision !== undefined ? { repositoryRevision: config.repositoryRevision } : {}),
 			};
 			const state: SessionState = {
 				...this._withDefaultChatCatalog(createSessionState(summary), session.toString()),
@@ -395,6 +397,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	setRootState(state: RootState): void {
 		this._rootStateValue = state;
 		this._rootStateOnDidChange.fire(state);
+	}
+
+	enableRepositorySource(): void {
+		this.setRootState({
+			agents: [{ provider: 'copilot', displayName: 'Test', description: 'test', models: [], capabilities: { repositorySource: { revision: true } } }],
+			activeSessions: 0,
+		});
 	}
 
 	public authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
@@ -1143,7 +1152,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentHostRepositorySource: URI; agentHostRepositoryRevision: string; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1154,6 +1163,8 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		userSelectedModelId: overrides.userSelectedModelId,
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
+		agentHostRepositorySource: overrides.agentHostRepositorySource,
+		agentHostRepositoryRevision: overrides.agentHostRepositoryRevision,
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
 		metadata: overrides.metadata,
 	});
@@ -10968,12 +10979,16 @@ suite('AgentHostChatContribution', () => {
 
 		for (const alreadyExists of [false, true]) {
 			for (const hasDefaultDirectory of [false, true]) {
-				test(`repository session uses standard config and reattaches after a lost response (${alreadyExists}, default directory ${hasDefaultDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				test(`repository session uses typed source inputs and reattaches after a lost response (${alreadyExists}, default directory ${hasDefaultDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 					const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+					agentHostService.enableRepositorySource();
 					const repository = URI.parse('https://example.com/owner/repo');
 					const checkout = URI.file('/host/checkout');
 					const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: 'checkout-plugin', uri: 'file:///checkout-plugin', name: 'Checkout plugin' }];
 					disposables.add(seedActiveClient('repository-session', { customizations: constObservable(customizations) }, [checkout]));
+					disposables.add(seedActiveClient('repository-session', {
+						customizations: constObservable<ClientPluginCustomization[]>([{ type: CustomizationType.Plugin, id: 'unrelated-plugin', uri: 'file:///unrelated-plugin', name: 'Unrelated plugin' }]),
+					}, [URI.file('/unrelated/current-workspace')]));
 					if (hasDefaultDirectory) {
 						agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
 					}
@@ -10984,7 +10999,7 @@ suite('AgentHostChatContribution', () => {
 					agentHostService.repositorySessionConfig = {
 						schema: {
 							type: 'object',
-							properties: { repositorySource: { type: 'string', title: 'Repository' } },
+							properties: {},
 						},
 						values: {},
 					};
@@ -10996,14 +11011,14 @@ suite('AgentHostChatContribution', () => {
 						description: 'test',
 						connection: agentHostService,
 						connectionAuthority: 'local',
-						resolveWorkingDirectory: () => repository,
+						resolveWorkingDirectory: () => hasDefaultDirectory ? URI.file('/unrelated/current-workspace') : repository,
 					}));
 					const resource = URI.from({ scheme: 'repository-session', path: '/new-repository' });
 					const chat = await handler.provideChatSessionContent(resource, CancellationToken.None);
 					disposables.add(toDisposable(() => chat.dispose()));
 					const registered = chatAgentService.registeredAgents.get('repository-session');
 					assert.ok(registered);
-					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource }), () => { }, [], CancellationToken.None);
+					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource, agentHostRepositorySource: repository, agentHostRepositoryRevision: 'main' }), () => { }, [], CancellationToken.None);
 					await timeout(25);
 					const dispatch = agentHostService.turnActions[0];
 					assert.ok(dispatch);
@@ -11014,13 +11029,21 @@ suite('AgentHostChatContribution', () => {
 					const lastActiveClient = agentHostService.dispatchedActions.findLast(entry => entry.action.type === ActionType.SessionActiveClientSet)?.action;
 					assert.deepStrictEqual({
 						config: agentHostService.createSessionCalls[0].config,
+						initialCustomizations: agentHostService.createSessionCalls[0].activeClient?.customizations,
+						source: agentHostService.createSessionCalls[0].repositorySource?.toString(),
+						revision: agentHostService.createSessionCalls[0].repositoryRevision,
 						workingDirectories: agentHostService.createSessionCalls[0].workingDirectories,
 						discoveryDirectories: agentHostService.resolveSessionConfigCalls.map(call => call.workingDirectory),
+						discoverySources: agentHostService.resolveSessionConfigCalls.map(call => call.repositorySource?.toString()),
 						customizations: lastActiveClient?.type === ActionType.SessionActiveClientSet ? lastActiveClient.activeClient.customizations : undefined,
 					}, {
-						config: { repositorySource: repository.toString() },
+						config: {},
+						initialCustomizations: [],
+						source: repository.toString(),
+						revision: 'main',
 						workingDirectories: undefined,
-						discoveryDirectories: [undefined, undefined],
+						discoveryDirectories: [undefined],
+						discoverySources: [repository.toString()],
 						customizations,
 					});
 				}));
@@ -11029,12 +11052,13 @@ suite('AgentHostChatContribution', () => {
 
 		test('repository session does not send the first turn until the host publishes ready', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			agentHostService.enableRepositorySource();
 			const repository = URI.parse('https://example.com/owner/repo');
 			agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
 			agentHostService.nextResolvedWorkingDirectory = URI.file('/host/checkout');
 			agentHostService.nextSessionLifecycle = SessionLifecycle.Creating;
 			agentHostService.repositorySessionConfig = {
-				schema: { type: 'object', properties: { repositorySource: { type: 'string', title: 'Repository' } } },
+				schema: { type: 'object', properties: {} },
 				values: {},
 			};
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -11070,6 +11094,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('repository session verifies trust for a newly prepared local checkout before starting a turn', async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			agentHostService.enableRepositorySource();
 			const repository = URI.parse('https://example.com/owner/repo');
 			const checkout = URI.file('/new-local-checkout');
 			const trustRequests: string[] = [];
@@ -11083,7 +11108,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
 			agentHostService.nextResolvedWorkingDirectory = checkout;
 			agentHostService.repositorySessionConfig = {
-				schema: { type: 'object', properties: { repositorySource: { type: 'string', title: 'Repository' } } },
+				schema: { type: 'object', properties: {} },
 				values: {},
 			};
 			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
