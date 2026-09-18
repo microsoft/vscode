@@ -8,6 +8,7 @@ import { homedir } from 'os';
 import { promisify } from 'util';
 import { firstParallel } from '../../../base/common/async.js';
 import { match as globMatch } from '../../../base/common/glob.js';
+import { untildify } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
@@ -18,6 +19,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
 import { ILogService } from '../../log/common/log.js';
+import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
@@ -34,7 +36,7 @@ import {
 } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { CommandAutoApprover } from './commandAutoApprover.js';
+import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 
 /**
@@ -336,10 +338,7 @@ export class SessionPermissionManager extends Disposable {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
-			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
-				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-				language: e.shellLanguage,
-			});
+			const result = await this._evaluateShellAutoApproval(e.toolInput, e.shellLanguage, workingDirectories);
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
 				return ToolCallConfirmationReason.NotNeeded;
@@ -548,6 +547,81 @@ export class SessionPermissionManager extends Disposable {
 
 	private _isResourceInDirectory(resource: URI, directory: URI): boolean {
 		return extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(resource), normalizePath(directory));
+	}
+
+	/**
+	 * Checks whether a shell write-redirection destination (e.g. the `out.txt`
+	 * in `echo hi > out.txt`) should be auto-approved by reusing the same
+	 * rules that govern write tool calls: the destination must resolve to a
+	 * path inside the working directory and must not match a denied glob.
+	 */
+	private async _evaluateShellAutoApproval(toolInput: string, shellLanguage: NonNullable<IToolApprovalEvent['shellLanguage']>, workingDirectories: readonly URI[] | undefined): Promise<CommandApprovalResult> {
+		const writeDestinations: string[] = [];
+		const result = this._commandAutoApprover.shouldAutoApprove(toolInput, {
+			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+			isWriteDestApproved: dest => {
+				writeDestinations.push(dest);
+				return true;
+			},
+			language: shellLanguage,
+		});
+		if (result !== 'approved' || writeDestinations.length === 0) {
+			return result;
+		}
+		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories)));
+		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
+	}
+
+	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+		// A shell command runs in exactly one process cwd = the primary root
+		// (index 0), so a *relative* redirect can only resolve against that cwd.
+		const resource = this._resolveShellRedirectResource(dest, workingDirectories?.[0]);
+		if (!resource) {
+			return false;
+		}
+		return this._isEditAutoApproved(resource, workingDirectories);
+	}
+
+	/**
+	 * Matches redirect destinations whose final path is decided by the shell
+	 * rather than by the text: variable expansions (`$HOME/x`, `$env:TEMP/x`,
+	 * `%APPDATA%\x`, `!APPDATA!\x`), command substitutions (`$(pwd)/x`,
+	 * `` `pwd`/x ``), brace expansions, and `~` in a position {@link untildify}
+	 * does not handle.
+	 * Mirrors the workbench's file-write analyzer guard.
+	 *
+	 * See https://github.com/microsoft/vscode/issues/274166 and
+	 * https://github.com/microsoft/vscode/issues/274167
+	 */
+	private static readonly _dynamicRedirectDestRegex = /[$(){}`~%]/;
+
+	/**
+	 * Resolves the raw text of a shell redirect destination to an absolute
+	 * filesystem path. `~` is expanded to the user's home directory; the
+	 * downstream working-directory check rejects paths that end up outside
+	 * the workspace. Returns `undefined` when resolution would require a
+	 * working directory that isn't configured, or when the destination expands
+	 * at runtime and therefore cannot be resolved from its text alone.
+	 */
+	private _resolveShellRedirectResource(dest: string, workingDirectory: URI | undefined): URI | undefined {
+		const trimmed = untildify(dest.trim(), homedir());
+		if (!trimmed) {
+			return undefined;
+		}
+		// A destination the shell expands (e.g. `$HOME/x.txt`) would otherwise be
+		// treated as a literal relative path and resolve *inside* the working
+		// directory, auto-approving a write that actually lands elsewhere.
+		if (SessionPermissionManager._dynamicRedirectDestRegex.test(trimmed) || containsCmdDelayedExpansion(trimmed)) {
+			this._logService.trace(`[SessionPermissionManager] Redirect destination expands at runtime, requiring confirmation: ${dest}`);
+			return undefined;
+		}
+		if (path.isAbsolute(trimmed)) {
+			return URI.file(trimmed);
+		}
+		if (!workingDirectory) {
+			return undefined;
+		}
+		return URI.file(path.resolve(workingDirectory.fsPath, trimmed));
 	}
 
 	/**

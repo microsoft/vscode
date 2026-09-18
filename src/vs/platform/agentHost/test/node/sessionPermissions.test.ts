@@ -322,6 +322,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('shell redirects use canonical containment for symlink ancestors', async () => {
+		mkdirSync(join(workDir, 'shell-real'));
+		symlinkSync(join(workDir, 'shell-real'), join(workDir, 'shell-link-in'), directoryLinkType);
+		symlinkSync(outsideDir, join(workDir, 'shell-link-out'), directoryLinkType);
+
+		const inside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-in/note.txt', 'bash'), sessionUri);
+		const outside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-out/note.txt', 'bash'), sessionUri);
+
+		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
 	test('requires confirmation for home-directory dotfiles', async () => {
 		const homeSession = URI.from({ scheme: 'copilot', path: '/home' }).toString();
 		manager.createSession(makeSummary(homeSession, URI.file(homedir()).toString()));
@@ -515,7 +526,7 @@ suite('SessionPermissionManager', () => {
 			nullSink: await permissions.getAutoApproval(powershellEvent('Write-Host hi >$null'), sessionUri),
 		}, {
 			dynamicResults: [undefined, undefined, undefined, undefined, undefined, undefined],
-			literalWorkspaceDestination: undefined,
+			literalWorkspaceDestination: ToolCallConfirmationReason.NotNeeded,
 			nullSink: ToolCallConfirmationReason.NotNeeded,
 		});
 	});
@@ -562,7 +573,7 @@ suite('SessionPermissionManager', () => {
 		}, {
 			delayedApproval: undefined,
 			delayedRuleResolvable: false,
-			literalApproval: undefined,
+			literalApproval: ToolCallConfirmationReason.NotNeeded,
 		});
 	});
 
@@ -770,15 +781,20 @@ suite('SessionPermissionManager', () => {
 			]);
 		});
 
-		test('a relative shell redirect requires confirmation', async () => {
+		test('a relative shell redirect resolves against the primary root (index 0)', async () => {
+			// `out.txt` resolves against the single process cwd = `workDir`, so it
+			// is contained by the primary root and auto-approves.
 			const result = await permissions.getAutoApproval(shellEvent('echo hi > out.txt', 'bash'), multiUri);
-			assert.strictEqual(result, undefined);
+			assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 		});
 
-		(isWindows ? test.skip : test)('absolute shell redirects require confirmation inside and outside roots', async () => {
+		(isWindows ? test.skip : test)('an absolute shell redirect auto-approves under a non-primary root but confirms outside', async () => {
+			// POSIX-only: embedding absolute paths in the command string avoids
+			// Windows backslash/drive-colon parsing pitfalls. The containment rule
+			// itself is platform-agnostic and covered by the read/write test above.
 			const intoPeer = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(workDir2, 'out.txt')}`, 'bash'), multiUri);
 			const outside = await permissions.getAutoApproval(shellEvent(`echo hi > ${join(outsideDir, 'out.txt')}`, 'bash'), multiUri);
-			assert.deepStrictEqual([intoPeer, outside], [undefined, undefined]);
+			assert.deepStrictEqual([intoPeer, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
 		});
 
 		test('requires confirmation for a symlink that crosses from one root into another (fail-closed)', async () => {
@@ -789,7 +805,8 @@ suite('SessionPermissionManager', () => {
 			symlinkSync(workDir2, join(workDir, 'cross-link'), directoryLinkType);
 			const read = await permissions.getAutoApproval(readEvent(join(workDir, 'cross-link', 'note.txt'), multiUri), multiUri);
 			const write = await permissions.getAutoApproval(writeEvent(join(workDir, 'cross-link', 'note.txt')), multiUri);
-			assert.deepStrictEqual([read, write], [undefined, undefined]);
+			const shellWrite = await permissions.getAutoApproval(shellEvent('echo hi > cross-link/note.txt', 'bash'), multiUri);
+			assert.deepStrictEqual([read, write, shellWrite], [undefined, undefined, undefined]);
 		});
 	});
 });
