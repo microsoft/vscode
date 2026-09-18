@@ -6,6 +6,10 @@
 export const KANBAN_CUSTOM_VIEW_ID = 'sessions.customView.kanban';
 export const KANBAN_SECTION_ID = 'kanban';
 export const MANAGE_KANBAN_COMMAND_ID = 'sessionsView.manageKanban';
+export const KANBAN_NEW_BOARD_COMMAND_ID = 'sessions.kanban.newBoard';
+export const KANBAN_RENAME_BOARD_COMMAND_ID = 'sessions.kanban.renameBoard';
+export const KANBAN_DELETE_BOARD_COMMAND_ID = 'sessions.kanban.deleteBoard';
+export const KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID = 'sessions.kanban.openBoardWindow';
 export const KANBAN_ADD_ROW_COMMAND_ID = 'sessions.kanban.addRow';
 export const KANBAN_ADD_COLUMN_COMMAND_ID = 'sessions.kanban.addColumn';
 export const KANBAN_TOGGLE_ARCHIVED_COMMAND_ID = 'sessions.kanban.toggleArchived';

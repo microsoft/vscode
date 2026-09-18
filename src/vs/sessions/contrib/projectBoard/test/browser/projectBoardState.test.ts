@@ -13,11 +13,13 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
+import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
+import { DEFAULT_PROJECT_BOARD_ID } from '../../common/projectBoardCatalog.js';
 import { IProjectBoardConfiguration } from '../../common/projectBoardConfiguration.js';
 
 suite('ProjectBoardState', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const key = ProjectBoardState.STORAGE_KEY;
+	const key = ProjectBoardCatalogService.STORAGE_KEY;
 	const defaults: IProjectBoardConfiguration = {
 		version: 1,
 		rows: [{ id: 'general', label: 'General' }],
@@ -31,15 +33,25 @@ suite('ProjectBoardState', () => {
 
 	teardown(() => sinon.restore());
 
-	function create(storage = disposables.add(new InMemoryStorageService())) {
+	function serialize(configuration: unknown): string {
+		return JSON.stringify({ version: 2, boards: [{ id: DEFAULT_PROJECT_BOARD_ID, name: 'Default', configuration }], selectedBoardId: DEFAULT_PROJECT_BOARD_ID });
+	}
+
+	function createCatalog(storage = disposables.add(new InMemoryStorageService())) {
 		const notifications: (string | Error)[] = [];
 		const log = disposables.add(new NullLogService());
 		const errors = sinon.spy(log, 'error');
 		const notification = new class extends mock<INotificationService>() {
 			override error(message: string | Error): void { notifications.push(message); }
 		}();
-		const state = disposables.add(new ProjectBoardState(storage, log, notification));
-		return { state, storage, notifications, errors };
+		const catalog = disposables.add(new ProjectBoardCatalogService(storage, log, notification));
+		return { catalog, storage, notifications, errors, log, notification };
+	}
+
+	function create(storage = disposables.add(new InMemoryStorageService())) {
+		const context = createCatalog(storage);
+		const state = disposables.add(new ProjectBoardState(DEFAULT_PROJECT_BOARD_ID, context.catalog, context.log, context.notification));
+		return { ...context, state };
 	}
 
 	test('PB-06 defaults work without storage initialization and are not written on construction', () => {
@@ -61,7 +73,8 @@ suite('ProjectBoardState', () => {
 		const restoredStorage = disposables.add(new InMemoryStorageService());
 		restoredStorage.store(key, saved, StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.deepStrictEqual(create(restoredStorage).state.configuration.get(), state.configuration.get());
-		assert.deepStrictEqual(Object.keys(JSON.parse(saved)).sort(), ['autoIncludeSessions', 'columns', 'placements', 'rows', 'version']);
+		assert.deepStrictEqual(Object.keys(JSON.parse(saved)).sort(), ['boards', 'selectedBoardId', 'version']);
+		assert.deepStrictEqual(Object.keys(JSON.parse(saved).boards[0].configuration).sort(), ['autoIncludeSessions', 'columns', 'placements', 'rows', 'version']);
 		assert.deepStrictEqual(storage.keys(StorageScope.PROFILE, StorageTarget.MACHINE), [key]);
 		assert.deepStrictEqual(storage.keys(StorageScope.PROFILE, StorageTarget.USER), []);
 		assert.strictEqual(storage.get(key, StorageScope.WORKSPACE), undefined);
@@ -95,7 +108,7 @@ suite('ProjectBoardState', () => {
 			columns: defaults.columns,
 			placements: defaults.placements,
 		};
-		storage.store(key, JSON.stringify(legacy), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(key, serialize(legacy), StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.strictEqual(create(storage).state.configuration.get().autoIncludeSessions, true);
 	});
 
@@ -118,14 +131,14 @@ suite('ProjectBoardState', () => {
 
 	test('invalid saved session list preference is reported instead of silently ignored', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		storage.store(key, JSON.stringify({ ...defaults, display: { showStateDuration: false, showCredits: false, showSessionList: 'true' } }), StorageScope.PROFILE, StorageTarget.MACHINE);
-		const { state, notifications } = create(storage);
-		assert.deepStrictEqual({ canEdit: state.canEdit, errors: notifications.length }, { canEdit: false, errors: 1 });
+		storage.store(key, serialize({ ...defaults, display: { showStateDuration: false, showCredits: false, showSessionList: 'true' } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { catalog, notifications } = createCatalog(storage);
+		assert.deepStrictEqual({ canEdit: catalog.canEdit, errors: notifications.length, boards: catalog.boards.get() }, { canEdit: false, errors: 1, boards: [] });
 	});
 
 	test('side-panel opening defaults off and roundtrips independently of board contents', () => {
 		const { state, storage } = create();
-		const legacy = JSON.stringify(defaults);
+		const legacy = serialize(defaults);
 		storage.store(key, legacy, StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert.strictEqual(!!create(storage).state.configuration.get().openChatInSidePanel, false);
 		state.moveCard('child', { rowId: 'general', columnId: 'p1' });
@@ -174,7 +187,7 @@ suite('ProjectBoardState', () => {
 
 	test('PB-18 legacy description settings migrate to last prompt and new detail rows persist independently', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		storage.store(key, JSON.stringify({ ...defaults, display: { showStateDuration: true, showCredits: true, showDescription: false } }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(key, serialize({ ...defaults, display: { showStateDuration: true, showCredits: true, showDescription: false } }), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const { state, notifications } = create(storage);
 		assert.strictEqual(state.canEdit, true);
 		assert.strictEqual(state.configuration.get().display?.showLastPrompt, false);
@@ -303,13 +316,13 @@ suite('ProjectBoardState', () => {
 	for (const [name, value] of invalidStates) {
 		test(`PB-06 rejects ${name}, preserving original storage and disabling edits`, () => {
 			const storage = disposables.add(new InMemoryStorageService());
-			const raw = JSON.stringify(value);
+			const raw = serialize(value);
 			storage.store(key, raw, StorageScope.PROFILE, StorageTarget.MACHINE);
-			const { state, notifications, errors } = create(storage);
-			assert.strictEqual(state.canEdit, false);
+			const { catalog, notifications, errors } = createCatalog(storage);
+			assert.strictEqual(catalog.canEdit, false);
 			assert.strictEqual(notifications.length, 1);
 			assert.strictEqual(errors.callCount, 1);
-			assert.throws(() => state.addAxis('row', 'Do not overwrite'), /editing is disabled/);
+			assert.throws(() => catalog.createBoard('Do not overwrite'), /editing is disabled/);
 			assert.strictEqual(storage.get(key, StorageScope.PROFILE), raw);
 		});
 	}
@@ -318,10 +331,10 @@ suite('ProjectBoardState', () => {
 		test(`PB-06 rejects corrupt JSON ${JSON.stringify(raw)} without replacing it`, () => {
 			const storage = disposables.add(new InMemoryStorageService());
 			storage.store(key, raw, StorageScope.PROFILE, StorageTarget.MACHINE);
-			const { state, notifications } = create(storage);
-			assert.strictEqual(state.canEdit, false);
+			const { catalog, notifications } = createCatalog(storage);
+			assert.strictEqual(catalog.canEdit, false);
 			assert.strictEqual(notifications.length, 1);
-			assert.throws(() => state.moveCard('chat', undefined));
+			assert.throws(() => catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => configuration));
 			assert.strictEqual(storage.get(key, StorageScope.PROFILE), raw);
 		});
 	}
@@ -349,14 +362,14 @@ suite('ProjectBoardState', () => {
 
 	test('PB-06 failed reads disable editing and preserve saved bytes', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		storage.store(key, JSON.stringify(defaults), StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(key, serialize(defaults), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const get = sinon.stub(storage, 'get').throws(new Error('read failed'));
-		const { state, notifications } = create(storage);
-		assert.strictEqual(state.canEdit, false);
+		const { catalog, notifications } = createCatalog(storage);
+		assert.strictEqual(catalog.canEdit, false);
 		assert.strictEqual(notifications.length, 1);
 		get.restore();
-		assert.throws(() => state.addAxis('row', 'Blocked'));
-		assert.strictEqual(storage.get(key, StorageScope.PROFILE), JSON.stringify(defaults));
+		assert.throws(() => catalog.createBoard('Blocked'));
+		assert.strictEqual(storage.get(key, StorageScope.PROFILE), serialize(defaults));
 	});
 
 	test('PB-06 profile changes are observed and subsequent mutations retain external updates', () => {
@@ -398,39 +411,42 @@ suite('ProjectBoardState', () => {
 			placements: [{ cardId: 'external-chat', rowId: 'external', columnId: 'p0' }],
 		};
 		const get = sinon.stub(storage, 'get').callThrough();
-		get.withArgs(key, StorageScope.PROFILE).returns(JSON.stringify(external));
+		get.withArgs(key, StorageScope.PROFILE).returns(serialize(external));
 		state.renameAxis('column', 'p1', 'Soon');
 		get.restore();
-		const saved = JSON.parse(storage.get(key, StorageScope.PROFILE)!);
+		const saved = JSON.parse(storage.get(key, StorageScope.PROFILE)!).boards[0].configuration;
 		assert.deepStrictEqual(saved.rows, external.rows);
 		assert.deepStrictEqual(saved.placements, external.placements);
 		assert.strictEqual(saved.columns[1].label, 'Soon');
 	});
 
-	test('PB-06 explicit reset persists defaults and reactively unlocks a corrupt board', () => {
+	test('PB-06 catalog recovery persists defaults and reactively unlocks a corrupt board', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(key, '{"version":2}', StorageScope.PROFILE, StorageTarget.MACHINE);
-		const { state } = create(storage);
+		const { catalog } = createCatalog(storage);
 		const editable: boolean[] = [];
-		disposables.add(autorun(reader => { state.configuration.read(reader); editable.push(state.canEdit); }));
-		state.reset();
+		disposables.add(autorun(reader => { catalog.boards.read(reader); editable.push(catalog.canEdit); }));
+		assert.deepStrictEqual(catalog.boards.get(), []);
+		assert.throws(() => create(storage), /no longer exists/);
+		catalog.reset();
 		assert.deepStrictEqual(editable, [false, true]);
+		const { state } = create(storage);
 		assert.deepStrictEqual(state.configuration.get(), defaults);
-		assert.deepStrictEqual(JSON.parse(storage.get(key, StorageScope.PROFILE)!), defaults);
+		assert.deepStrictEqual(JSON.parse(storage.get(key, StorageScope.PROFILE)!).boards[0].configuration, defaults);
 		assert.deepStrictEqual(create(storage).state.configuration.get(), defaults);
 		state.addAxis('row', 'Recovered');
 		assert.strictEqual(state.configuration.get().rows[1].label, 'Recovered');
 	});
 
 	test('PB-06 failed reset preserves corrupt bytes, previous state, and the editing lock', () => {
-		const { state, storage, notifications, errors } = create();
+		const { state, catalog, storage, notifications, errors } = create();
 		state.addAxis('row', 'Retained');
 		storage.store(key, '{"version":2}', StorageScope.PROFILE, StorageTarget.MACHINE);
 		const previous = state.configuration.get();
 		const observations: IProjectBoardConfiguration[] = [];
 		disposables.add(autorun(reader => observations.push(state.configuration.read(reader))));
 		sinon.stub(storage, 'store').throws(new Error('reset store failed'));
-		assert.throws(() => state.reset(), /reset store failed/);
+		assert.throws(() => catalog.reset(), /reset store failed/);
 		assert.strictEqual(state.configuration.get(), previous);
 		assert.strictEqual(state.canEdit, false);
 		assert.strictEqual(storage.get(key, StorageScope.PROFILE), '{"version":2}');
@@ -445,7 +461,7 @@ suite('ProjectBoardState', () => {
 		state.moveCard('unavailable-chat', { rowId, columnId: 'p0' });
 		state.reset();
 		assert.deepStrictEqual(state.configuration.get(), defaults);
-		assert.deepStrictEqual(JSON.parse(storage.get(key, StorageScope.PROFILE)!), defaults);
+		assert.deepStrictEqual(JSON.parse(storage.get(key, StorageScope.PROFILE)!).boards[0].configuration, defaults);
 		assert.strictEqual(state.canEdit, true);
 	});
 
