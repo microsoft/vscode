@@ -638,6 +638,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly customizationMigrationRequest = this._register(new DisposableStore());
 	private customizationMigrationLoading = false;
 	private customizationMigrationLoadError: string | undefined;
+	private customizationMigrationResultsSettled = false;
 	private customizationMigrationInProgress = false;
 	private customizationMigrationWritesInProgress = false;
 
@@ -1507,9 +1508,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.selectedMcpServerMigrationItems.clear();
 			this.selectedCustomizationMigrationTargets.clear();
 			this.explicitlySelectedCustomizationMigrationTargets.clear();
+			this.customizationsByMigrationCategory.clear();
+			this.customizationMigrationTargetFoldersByType.clear();
+			this.customizationMigrationResultsSettled = false;
 		}
-		const showLoadingState = selectionContextChanged
-			|| this.customizationsByMigrationCategory.size === 0
+		const showLoadingState = !this.customizationMigrationResultsSettled
 			|| this.customizationMigrationLoadError !== undefined;
 		this.customizationMigrationLoading = showLoadingState;
 		this.customizationMigrationLoadError = undefined;
@@ -1597,6 +1600,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.selectedCustomizationMigrationItems = selectedItems;
 		this.customizationsByMigrationCategory = candidatesByCategory;
 		this.customizationMigrationTargetFoldersByType = targetFoldersByType;
+		this.customizationMigrationResultsSettled = true;
 		this.reconcileCustomizationMigrationTargets();
 		this.refreshCustomizationMigrationUi();
 		if (this.viewMode === 'migration' && this.activeMigrationCategoryId !== undefined && !candidatesByCategory.has(this.activeMigrationCategoryId)) {
