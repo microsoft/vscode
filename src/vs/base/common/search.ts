@@ -7,6 +7,12 @@ import * as strings from './strings.js';
 
 export function buildReplaceStringWithCasePreserved(matches: string[] | null, pattern: string): string {
 	if (matches && (matches[0] !== '')) {
+		// The match has no cased characters (e.g. punctuation or digits), so there is
+		// no case to preserve and the replace pattern is used as-is.
+		if (matches[0].toLowerCase() === matches[0].toUpperCase()) {
+			return pattern;
+		}
+
 		const containsHyphens = validateSpecificSpecialCharacter(matches, pattern, '-');
 		const containsUnderscores = validateSpecificSpecialCharacter(matches, pattern, '_');
 		if (containsHyphens && !containsUnderscores) {
