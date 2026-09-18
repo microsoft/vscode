@@ -12,6 +12,7 @@ import { applyEdits, setProperty } from '../../../../../base/common/jsonEdit.js'
 import { FormattingOptions } from '../../../../../base/common/jsonFormatter.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { sep } from '../../../../../base/common/path.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -132,7 +133,7 @@ export class McpServerCustomizationMigrator {
 				continue;
 			}
 			const rawConfiguration = servers[server.name];
-			const sourceConfiguration = canonicalizeSourceConfiguration(rawConfiguration);
+			const sourceConfiguration = canonicalizeSourceConfiguration(rawConfiguration, { root, roots });
 			const projectedConfiguration = canonicalizeConfiguration(server.projectedConfiguration);
 			if (!sourceConfiguration) {
 				excluded(normalizeMcpServerConfiguration(rawConfiguration)
@@ -359,7 +360,10 @@ async function migrateGroup(
 			reject(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible);
 			continue;
 		}
-		const sourceConfiguration = canonicalizeSourceConfiguration(sourceServers[candidate.name]);
+		const sourceConfiguration = canonicalizeSourceConfiguration(sourceServers[candidate.name], {
+			root: dirname(group.targetUri),
+			roots,
+		});
 		const migrationConfiguration = canonicalizeConfiguration(candidate.projectedConfiguration);
 		if (!sourceConfiguration) {
 			reject(candidate, normalizeMcpServerConfiguration(sourceServers[candidate.name])
@@ -439,7 +443,7 @@ async function migrateGroup(
 	} catch (error) {
 		if (writtenTarget) {
 			try {
-				await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService);
+				await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService, roots);
 			} catch (rollbackError) {
 				throw rollbackErrorWith(error, rollbackError, group.sourceUri);
 			}
@@ -450,7 +454,7 @@ async function migrateGroup(
 	if (await options.isContextCurrent?.(candidatesToMigrate) === false) {
 		logService.trace(`${LOG_PREFIX} Aborting ${group.sourceUri.toString()} after the target write: execution context changed.`);
 		if (writtenTarget) {
-			await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService);
+			await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService, roots);
 		}
 		return {
 			migratedCount: 0,
@@ -481,7 +485,7 @@ async function migrateGroup(
 		if (writtenTarget) {
 			logService.trace(`${LOG_PREFIX} Rolling back target ${group.targetUri.toString()}.`);
 			try {
-				await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService);
+				await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService, roots);
 			} catch (rollbackError) {
 				throw rollbackErrorWith(error, rollbackError, group.sourceUri);
 			}
@@ -512,7 +516,7 @@ async function migrateGroup(
 		}
 		if (sourceRestored && writtenTarget) {
 			try {
-				await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService);
+				await rollbackTarget(migrationGroup, target, writtenTarget, targetContent, fileService, logService, roots);
 			} catch (error) {
 				rollbackErrors.push(toError(error));
 			}
@@ -675,6 +679,7 @@ async function rollbackTarget(
 	writtenContent: string,
 	fileService: IFileService,
 	logService: ILogService,
+	roots: readonly URI[],
 ): Promise<void> {
 	const resource = group.targetUri;
 	const current = await fileService.readFile(resource);
@@ -692,7 +697,10 @@ async function rollbackTarget(
 				const sourceServers = getObjectProperty((await readSourceDocument(group.sourceUri, fileService)).value, 'servers');
 				if (!sourceServers || addedCandidates.some(candidate =>
 					!Object.hasOwn(sourceServers, candidate.name)
-					|| !equals(canonicalizeSourceConfiguration(sourceServers[candidate.name]), canonicalizeConfiguration(candidate.projectedConfiguration)))) {
+					|| !equals(canonicalizeSourceConfiguration(sourceServers[candidate.name], {
+						root: dirname(group.targetUri),
+						roots,
+					}), canonicalizeConfiguration(candidate.projectedConfiguration)))) {
 					throw new Error(`Source ${group.sourceUri.toString()} no longer contains all entries added to ${resource.toString()}.`);
 				}
 			} catch (error) {
@@ -762,7 +770,10 @@ function isConfigurationRepresentable(configuration: IMcpServerConfiguration): b
 	return configuration.oauth === undefined && configuration.transport !== 'sse';
 }
 
-function canonicalizeSourceConfiguration(rawConfiguration: unknown): Record<string, unknown> | undefined {
+function canonicalizeSourceConfiguration(
+	rawConfiguration: unknown,
+	variableContext?: { readonly root: URI; readonly roots: readonly URI[] },
+): Record<string, unknown> | undefined {
 	if (!isJsonObject(rawConfiguration)) {
 		return undefined;
 	}
@@ -779,7 +790,46 @@ function canonicalizeSourceConfiguration(rawConfiguration: unknown): Record<stri
 		&& (!isJsonObject(rawConfiguration.headers) || Object.values(rawConfiguration.headers).some(value => typeof value !== 'string'))) {
 		return undefined;
 	}
-	return canonicalizeConfiguration(configuration);
+	const canonicalConfiguration = canonicalizeConfiguration(configuration);
+	if (!variableContext) {
+		return canonicalConfiguration;
+	}
+
+	const expression = ConfigurationResolverExpression.parse(canonicalConfiguration);
+	for (const replacement of expression.unresolved()) {
+		const value = resolveMigrationVariable(replacement.name, replacement.arg, variableContext);
+		if (value === undefined) {
+			return undefined;
+		}
+		expression.resolve(replacement, value);
+	}
+	return Iterable.isEmpty(expression.unresolved()) ? expression.toObject() : undefined;
+}
+
+function resolveMigrationVariable(
+	name: string,
+	argument: string | undefined,
+	context: { readonly root: URI; readonly roots: readonly URI[] },
+): string | undefined {
+	if (name === 'pathSeparator' || name === '/') {
+		return argument === undefined ? sep : undefined;
+	}
+	if (name !== 'workspaceFolder' && name !== 'workspaceFolderBasename' && name !== 'cwd') {
+		return undefined;
+	}
+
+	const root = argument === undefined
+		? context.root
+		: findRootByName(context.roots, argument);
+	if (!root) {
+		return undefined;
+	}
+	return name === 'workspaceFolderBasename' ? basename(root) : root.fsPath;
+}
+
+function findRootByName(roots: readonly URI[], name: string): URI | undefined {
+	const matches = roots.filter(root => basename(root) === name);
+	return matches.length === 1 ? matches[0] : undefined;
 }
 
 function hasOnlyRepresentableProperties(rawConfiguration: Record<string, unknown>, type: McpServerType): boolean {

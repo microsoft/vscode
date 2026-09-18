@@ -10,6 +10,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { parse } from '../../../../../../base/common/jsonc.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { sep } from '../../../../../../base/common/path.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -248,7 +249,7 @@ suite('McpServerCustomizationMigration', () => {
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
 				support(root, 'eligible'),
-				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: '/plan/server' } }),
+				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: `${root.fsPath}/server` } }),
 				support(root, 'metadata'),
 				support(root, 'cwd', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' } }),
 				support(root, 'sse', { projectedConfiguration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com' } }),
@@ -265,14 +266,79 @@ suite('McpServerCustomizationMigration', () => {
 			candidates: plan.candidates.map(item => item.name),
 			exclusions: plan.exclusions.map(item => [item.name, item.reason]),
 		}, {
-			candidates: ['eligible'],
+			candidates: ['eligible', 'variable'],
 			exclusions: [
-				['variable', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['metadata', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['sse', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['disabled', McpServerCustomizationMigrationFailureReason.NoLongerEligible],
 			],
+		});
+	});
+
+	test('resolves portable workspace and path variables while rejecting other interpolation', async () => {
+		const first = URI.file('/workspace/first');
+		const second = URI.file('/workspace/second');
+		const fileService = createFileService();
+		await fileService.writeFile(URI.joinPath(first, '.vscode', 'mcp.json'), VSBuffer.fromString(`{
+			"servers": {
+				"portable": {
+					"type": "stdio",
+					"command": "\${workspaceFolder}\${pathSeparator}server.js",
+					"args": [
+						"\${cwd}/argument",
+						"\${workspaceFolder:second}/\${workspaceFolderBasename:second}",
+						"\${workspaceFolderBasename}",
+						"\${/}"
+					]
+				},
+				"environment": { "type": "stdio", "command": "\${env:COMMAND}" },
+				"unknownRoot": { "type": "stdio", "command": "\${workspaceFolder:missing}/server.js" }
+			}
+		}`));
+		const projectedConfiguration: IMcpServerConfiguration = {
+			type: McpServerType.LOCAL,
+			command: `${first.fsPath}${sep}server.js`,
+			args: [
+				`${first.fsPath}/argument`,
+				`${second.fsPath}/second`,
+				'first',
+				sep,
+			],
+		};
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [
+				support(first, 'portable', { projectedConfiguration }),
+				support(first, 'environment', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' } }),
+				support(first, 'unknownRoot', { projectedConfiguration: { type: McpServerType.LOCAL, command: '/workspace/missing/server.js' } }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+
+		const plan = await createMigrator(fileService).createPlan(snapshot, [first, second]);
+		const result = await createMigrator(fileService).migrate(plan.candidates, { roots: [first, second] });
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => candidate.name),
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			result,
+			source: parse((await fileService.readFile(URI.joinPath(first, '.vscode', 'mcp.json'))).value.toString()),
+			target: parse((await fileService.readFile(URI.joinPath(first, '.mcp.json'))).value.toString()),
+		}, {
+			candidates: ['portable'],
+			exclusions: [
+				['environment', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+				['unknownRoot', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			],
+			result: { migratedCount: 1, failures: [] },
+			source: {
+				servers: {
+					environment: { type: 'stdio', command: '${env:COMMAND}' },
+					unknownRoot: { type: 'stdio', command: '${workspaceFolder:missing}/server.js' },
+				},
+			},
+			target: { mcpServers: { portable: projectedConfiguration } },
 		});
 	});
 
