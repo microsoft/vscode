@@ -34,13 +34,11 @@ import {
 	AgentHostOTelResourceAttributesSettingId,
 	AgentHostOTelServiceNameSettingId,
 	AgentHostSystemProxyEnabledSettingId,
-	ArtifactToolsSettingId,
 } from './agentService.js';
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
-	AgentHostArtifactToolsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
@@ -50,6 +48,7 @@ import {
 	AgentHostSystemProxyEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
+import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -192,15 +191,7 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
 		},
-		[ArtifactToolsSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.artifactTools.enabled', "When enabled, agents can record artifacts — pull requests, issues, commits, websites, files and other resources — which are surfaced above the chat input."),
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostArtifactToolsConfigKey },
-		},
+		...artifactToolsConfigurationProperties,
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.autoAttachPullRequests', "Controls whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded by the agent as artifacts or explicitly selected or created through session actions are considered."),
@@ -293,7 +284,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Enabling takes effect without restarting the agent host."),
 			default: product.quality !== 'stable',
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental'],
 			// Allow the default to be overridden by an experiment. Uses `startup`
 			// to match the sibling agent-host provider settings.
 			experiment: { mode: 'startup' },

@@ -77,7 +77,10 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { type IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
+import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
+import { artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -6730,26 +6733,26 @@ suite('CopilotAgentSession', () => {
 			const abortPromise = session.abort();
 			assert.strictEqual(mockSession.abortCalls, 1);
 
-			const permission = await runtime.handlePermissionRequest({
+			const permission = runtime.handlePermissionRequest({
 				kind: 'write',
 				toolCallId: 'tc-during-abort',
 			});
-			const userInput = await runtime.handleUserInputRequest(
+			const userInput = runtime.handleUserInputRequest(
 				{ question: 'New question' },
 				{ sessionId: 'test-session-1' },
 			);
-			const elicitation = await runtime.handleElicitationRequest({
+			const elicitation = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'New elicitation',
 				mode: 'form',
 				requestedSchema: { type: 'object', properties: {} },
 			});
-			const planReview = await runtime.handleExitPlanModeRequest({
+			const planReview = runtime.handleExitPlanModeRequest({
 				actions: ['interactive'],
 				recommendedAction: 'interactive',
 				summary: 'Plan',
 			}, { sessionId: 'test-session-1' });
-			const mcpAuth = await runtime.handleMcpAuthRequest({
+			const mcpAuth = runtime.handleMcpAuthRequest({
 				requestId: 'auth-during-abort',
 				serverName: 'test-server',
 				serverUrl: 'https://mcp.example.com',
@@ -6761,11 +6764,11 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				pendingUserInput: await pendingUserInput,
 				pendingElicitation: await pendingElicitation,
-				permission,
-				userInput,
-				elicitation,
-				planReview,
-				mcpAuth,
+				permission: await permission,
+				userInput: await userInput,
+				elicitation: await elicitation,
+				planReview: await planReview,
+				mcpAuth: await mcpAuth,
 			}, {
 				pendingUserInput: { answer: '', wasFreeform: true },
 				pendingElicitation: { action: 'cancel' },
@@ -11154,6 +11157,84 @@ Use the attached image as context.
 			assert.strictEqual(result.wasFreeform, true);
 		});
 
+		test('pending user input does not resume the runtime before abort is acknowledged', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			let inputResponded = false;
+			const responsePromise = runtime.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' },
+			).then(response => {
+				inputResponded = true;
+				return response;
+			});
+
+			const abortPromise = session.abort();
+			await timeout(0);
+			const respondedBeforeAbortAcknowledgement = inputResponded;
+			abortGate.complete();
+			await abortPromise;
+
+			assert.deepStrictEqual({
+				respondedBeforeAbortAcknowledgement,
+				response: await responsePromise,
+			}, {
+				respondedBeforeAbortAcknowledgement: false,
+				response: { answer: '', wasFreeform: true },
+			});
+		});
+
+		test('failed abort still settles cancelled user input', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			const responsePromise = runtime.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' },
+			);
+			const abortError = new Error('Abort failed');
+			const abortRejected = assert.rejects(session.abort(), abortError);
+			abortGate.error(abortError);
+			await abortRejected;
+
+			assert.deepStrictEqual(await responsePromise, { answer: '', wasFreeform: true });
+		});
+
+		test('dispose releases cancelled user input while abort is in flight', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+
+			let inputResponded = false;
+			const responsePromise = runtime.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' },
+			).then(response => {
+				inputResponded = true;
+				return response;
+			});
+			const abortPromises = [session.abort(), session.abort()];
+			session.dispose();
+			await timeout(0);
+			const respondedAfterDispose = inputResponded;
+			abortGate.complete();
+			await Promise.all(abortPromises);
+
+			assert.deepStrictEqual({
+				respondedAfterDispose,
+				response: await responsePromise,
+			}, {
+				respondedAfterDispose: true,
+				response: { answer: '', wasFreeform: true },
+			});
+		});
+
 		test('handleUserInputRequest rejects without an active turn', async () => {
 			const { runtime, signals } = await createAgentSession(disposables);
 
@@ -12651,10 +12732,131 @@ Use the attached image as context.
 
 			const tools = runtime.createServerSdkTools();
 			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
-			// Server tools are always-available internal tools; they must be
-			// eager (`defer: 'never'`) so tool search never hides them behind
-			// `tool_search_tool`.
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
+		});
+
+		test('honors per-tool deferral only when tool search is active', async () => {
+			for (const toolSearchActive of [false, true]) {
+				const serverToolHost = new FakeServerToolHost([
+					{ ...fakeToolDefinitions[0], deferLoading: false },
+					{ ...fakeToolDefinitions[1], deferLoading: true },
+					{ name: 'unspecified', description: 'Provider default' },
+				]);
+				const { runtime } = await createAgentSession(disposables, {
+					serverToolHost,
+					clientSnapshot: { tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }], plugins: [], mcpServers: {} },
+				});
+				runtime.createClientSdkTools(toolSearchActive);
+				const deferrals = () => runtime.createServerSdkTools().map(({ name, defer }) => ({ name, defer }));
+				const expected = [
+					{ name: 'serverToolA', defer: 'never' },
+					{ name: 'serverToolB', defer: toolSearchActive ? 'auto' : 'never' },
+					{ name: 'unspecified', defer: 'never' },
+				];
+				assert.deepStrictEqual([deferrals(), deferrals()], [expected, expected]);
+			}
+		});
+
+		test('discovers and executes deferred artifact tools in new and restored chats', async () => {
+			for (const [resume, useCompactPrompts] of [[false, false], [false, true], [true, false], [true, true]]) {
+				const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
+				const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+				stateManager.createSession({
+					resource: sessionUri,
+					provider: 'copilot',
+					title: 'Artifacts',
+					status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(),
+					modifiedAt: new Date(0).toISOString(),
+				});
+				let enabled = true;
+				const serverToolHost = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
+					isEnabled: () => enabled,
+					useCompactPrompts: () => useCompactPrompts,
+					persist: () => { },
+				})]);
+				const clientSnapshot: IActiveClientSnapshot = {
+					tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
+					plugins: [],
+					mcpServers: {},
+				};
+				const activeClientToolSet = new ActiveClientToolSet();
+				activeClientToolSet.set('artifact-search-client', clientSnapshot.tools);
+				const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					serverToolHost, clientSnapshot, activeClientToolSet, resume,
+				});
+				const [search] = runtime.createClientSdkTools(true);
+				const tools = runtime.createServerSdkTools();
+				const definitions = serverToolHost.getDefinitionsForSession(sessionUri);
+				const add = tools.find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference);
+				assert.ok(add);
+				await invokeClientToolHandler(add, 'tc-add-artifact', {
+					items: [{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' }],
+				});
+				const id = readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta)[0].id;
+				const toolCallId = 'tc-artifact-search';
+				mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME,
+					arguments: { query: 'list or remove artifacts' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const searchPromise = invokeClientToolHandler(search, toolCallId, { query: 'list or remove artifacts' }, tools.map(tool => ({
+					name: tool.name,
+					description: tool.description ?? '',
+					deferLoading: tool.defer === 'auto',
+				})));
+				const readySignal = await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady));
+				assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+				const candidates = readToolCallMeta(readySignal.action as ChatToolCallReadyAction).toolSearchCandidates;
+				session.handleClientToolCallComplete(toolCallId, {
+					success: true,
+					pastTenseMessage: 'Searched tools',
+					content: [{ type: ToolResultContentType.Text, text: JSON.stringify([ArtifactServerToolName.ListArtifactsAndReferences, ArtifactServerToolName.RemoveArtifactOrReference]) }],
+				});
+				const searchResult = await searchPromise;
+				const list = tools.find(tool => tool.name === searchResult.toolReferences?.[0]);
+				const remove = tools.find(tool => tool.name === searchResult.toolReferences?.[1]);
+				assert.ok(list && remove);
+				const listed = await invokeClientToolHandler(list, 'tc-list-artifacts');
+				const removed = await invokeClientToolHandler(remove, 'tc-remove-artifact', { id });
+
+				enabled = false;
+				const disabled = await invokeClientToolHandler(remove, 'tc-disabled-artifact', { id });
+				assert.deepStrictEqual({
+					deferrals: tools.map(({ name, defer }) => ({ name, defer })),
+					inputSchemas: tools.map(tool => tool.parameters),
+					candidates,
+					searchResult,
+					listed,
+					removed,
+					remaining: readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta),
+					disabledDefinitions: runtime.createServerSdkTools(),
+					disabled,
+				}, {
+					deferrals: [
+						{ name: ArtifactServerToolName.AddArtifactOrReference, defer: 'never' },
+						{ name: ArtifactServerToolName.RemoveArtifactOrReference, defer: 'auto' },
+						{ name: ArtifactServerToolName.ListArtifactsAndReferences, defer: 'auto' },
+					],
+					inputSchemas: definitions.map(tool => tool.inputSchema),
+					candidates: artifactServerToolDefinitions.filter(tool => tool.deferLoading).map(({ name, description }) => ({ name, description })),
+					searchResult: {
+						resultType: 'success',
+						textResultForLlm: JSON.stringify([ArtifactServerToolName.ListArtifactsAndReferences, ArtifactServerToolName.RemoveArtifactOrReference]),
+						toolReferences: [ArtifactServerToolName.ListArtifactsAndReferences, ArtifactServerToolName.RemoveArtifactOrReference],
+						binaryResultsForLlm: undefined,
+					},
+					listed: { resultType: 'success', textResultForLlm: `${id} (file, artifact) Report — file:///repo/report.md` },
+					removed: { resultType: 'success', textResultForLlm: `Removed artifact: ${id}` },
+					remaining: [],
+					disabledDefinitions: [],
+					disabled: {
+						resultType: 'failure',
+						textResultForLlm: `Server tool "${ArtifactServerToolName.RemoveArtifactOrReference}" is disabled.`,
+						error: `Server tool "${ArtifactServerToolName.RemoveArtifactOrReference}" is disabled.`,
+					},
+				});
+			}
 		});
 
 		test('exposes only ephemeral-enabled server tools in an ephemeral session', async () => {

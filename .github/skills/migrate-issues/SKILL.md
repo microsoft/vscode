@@ -1,19 +1,8 @@
 ---
-agent: agent
-tools:
-  [
-    "github/add_issue_comment",
-    "github/get_label",
-    "github/get_me",
-    "github/issue_read",
-    "github/issue_write",
-    "github/search_issues",
-    "github/search_pull_requests",
-    "github/search_repositories",
-    "github/sub_issue_write",
-  ]
+name: migrate-issues
+description: migrate GitHub issues from one repository to another
+disable-model-invocation: true
 ---
-
 # Issue Migration Prompt
 
 Use this prompt when migrating issues from one GitHub repository to another (e.g., from `microsoft/vscode-copilot` to `microsoft/vscode`).

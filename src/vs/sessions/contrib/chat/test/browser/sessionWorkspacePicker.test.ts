@@ -67,6 +67,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { hasOnboardingTargetSelection, onDidSelectOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -1904,6 +1905,59 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 		});
 		assert.deepStrictEqual({ selected, noWorkspace: noWorkspacePicker.selectionSnapshot.state }, {
 			selected: { folder: '/local/project', origin: WorkspaceSelectionOrigin.VSCodeWorkspace }, noWorkspace: 'noWorkspace',
+		});
+	});
+
+	test('onboarding observes explicit workspace selections, including reselecting the same workspace', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const storage = disposables.add(new TestStorageService());
+		const picker = createTestPicker(disposables, providersService, storage);
+		const container = document.createElement('div');
+		picker.render(container);
+		const target = container.querySelector<HTMLElement>('[data-onboarding-id="sessions.newSession.workspacePicker"]')!;
+		let selections = 0;
+		disposables.add(onDidSelectOnboardingTarget(target)(() => selections++));
+		const folderUri = URI.file('/local/project');
+		picker.setSelectedWorkspace(folderUri);
+		const afterPreselection = selections;
+		picker.setSelectedWorkspace(folderUri, { origin: WorkspaceSelectionOrigin.User });
+		const afterReselection = selections;
+		picker.setSelectedWorkspace(URI.file('/local/another'), { origin: WorkspaceSelectionOrigin.User });
+		const afterSelection = selections;
+		picker.clearSelection();
+
+		assert.deepStrictEqual({ afterPreselection, afterReselection, afterSelection, afterClear: selections }, {
+			afterPreselection: 0,
+			afterReselection: 1,
+			afterSelection: 2,
+			afterClear: 2,
+		});
+	});
+
+	test('onboarding reads picker preselection and waits for workspace acceptance', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const acceptance = new DeferredPromise<boolean>();
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, undefined, undefined, {
+			whenSelectionAccepted: () => acceptance.p,
+		});
+		const container = document.createElement('div');
+		picker.render(container);
+		const target = container.querySelector<HTMLElement>('[data-onboarding-id="sessions.newSession.workspacePicker"]')!;
+		const initiallySelected = hasOnboardingTargetSelection(target);
+		picker.setSelectedWorkspace(URI.file('/local/preselected'));
+		const preselected = hasOnboardingTargetSelection(target);
+		let selected: Promise<boolean> | undefined;
+		disposables.add(onDidSelectOnboardingTarget(target)(result => selected = result));
+		picker.setSelectedWorkspace(URI.file('/local/chosen'), { origin: WorkspaceSelectionOrigin.User });
+		const waitsForAcceptance = selected === acceptance.p;
+		await acceptance.complete(true);
+		assert.deepStrictEqual({ initiallySelected, preselected, waitsForAcceptance, accepted: await selected }, {
+			initiallySelected: false,
+			preselected: true,
+			waitsForAcceptance: true,
+			accepted: true,
 		});
 	});
 

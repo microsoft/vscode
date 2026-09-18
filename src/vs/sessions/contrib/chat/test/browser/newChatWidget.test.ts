@@ -65,6 +65,7 @@ interface ICreateSessionNowHarness {
 
 interface INewChatWidgetHarness extends IRecreateHarness {
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	_pendingWorkspaceCreation?: Promise<IOpenNewSessionResult>;
 	_createdSessionId: string | undefined;
 	readonly sessionsManagementService: { readonly onDidChangeSessionTypes: Event<void> };
 	readonly _newChatInput: {
@@ -600,6 +601,21 @@ suite('NewChatWidget', () => {
 		await creating;
 
 		assert.strictEqual(createCount, 2);
+	});
+
+	test('tracks pending workspace creation until trust and draft creation settle', async () => {
+		const creation = new DeferredPromise<IOpenNewSessionResult>();
+		const harness = createHarness(
+			disposables.add(new MutableDisposable<IDisposable>()),
+			disposables.add(new MutableDisposable<IDisposable>()),
+			Event.None,
+			() => creation.p,
+		);
+		const creating = harness._createNewSession(URI.file('/project'));
+		const pending = harness._pendingWorkspaceCreation === creation.p;
+		await creation.complete({ session: undefined, trustDeclined: true });
+		await creating;
+		assert.deepStrictEqual({ pending, settled: harness._pendingWorkspaceCreation }, { pending: true, settled: undefined });
 	});
 
 	test('applies the Dev Container preference when a late provider creates the draft', async () => {

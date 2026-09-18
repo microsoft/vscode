@@ -2106,6 +2106,7 @@ suite('ActionListWidget', () => {
 			items: [item],
 			listOptions: { showFilter: false, reserveSubmenuSpace: false },
 		});
+
 		const press = (key: string, shiftKey = false) =>
 			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
 		const focusedToolbarLabel = () => document.activeElement?.closest('.action-list-item-toolbar') ? document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent : undefined;
@@ -2122,6 +2123,24 @@ suite('ActionListWidget', () => {
 			firstReverseTarget: 'Remove',
 			secondReverseTarget: 'Copy',
 		});
+	});
+
+	test('mouse removal from a row toolbar does not select the row', async () => {
+		const selected: string[] = [];
+		let removed = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('reference'),
+				toolbarActions: [toAction({ id: 'remove-reference', label: 'Remove Reference from Session', run: () => { removed++; } })],
+			}],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ removed, selected }, { removed: 1, selected: [] });
 	});
 
 	test('Ctrl/Meta/Alt+Tab bubble to the keybinding service instead of driving panel traversal', () => {

@@ -1,13 +1,14 @@
 {
-	"servers": {
+	"mcpServers": {
 		"vscode-automation-mcp": {
 			"type": "stdio",
 			"command": "npm",
 			"args": [
+				"--prefix",
+				"test/mcp",
 				"run",
 				"start-stdio"
-			],
-			"cwd": "${workspaceFolder}/test/mcp"
+			]
 		},
 		"component-explorer": {
 			"type": "stdio",
@@ -24,6 +25,5 @@
 				"-vv"
 			]
 		}
-	},
-	"inputs": []
+	}
 }

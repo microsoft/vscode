@@ -330,7 +330,7 @@ The model catalog is the same trade. The CLI inlines the whole `/models` list in
 
 Every model is selected explicitly. Sending no selection is deliberately not pinned: the CLI would then pick from the stub catalog by its own ranking, so the baseline would record a property of this suite's fixture rather than the product, and would move whenever a higher-ranked model was added to or removed from `capiStubs.ts`.
 
-The prompt is the CLI's product, not the host's — it is compiled into the `@github/copilot` native binary and only becomes observable when the CLI serializes it onto the wire. These tests therefore read it from a **replayed** turn, which is deterministic and tokenless. They deliberately do not snapshot while recording: a recording run reaches live CAPI for the model catalog and experiment assignment, and either can move the prompt for reasons unrelated to this repository.
+The prompt is the runtime's product, not the host's — it is compiled into the SDK-owned native binary and only becomes observable when the runtime serializes it onto the wire. These tests therefore read it from a **replayed** turn, which is deterministic and tokenless. They deliberately do not snapshot while recording: a recording run reaches live CAPI for the model catalog and experiment assignment, and either can move the prompt for reasons unrelated to this repository.
 
 Accept a new baseline with the same flag the AHP snapshots use, then review the diff:
 
@@ -499,6 +499,12 @@ The fixture was never recorded (or the test title changed and orphaned it). Reco
 Usually the *local execution* diverges by platform (the model replay is byte-identical everywhere). Windows shells, `pwd`, `git worktree` paths, and some SDK tool calls behave differently. Gate the test off that platform (`!isWindows` or a per-provider flag) — don't bump timeouts to mask it.
 
 Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool. Packaged Linux still completes those recorded turns without command-execution notifications, so the shell-dependent Codex replay tests are gated there.
+
+### A replayed MCP call reports that its tool does not exist
+
+A recorded response can name an MCP tool before the real server finishes starting and enters the turn's tool inventory. For Copilot tests of an initialized server, create an empty chat with `createChat` and wait for its server's `session/customizationUpdated` notification to report `McpServerStatus.Ready` before dispatching the recorded turn. This separates MCP startup from model replay without sleeps or an extra recorded warm-up turn.
+
+Keep asserting the real tool result: the replayed assistant text can report the recorded success even when the actual tool call failed.
 
 ### A turn hangs or times out with no OS pattern
 

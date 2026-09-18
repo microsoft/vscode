@@ -37,6 +37,7 @@ export interface IRemoteDevContainerFixture {
 	readonly workspacePath?: string;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
 	verifyMockServerRouting?(): Promise<void>;
+	dumpConnectionDiagnostics?(uiState: string): Promise<void>;
 	dispose(): Promise<void>;
 }
 
@@ -44,6 +45,33 @@ const repositoryRoot = path.resolve(__dirname, '../../../../..');
 const startupTimeout = 90_000;
 const fakeModelToken = 'smoketest-fake-agent-host-token';
 const tunnelTokenEnvironmentKey = 'VSCODE_SMOKE_TEST_TUNNEL_TOKEN';
+
+async function readConnectionLogTail(file: string): Promise<string> {
+	const handle = await fs.promises.open(file, 'r');
+	try {
+		const { size } = await handle.stat();
+		const length = Math.min(size, 256 * 1024);
+		const start = size - length;
+		const buffer = Buffer.alloc(length);
+		let offset = 0;
+		while (offset < length) {
+			const { bytesRead } = await handle.read(buffer, offset, length - offset, start + offset);
+			if (bytesRead === 0) {
+				break;
+			}
+			offset += bytesRead;
+		}
+		const content = buffer.toString('utf8', 0, offset);
+		if (start === 0) {
+			return content;
+		}
+		// Discard the leading partial entry, including any truncated credential.
+		const firstEntry = content.search(/^\d{4}-\d{2}-\d{2} /m);
+		return firstEntry === -1 ? '' : content.slice(firstEntry);
+	} finally {
+		await handle.close();
+	}
+}
 
 interface ITunnelCli {
 	executable: string;
@@ -885,6 +913,29 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			const logs = await run(`find ${shellQuote(`${root}/user-data/logs`)} -name agenthost.log -type f -exec cat {} +`);
 			if (!logs.includes('Using CAPI URL override http://127.0.0.1:') || logs.includes('Ignoring non-loopback CAPI URL override')) {
 				throw new Error('The WSL source Agent Host did not accept the loopback mock CAPI endpoint.');
+			}
+		},
+		dumpConnectionDiagnostics: async uiState => {
+			const report = (message: string) => {
+				const redacted = resources.redact(`[WSL connection diagnostics] ${message}`);
+				resources.log(redacted);
+				console.error(redacted);
+			};
+			report(`UI state: ${uiState}`);
+			const windowDirectories = (await fs.promises.readdir(options.logsPath, { withFileTypes: true }))
+				.filter(entry => entry.isDirectory() && /^window\d+$/.test(entry.name));
+			const files = [
+				path.join(options.logsPath, 'sharedprocess.log'),
+				...windowDirectories.map(entry => path.join(options.logsPath, entry.name, 'renderer.log')),
+			];
+			for (const file of files) {
+				try {
+					const entries = (await readConnectionLogTail(file)).split(/(?=^\d{4}-\d{2}-\d{2} )/m)
+						.filter(entry => /\[WSL|\[RemoteAgentHost|WSLRelayTransport/.test(entry)).slice(-20);
+					report(`${path.relative(options.logsPath, file)}:\n${entries.length ? entries.map(entry => resources.redact(entry).slice(0, 2000)).join('\n') : '(no WSL or remote-host entries)'}`);
+				} catch (error) {
+					report(`Cannot read ${path.relative(options.logsPath, file)}: ${error instanceof Error ? error.message : String(error)}`);
+				}
 			}
 		},
 		dispose: () => resources.dispose(),
