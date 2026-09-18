@@ -36,6 +36,7 @@ import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { AgentHostCreateSessionRelationshipConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -138,6 +139,7 @@ export function createAgentServiceComposition(
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
+				setAdditionalWorktreesArchived: (session, archived, strictCleanup) => callbackAdapter.value.setAdditionalWorktreesArchived(session, archived, strictCleanup),
 			},
 		));
 		const agentMergeTools = owned.add(instantiationService.createInstance(
@@ -162,7 +164,12 @@ export function createAgentServiceComposition(
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
+			buildServerToolGroups(
+				sessionServerToolAccessor,
+				agentMergeTools,
+				callbackAdapter.artifactServerToolAccessor,
+				() => configurationService.getRootValue(platformRootSchema, AgentHostCreateSessionRelationshipConfigKey) !== false,
+			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));

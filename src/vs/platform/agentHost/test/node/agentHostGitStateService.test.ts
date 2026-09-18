@@ -820,6 +820,48 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('finds a pull request for another worktree without changing session Git metadata', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness();
+			const primaryGitState: ISessionGitState = {
+				branchName: 'primary',
+				baseBranchName: 'main',
+				githubOwner: 'microsoft',
+				githubRepo: 'vscode',
+			};
+			const peerWorkingDirectory = URI.file('/peer-worktree');
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState: primaryGitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+			h.setGitResult({
+				branchName: 'peer-feature',
+				baseBranchName: 'main',
+				githubOwner: 'octo',
+				githubRepo: 'peer',
+			});
+			h.setPullRequest('peer-feature', {
+				url: 'https://github.com/octo/peer/pull/1',
+				number: 1,
+			});
+
+			const pullRequestUrl = await h.service.findPullRequestForWorkingDirectory(SESSION, peerWorkingDirectory);
+
+			assert.deepStrictEqual({
+				pullRequestUrl,
+				gitCalls: h.gitCalls,
+				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
+				gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				pullRequestUrl: 'https://github.com/octo/peer/pull/1',
+				gitCalls: [peerWorkingDirectory.toString()],
+				gitState: primaryGitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+			});
+		});
+	});
+
 	test('falls back to the commit at HEAD when the branch name matches no pull request', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// A branch checked out from a pull request head: no upstream, and a

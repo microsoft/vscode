@@ -9,9 +9,10 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISession, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
 
 suite('getSessionOwnedGitHubPullRequestRefs', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,6 +33,82 @@ suite('getSessionOwnedGitHubPullRequestRefs', () => {
 		assert.deepStrictEqual(getSessionOwnedGitHubPullRequestRefs({ owner: 'owner', repo: 'repo', pullRequest: primary }), [
 			{ owner: 'owner', repo: 'repo', ...primary },
 		]);
+	});
+});
+
+suite('getSessionGitHubPullRequestRefs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('collects and deduplicates pull requests across workspace repositories', () => {
+		const first = { owner: 'owner', repo: 'one', number: 1, uri: URI.parse('https://github.com/owner/one/pull/1') };
+		const second = { owner: 'owner', repo: 'two', number: 2, uri: URI.parse('https://github.com/owner/two/pull/2') };
+		const workspace: ISessionWorkspace = {
+			uri: URI.file('/workspace'),
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [{
+				root: URI.file('/workspace/one'),
+				workingDirectory: URI.file('/workspace/one'),
+				name: 'one',
+				description: undefined,
+				gitRepository: {
+					uri: URI.file('/workspace/one'),
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable({ owner: 'owner', repo: 'one', pullRequests: [first] }),
+				},
+			}, {
+				root: URI.file('/workspace/two'),
+				workingDirectory: URI.file('/workspace/two'),
+				name: 'two',
+				description: undefined,
+				gitRepository: {
+					uri: URI.file('/workspace/two'),
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable({ owner: 'owner', repo: 'two', pullRequests: [second, first] }),
+				},
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const session = new class extends mock<ISession>() {
+			override readonly workspace = constObservable<ISessionWorkspace | undefined>(workspace);
+		};
+
+		assert.deepStrictEqual(getSessionGitHubPullRequestRefs(session).map(pullRequest => pullRequest.uri.toString()), [
+			first.uri.toString(),
+			second.uri.toString(),
+		]);
+	});
+
+	test('prefers the provider session-level pull request collection', () => {
+		const sessionPullRequest = { owner: 'owner', repo: 'session', number: 2, uri: URI.parse('https://github.com/owner/session/pull/2') };
+		const folderPullRequest = { owner: 'owner', repo: 'folder', number: 1, uri: URI.parse('https://github.com/owner/folder/pull/1') };
+		const session = new class extends mock<ISession>() {
+			override readonly pullRequests = constObservable([sessionPullRequest]);
+			override readonly workspace = constObservable<ISessionWorkspace | undefined>({
+				uri: URI.file('/workspace'),
+				label: 'workspace',
+				icon: Codicon.folder,
+				folders: [{
+					root: URI.file('/workspace/folder'),
+					workingDirectory: URI.file('/workspace/folder'),
+					name: 'folder',
+					description: undefined,
+					gitRepository: {
+						uri: URI.file('/workspace/folder'),
+						workTreeUri: undefined,
+						baseBranchName: undefined,
+						gitHubInfo: constObservable({ owner: 'owner', repo: 'folder', pullRequests: [folderPullRequest] }),
+					},
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			});
+		};
+
+		assert.deepStrictEqual(getSessionGitHubPullRequestRefs(session), [sessionPullRequest]);
 	});
 });
 

@@ -419,9 +419,9 @@ class RerunTestHarness extends Disposable {
 		}();
 		this.controller = this._register(new AgentMergeController(
 			{
-				startTurn: (session, turnId, prompt) => {
+				startTurn: (chatUri, turnId, prompt) => {
 					this.prompts.push(prompt);
-					this.stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+					this.stateManager.dispatchServerAction(chatUri, {
 						type: ActionType.ChatTurnStarted,
 						turnId,
 						startedAt: new Date().toISOString(),
@@ -429,7 +429,7 @@ class RerunTestHarness extends Disposable {
 					});
 					return true;
 				},
-				cancelTurn: (session, turnId) => this.stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+				cancelTurn: (chatUri, turnId) => this.stateManager.dispatchServerAction(chatUri, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 					duration: 0,
@@ -451,7 +451,15 @@ class RerunTestHarness extends Disposable {
 			}(),
 			this.logService,
 		));
-		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), gitHubService, this.logService, this.stateManager, this.configurationService));
+		this.tools = this._register(new AgentMergeTools(
+			() => this.controller.isEnabled(),
+			session => this.controller.getTurnContext(session),
+			gitHubService,
+			this.logService,
+			this.stateManager,
+			this.configurationService,
+			new class extends mock<IAgentHostGitService>() { }(),
+		));
 		this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
 	}
 

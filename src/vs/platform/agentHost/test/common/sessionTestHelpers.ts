@@ -578,6 +578,7 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		onDidRefreshSessionGitState: Event.None,
 		onDidChangeSessionGitHubState: Event.None,
 		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
+		findPullRequestForWorkingDirectory: async (_sessionKey: string, _workingDirectory: URI) => undefined,
 		getMaterializedWorktreeMeta: (_sessionKey: string, _branchName: string) => undefined,
 		resolveSessionBaseBranchName: async (_sessionKey: string) => undefined,
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },

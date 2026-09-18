@@ -7,7 +7,7 @@ import { localize } from '../../../nls.js';
 import { readAgentMergeSessionState } from './agentMerge.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { isAhpChatChannel, MessageKind, parseDefaultChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -280,6 +280,15 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 		return undefined;
 	}
 	return { sessionUri, changesetId, kind: ChangesetKind.Unknown };
+}
+
+/** Resolves the parent session of either a session- or chat-owned changeset URI. */
+export function getChangesetSessionUri(uri: URI): URI | undefined {
+	const owner = parseChangesetUri(uri)?.sessionUri;
+	if (!owner) {
+		return undefined;
+	}
+	return isAhpChatChannel(owner) ? parseDefaultChatUri(owner) : owner;
 }
 
 /** Returns `true` iff `uri` looks like a changeset URI we recognise. */

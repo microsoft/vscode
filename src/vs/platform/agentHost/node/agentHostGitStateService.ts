@@ -24,6 +24,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
+import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
@@ -82,6 +83,67 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
 		await this.refreshSessionGitState(sessionKey, workingDirectory);
 		await this._queuePullRequestLookup(sessionKey);
+	}
+
+	async findPullRequestForWorkingDirectory(sessionKey: string, workingDirectory: URI): Promise<string | undefined> {
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state || state.lifecycle !== SessionLifecycle.Ready) {
+			return undefined;
+		}
+
+		try {
+			const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
+			const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+			const branchName = gitState?.branchName;
+			const owner = gitState?.githubOwner;
+			const repo = gitState?.githubRepo;
+			if (!branchName || branchName === gitState?.baseBranchName || !owner || !repo) {
+				return undefined;
+			}
+
+			const authToken = this._getGitHubAuthToken();
+			if (!authToken) {
+				return undefined;
+			}
+
+			const allowedPullRequestUrls = this._isAutomaticPullRequestAttachmentEnabled()
+				? undefined
+				: this._getRecordedPullRequestUrls(state);
+			if (allowedPullRequestUrls?.length === 0) {
+				return undefined;
+			}
+
+			const pullRequest = await this._pullRequestAssociationResolver.resolveForCheckout(
+				{ ...state, workingDirectories: [workingDirectory.toString()] },
+				owner,
+				repo,
+				gitState,
+				branchName,
+				authToken,
+				allowedPullRequestUrls,
+			);
+			return pullRequest?.url;
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService][findPullRequestForWorkingDirectory] Failed to find pull request for ${sessionKey}`, error);
+			return undefined;
+		}
+	}
+
+	private _getRecordedPullRequestUrls(state: ISessionWithDefaultChat): string[] {
+		const urls = [
+			...readSessionArtifacts(state._meta)
+				.flatMap(artifact => artifact.type === SessionArtifactType.PullRequest && artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [artifact.link] : []),
+			...getSessionRelatedPullRequestUrls(readSessionGitHubState(state._meta)),
+		];
+		const seen = new Set<string>();
+		return urls.filter(url => {
+			const key = getSessionPullRequestUrlKey(url);
+			if (seen.has(key)) {
+				return false;
+			}
+			seen.add(key);
+			return true;
+		});
 	}
 
 	/**

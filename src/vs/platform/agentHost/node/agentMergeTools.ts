@@ -7,6 +7,7 @@ import { disposableTimeout, Queue, raceCancellationError } from '../../../base/c
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
@@ -14,6 +15,7 @@ import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { isSessionStatusArchived } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -22,6 +24,7 @@ import { AgentMergeCIRequest, IAgentMergeToolAccessor, parseAgentMergeCIRequest 
 
 export interface IAgentMergeTurnContext {
 	readonly session: string;
+	readonly chatUri?: string;
 	readonly turnId: string;
 	readonly ref: PullRequestRef;
 	readonly headSha: string;
@@ -50,6 +53,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 	) {
 		super();
 		this._register(toDisposable(() => this._abort.abort(new Error('Agent Merge tools disposed.'))));
@@ -59,7 +63,20 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		return this._isFeatureEnabled();
 	}
 
-	setEnabled(session: string, enabled: boolean): string {
+	setEnabled(session: string, chatUriOrEnabled: string | boolean, enabled?: boolean): string | Promise<string> {
+		if (typeof chatUriOrEnabled === 'boolean') {
+			return this._setEnabledForSession(session, chatUriOrEnabled);
+		}
+		if (!this.isEnabled()) {
+			throw new Error('Agent Merge is disabled in the host configuration.');
+		}
+		if (enabled === undefined) {
+			throw new Error('Agent Merge enablement is required.');
+		}
+		return this._setEnabledForChat(session, chatUriOrEnabled, enabled);
+	}
+
+	private _setEnabledForSession(session: string, enabled: boolean): string {
 		if (!this.isEnabled()) {
 			throw new Error('Agent Merge is disabled in the host configuration.');
 		}
@@ -85,6 +102,64 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		}
 		this._logService.info(`[AgentMergeTools] Set session enablement: session=${session}, enabled=${enabled}`);
 		return JSON.stringify({ enabled });
+	}
+
+	private async _setEnabledForChat(session: string, chatUri: string, enabled: boolean): Promise<string> {
+		if (!enabled) {
+			return this._setEnabledForSession(session, false);
+		}
+		if (!this.isEnabled()) {
+			throw new Error('Agent Merge is disabled in the host configuration.');
+		}
+		const state = this._stateManager.getSessionState(chatUri);
+		if (!state) {
+			throw new Error(`Cannot update Agent Merge for unknown chat: ${chatUri}`);
+		}
+		if (isSessionStatusArchived(state.status)) {
+			throw new Error('Cannot enable Agent Merge for an archived session.');
+		}
+		const values = this._configurationService.getSessionConfigValues(session);
+		if (!values) {
+			throw new Error('Cannot update Agent Merge before session configuration is available.');
+		}
+		const current = readAgentMergeSessionState(values);
+		if (current?.enabled) {
+			return JSON.stringify({ enabled: true });
+		}
+		const workingDirectories = this._stateManager.getChatWorkingDirectories(chatUri) ?? state.workingDirectories;
+		if (!workingDirectories?.length) {
+			return this._setEnabledForSession(session, true);
+		}
+		if (workingDirectories.length !== 1) {
+			throw new Error('Cannot enable Agent Merge unless the current chat has exactly one working directory.');
+		}
+		const workingDirectory = URI.parse(workingDirectories[0]);
+		const currentBranchName = this._gitService.getCurrentBranchName
+			? await this._gitService.getCurrentBranchName(workingDirectory)
+			: undefined;
+		const branchName = currentBranchName ?? await this._gitService.getCurrentBranch(workingDirectory);
+		if (!branchName) {
+			throw new Error('Cannot enable Agent Merge because the current branch could not be determined.');
+		}
+		const enabledAt = new Date().toISOString();
+		this._configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: {
+				enabled: true,
+				...(current?.overrides ? { overrides: current.overrides } : {}),
+			},
+			[SessionConfigKey.AgentMergeController]: {
+				target: {
+					branchName,
+					chatUri,
+					workingDirectory: workingDirectories[0],
+					enabledAt,
+					commentWatermark: enabledAt,
+					announcementPending: true,
+				},
+			},
+		});
+		this._logService.info(`[AgentMergeTools] Set chat-targeted session enablement: session=${session}, chat=${chatUri}`);
+		return JSON.stringify({ enabled: true });
 	}
 
 	async readFailedCI(session: string, input: AgentMergeCIRequest = {}): Promise<string> {

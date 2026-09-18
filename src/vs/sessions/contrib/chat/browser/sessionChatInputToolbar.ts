@@ -22,7 +22,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { filterSessionArtifactGitHubRefsForChat, SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
@@ -31,7 +31,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef, type IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, isSessionArtifactVisibleInChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -242,12 +242,31 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 	return entries.length > 0 ? [{ title: localize('sessionChatPills.issues', "Issues"), entries }] : [];
 }
 
-/** Returns the session-scoped changes counts represented by the shared Changes pill. */
-export function computeSessionInputPillStats(session: IActiveSession | undefined, changesStatsCache: ISessionChangesStatsCache, reader: IReader): IDiffStats {
+function getInputPillChangesetId(workspace: ISessionWorkspace | undefined): string {
+	return workspace?.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined)
+		? BRANCH_CHANGES_CHANGESET_ID
+		: SESSION_CHANGES_CHANGESET_ID;
+}
+
+/** Returns the current chat's changes counts, falling back to session-level data when unavailable. */
+export function computeSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, changesStatsCache: ISessionChangesStatsCache, reader: IReader): IDiffStats {
 	if (session?.worktreePending?.read(reader)) {
 		return EMPTY_DIFF_STATS;
 	}
-	const workspace = session?.workspace.read(reader);
+	const workspace = chat?.workspace?.read(reader) ?? session?.workspace.read(reader);
+	const changesetId = getInputPillChangesetId(workspace);
+	const changeset = (chat?.changesets?.read(reader) ?? session?.changesets.read(reader))
+		?.find(candidate => candidate.id === changesetId && candidate.isEnabled.read(reader));
+	if (changeset) {
+		let insertions = 0;
+		let deletions = 0;
+		const changes = changeset.changes.read(reader);
+		for (const change of changes) {
+			insertions += change.insertions;
+			deletions += change.deletions;
+		}
+		return { files: changes.length, insertions, deletions };
+	}
 	const stats = session && workspace
 		? readSessionChangesStats(session, reader) ?? changesStatsCache.get(session.sessionId, reader)
 		: undefined;
@@ -333,7 +352,7 @@ export class SessionChatInputToolbar extends Disposable {
 			if (debugData) {
 				return debugData.stats;
 			}
-			return computeSessionInputPillStats(this._session.read(reader), changesStatsCache, reader);
+			return computeSessionInputPillStats(this._session.read(reader), this._chat.read(reader), changesStatsCache, reader);
 		});
 
 		const pillsEnabled = constObservable(true);
@@ -341,7 +360,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
-		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls));
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._chat, this._browsers.urls));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
@@ -357,7 +376,21 @@ export class SessionChatInputToolbar extends Disposable {
 			const workspace = session?.workspace.read(reader);
 			return workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		});
-		const pullRequestRefs = derived(this, reader => getGitHubPullRequestRefs(gitHubInfo.read(reader)));
+		const artifactsForChat = derived(this, reader => {
+			const session = this._session.read(reader);
+			const chat = this._chat.read(reader);
+			return (session?.artifacts?.read(reader) ?? []).filter(artifact => isSessionArtifactVisibleInChat(artifact, chat?.resource));
+		});
+		const pullRequestRefs = derived(this, reader => {
+			const session = this._session.read(reader);
+			const chat = this._chat.read(reader);
+			return filterSessionArtifactGitHubRefsForChat(
+				getGitHubPullRequestRefs(gitHubInfo.read(reader)),
+				session?.artifacts?.read(reader) ?? [],
+				SessionArtifactKind.PullRequest,
+				chat?.resource,
+			);
+		});
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
 			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService).read(reader) : undefined;
@@ -366,7 +399,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const pullRequestSections = derived(this, reader => {
 			const session = this._session.read(reader);
 			const artifactActions = session?.capabilities.read(reader).supportsRemoveArtifacts ? {
-				artifacts: session.artifacts?.read(reader) ?? [],
+				artifacts: artifactsForChat.read(reader),
 				remove: async (artifactIds: readonly string[]) => {
 					try {
 						for (const artifactId of artifactIds) {
@@ -380,7 +413,16 @@ export class SessionChatInputToolbar extends Disposable {
 			} : undefined;
 			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, artifactActions, this._pullRequestDropdownHoverCache);
 		});
-		const issueRefs = derived(this, reader => gitHubInfo.read(reader)?.issues ?? []);
+		const issueRefs = derived(this, reader => {
+			const session = this._session.read(reader);
+			const chat = this._chat.read(reader);
+			return filterSessionArtifactGitHubRefsForChat(
+				gitHubInfo.read(reader)?.issues ?? [],
+				session?.artifacts?.read(reader) ?? [],
+				SessionArtifactKind.Issue,
+				chat?.resource,
+			);
+		});
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
 			const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
 			return { ref, issue: reference.object.issue.read(reader) };
@@ -412,7 +454,7 @@ export class SessionChatInputToolbar extends Disposable {
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
 		const changesLabel = derived(this, reader => {
-			const workspace = this._session.read(reader)?.workspace.read(reader);
+			const workspace = this._chat.read(reader)?.workspace?.read(reader) ?? this._session.read(reader)?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 			return branch
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
@@ -427,14 +469,12 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
-					const isWorktree = session.workspace.get()?.folders[0]?.gitRepository?.workTreeUri !== undefined;
+					const workspace = this._chat.get()?.workspace?.get() ?? session.workspace.get();
 					layoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: isWorktree
-								? BRANCH_CHANGES_CHANGESET_ID
-								: SESSION_CHANGES_CHANGESET_ID
+							id: getInputPillChangesetId(workspace)
 						}
 					});
 				},

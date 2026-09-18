@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
@@ -49,6 +50,7 @@ suite('Agent Merge server tools', () => {
 			logService,
 			stateManager,
 			configurationService,
+			new class extends mock<IAgentHostGitService>() { }(),
 		));
 		const host = new AgentServerToolHost(stateManager, [createAgentMergeServerToolGroup(tools)]);
 		return { stateManager, configurationService, tools, host };

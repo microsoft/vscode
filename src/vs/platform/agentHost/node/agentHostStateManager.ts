@@ -16,7 +16,7 @@ import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotations
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { buildAnnotationsUri, isAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
 import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/state/protocol/state.js';
@@ -510,6 +510,17 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns already-hydrated state without triggering resolution or I/O. */
 	getChatState(chat: URI): ChatState | undefined {
 		return this._chatEntries.get(chat)?.state;
+	}
+
+	/** Returns a chat's explicit working-directory subset, including before hydration. */
+	getChatWorkingDirectories(chat: URI): readonly string[] | undefined {
+		const entry = this._chatEntries.get(chat);
+		return entry?.state?.workingDirectories ?? entry?.summary.workingDirectories;
+	}
+
+	/** Returns the authoritative chat catalog for a session without merging a default chat state. */
+	getSessionChats(session: URI): readonly ChatSummary[] {
+		return this._sessionStates.get(session)?.state.chats ?? [];
 	}
 
 	/**
@@ -1106,9 +1117,9 @@ export class AgentHostStateManager extends Disposable {
 				...createChatState(chatSummary),
 				turns: turns ?? [],
 				draft,
-				changesets: this._sessionStates.get(sessionKey)?.state.changesets?.slice(),
+				changesets: this._changesetsForChat(chatUri, this._sessionStates.get(sessionKey)?.state.changesets),
 			},
-			changesets: this._sessionStates.get(sessionKey)?.state.changesets?.slice(),
+			changesets: this._changesetsForChat(chatUri, this._sessionStates.get(sessionKey)?.state.changesets),
 			valid: true,
 		});
 		const entry = this._sessionStates.get(sessionKey);
@@ -1175,9 +1186,9 @@ export class AgentHostStateManager extends Disposable {
 			state: {
 				...createChatState(chatSummary),
 				turns: options?.turns ?? [],
-				changesets: sessionState.changesets?.slice(),
+				changesets: this._changesetsForChat(chatUri, sessionState.changesets),
 			},
-			changesets: sessionState.changesets?.slice(),
+			changesets: this._changesetsForChat(chatUri, sessionState.changesets),
 			providerData: options?.providerData,
 			inheritedTurnId: options?.inheritedTurnId,
 			valid: true,
@@ -1225,7 +1236,7 @@ export class AgentHostStateManager extends Disposable {
 		this._chatEntries.set(chatUri, {
 			session,
 			summary: chatSummary,
-			changesets: sessionState.changesets?.slice(),
+			changesets: this._changesetsForChat(chatUri, sessionState.changesets),
 			providerData: options.providerData,
 			inheritedTurnId: options.inheritedTurnId,
 			draft: options.draft,
@@ -1555,14 +1566,28 @@ export class AgentHostStateManager extends Disposable {
 			if (!chatEntry) {
 				continue;
 			}
-			chatEntry.changesets = next?.slice();
+			const chatChangesets = this._changesetsForChat(chat.resource, next);
+			chatEntry.changesets = chatChangesets;
 			if (chatEntry.state) {
 				this.dispatchServerAction(chat.resource, {
 					type: ActionType.ChatChangesetsChanged,
-					changesets: next?.slice(),
+					changesets: chatChangesets,
 				});
 			}
 		}
+	}
+
+	private _changesetsForChat(chat: URI, changesets: readonly Changeset[] | undefined): Changeset[] | undefined {
+		return changesets?.map(changeset => {
+			switch (changeset.changeKind) {
+				case ChangesetKind.Branch:
+					return { ...changeset, uriTemplate: buildBranchChangesetUri(chat) };
+				case ChangesetKind.Uncommitted:
+					return { ...changeset, uriTemplate: buildUncommittedChangesetUri(chat) };
+				default:
+					return { ...changeset };
+			}
+		});
 	}
 
 	/**

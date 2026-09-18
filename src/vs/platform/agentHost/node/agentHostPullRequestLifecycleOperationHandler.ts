@@ -11,7 +11,7 @@ import { IGitHubService } from '../../github/common/githubService.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostPullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, resolveMergeMethod } from '../common/agentMerge.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { getChangesetSessionUri, parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -69,7 +69,10 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
 		}
-		const sessionUri = parsed.sessionUri;
+		const sessionUri = getChangesetSessionUri(params.channel);
+		if (!sessionUri) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Could not resolve session for changeset URI: ${params.channel}`);
+		}
 		const status = this._statusService.getPullRequestStatus(sessionUri);
 		if (!status) {
 			this._logService.warn(`[AgentHostPullRequestLifecycleOperationHandler] Rejected '${this._action}': session=${sessionUri}, reason=pull request state is not available`);

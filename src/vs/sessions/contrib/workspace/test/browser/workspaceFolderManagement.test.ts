@@ -269,6 +269,32 @@ suite('WorkspaceFolderManagementContribution', () => {
 		});
 	});
 
+	test('trusts and mounts an added worktree when the active chat changes', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		const primary = localFolder('/repo-primary');
+		const secondary = worktreeFolder('/repo-secondary', '/repo-secondary.worktrees/feature');
+		const firstChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-first'), workspace: constObservable(makeWorkspace(primary, true)) };
+		const secondChat: IChat = { ...stubChat, resource: URI.parse('test:///chat-second'), workspace: constObservable(makeWorkspace(secondary, true)) };
+		const activeChat = observableValue<IChat>('activeChat', firstChat);
+		workspaceTrust.trust(primary.workingDirectory);
+		workspaceTrust.trust(secondary.root);
+
+		activeSession.set({ ...makeActiveSession('a', makeWorkspace([primary, secondary], true)), activeChat }, undefined);
+		await settle();
+		activeChat.set(secondChat, undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+			updated: workspaceEditing.updateFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+		}, {
+			granted: [[secondary.workingDirectory.toString()]],
+			added: [[primary.workingDirectory.toString()]],
+			updated: [[secondary.workingDirectory.toString()]],
+		});
+	});
+
 	test('replaces the complete workspace folder set when switching sessions', async () => {
 		const { activeSession, workspaceEditing } = createContribution();
 		const firstPrimary = localFolder('/repo-a');

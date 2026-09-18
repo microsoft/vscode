@@ -9,9 +9,9 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { getChangesetSessionUri, parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -44,6 +44,7 @@ type PullRequestCreationConfiguration = Pick<IPullRequestCreateOptions, 'draft' 
 
 export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
+	readonly chatUri?: string;
 	readonly pullRequestUrl: string;
 	readonly pullRequestNumber: number;
 	readonly pullRequestTitle?: string;
@@ -177,6 +178,10 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		const sessionUri = parsed.sessionUri;
+		const parentSessionUri = getChangesetSessionUri(params.channel);
+		if (!parentSessionUri) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Could not resolve session for changeset URI: ${params.channel}`);
+		}
 		const sessionState = this._getSessionState(sessionUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
@@ -187,17 +192,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
 
-		const gitHubState = readSessionGitHubState(sessionState._meta);
-		if (!gitHubState?.owner || !gitHubState?.repo) {
-			throw new ProtocolError(
-				JsonRpcErrorCodes.InternalError,
-				`Session's working directory is not a GitHub-backed git repo: ${sessionUri}`,
-			);
-		}
-
 		const workingDirectory = URI.parse(workingDirectoryStr);
-		const storedGitState = readSessionGitState(sessionState._meta);
-		const effectiveBaseBranch = await this._resolveBaseBranchName(sessionUri);
+		const isChatTarget = isAhpChatChannel(sessionUri);
+		const storedGitState = isChatTarget ? undefined : readSessionGitState(sessionState._meta);
+		const storedGitHubState = isChatTarget ? undefined : readSessionGitHubState(sessionState._meta);
+		const parentWorkingDirectory = this._getSessionState(parentSessionUri)?.workingDirectories?.[0];
+		const effectiveBaseBranch = workingDirectoryStr === parentWorkingDirectory
+			? await this._resolveBaseBranchName(parentSessionUri)
+			: undefined;
 
 		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch);
 		if (expectedContext && (!currentGitState?.branchName || currentGitState.isDetachedHead || currentGitState.hasGitHubRemote === false)) {
@@ -215,10 +217,15 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}
 
-		const repository = {
-			owner: currentGitState?.githubOwner ?? gitHubState.owner,
-			repo: currentGitState?.githubRepo ?? gitHubState.repo,
-		};
+		const owner = currentGitState?.githubOwner ?? storedGitHubState?.owner;
+		const repo = currentGitState?.githubRepo ?? storedGitHubState?.repo;
+		if (!owner || !repo) {
+			throw new ProtocolError(
+				JsonRpcErrorCodes.InternalError,
+				`Session's working directory is not a GitHub-backed git repo: ${sessionUri}`,
+			);
+		}
+		const repository = { owner, repo };
 		const preparationContext: IPullRequestContext = {
 			workingDirectory: workingDirectory.toString(),
 			repository: `${repository.owner}/${repository.repo}`,
@@ -246,7 +253,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._throwIfCancelled(token);
 
 		return {
-			sessionUri, sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
+			sessionUri: parentSessionUri,
+			chatUri: isAhpChatChannel(sessionUri) ? sessionUri : undefined,
+			sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
 			gitHubState: repository, preparationContext,
 		};
 	}
@@ -265,7 +274,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		};
 		this._validateAgentMergeAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext);
-		const { sessionUri, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
+		const { sessionUri, chatUri, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
 
 		if (submitted?.autoMergeMethod) {
@@ -347,7 +356,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, headBranch, authToken, signal, headOwner);
 		if (existing) {
 			this._throwIfCancelled(token);
-			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token, options);
+			return await this._finalize(existing, true, sessionUri, chatUri, workingDirectory, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token, options);
 		}
 		this._throwIfCancelled(token);
 
@@ -389,12 +398,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token, options);
+				return await this._finalize(foundAfterFailure, true, sessionUri, chatUri, workingDirectory, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token, options);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token, options);
+		return await this._finalize(created, false, sessionUri, chatUri, workingDirectory, gitHubState.owner, gitHubState.repo, branchName, authToken, signal, token, options);
 	}
 
 	private async _getBranchChanges(workingDirectory: URI, sessionUri: string, baseBranchName: string, token: CancellationToken): Promise<readonly ISessionFileDiff[]> {
@@ -442,6 +451,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		pr: CreatedPullRequest,
 		isExisting: boolean,
 		sessionUri: string,
+		chatUri: string | undefined,
+		workingDirectory: URI,
 		owner: string,
 		repo: string,
 		branchName: string,
@@ -451,7 +462,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		options: PullRequestCreationConfiguration,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!options.autoMergeMethod) {
-			await this._completePullRequestOperation(sessionUri, pr, branchName, options);
+			await this._completePullRequestOperation(sessionUri, chatUri, workingDirectory, pr, branchName, options);
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined, options));
 		}
 
@@ -474,13 +485,14 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
 		}
 
-		await this._completePullRequestOperation(sessionUri, pr, branchName, options);
+		await this._completePullRequestOperation(sessionUri, chatUri, workingDirectory, pr, branchName, options);
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError, options));
 	}
 
-	private async _completePullRequestOperation(sessionUri: string, pullRequest: CreatedPullRequest, branchName: string, options: PullRequestCreationConfiguration): Promise<void> {
+	private async _completePullRequestOperation(sessionUri: string, chatUri: string | undefined, workingDirectory: URI, pullRequest: CreatedPullRequest, branchName: string, options: PullRequestCreationConfiguration): Promise<void> {
 		await this._onPullRequestCreated({
 			sessionKey: sessionUri,
+			chatUri,
 			pullRequestUrl: pullRequest.url,
 			pullRequestNumber: pullRequest.number,
 			...(pullRequest.title ? { pullRequestTitle: pullRequest.title } : {}),
@@ -491,12 +503,23 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		const current = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(sessionUri));
 		const overrides = options.agentMergeOptions ?? current?.overrides;
+		const enabledAt = new Date().toISOString();
 		this._configurationService.updateSessionConfig(sessionUri, {
 			[SessionConfigKey.AgentMerge]: {
 				enabled: true,
 				...(overrides ? { overrides } : {}),
 			},
-			[SessionConfigKey.AgentMergeController]: {},
+			[SessionConfigKey.AgentMergeController]: {
+				target: {
+					branchName,
+					pullRequestUrl: pullRequest.url,
+					chatUri: chatUri ?? buildDefaultChatUri(sessionUri).toString(),
+					workingDirectory: workingDirectory.toString(),
+					enabledAt,
+					commentWatermark: enabledAt,
+					announcementPending: true,
+				},
+			},
 		});
 	}
 

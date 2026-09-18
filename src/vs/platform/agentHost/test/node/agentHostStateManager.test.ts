@@ -14,7 +14,7 @@ import { ActionType, NotificationType, type ActionEnvelope, type INotification }
 import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -1097,6 +1097,10 @@ suite('AgentHostStateManager', () => {
 				label: 'Branch Changes',
 				uriTemplate: buildChangesetUri(sessionUri, 'branch'),
 				changeKind: 'branch',
+			}, {
+				label: 'Uncommitted Changes',
+				uriTemplate: buildChangesetUri(sessionUri, 'uncommitted'),
+				changeKind: 'uncommitted',
 			}];
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
@@ -1114,9 +1118,18 @@ suite('AgentHostStateManager', () => {
 					.map(envelope => envelope.channel)
 					.sort(),
 			}, {
-				defaultChangesets: changesets,
-				peerChangesets: changesets,
-				newPeerChangesets: changesets,
+				defaultChangesets: [
+					{ ...changesets[0], uriTemplate: buildBranchChangesetUri(buildDefaultChatUri(sessionUri)) },
+					{ ...changesets[1], uriTemplate: buildUncommittedChangesetUri(buildDefaultChatUri(sessionUri)) },
+				],
+				peerChangesets: [
+					{ ...changesets[0], uriTemplate: buildBranchChangesetUri(peerChat) },
+					{ ...changesets[1], uriTemplate: buildUncommittedChangesetUri(peerChat) },
+				],
+				newPeerChangesets: [
+					{ ...changesets[0], uriTemplate: buildBranchChangesetUri(peer2) },
+					{ ...changesets[1], uriTemplate: buildUncommittedChangesetUri(peer2) },
+				],
 				changedChannels: [buildDefaultChatUri(sessionUri), peerChat].sort(),
 			});
 		});

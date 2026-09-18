@@ -23,7 +23,7 @@ import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { getWorktreesRoot } from '../../common/worktreePaths.js';
+import { deriveRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 
@@ -53,7 +53,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
-	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
+	setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void>;
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
@@ -574,7 +574,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 	}
 
-	async setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
 		const record = detachedWorktreeRecordUri(handle);
 		const ref = await this._sessionDataService.tryOpenDatabase(record);
 		if (!ref) {
@@ -587,7 +587,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			ref.dispose();
 		}
 		if (archived) {
-			await this.cleanupWorktreeOnArchive(record, handle);
+			if (strictCleanup) {
+				await this.cleanupWorktree(record, handle);
+			} else {
+				await this.cleanupWorktreeOnArchive(record, handle);
+			}
 		} else {
 			await this.recreateWorktreeOnUnarchive(record, handle);
 		}
@@ -1561,7 +1565,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async resolveOnFirstSend(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
-	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { }
+	async setDetachedWorktreeArchived(_handle: string, _archived: boolean, _strictCleanup?: boolean): Promise<void> { }
 	async deleteDetachedWorktree(_handle: string): Promise<void> { }
 	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { }
 	async resolveIsolationConfig(_request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined> { return undefined; }
@@ -1596,22 +1600,8 @@ function projectFromRepositoryRoot(repositoryRoot: URI): IAgentSessionProjectInf
 	return { uri: repositoryRoot, displayName: basename(repositoryRoot.fsPath) || repositoryRoot.toString() };
 }
 
-function deriveRepositoryRootFromWorktree(worktree: URI): URI | undefined {
-	if (worktree.scheme !== Schemas.file) {
-		return undefined;
-	}
-	const worktreesRoot = URI.joinPath(worktree, '..');
-	const worktreesRootName = basename(worktreesRoot.fsPath);
-	const suffix = '.worktrees';
-	if (!worktreesRootName.endsWith(suffix)) {
-		return undefined;
-	}
-	const repositoryName = worktreesRootName.slice(0, -suffix.length);
-	return repositoryName ? URI.joinPath(worktreesRoot, '..', repositoryName) : undefined;
-}
-
 /**
- * Builds the repository {@link IAgentSessionProjectInfo} from a persisted
+ * Builds  the repository {@link IAgentSessionProjectInfo} from a persisted
  * {@link WORKTREE_META_REPOSITORY_ROOT} value (a URI string), or `undefined`
  * when absent. Lets the host merge the repository project into a session's
  * catalog entry directly from a metadata batch it already read, without a

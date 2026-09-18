@@ -24,6 +24,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
 import { SESSION_ARTIFACTS_KEY, persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
+import { ChangesetKind } from '../common/changesetUri.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -104,7 +105,10 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		return operations;
 	}
 
-	private _computeOperations({ sessionKey, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+	private _computeOperations({ sessionKey, changesetKind, gitState, gitHubState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+		if (changesetKind !== ChangesetKind.Branch) {
+			return undefined;
+		}
 		// New Session
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (state?.lifecycle === SessionLifecycle.Creating) {
@@ -119,7 +123,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 
 		// Pull request already exists for the currently checked out branch
 		if (hasSessionPullRequestForBranch(gitHubState, gitState?.branchName)) {
-			return this._getPullRequestLifecycleOperations(sessionKey);
+			return this._getPullRequestLifecycleOperations(sessionKey, gitHubState?.pullRequestUrls);
 		}
 
 		const hasBranchChanges = gitState?.hasBaseBranchChanges ?? (gitState?.outgoingChanges ?? 0) > 0;
@@ -167,10 +171,14 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	 * the button bar stays hidden rather than flashing the wrong action, and
 	 * once the pull request is merged or closed, when nothing is left to do.
 	 */
-	private _getPullRequestLifecycleOperations(sessionKey: string): ChangesetOperation[] | undefined {
+	private _getPullRequestLifecycleOperations(sessionKey: string, targetPullRequestUrls: readonly string[] | undefined): ChangesetOperation[] | undefined {
 		const status = this._pullRequestStatusService.getPullRequestStatus(sessionKey);
 		if (!status) {
 			this._logService.trace(`[AgentHostPullRequestOperationContribution] No pull request operations: session=${sessionKey}, reason=pull request state has not resolved yet`);
+			return undefined;
+		}
+		if (!targetPullRequestUrls?.some(url => url.toLowerCase() === status.url.toLowerCase())) {
+			this._logService.trace(`[AgentHostPullRequestOperationContribution] No pull request operations: session=${sessionKey}, reason=pull request state belongs to a different repository target`);
 			return undefined;
 		}
 		if (status.state !== 'open') {
@@ -270,6 +278,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			label: event.pullRequestTitle ?? '',
 			isArtifact: true,
 			link: event.pullRequestUrl,
+			chat: event.chatUri,
 		}, generateUuid));
 
 		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);

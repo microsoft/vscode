@@ -109,6 +109,8 @@ export interface IAgentSideEffectsOptions {
 	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
+	/** Applies archive lifecycle changes to worktrees created for additional session folders. */
+	readonly setAdditionalWorktreesArchived?: (session: URI, archived: boolean, strictCleanup: boolean) => Promise<void>;
 	/** Process launcher used when client-origin metadata is unavailable. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 }
@@ -1616,6 +1618,8 @@ export class AgentSideEffects extends Disposable {
 						: this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
 					: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
+				this._options.setAdditionalWorktreesArchived?.(sessionUri, action.isArchived, automaticArchive)
+					.catch(err => this._logService.warn(`[AgentSideEffects] additional worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
 				const agent = this._options.getAgent(channel);
 				agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {
 					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${channel}`, err);

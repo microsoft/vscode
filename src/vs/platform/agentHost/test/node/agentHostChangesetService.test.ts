@@ -17,7 +17,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
@@ -69,6 +69,7 @@ function createOperationService(): IAgentHostChangesetOperationService {
 	return {
 		_serviceBrand: undefined,
 		registerContribution: () => toDisposable(() => { }),
+		setChangesetTarget: () => { },
 		updateOperations: () => { },
 		getOperations: () => undefined,
 		invokeChangesetOperation: async () => { throw new Error('not implemented'); },
@@ -523,6 +524,7 @@ suite.skip('AgentHostChangesetService', () => {
 				{ after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 2, removed: 1 } },
 			];
 			const stubGit = {
+				getRepositoryRoot: async (workingDirectory: URI) => workingDirectory,
 				computeSessionFileDiffs: async () => gitDiffs,
 			} as unknown as IAgentHostGitService;
 
@@ -597,6 +599,7 @@ suite.skip('AgentHostChangesetService', () => {
 
 		test('git throws: state goes Error with original message', async () => {
 			const stubGit = {
+				getRepositoryRoot: async (workingDirectory: URI) => workingDirectory,
 				computeSessionFileDiffs: async () => { throw new Error('git command failed'); },
 			} as unknown as IAgentHostGitService;
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1267,6 +1270,7 @@ suite('AgentHostChangesetService - materialization refresh', () => {
 		const worktreeDirectory = 'file:///repo/worktree';
 		const computedWorkingDirectories: string[] = [];
 		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async workingDirectory => workingDirectory;
 		gitService.computeSessionFileDiffs = async workingDirectory => {
 			computedWorkingDirectories.push(workingDirectory.toString());
 			return [];
@@ -1439,7 +1443,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			}
 			await timeout(1);
 		}
-		assert.fail(`changeset ${changesetUri} never reached Ready`);
+		assert.fail(`changeset ${changesetUri} never reached Ready: ${JSON.stringify(stateManager.getChangesetState(changesetUri))}`);
 	}
 
 	function build(options: {
@@ -1450,9 +1454,10 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		review?: IAgentHostReviewService;
+		operationService?: IAgentHostChangesetOperationService;
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void; openError?: Error };
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1493,7 +1498,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			options.git,
 			options.checkpoint,
 			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
-			createOperationService(),
+			options.operationService ?? createOperationService(),
 			createSubscriptionService(...(options.subscriptions ?? [])),
 			options.review ?? NULL_REVIEW_SERVICE,
 			options.telemetry ?? NullTelemetryService,
@@ -1514,7 +1519,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(sessionStr, options.peer.resource);
+			stateManager.addChat(sessionStr, options.peer.resource, { workingDirectories: options.peer.workingDirectories ? [...options.peer.workingDirectories] : undefined });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -2388,6 +2393,137 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 					{ root: '/repoB', baseBranch: 'develop' },
 				],
 				files: ['/repoA/branch.ts', '/repoB/branch.ts'].map(path => URI.file(path).toString()),
+			});
+		});
+
+		test('publishes chat-owned Branch Changes with the chat repository target', async () => {
+			const peerChat = buildChatUri(sessionStr, 'peer-repository');
+			const peerChangeset = buildBranchChangesetUri(peerChat);
+			const targets: { changeset: string; ownerUri: string; workingDirectories: readonly string[]; branchName: string | undefined }[] = [];
+			const operationService: IAgentHostChangesetOperationService = {
+				...createOperationService(),
+				setChangesetTarget: (_session, changeset, target) => {
+					if (target) {
+						targets.push({
+							changeset,
+							ownerUri: target.ownerUri,
+							workingDirectories: target.workingDirectories,
+							branchName: target.gitState?.branchName,
+						});
+					}
+				},
+			};
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory;
+			git.getSessionGitState = async workingDirectory => ({
+				baseBranchName: 'main',
+				branchName: workingDirectory.path === '/repoB' ? 'peer-branch' : 'primary-branch',
+				hasGitHubRemote: true,
+				githubOwner: 'microsoft',
+				githubRepo: workingDirectory.path === '/repoB' ? 'peer' : 'primary',
+			});
+			git.computeSessionFileDiffs = async workingDirectory => [gitDiff(`${workingDirectory.path}/branch.ts`)];
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				operationService,
+				subscriptions: [peerChangeset],
+				peer: {
+					resource: peerChat,
+					db: new TestSessionDatabase(),
+					turnId: 'peer-turn',
+					workingDirectories: ['file:///repoB'],
+				},
+			});
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, branchChangeset);
+			await timeout(20);
+
+			assert.deepStrictEqual({
+				chats: stateManager.getSessionChats(sessionStr).map(chat => chat.resource),
+				files: stateManager.getChangesetState(peerChangeset)?.files.map(file => file.id),
+				targets: targets.filter(target => target.changeset === peerChangeset),
+			}, {
+				chats: [buildDefaultChatUri(sessionStr), peerChat],
+				files: [URI.file('/repoB/branch.ts').toString()],
+				targets: [{
+					changeset: peerChangeset,
+					ownerUri: peerChat,
+					workingDirectories: ['file:///repoB'],
+					branchName: 'peer-branch',
+				}],
+			});
+		});
+
+		test('publishes chat-owned Uncommitted Changes with files and operations from the chat repository', async () => {
+			const peerChat = buildChatUri(sessionStr, 'peer-repository');
+			const peerChangeset = buildUncommittedChangesetUri(peerChat);
+			const targets: { changeset: string; ownerUri: string; workingDirectories: readonly string[]; branchName: string | undefined }[] = [];
+			const operationService: IAgentHostChangesetOperationService = {
+				...createOperationService(),
+				setChangesetTarget: (_session, changeset, target) => {
+					if (target) {
+						targets.push({
+							changeset,
+							ownerUri: target.ownerUri,
+							workingDirectories: target.workingDirectories,
+							branchName: target.gitState?.branchName,
+						});
+					}
+				},
+				getOperations: (_session, changeset, gitState) => changeset === peerChangeset
+					? [{
+						id: `commit-${gitState?.branchName}`,
+						label: 'Commit',
+						scopes: [ChangesetOperationScope.Changeset],
+						status: ChangesetOperationStatus.Idle,
+					}]
+					: undefined,
+			};
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async workingDirectory => workingDirectory;
+			git.getSessionGitState = async workingDirectory => ({
+				baseBranchName: 'main',
+				branchName: workingDirectory.path === '/repoB' ? 'peer-branch' : 'primary-branch',
+			});
+			git.computeSessionFileDiffs = async workingDirectory => [gitDiff(`${workingDirectory.path}/uncommitted.ts`)];
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				operationService,
+				subscriptions: [peerChangeset],
+				peer: {
+					resource: peerChat,
+					db: new TestSessionDatabase(),
+					turnId: 'peer-turn',
+					workingDirectories: ['file:///repoB'],
+				},
+			});
+			stateManager.dispatchServerAction(buildDefaultChatUri(sessionStr), {
+				type: ActionType.ChatWorkingDirectoryRemoved,
+				directory: 'file:///repoB',
+			});
+
+			await svc.computeUncommittedChangeset(sessionStr);
+
+			assert.deepStrictEqual({
+				aggregateFiles: stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr))?.files.map(file => file.id),
+				peerFiles: stateManager.getChangesetState(peerChangeset)?.files.map(file => file.id),
+				peerOperations: stateManager.getChangesetState(peerChangeset)?.operations?.map(operation => operation.id),
+				targets: targets.filter(target => target.changeset === peerChangeset),
+			}, {
+				aggregateFiles: ['/repoA/uncommitted.ts', '/repoB/uncommitted.ts'].map(path => URI.file(path).toString()),
+				peerFiles: [URI.file('/repoB/uncommitted.ts').toString()],
+				peerOperations: ['commit-peer-branch'],
+				targets: [{
+					changeset: peerChangeset,
+					ownerUri: peerChat,
+					workingDirectories: ['file:///repoB'],
+					branchName: 'peer-branch',
+				}],
 			});
 		});
 

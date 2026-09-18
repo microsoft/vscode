@@ -16,9 +16,10 @@ import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/commo
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
@@ -28,7 +29,7 @@ import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestMo
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 
-function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[]): ISession {
+function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullRequestRefs?: readonly IGitHubPullRequestRef[], chats: readonly IChat[] = []): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
 	const workspace: ISessionWorkspace = {
 		uri: workspaceUri,
@@ -56,6 +57,7 @@ function createSessionWithPullRequest(pullRequestUri: URI | undefined, pullReque
 	};
 	return new class extends mock<ISession>() {
 		override readonly workspace = constObservable<ISessionWorkspace | undefined>(workspace);
+		override readonly chats = constObservable(chats);
 	};
 }
 
@@ -254,6 +256,77 @@ suite('Pull Request Actions', () => {
 			openExternal: true,
 			allowContributedOpeners: true,
 		}]);
+	});
+
+	test('Open Pull Request asks which pull request to open across chats and repositories', async () => {
+		const primaryPullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const peerPullRequestUri = URI.parse('https://github.com/upstream/project/pull/7');
+		const peerChatUri = URI.parse('test:/session#peer');
+		const peerChat = new class extends mock<IChat>() {
+			override readonly resource = peerChatUri;
+			override readonly title = constObservable('Alternative implementation');
+		};
+		const session = createSessionWithPullRequest(primaryPullRequestUri, [{
+			owner: 'owner',
+			repo: 'repo',
+			number: 1,
+			uri: primaryPullRequestUri,
+			state: 'open',
+		}, {
+			owner: 'upstream',
+			repo: 'project',
+			number: 7,
+			uri: peerPullRequestUri,
+			title: 'Alternative fix',
+			state: 'merged',
+			chat: peerChatUri,
+		}], [peerChat]);
+
+		const pickedItems: IQuickPickItem[] = [];
+		const quickInputService = upcastPartial<IQuickInputService>({
+			pick: (async <T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[]) => {
+				const items = await picks as T[];
+				pickedItems.push(...items);
+				const selected = items[1];
+				return selected;
+			}) as IQuickInputService['pick'],
+		});
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, session));
+
+		assert.deepStrictEqual({
+			items: pickedItems.map(item => ({
+				label: item.label,
+				description: item.description,
+				detail: item.detail,
+				ariaLabel: item.ariaLabel,
+			})),
+			opened: openerService.opened,
+		}, {
+			items: [{
+				label: 'Pull Request #1',
+				description: 'owner/repo#1',
+				detail: 'Open',
+				ariaLabel: 'Pull Request #1, owner/repo#1, Open',
+			}, {
+				label: 'Alternative fix',
+				description: 'upstream/project#7',
+				detail: 'Merged · Chat: Alternative implementation',
+				ariaLabel: 'Alternative fix, upstream/project#7, Merged · Chat: Alternative implementation',
+			}],
+			opened: [{
+				resource: peerPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}],
+		});
 	});
 
 	test('Copy Pull Request URL uses an explicit contextual pull request', async () => {

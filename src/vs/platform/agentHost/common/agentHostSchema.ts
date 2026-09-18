@@ -551,6 +551,9 @@ export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefin
 /** Root config key forwarded from the renderer for active-agent title generation. */
 export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
 
+/** Root config key controlling whether create_session exposes its relationship choice. */
+export const AgentHostCreateSessionRelationshipConfigKey = 'createSessionRelationship';
+
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
@@ -880,6 +883,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
 		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of utility-model title generation."),
 		default: false,
+	}),
+	[AgentHostCreateSessionRelationshipConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.createSessionRelationship.title', "Create Session Relationship"),
+		description: localize('agentHost.config.createSessionRelationship.description', "Whether agents can choose between creating a chat in the current session and creating an independent session. When disabled, delegated work is always created as a chat in the current session."),
+		default: true,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

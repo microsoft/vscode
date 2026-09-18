@@ -323,15 +323,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 
 	return a.owner === b.owner &&
 		a.repo === b.repo &&
-		arrayEquals(a.pullRequests ?? [], b.pullRequests ?? [], (x, y) =>
-			x.owner === y.owner &&
-			x.repo === y.repo &&
-			x.number === y.number &&
-			isEqual(x.uri, y.uri) &&
-			x.icon?.id === y.icon?.id &&
-			x.state === y.state &&
-			x.liveState === y.liveState &&
-			x.title === y.title) &&
+		pullRequestRefsEqual(a.pullRequests ?? [], b.pullRequests ?? []) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
@@ -345,6 +337,20 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
 			x.title === y.title);
+}
+
+function pullRequestRefsEqual(a: readonly IGitHubPullRequestRef[], b: readonly IGitHubPullRequestRef[]): boolean {
+	return arrayEquals(a, b, (x, y) =>
+		x.owner === y.owner &&
+		x.repo === y.repo &&
+		x.number === y.number &&
+		isEqual(x.uri, y.uri) &&
+		isEqual(x.chat, y.chat) &&
+		x.icon?.id === y.icon?.id &&
+		x.state === y.state &&
+		x.liveState === y.liveState &&
+		x.title === y.title &&
+		x.createdByThisSession === y.createdByThisSession);
 }
 
 function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -379,17 +385,19 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: Rea
  * title. Every pull request published here belongs to the session — it either
  * produced it or its branch relates to it — so all are marked as such.
  */
-function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>, chats: ReadonlyMap<string, URI>): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const url of pullRequestUrls ?? []) {
 		const reference = parseGitHubPullRequestUrl(url);
 		if (reference) {
 			const title = titles.get(linkKey(url));
+			const chat = chats.get(linkKey(url));
 			refs.push({
 				...reference,
 				uri: URI.parse(url),
 				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(url) ? state.pullRequestState : undefined,
 				...(title ? { title } : {}),
+				...(chat ? { chat } : {}),
 				createdByThisSession: true,
 			});
 		}
@@ -397,36 +405,40 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 	return refs.length > 0 ? refs : undefined;
 }
 
-function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
+function toSessionGitHubPullRequestRefs(meta: SessionMeta | undefined, mapArtifactChat?: (chat: string) => URI | undefined): readonly IGitHubPullRequestRef[] {
+	const state = readSessionGitHubState(meta);
+	const { pullRequestUrls, pullRequestChats, pullRequestTitles } = partitionSessionArtifacts(meta, undefined, mapArtifactChat);
+	return toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles, pullRequestChats) ?? [];
+}
+
+function toGitHubInfo(meta: SessionMeta | undefined, mapArtifactChat?: (chat: string) => URI | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { pullRequestUrls, pullRequestTitles, issueUrls, issueTitles } = partitionSessionArtifacts(meta);
+	const { issueUrls, issueTitles } = partitionSessionArtifacts(meta, undefined, mapArtifactChat);
 
 	// Recorded pull requests lead discovered ones, so the first is the newest.
-	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
-	const repository = state?.owner && state.repo
-		? { owner: state.owner, repo: state.repo }
-		: gitState?.githubOwner && gitState.githubRepo
-			? { owner: gitState.githubOwner, repo: gitState.githubRepo }
-			: allPullRequests?.[0];
+	const allPullRequests = toSessionGitHubPullRequestRefs(meta, mapArtifactChat);
+	const repository = gitState?.githubOwner && gitState.githubRepo
+		? { owner: gitState.githubOwner, repo: gitState.githubRepo }
+		: state?.owner && state.repo
+			? { owner: state.owner, repo: state.repo }
+			: allPullRequests[0];
 
 	if (!repository) {
 		return undefined;
 	}
 
-	// A session carries one repository, so a link from another repository would
-	// be polled against the wrong coordinates. Leave those in their own pill.
 	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
-	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const pullRequest = pullRequests?.at(0);
+	const pullRequests = allPullRequests.filter(belongsToRepository);
+	const pullRequest = pullRequests[0];
 	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls), issueTitles)?.filter(belongsToRepository);
 
 	return {
 		owner: repository.owner,
 		repo: repository.repo,
-		pullRequests: pullRequests?.length ? pullRequests : undefined,
+		pullRequests: pullRequests.length ? pullRequests : undefined,
 		pullRequest: pullRequest ? {
 			number: pullRequest.number,
 			uri: pullRequest.uri,
@@ -839,6 +851,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	readonly pullRequests: IObservable<readonly IGitHubPullRequestRef[]>;
 
 	readonly mainChat: IObservable<IChat>;
 	readonly chats: IObservable<readonly IChat[]>;
@@ -1048,43 +1061,52 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(entry => entry.artifact);
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri, chat => this._mapArtifactChat(chat)).entries.map(entry => entry.artifact);
 		});
+		const basePullRequests = derivedOpts<readonly IGitHubPullRequestRef[]>({
+			owner: this,
+			equalsFn: pullRequestRefsEqual,
+		}, reader => toSessionGitHubPullRequestRefs(this._metaObs.read(reader), chat => this._mapArtifactChat(chat)));
+		this.pullRequests = derived(this, reader => basePullRequests.read(reader).map((pullRequest, index) => ({
+			...pullRequest,
+			...computePullRequestRefPresentation(
+				reader,
+				this._gitHubService,
+				this._pullRequestIconCache,
+				pullRequest,
+				index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
+			)
+		})));
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
 			equalsFn: isGitHubInfoEqual
 		}, reader => {
-			return toGitHubInfo(this._metaObs.read(reader));
+			return toGitHubInfo(this._metaObs.read(reader), chat => this._mapArtifactChat(chat));
 		});
 
 		const gitHubInfoWithIcon = derived<IGitHubInfo | undefined>(this, reader => {
 			const baseGitHubInfo = baseGitHubInfoObs.read(reader);
-			if (!baseGitHubInfo?.pullRequest) {
+			const basePullRequests = getGitHubPullRequestRefs(baseGitHubInfo);
+			if (!baseGitHubInfo || basePullRequests.length === 0) {
 				return baseGitHubInfo;
 			}
 
-			const pullRequests = getGitHubPullRequestRefs(baseGitHubInfo).map((pullRequest, index) => ({
-				...pullRequest,
-				...computePullRequestRefPresentation(
-					reader,
-					this._gitHubService,
-					this._pullRequestIconCache,
-					pullRequest,
-					index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
-				)
-			}));
-			const icon = pullRequests[0].icon;
-			const liveState = pullRequests[0].liveState;
-			const title = pullRequests[0].title;
+			const sessionPullRequests = this.pullRequests.read(reader);
+			const pullRequests = basePullRequests.map(pullRequest =>
+				sessionPullRequests.find(candidate => isEqual(candidate.uri, pullRequest.uri)) ?? pullRequest);
+			const basePrimaryPullRequest = baseGitHubInfo.pullRequest;
+			const primaryPullRequest = basePrimaryPullRequest
+				? pullRequests.find(pullRequest => isEqual(pullRequest.uri, basePrimaryPullRequest.uri))
+				: undefined;
 			return {
 				...baseGitHubInfo,
 				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
-				pullRequest: {
-					...baseGitHubInfo.pullRequest,
-					icon,
-					liveState,
-					title,
-				}
+				pullRequest: basePrimaryPullRequest && primaryPullRequest ? {
+					...basePrimaryPullRequest,
+					icon: primaryPullRequest.icon,
+					liveState: primaryPullRequest.liveState,
+					title: primaryPullRequest.title,
+				} : undefined,
 			};
 		});
 		this.gitHubInfo = derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => gitHubInfoWithIcon.read(reader));
@@ -1093,8 +1115,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			if (sourceControlState?.latestOutcome === SessionSourceControlOutcome.Merge) {
 				return { ...Codicon.gitMerge, color: themeColorFromId('charts.purple') };
 			}
-			const gitHubInfo = this.gitHubInfo.read(reader);
-			return getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			return getHighestPriorityPullRequestIcon(this.pullRequests.read(reader).map(pullRequest => pullRequest.icon));
 		});
 
 		const initialWorkspace = this._computeWorkspace();
@@ -1245,6 +1266,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			});
 		}
+	}
+
+	private _mapArtifactChat(chat: string): URI | undefined {
+		const parsed = parseChatUri(chat);
+		if (!parsed || !isEqual(URI.parse(parsed.session), this.backendUri)) {
+			return undefined;
+		}
+		return this.resource.with({ fragment: parsed.chatId === DEFAULT_CHAT_ID ? null : parsed.chatId });
 	}
 
 	private _applyChatCatalog(state: SessionState): void {
@@ -1398,26 +1427,29 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return sessionChangesets;
 			}
 
-			const branchChangesets = createChangesets(
+			const repositoryChangesets = createChangesets(
 				backendChatResource,
 				this._options,
 				isActiveChatObs,
 				chatCatalog
-					.filter(changeset => changeset.changeKind === ChangesetKind.Branch)
+					.filter(changeset => changeset.changeKind === ChangesetKind.Branch || changeset.changeKind === ChangesetKind.Uncommitted)
 					.map(changeset => ({
 						...changeset,
 						workingDirectories,
-						suppressOperations: true,
 					})),
 			);
 			if (!sessionChangesets) {
-				return branchChangesets;
+				return repositoryChangesets;
 			}
 
-			const branchChangeset = branchChangesets[0];
-			return sessionChangesets.flatMap(changeset => changeset.id === ChangesetKind.Branch
-				? branchChangeset ? [branchChangeset] : []
-				: [changeset]);
+			const repositoryChangesetsByKind = new Map(repositoryChangesets.map(changeset => [changeset.id, changeset]));
+			return sessionChangesets.flatMap(changeset => {
+				if (changeset.id !== ChangesetKind.Branch && changeset.id !== ChangesetKind.Uncommitted) {
+					return [changeset];
+				}
+				const repositoryChangeset = repositoryChangesetsByKind.get(changeset.id);
+				return repositoryChangeset ? [repositoryChangeset] : [];
+			});
 		});
 	}
 

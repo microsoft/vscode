@@ -275,6 +275,8 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/** Chat that recorded this entry. Absent for session-wide entries. */
+	readonly chat?: URI;
 	/**
 	 * `true` for an artifact — something the session produced — and `false` for
 	 * a reference, something it only points the user at.
@@ -288,6 +290,11 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue lives on GitHub. */
 	readonly isGitHub?: boolean;
+}
+
+/** Returns whether an artifact or reference belongs in a chat-scoped surface. */
+export function isSessionArtifactVisibleInChat(artifact: ISessionArtifact, chat: URI | undefined): boolean {
+	return artifact.chat === undefined || (chat !== undefined && isEqual(artifact.chat, chat));
 }
 
 /** The kinds of customization a chat can use. */
@@ -367,6 +374,8 @@ export interface IGitHubPullRequestRef {
 	 * discovered from git state, which carry no title until they are fetched live.
 	 */
 	readonly title?: string;
+	/** Chat that created or explicitly associated this pull request, when known. */
+	readonly chat?: URI;
 	/**
 	 * Whether this pull request originated in or was explicitly associated with the session, as opposed to being
 	 * inherited from the checkout it started from or merely referenced by the agent.
@@ -392,6 +401,27 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 		liveState: gitHubInfo.pullRequest.liveState,
 		title: gitHubInfo.pullRequest.title,
 	}];
+}
+
+/** Returns every pull request associated with a session across all of its repositories. */
+export function getSessionGitHubPullRequestRefs(session: ISession | undefined, reader?: IReader): readonly IGitHubPullRequestRef[] {
+	const pullRequests = session?.pullRequests?.read(reader);
+	if (pullRequests) {
+		return pullRequests;
+	}
+
+	const result: IGitHubPullRequestRef[] = [];
+	const seen = new Set<string>();
+	for (const folder of session?.workspace.read(reader)?.folders ?? []) {
+		for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
+			const key = `${pullRequest.owner.toLowerCase()}/${pullRequest.repo.toLowerCase()}#${pullRequest.number}`;
+			if (!seen.has(key)) {
+				seen.add(key);
+				result.push(pullRequest);
+			}
+		}
+	}
+	return result;
 }
 
 /** Excludes inherited checkout PRs, while accepting the primary PR from providers without provenance. */
@@ -793,6 +823,8 @@ export interface ISession {
 	 * surfaces only one of them must filter on that field.
 	 */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
+	/** Pull requests associated with this session across all repositories, most recent first. */
+	readonly pullRequests?: IObservable<readonly IGitHubPullRequestRef[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { basename } from '../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
@@ -57,13 +57,16 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				`Operation '${AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES}' requires a resource target.`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectories?.[0];
-		if (!workingDirectoryStr) {
+		const resource = URI.parse(params.target.resource);
+		const workingDirectories = sessionState.workingDirectories;
+		if (!workingDirectories?.length) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
-
+		const workingDirectoryStr = workingDirectories.find(directory => extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(directory)));
+		if (!workingDirectoryStr) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Resource is outside the session working directories: ${params.target.resource}`);
+		}
 		const workingDirectory = URI.parse(workingDirectoryStr);
-		const resource = URI.parse(params.target.resource);
 
 		this._logService.info(`[AgentHostDiscardChangesOperationHandler] Restoring '${resource.fsPath}' for session ${sessionUri}`);
 

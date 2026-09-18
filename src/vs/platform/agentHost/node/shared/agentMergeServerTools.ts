@@ -82,7 +82,7 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 
 export interface IAgentMergeToolAccessor {
 	isEnabled(): boolean;
-	setEnabled(session: string, enabled: boolean): string;
+	setEnabled(session: string, chatUriOrEnabled: string | boolean, enabled?: boolean): string | Promise<string>;
 	readFailedCI(session: string, request?: AgentMergeCIRequest): Promise<string>;
 	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
 	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
@@ -160,7 +160,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 					if (Object.keys(args).some(key => key !== 'enabled')) {
 						throw new Error(`Invalid ${toolName} input: only enabled is supported.`);
 					}
-					return accessor.setEnabled(context.sessionUri, requiredBoolean(args.enabled, 'enabled', toolName));
+					return accessor.setEnabled(context.sessionUri.toString(), context.chatUri.toString(), requiredBoolean(args.enabled, 'enabled', toolName));
 				}
 				case readAgentMergeCIToolName:
 					return accessor.readFailedCI(context.sessionUri, parseAgentMergeCIRequest(rawArgs));

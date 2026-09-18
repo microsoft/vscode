@@ -50,7 +50,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, getHighestPriorityPullRequestIcon, getSessionGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -438,6 +438,7 @@ interface ISessionChatItemTemplate {
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
+	readonly compactHoverDescription: HTMLElement;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
@@ -496,6 +497,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const titleContainer = DOM.append(titleRow, $('.session-chat-title'));
 		const title = disposables.add(new HighlightedLabel(titleContainer));
 		const titleInputContainer = DOM.append(titleRow, $('.session-chat-title-input.session-inline-rename-input'));
+		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
 		}
@@ -511,7 +513,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, approvalRow, approvalLabel, approvalButtonContainer, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -535,6 +537,15 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				element.chat.resource,
 			);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
+		}));
+		template.elementDisposables.add(autorun(reader => {
+			const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
+			template.container.classList.toggle('has-compact-folder-label', !!folderLabel);
+			DOM.clearNode(template.compactHoverDescription);
+			if (folderLabel) {
+				const badge = DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, folderLabel));
+				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
+			}
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const showGuides = this.activeGuideSessionIds.read(reader).has(element.session.sessionId);
@@ -1282,9 +1293,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.isQuickChatContext.set(isQuickChat);
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
-			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			let completedStateIcon = element.completedStateIcon?.read(reader)
-				?? getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+				?? getHighestPriorityPullRequestIcon(getSessionGitHubPullRequestRefs(element, reader).map(pullRequest => pullRequest.icon));
 			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
 				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
 				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
@@ -1660,6 +1670,18 @@ function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefine
 		}
 	}
 	return workspace.label;
+}
+
+function getChatWorkspaceBadgeLabel(sessionWorkspace: ISessionWorkspace | undefined, chatWorkspace: ISessionWorkspace | undefined): string | undefined {
+	const firstSessionFolder = sessionWorkspace?.folders[0];
+	if (
+		!firstSessionFolder ||
+		!sessionWorkspace.folders.some(folder => !isEqual(folder.root, firstSessionFolder.root)) ||
+		chatWorkspace?.folders.length !== 1
+	) {
+		return undefined;
+	}
+	return chatWorkspace.folders[0].name;
 }
 
 //#endregion
@@ -2249,13 +2271,17 @@ class SessionsAccessibilityProvider {
 
 	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
 		if (isSessionChatItem(element)) {
-			return derived(this, reader => localize(
-				'sessionChatItemAria',
-				"{0}, chat, updated {1}, {2}",
-				getChatTitle(element.chat, reader),
-				fromNow(element.chat.updatedAt.read(reader), true),
-				getSessionConversationStatusAriaLabel(element.chat.status.read(reader)),
-			));
+			return derived(this, reader => {
+				const title = getChatTitle(element.chat, reader);
+				const updated = fromNow(element.chat.updatedAt.read(reader), true);
+				const status = getSessionConversationStatusAriaLabel(element.chat.status.read(reader));
+				const folderLabel = this.options?.compact?.()
+					? getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader))
+					: undefined;
+				return folderLabel
+					? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, updated, status)
+					: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, updated, status);
+			});
 		}
 		if (isSessionGroupItem(element)) {
 			return this.getSectionAriaLabel(element.group.name, element.sessions);
@@ -2324,6 +2350,21 @@ class SessionsAccessibilityProvider {
 				: undefined;
 			if (inputNeededMessage) {
 				label = localize('sessionItemInputNeededMessageAria', "{0}, {1}", label, renderAsPlaintext(inputNeededMessage, { omitMarkdownSyntax: true }));
+			}
+			const pullRequests = getSessionGitHubPullRequestRefs(element, reader);
+			if (pullRequests.length > 0) {
+				const states = [
+					['open', localize('sessionItemPullRequestsOpenAria', "{0} open", pullRequests.filter(pullRequest => (pullRequest.liveState ?? pullRequest.state) === 'open').length)],
+					['merged', localize('sessionItemPullRequestsMergedAria', "{0} merged", pullRequests.filter(pullRequest => (pullRequest.liveState ?? pullRequest.state) === 'merged').length)],
+					['closed', localize('sessionItemPullRequestsClosedAria', "{0} closed", pullRequests.filter(pullRequest => (pullRequest.liveState ?? pullRequest.state) === 'closed').length)],
+				].filter(([state]) => pullRequests.some(pullRequest => (pullRequest.liveState ?? pullRequest.state) === state))
+					.map(([, stateLabel]) => stateLabel);
+				const pullRequestSummary = pullRequests.length === 1
+					? localize('sessionItemPullRequestAria', "1 pull request")
+					: localize('sessionItemPullRequestsAria', "{0} pull requests", pullRequests.length);
+				label = states.length > 0
+					? localize('sessionItemPullRequestStatesAria', "{0}, {1}: {2}", label, pullRequestSummary, states.join(', '))
+					: localize('sessionItemPullRequestCountAria', "{0}, {1}", label, pullRequestSummary);
 			}
 			const workspace = element.workspace.read(reader);
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
@@ -4574,7 +4615,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionSupportsRenameContext.key, element.capabilities.get().supportsRename ?? false],
 			[SessionSupportsDeleteContext.key, element.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, element.isQuickChat?.get() ?? false],
-			[SessionHasPullRequestContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest],
+			[SessionHasPullRequestContext.key, getSessionGitHubPullRequestRefs(element).length > 0],
 		];
 
 		const disposables = new DisposableStore();

@@ -38,6 +38,9 @@ export interface IAgentHostGitStateService {
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
 
+	/** Finds the pull request for a working directory without changing session-level Git metadata. */
+	findPullRequestForWorkingDirectory(sessionKey: string, workingDirectory: URI): Promise<string | undefined>;
+
 	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */
 	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined;
 

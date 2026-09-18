@@ -119,6 +119,7 @@ class NoopGitStateService implements IAgentHostGitStateService {
 	readonly onDidChangeSessionGitHubState = Event.None;
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	async findPullRequestForWorkingDirectory(): Promise<string | undefined> { return undefined; }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }

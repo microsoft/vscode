@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import type { ISessionGitState } from '../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { deriveRepositoryRootFromWorktree } from '../../platform/agentHost/common/worktreePaths.js';
 import { IGitHubInfo, ISessionFolder, ISessionWorkspace } from '../services/sessions/common/session.js';
 
 export interface IAgentHostSessionProjectSummary {
@@ -151,8 +152,22 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	// is not populated here.
 	const primary = workingDirectories?.[0];
 	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const name = basename(dir) || dir.path;
-		return { root: dir, workingDirectory: dir, name, description: options.description };
+		const repositoryRoot = deriveRepositoryRootFromWorktree(dir);
+		const root = repositoryRoot ?? dir;
+		const name = basename(root) || root.path;
+		return {
+			root,
+			workingDirectory: dir,
+			name,
+			description: options.description,
+			gitRepository: repositoryRoot ? {
+				uri: repositoryRoot,
+				workTreeUri: dir,
+				isRepository: constObservable(true),
+				baseBranchName: undefined,
+				gitHubInfo: constObservable(undefined),
+			} : undefined,
+		};
 	});
 
 	if (project) {

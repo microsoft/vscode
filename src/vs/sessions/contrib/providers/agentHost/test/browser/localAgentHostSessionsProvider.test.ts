@@ -26,7 +26,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -5828,7 +5828,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('active peer chat exposes branch changes from its workspace only', () => {
+		test('additional worktrees preserve their source repository identity', () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/agent-host-protocol.worktrees/session');
+			const peerDirectory = URI.file('/vscode.worktrees/peer-session');
+			const session = setupMultiChatSession(provider, 'multi-worktrees', [primaryDirectory, peerDirectory]);
+			const peerFolder = session.workspace.get()?.folders[1];
+
+			assert.deepStrictEqual({
+				root: peerFolder?.root.toString(),
+				workingDirectory: peerFolder?.workingDirectory.toString(),
+				name: peerFolder?.name,
+				repository: peerFolder?.gitRepository?.uri.toString(),
+				workTree: peerFolder?.gitRepository?.workTreeUri?.toString(),
+				isRepository: peerFolder?.gitRepository?.isRepository?.get(),
+			}, {
+				root: URI.file('/vscode').toString(),
+				workingDirectory: peerDirectory.toString(),
+				name: 'vscode',
+				repository: URI.file('/vscode').toString(),
+				workTree: peerDirectory.toString(),
+				isRepository: true,
+			});
+		});
+
+		test('active peer chat exposes repository changesets from its workspace only', () => {
 			const primaryDirectory = URI.file('/workspace-primary');
 			const peerDirectory = URI.file('/workspace-peer');
 			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
@@ -5843,6 +5867,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 				changeKind: 'branch',
 				capabilities: { review: {} },
 			};
+			const peerBranchChangeset = {
+				...branchChangeset,
+				uriTemplate: `${peerChat}/changeset/branch`,
+			};
+			const uncommittedChangeset = {
+				label: 'Uncommitted Changes',
+				uriTemplate: `${sessionUri}/changeset/uncommitted`,
+				changeKind: 'uncommitted',
+			};
+			const peerUncommittedChangeset = {
+				...uncommittedChangeset,
+				uriTemplate: `${peerChat}/changeset/uncommitted`,
+			};
 
 			agentHost.setSessionState('multi-chat-changesets', 'copilotcli', {
 				...makeState([
@@ -5850,7 +5887,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
 				], { defaultChat }),
 				workingDirectories: [primaryDirectory.toString(), peerDirectory.toString()],
-				changesets: [branchChangeset],
+				changesets: [branchChangeset, uncommittedChangeset],
 			});
 			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
 			assert.ok(peer);
@@ -5861,12 +5898,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			} as IActiveSession, undefined);
 			agentHost.setChatState(peerChat, {
 				...makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
-				changesets: [branchChangeset],
+				changesets: [peerBranchChangeset, peerUncommittedChangeset],
 				turns: [],
 			});
-			agentHost.setChangesetState(branchChangeset.uriTemplate, {
+			agentHost.setChangesetState(peerBranchChangeset.uriTemplate, {
 				status: ChangesetStatus.Ready,
-				files: [primaryDirectory, peerDirectory].map(directory => {
+				files: [peerDirectory].map(directory => {
 					const resource = URI.joinPath(directory, 'changed.ts');
 					return {
 						id: resource.toString(),
@@ -5876,17 +5913,52 @@ suite('LocalAgentHostSessionsProvider', () => {
 						},
 					};
 				}),
+				operations: [{
+					id: 'create-pr',
+					label: 'Create PR',
+					scopes: [ChangesetOperationScope.Changeset],
+					status: ChangesetOperationStatus.Idle,
+				}],
+			});
+			agentHost.setChangesetState(peerUncommittedChangeset.uriTemplate, {
+				status: ChangesetStatus.Ready,
+				files: [peerDirectory].map(directory => {
+					const resource = URI.joinPath(directory, 'uncommitted.ts');
+					return {
+						id: resource.toString(),
+						edit: {
+							after: { uri: resource.toString(), content: { uri: resource.toString() } },
+							diff: { added: 1, removed: 0 },
+						},
+					};
+				}),
+				operations: [{
+					id: 'commit',
+					label: 'Commit',
+					scopes: [ChangesetOperationScope.Changeset],
+					status: ChangesetOperationStatus.Idle,
+				}, {
+					id: 'discard-changes',
+					label: 'Discard Changes',
+					scopes: [ChangesetOperationScope.Resource],
+					status: ChangesetOperationStatus.Idle,
+				}],
 			});
 
 			const branch = peer.changesets?.get()?.find(changeset => changeset.id === ChangesetKind.Branch);
+			const uncommitted = peer.changesets?.get()?.find(changeset => changeset.id === ChangesetKind.Uncommitted);
 			assert.deepStrictEqual({
 				changes: branch?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString()),
-				operations: branch?.operations.get(),
+				operations: branch?.operations.get().map(operation => operation.id),
 				review: branch?.capabilities?.review,
+				uncommittedChanges: uncommitted?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString()),
+				uncommittedOperations: uncommitted?.operations.get().map(operation => operation.id),
 			}, {
 				changes: [URI.joinPath(peerDirectory, 'changed.ts').toString()],
-				operations: [],
-				review: false,
+				operations: ['create-pr'],
+				review: true,
+				uncommittedChanges: [URI.joinPath(peerDirectory, 'uncommitted.ts').toString()],
+				uncommittedOperations: ['commit', 'discard-changes'],
 			});
 		});
 
@@ -8289,6 +8361,67 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	}));
+
+	test('maps artifact owners to default and peer chat resources and drops invalid owners', async () => {
+		const id = 'artifact-chat-owners';
+		const backendSession = AgentSession.uri('copilotcli', id).toString();
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) });
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+		agentHost.addSession(createSession(id, { summary: 'Artifact owners', project: { uri: URI.file('/repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Artifact owners');
+		assert.ok(session);
+
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState(id, 'copilotcli', {
+			provider: 'copilotcli', title: 'Artifact owners', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionArtifacts(withSessionGitHubState(undefined, { owner: 'owner', repo: 'repo' }), [
+				{ id: 'default', type: SessionArtifactType.Website, label: 'Default', chat: buildDefaultChatUri(backendSession), isArtifact: true, link: 'https://example.com/default' },
+				{ id: 'peer', type: SessionArtifactType.Website, label: 'Peer', chat: buildChatUri(backendSession, 'peer-1'), isArtifact: true, link: 'https://example.com/peer' },
+				{ id: 'session', type: SessionArtifactType.Website, label: 'Session', isArtifact: true, link: 'https://example.com/session' },
+				{ id: 'malformed', type: SessionArtifactType.Website, label: 'Malformed', chat: 'not-a-chat', isArtifact: true, link: 'https://example.com/malformed' },
+				{ id: 'foreign', type: SessionArtifactType.Website, label: 'Foreign', chat: buildDefaultChatUri('copilot:/other'), isArtifact: true, link: 'https://example.com/foreign' },
+				{ id: 'default-pr', type: SessionArtifactType.PullRequest, label: 'Default PR', chat: buildDefaultChatUri(backendSession), isArtifact: true, link: 'https://github.com/owner/repo/pull/3', isGitHub: true },
+				{ id: 'peer-pr', type: SessionArtifactType.PullRequest, label: 'Peer PR', chat: buildChatUri(backendSession, 'peer-1'), isArtifact: true, link: 'https://github.com/upstream/project/pull/4', isGitHub: true },
+				{ id: 'malformed-pr', type: SessionArtifactType.PullRequest, label: 'Malformed PR', chat: 'not-a-chat', isArtifact: true, link: 'https://github.com/owner/repo/pull/1', isGitHub: true },
+				{ id: 'foreign-pr', type: SessionArtifactType.PullRequest, label: 'Foreign PR', chat: buildDefaultChatUri('copilot:/other'), isArtifact: true, link: 'https://github.com/owner/repo/pull/2', isGitHub: true },
+			]),
+		});
+		const artifacts = [...session.artifacts!.get()]
+			.map(artifact => [artifact.id, artifact.chat?.toString()] as const)
+			.sort(([left], [right]) => left.localeCompare(right));
+
+		assert.deepStrictEqual({
+			artifacts,
+			pullRequests: session.pullRequests?.get().map(pullRequest => ({
+				repository: `${pullRequest.owner}/${pullRequest.repo}`,
+				number: pullRequest.number,
+				chat: pullRequest.chat?.toString(),
+			})),
+			primaryRepositoryPullRequests: session.workspace.get()?.folders[0].gitRepository?.gitHubInfo.get()?.pullRequests?.map(pullRequest => pullRequest.number),
+			primaryPullRequest: session.workspace.get()?.folders[0].gitRepository?.gitHubInfo.get()?.pullRequest?.number,
+		}, {
+			artifacts: [
+				['default', session.resource.toString()],
+				['default-pr', session.resource.toString()],
+				['peer', session.resource.with({ fragment: 'peer-1' }).toString()],
+				['peer-pr', session.resource.with({ fragment: 'peer-1' }).toString()],
+				['session', undefined],
+			],
+			pullRequests: [
+				{ repository: 'upstream/project', number: 4, chat: session.resource.with({ fragment: 'peer-1' }).toString() },
+				{ repository: 'owner/repo', number: 3, chat: session.resource.toString() },
+			],
+			primaryRepositoryPullRequests: [3],
+			primaryPullRequest: 3,
+		});
+	});
 
 	test('gates artifact removal on the host capability and routes the backend session URI', async () => {
 		agentHost.addSession(createSession('remove-artifact'));

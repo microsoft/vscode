@@ -80,6 +80,12 @@ export interface AgentMergeSessionOverrides {
 export interface AgentMergeTarget {
 	readonly branchName: string;
 	readonly pullRequestUrl?: string;
+	/** Chat whose repository and turns Agent Merge owns. Absent on legacy targets. */
+	readonly chatUri?: string;
+	/** Working directory Agent Merge must inspect and mutate. Absent on legacy targets. */
+	readonly workingDirectory?: string;
+	/** Whether the controller still needs to announce this newly enabled target. */
+	readonly announcementPending?: boolean;
 	readonly enabledAt: string;
 	readonly commentWatermark: string;
 }
@@ -282,6 +288,10 @@ export const agentMergeDisableReasons = {
 	invalidPullRequestUrl: (): AgentMergeDisableReason => ({
 		log: 'the associated pull request URL is invalid',
 		notice: localize('agentMerge.disabled.invalidPullRequestUrl', "Agent Merge was disabled because the associated pull request URL is invalid."),
+	}),
+	targetUnavailable: (): AgentMergeDisableReason => ({
+		log: 'the owning chat or working directory is no longer available',
+		notice: localize('agentMerge.disabled.targetUnavailable', "Agent Merge was disabled because its chat or working directory is no longer available in this session."),
 	}),
 	differentGitHubHost: (): AgentMergeDisableReason => ({
 		log: 'the bound pull request belongs to a different GitHub host than the signed-in account',
@@ -597,6 +607,9 @@ function readTarget(value: unknown): AgentMergeTarget | undefined {
 		enabledAt: value.enabledAt,
 		commentWatermark: value.commentWatermark,
 		...(typeof value.pullRequestUrl === 'string' ? { pullRequestUrl: value.pullRequestUrl } : {}),
+		...(typeof value.chatUri === 'string' ? { chatUri: value.chatUri } : {}),
+		...(typeof value.workingDirectory === 'string' ? { workingDirectory: value.workingDirectory } : {}),
+		...(value.announcementPending === true ? { announcementPending: true } : {}),
 	};
 }
 

@@ -30,7 +30,7 @@ import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/cha
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, isSessionArtifactVisibleInChat, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { parseGitHubPullRequestUrl } from '../../github/common/utils.js';
 
@@ -149,6 +149,18 @@ function isShownInGitHub(artifact: ISessionArtifact, surfacedLinks: ReadonlySet<
 		? artifact.link.authority === 'github.com' && !!parseGitHubPullRequestUrl(link)
 		: artifact.kind === SessionArtifactKind.Issue && !!parseGitHubIssueUrl(link);
 	return isGitHubLink && surfacedLinks.has(linkKey(link));
+}
+
+/** Filters GitHub refs promoted from artifacts while preserving refs discovered from other session state. */
+export function filterSessionArtifactGitHubRefsForChat<T extends { readonly uri: URI }>(refs: readonly T[], artifacts: readonly ISessionArtifact[], kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, chat: URI | undefined): readonly T[] {
+	return refs.filter(ref => {
+		const artifactMatches = artifacts.filter(artifact =>
+			artifact.isArtifact
+			&& artifact.kind === kind
+			&& artifact.link
+			&& linkKey(artifact.link.toString()) === linkKey(ref.uri.toString()));
+		return artifactMatches.length === 0 || artifactMatches.some(artifact => isSessionArtifactVisibleInChat(artifact, chat));
+	});
 }
 
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>): IChatPillEntry | undefined {
@@ -285,6 +297,7 @@ export class SessionArtifacts extends Disposable {
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
+		chat: IObservable<IChat | undefined>,
 		/** The URLs the browsers pill lists; website entries for them are left out. */
 		private readonly _browserUrls: IObservable<ReadonlySet<string>>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -305,14 +318,19 @@ export class SessionArtifacts extends Disposable {
 			if (!current) {
 				return [];
 			}
+			const chatResource = chat.read(reader)?.resource;
+			const artifacts = current.artifacts?.read(reader) ?? [];
 			locationFormatting.read(reader);
 			const gitHubInfo = current.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const surfacedLinks = new Set([
-				...getGitHubPullRequestRefs(gitHubInfo),
-				...(gitHubInfo?.issues ?? []),
+				...filterSessionArtifactGitHubRefsForChat(getGitHubPullRequestRefs(gitHubInfo), artifacts, SessionArtifactKind.PullRequest, chatResource),
+				...filterSessionArtifactGitHubRefsForChat(gitHubInfo?.issues ?? [], artifacts, SessionArtifactKind.Issue, chatResource),
 			].map(ref => linkKey(ref.uri.toString())));
 			return buildSessionArtifactSections(
-				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !isShownInGitHub(artifact, surfacedLinks)),
+				artifacts.filter(artifact =>
+					artifact.isArtifact === isArtifact
+					&& isSessionArtifactVisibleInChat(artifact, chatResource)
+					&& !isShownInGitHub(artifact, surfacedLinks)),
 				this._actions(),
 				this._labelService,
 				imageCarouselEnabled.read(reader),

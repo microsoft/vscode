@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
@@ -655,20 +656,20 @@ class AgentHostAgentMergeChangeset extends AbstractAgentHostChangeset {
 			constObservable(sessionUri),
 		);
 
-		const defaultChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
+		const targetChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
-			return URI.parse(
-				sessionState && !(sessionState instanceof Error)
-					? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri)
-					: buildDefaultChatUri(sessionUri)
-			);
+			if (!sessionState || sessionState instanceof Error) {
+				return URI.parse(buildDefaultChatUri(sessionUri).toString());
+			}
+			const targetChatUri = readAgentMergeSessionState(sessionState.config?.values)?.target?.chatUri;
+			return URI.parse((targetChatUri ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri)).toString());
 		});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			options,
 			isActiveSessionObs,
 			StateComponents.Chat,
-			defaultChatUriObs,
+			targetChatUriObs,
 		);
 
 		this.channelUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
