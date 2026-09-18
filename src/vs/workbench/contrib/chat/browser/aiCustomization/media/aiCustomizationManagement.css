@@ -2477,7 +2477,7 @@ per-word capitalization does not survive translation. */
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px 6px 30px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
