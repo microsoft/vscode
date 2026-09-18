@@ -932,9 +932,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	function createMigrationRefreshEditor(compute: (session: URI, token: CancellationToken) => Promise<readonly IMcpServerCustomizationMigrationCandidate[]>) {
+	function createMigrationRefreshEditor(compute: (session: URI, token: CancellationToken) => Promise<readonly IMcpServerCustomizationMigrationCandidate[]>, mcpServerMigrationEnabled = true) {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: mcpServerMigrationEnabled,
 		}));
 		store.add(editor.editorPreviewDisposables);
 		const renders: boolean[] = [];
@@ -1044,8 +1044,7 @@ suite('aiCustomizationManagementEditor', () => {
 	}));
 
 	test('does not show loading when refreshing a settled empty context', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { editor, renders, applied } = createMigrationRefreshEditor(async () => []);
-		editor.configurationService.setValue(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled, false);
+		const { editor, renders, applied } = createMigrationRefreshEditor(async () => [], false);
 
 		await editor.refreshCustomizationMigrationInfo();
 		await editor.refreshCustomizationMigrationInfo();
