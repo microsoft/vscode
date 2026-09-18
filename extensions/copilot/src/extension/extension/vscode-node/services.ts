@@ -308,7 +308,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 			else if (level === 'warn') { console.warn(msg); }
 			else { console.info(msg); }
 		};
-		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined));
+		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined,
+			() => otelConfigResolver.resolve().config.captureIdentity));
 	} else {
 		builder.define(IOTelService, new InMemoryOTelService(otelConfig));
 	}

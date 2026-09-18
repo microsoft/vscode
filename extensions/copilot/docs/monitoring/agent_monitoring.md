@@ -38,7 +38,7 @@ Open **Settings** (`Ctrl+,`) and add:
 }
 ```
 
-> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Applied policy is included in settings values, but environment variables can still override those values in this extension. See the [activation limitations](#activation).
+> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Environment variables can still override some legacy policy-backed settings; identity capture and managed resource attributes enforce policy precedence. See [governed identity capture](#governed-identity-capture) and the [activation limitations](#activation).
 
 ### 3. Generate Telemetry
 
@@ -72,6 +72,7 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file` |
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
+| `github.copilot.chat.otel.captureIdentity` | boolean or null | `null` (off) | Capture authenticated account, OS username, and hostname independently of content. Environment overrides personal preferences; explicit managed policy always wins. |
 | `github.copilot.chat.otel.protocol` | string | `""` | OTLP wire protocol: `http/json` (default), `http/protobuf`, or `grpc` |
 | `github.copilot.chat.otel.serviceName` | string | `""` | Override the `service.name` resource attribute |
 | `github.copilot.chat.otel.resourceAttributes` | object | `{}` | Extra resource attributes (`{ "key": "value" }`) |
@@ -82,7 +83,8 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 
 ### Environment Variables
 
-Environment variables retain their existing precedence. When enterprise OTel configuration is
+Except for governed identity and managed resource attributes, environment variables retain
+their existing precedence. When enterprise OTel configuration is
 recognized through the application-scoped policy defaults, the entire Copilot OTel settings
 block comes from those policy values and schema defaults. Personal `settings.json` values are
 not used to fill omitted fields: headers and resource attributes default to empty maps, not
@@ -98,11 +100,40 @@ the user's maps. Other VS Code settings are unaffected.
 | `OTEL_SERVICE_NAME` | `copilot-chat` | Service name in resource attributes |
 | `OTEL_RESOURCE_ATTRIBUTES` | — | Extra resource attributes (`key1=val1,key2=val2`) |
 | `COPILOT_OTEL_CAPTURE_CONTENT` | `false` | Capture full prompt/response content |
+| `COPILOT_OTEL_CAPTURE_IDENTITY` | `false` | Opt into identity capture unless explicitly denied by managed policy. |
 | `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` | `0` | Override the max character size for OTel content attributes. `0` (default) disables truncation; set to a positive value when your backend has a per-attribute limit. Takes precedence over the `maxAttributeSizeChars` setting. |
 | `COPILOT_OTEL_LOG_LEVEL` | `info` | Min log level: `trace`, `debug`, `info`, `warn`, `error` |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | — | Write all signals to this file (JSON-lines) |
 | `COPILOT_OTEL_HTTP_INSTRUMENTATION` | `false` | Enable HTTP-level OTel instrumentation |
 | `OTEL_EXPORTER_OTLP_HEADERS` | — | Auth headers (e.g., `Authorization=Bearer token`) |
+
+### Governed identity capture
+
+Managed `telemetry.capture.identity` is independent of `captureContent` and
+`lockCaptureContent`: neither content control enables or denies identity. An explicit
+managed `false` overrides personal settings and environment opt-in. Omission is not
+a denial and leaves the identity preference available, including when other managed
+OTel settings replace the personal configuration block.
+
+When enabled, `user.name` is the current authenticated provider account name on
+top-level and subagent `invoke_agent` spans. Each invocation reads the current
+authentication session, so account changes and sign-out do not reuse a cached name.
+No anonymous identity is invented, and `enduser.pseudo.id` is unchanged.
+`process.user.name` and `host.name` are resource attributes. Explicit
+`OTEL_RESOURCE_ATTRIBUTES` overrides detected OS/host values; managed
+`resourceAttributes` overrides environment attributes. Identity attributes are
+removed when capture is off, even if explicitly supplied as resource attributes.
+
+Enabling capture still requires the normal reload/recovery flow. Disabling is
+checked before subsequent exports and local completion events, including queued
+spans, logs, metrics, and SQLite export. Already exported or persisted data cannot
+be recalled, and an export already handed to its transport cannot be cancelled.
+The nullable default preserves omission versus explicit managed `false` through
+the editor's configuration API; it does not enable capture.
+
+This applies to the legacy Local extension-host harness. The native Copilot runtime
+owns its own managed identity enforcement. The message-content environment bridge
+does not enable identity or forward account/OS/host values.
 
 ### Activation
 
@@ -113,7 +144,8 @@ the host restarts or the attempt ends. Successful recovery is logged without ano
 Restarting also interrupts other extensions in the window. If the restart is unavailable,
 vetoed, or fails to apply the settings,
 a warning offers **Reload Window** instead. User changes and policy withdrawal remain
-opt-in reloads. Exporter behavior and environment-variable precedence are unchanged.
+opt-in reloads, except that identity denial is enforced before subsequent exports.
+Existing exporter selection and legacy environment-variable precedence are unchanged.
 It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
 signal, without a new API. Normal personal settings changes do not change those defaults.
 If a recognizable enterprise OTel block was already present at initialization, later changes

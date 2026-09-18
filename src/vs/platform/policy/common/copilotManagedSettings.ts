@@ -126,6 +126,9 @@ export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
 /** Managed-settings key for enterprise OTel content capture. */
 export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
 
+/** Managed-settings key for independently governed OTel identity capture. */
+export const COPILOT_OTEL_CAPTURE_IDENTITY_KEY = 'telemetry.capture.identity';
+
 /** Managed-settings key that prevents users from enabling OTel content capture themselves. */
 export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
 

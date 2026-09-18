@@ -851,6 +851,7 @@ export namespace ConfigKey {
 		export const OTelProtocol = defineSetting<string>('chat.otel.protocol', ConfigType.Simple, '');
 		export const OTelOtlpEndpoint = defineSetting<string>('chat.otel.otlpEndpoint', ConfigType.Simple, 'http://localhost:4318');
 		export const OTelCaptureContent = defineSetting<boolean>('chat.otel.captureContent', ConfigType.Simple, false);
+		export const OTelCaptureIdentity = defineSetting<boolean | null>('chat.otel.captureIdentity', ConfigType.Simple, null);
 		export const OTelServiceName = defineSetting<string>('chat.otel.serviceName', ConfigType.Simple, '');
 		export const OTelResourceAttributes = defineSetting<Record<string, string>>('chat.otel.resourceAttributes', ConfigType.Simple, {});
 		export const OTelHeaders = defineSetting<Record<string, string>>('chat.otel.headers', ConfigType.Simple, {});

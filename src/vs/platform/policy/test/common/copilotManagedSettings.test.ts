@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -38,6 +38,24 @@ suite('Copilot managed settings projection', () => {
 
 	test('collectManagedSettingsDefinitions returns empty when nothing is declared', () => {
 		assert.deepStrictEqual(collectManagedSettingsDefinitions({ P: { type: 'string' } }), {});
+	});
+
+	test('identity capture preserves explicit false, drops invalid types, and leaves omission unset', () => {
+		const key = COPILOT_OTEL_CAPTURE_IDENTITY_KEY;
+		const declarations = collectManagedSettingsDefinitions({
+			CopilotOtelCaptureIdentity: { type: 'boolean', managedSettings: { [key]: { type: 'boolean' } } },
+		});
+		const value = managedSettingValue(key);
+		assert.deepStrictEqual({
+			denied: projectManagedSettings({ [key]: false }, declarations),
+			allowed: projectManagedSettings({ [key]: true }, declarations),
+			invalid: projectManagedSettings({ [key]: 'false' }, declarations),
+			absent: value({ managedSettings: { 'telemetry.lockCaptureContent': true } }),
+			explicitFalse: value({ managedSettings: { [key]: false, 'telemetry.captureContent': true } }),
+		}, {
+			denied: { [key]: false }, allowed: { [key]: true }, invalid: {},
+			absent: undefined, explicitFalse: false,
+		});
 	});
 
 	test('hasManagedSettingsDefinitions detects whether any policy declares a managed key', () => {
