@@ -343,7 +343,7 @@ suite('CommandAutoApprover', () => {
 
 		test('keeps the Git directory option case-sensitive in PowerShell', () => {
 			const pwsh = { language: 'powershell' } as const;
-			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'branch'];
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep needle', 'branch'];
 			const commands = [
 				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
 				'GIT -C repo DIFF',
@@ -363,14 +363,25 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, { ...pwsh, autoApproveRules: gitAutoApproveRules })), expected);
 		});
 
-		test('requires confirmation for Git grep', () => {
-			const commands = [
+		test('requires confirmation for Git grep pager options', () => {
+			const approvedCommands = [
 				'git grep needle',
+				'git grep -n needle',
+				'git grep -o needle',
+				'git grep -e TODO',
+				'git grep -eTODO',
+				'git grep --only-matching needle',
+				'git -C repo grep needle',
+				'git --no-pager grep needle',
+			];
+			const deniedCommands = [
 				'git grep -O needle',
 				'git grep -Osh -e needle',
+				'git grep -nOsh -e needle',
+				'git grep --open-files-in-pager -e needle',
 				'git grep --open-files-in-pager=sh -e needle',
 				'git --no-pager -C repo grep --"op=sh" -e needle',
-				'git "grep" -Osh -e needle',
+				'git --no-pager -C repo grep --\'op=sh\' -e needle',
 			];
 			const options = [
 				undefined,
@@ -381,8 +392,12 @@ suite('CommandAutoApprover', () => {
 
 			for (const option of options) {
 				assert.deepStrictEqual(
-					commands.map(command => approver.shouldAutoApprove(command, option) !== 'approved'),
-					commands.map(() => true)
+					approvedCommands.map(command => approver.shouldAutoApprove(command, option)),
+					approvedCommands.map(() => 'approved')
+				);
+				assert.deepStrictEqual(
+					deniedCommands.map(command => approver.shouldAutoApprove(command, option)),
+					deniedCommands.map(() => 'denied')
 				);
 			}
 		});

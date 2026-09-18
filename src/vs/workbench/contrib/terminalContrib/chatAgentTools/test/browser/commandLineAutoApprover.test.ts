@@ -94,7 +94,7 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('keeps the Git directory option case-sensitive', async () => {
-			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'branch'];
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep needle', 'branch'];
 			const commands = [
 				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
 				'GIT -C repo DIFF',
@@ -114,19 +114,31 @@ suite('CommandLineAutoApprover', () => {
 			);
 		});
 
-		test('requires confirmation for Git grep', async () => {
-			const commands = [
+		test('requires confirmation for Git grep pager options', async () => {
+			const autoApprovedCommands = [
 				'git grep needle',
+				'git grep -n needle',
+				'git grep -o needle',
+				'git grep -e TODO',
+				'git grep -eTODO',
+				'git grep --only-matching needle',
+				'git -C repo grep needle',
+				'git --no-pager grep needle',
+			];
+			const confirmationRequiredCommands = [
 				'git grep -O needle',
 				'git grep -Osh -e needle',
+				'git grep -nOsh -e needle',
+				'git grep --open-files-in-pager -e needle',
 				'git grep --open-files-in-pager=sh -e needle',
 				'git --no-pager -C repo grep --"op=sh" -e needle',
-				'git "grep" -Osh -e needle',
+				'git --no-pager -C repo grep --\'op=sh\' -e needle',
 			];
 			for (const [testShell, testOs] of [['bash', OperatingSystem.Linux], ['pwsh', OperatingSystem.Windows]] as const) {
 				shell = testShell;
 				os = testOs;
-				deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), commands.map(() => false));
+				deepStrictEqual(await Promise.all(autoApprovedCommands.map(isAutoApproved)), autoApprovedCommands.map(() => true));
+				deepStrictEqual(await Promise.all(confirmationRequiredCommands.map(isAutoApproved)), confirmationRequiredCommands.map(() => false));
 			}
 		});
 	});
