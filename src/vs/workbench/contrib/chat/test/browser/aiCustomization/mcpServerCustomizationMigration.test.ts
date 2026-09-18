@@ -19,6 +19,8 @@ import { IFileWriteOptions, IStat } from '../../../../../../platform/files/commo
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
+import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
@@ -154,6 +156,23 @@ class InterleavedMigrationProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class TestConfigurationResolverService extends AbstractVariableResolverService {
+	constructor(folders: readonly IWorkspaceFolderData[] = []) {
+		super({
+			getFolderUri: name => folders.find(folder => folder.name === name)?.uri,
+			getWorkspaceFolderCount: () => folders.length,
+			getConfigurationValue: () => undefined,
+			getAppRoot: () => undefined,
+			getExecPath: () => undefined,
+			getFilePath: () => undefined,
+			getSelectedText: () => undefined,
+			getLineNumber: () => undefined,
+			getColumnNumber: () => undefined,
+			getExtension: async () => undefined,
+		});
+	}
+}
+
 suite('McpServerCustomizationMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -164,8 +183,8 @@ suite('McpServerCustomizationMigration', () => {
 		return fileService;
 	}
 
-	function createMigrator(fileService: FileService): McpServerCustomizationMigrator {
-		return new McpServerCustomizationMigrator(fileService, new NullLogService());
+	function createMigrator(fileService: FileService, folders: readonly IWorkspaceFolderData[] = []): McpServerCustomizationMigrator {
+		return new McpServerCustomizationMigrator(fileService, new NullLogService(), new TestConfigurationResolverService(folders));
 	}
 
 	function candidate(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node' }): IMcpServerCustomizationMigrationCandidate {
@@ -287,9 +306,11 @@ suite('McpServerCustomizationMigration', () => {
 					"command": "\${workspaceFolder}\${pathSeparator}server.js",
 					"args": [
 						"\${cwd}/argument",
-						"\${workspaceFolder:second}/\${workspaceFolderBasename:second}",
+						"\${workspaceFolder:backend}/\${workspaceFolderBasename:backend}",
 						"\${workspaceFolderBasename}",
-						"\${/}"
+						"\${/}",
+						"\${workspaceRoot}/\${workspaceRootFolderName}",
+						"\${cwd:backend}"
 					]
 				},
 				"environment": { "type": "stdio", "command": "\${env:COMMAND}" },
@@ -304,6 +325,8 @@ suite('McpServerCustomizationMigration', () => {
 				`${second.fsPath}/second`,
 				'first',
 				sep,
+				`${first.fsPath}/first`,
+				second.fsPath,
 			],
 		};
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
@@ -316,8 +339,12 @@ suite('McpServerCustomizationMigration', () => {
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		};
 
-		const plan = await createMigrator(fileService).createPlan(snapshot, [first, second]);
-		const result = await createMigrator(fileService).migrate(plan.candidates, { roots: [first, second] });
+		const folders: IWorkspaceFolderData[] = [
+			{ uri: first, name: 'frontend', index: 0 },
+			{ uri: second, name: 'backend', index: 1 },
+		];
+		const plan = await createMigrator(fileService, folders).createPlan(snapshot, [first, second]);
+		const result = await createMigrator(fileService, folders).migrate(plan.candidates, { roots: [first, second] });
 
 		assert.deepStrictEqual({
 			candidates: plan.candidates.map(candidate => candidate.name),
@@ -339,6 +366,29 @@ suite('McpServerCustomizationMigration', () => {
 				},
 			},
 			target: { mcpServers: { portable: projectedConfiguration } },
+		});
+	});
+
+	test('resolves portable variables in equivalent existing targets', async () => {
+		const root = URI.file('/existing-variable-target');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"${workspaceFolder}/server.js"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"server":{"command":"${workspaceRoot}/server.js"}}}'));
+		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: `${root.fsPath}/server.js` };
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'custom-name', index: 0 }]);
+
+		const result = await migrator.migrate([candidate(root, 'server', projectedConfiguration)], { roots: [root] });
+
+		assert.deepStrictEqual({
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			result: { migratedCount: 1, failures: [] },
+			source: { servers: {} },
+			target: { mcpServers: { server: { command: '${workspaceRoot}/server.js' } } },
 		});
 	});
 
@@ -418,7 +468,7 @@ suite('McpServerCustomizationMigration', () => {
 				override info(message: string): void { messages.push(message); }
 			}();
 
-			const result = await new McpServerCustomizationMigrator(firstWindow, logService).migrate([selected]);
+			const result = await new McpServerCustomizationMigrator(firstWindow, logService, new TestConfigurationResolverService()).migrate([selected]);
 
 			assert.deepStrictEqual({
 				result,
@@ -829,7 +879,7 @@ suite('McpServerCustomizationMigration', () => {
 				override warn(message: string): void { warnings.push(message); }
 			}();
 
-			const result = await new McpServerCustomizationMigrator(fileService, logService).migrate([selected], { roots: [primary, secondary] });
+			const result = await new McpServerCustomizationMigrator(fileService, logService, new TestConfigurationResolverService()).migrate([selected], { roots: [primary, secondary] });
 
 			assert.deepStrictEqual({
 				migratedCount: result.migratedCount,
@@ -863,7 +913,7 @@ suite('McpServerCustomizationMigration', () => {
 		const logService = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}();
-		const result = await new McpServerCustomizationMigrator(fileService, logService).migrate([first, second, unique], { roots: [primary, secondary] });
+		const result = await new McpServerCustomizationMigrator(fileService, logService, new TestConfigurationResolverService()).migrate([first, second, unique], { roots: [primary, secondary] });
 
 		assert.deepStrictEqual({
 			migratedCount: result.migratedCount,
