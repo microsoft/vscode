@@ -77,6 +77,7 @@ const RESTORE_CONNECT_GRACE_MS = 5000;
  * Item type used in the action list.
  */
 export interface IWorkspacePickerItem {
+	readonly id?: string;
 	readonly folderUri?: URI;
 	readonly ariaLabel?: string;
 	/** The resolved workspace (used for unavailable-provider checks). */
@@ -95,6 +96,7 @@ export interface IWorkspacePickerItem {
 
 export interface IWorkspacePickerOptions {
 	readonly onUserSelection?: () => void;
+	readonly whenSelectionAccepted?: () => Promise<boolean>;
 	readonly canSelectWorkspace?: (folderUri: URI, providerId: string | undefined) => Promise<boolean>;
 	readonly canRestoreWorkspace?: () => boolean;
 	readonly restoreFromSessions?: boolean;
@@ -115,6 +117,7 @@ export interface IWorkspacePickerNoWorkspaceOption {
 	readonly description: string;
 	readonly isSelected: boolean;
 	readonly select: () => void;
+	readonly submenuActions?: readonly IAction[];
 }
 
 export interface IWorkspacePickerTrigger {
@@ -264,10 +267,12 @@ export class WorkspacePicker extends Disposable {
 		if (!activeTrigger || (!this.actionWidgetService.isVisible && !this._tabbedWidget.isVisible)) {
 			return;
 		}
-		if (this._tabbedWidget.isVisible) {
+		if (this._showTabs()) {
+			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+		} else if (this._tabbedWidget.isVisible) {
 			this._tabbedWidget.refreshActiveList();
 		} else {
-			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
 		}
 	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
@@ -491,7 +496,13 @@ export class WorkspacePicker extends Disposable {
 			this._syncAttachedContext();
 			const activeTrigger = this._activeTriggerElement;
 			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-				this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				if (this._showTabs()) {
+					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				} else if (this._tabbedWidget.isVisible) {
+					this._tabbedWidget.refreshActiveList();
+				} else {
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+				}
 			}
 		}));
 
@@ -618,6 +629,8 @@ export class WorkspacePicker extends Disposable {
 		// in vs/sessions/contrib/onboardingTours.
 		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker', {
 			open: () => this.showPicker(false, trigger, options?.group, options?.attachesContext),
+			hasSelection: () => !!this._selectedFolderUri,
+			onDidSelect: Event.map(Event.filter(this.onDidSelectWorkspace, uri => !!uri && this._selectionOrigin === WorkspaceSelectionOrigin.User), () => this.options.whenSelectionAccepted?.() ?? Promise.resolve(true)),
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
@@ -797,12 +810,11 @@ export class WorkspacePicker extends Disposable {
 
 	protected _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
 		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces() && this._directPickerAttachesContext !== true;
-		const hasRemoteSubmenu = isConsolidatedWorkspacePicker && this._directPickerGroup === undefined;
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: hasRemoteSubmenu, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { className: 'sessions-new-chat-picker-list', submenuPointerIntent: hasRemoteSubmenu, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { className: 'sessions-new-chat-picker-list', reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -1041,7 +1053,13 @@ export class WorkspacePicker extends Disposable {
 			store.add(provider.onDidChangeSessionTypes(() => {
 				const activeTrigger = this._activeTriggerElement;
 				if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+					if (this._showTabs()) {
+						this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+					} else if (this._tabbedWidget.isVisible) {
+						this._tabbedWidget.refreshActiveList();
+					} else {
+						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+					}
 				}
 			}));
 			if (isAgentHostProvider(provider) && provider.onDidChangeDevContainerAvailability) {
@@ -1480,12 +1498,13 @@ export class WorkspacePicker extends Disposable {
 			: undefined;
 		const useRemoteSubmenu = this._useConsolidatedRemoteWorkspaces() && this._directPickerGroup === undefined;
 		const remotePickerItem: {
+			id: string;
 			folderUri?: URI;
 			providerId?: string;
 			browseAction?: ISessionWorkspaceBrowseAction;
 			run?: () => void;
 			preferDevContainer?: boolean;
-		} = {};
+		} = { id: 'workspacePicker.remote' };
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
 		let devContainerActionIndex = 0;
@@ -1829,8 +1848,8 @@ export class WorkspacePicker extends Disposable {
 					filterAsCombobox: true,
 					focusFilterOnOpen: true,
 					minWidth: 180,
-					maxWidth: 180,
 					hideDefaultKeybindingTooltip: true,
+					stopToolbarPointerPropagation: true,
 				},
 			});
 		}
@@ -1877,13 +1896,16 @@ export class WorkspacePicker extends Disposable {
 			ariaDescription: noWorkspaceAriaDescription,
 			group: { title: '', icon: this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion },
 			item: {
+				id: 'workspacePicker.chat',
 				checked: noWorkspaceOption.isSelected || undefined,
-				run: () => {
+				run: noWorkspaceOption.submenuActions?.length ? undefined : () => {
 					noWorkspaceOption.select();
 					this._updateTriggerLabel();
 					this._onDidChangeSelection.fire();
 				},
 			},
+			submenuActions: noWorkspaceOption.submenuActions ? [...noWorkspaceOption.submenuActions] : undefined,
+			openSubmenuOnClick: !!noWorkspaceOption.submenuActions?.length,
 		};
 		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]

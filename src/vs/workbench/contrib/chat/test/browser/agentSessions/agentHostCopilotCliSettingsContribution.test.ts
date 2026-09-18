@@ -78,7 +78,6 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.ReasoningSummary]: { type: 'boolean', title: 'Reasoning Summary' },
 	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
-	[CopilotCliConfigKey.AutoModeTiers]: { type: 'boolean', title: 'Auto Optimize for' },
 	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
 	[CopilotCliConfigKey.SubagentModelGuidance]: { type: 'boolean', title: 'Subagent Model Guidance' },
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: { type: 'object', title: 'Model Capability Overrides' },
@@ -128,7 +127,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
 			[AgentHostReasoningSummaryEnabledSettingId]: true,
 			[AgentHostHydraFusionEnabledSettingId]: true,
-			'github.copilot.chat.autoMode.tiers.enabled': true,
 			'github.copilot.chat.autoModeTierOverride': 'intelligence',
 			[CopilotSubagentModelGuidanceEnabledSettingId]: true,
 			[AgentHostShellToolInitScriptEnabledSettingId]: true,
@@ -138,7 +136,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 12);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 11);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -148,7 +146,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.ReasoningSummary]: true,
 			[CopilotCliConfigKey.HydraFusion]: true,
-			[CopilotCliConfigKey.AutoModeTiers]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
 			[CopilotCliConfigKey.SubagentModelGuidance]: true,
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
@@ -199,7 +196,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 			[AgentHostReasoningSummaryEnabledSettingId]: false,
-			'github.copilot.chat.autoMode.tiers.enabled': false,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -209,7 +205,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.ReasoningSummary]: false,
 			[CopilotCliConfigKey.HydraFusion]: false,
-			[CopilotCliConfigKey.AutoModeTiers]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',
 			[CopilotCliConfigKey.SubagentModelGuidance]: false,
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },

@@ -237,7 +237,7 @@ export interface IRemoteAgentHostDevContainerConnection {
 	readonly address: string;
 	/** Source folder on the parent host containing the Dev Container configuration. */
 	readonly hostPath: string;
-	/** VS Code SSH or tunnel authority of the parent host, absent for local containers. */
+	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
 }
 

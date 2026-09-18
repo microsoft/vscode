@@ -2817,14 +2817,14 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('parent session row still shows NeedsInput when the main chat itself needs input', () => {
+		test('parent session row still shows NeedsInput when the main chat needs input while a hidden child is in progress', () => {
 			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
-			const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed);
+			const subagent = createChat('Subagent chat', ChatOriginKind.Tool, ChatInteractivity.ReadOnly, SessionStatus.InProgress);
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
 				status: constObservable(SessionStatus.NeedsInput),
-				chats: constObservable([main, peer]),
+				chats: constObservable([main, subagent]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
@@ -4326,7 +4326,7 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('open trust gate', () => {
+	suite('opening sessions', () => {
 
 		function findSessionRow(container: HTMLElement, title: string): HTMLElement {
 			const item = [...container.querySelectorAll<HTMLElement>('.session-item')]
@@ -4380,6 +4380,49 @@ suite('Sessions - SessionsList', () => {
 				markedRead: 1,
 			});
 		});
+
+		for (const flat of [false, true]) {
+			for (const active of [false, true]) {
+				test(`${flat ? 'flat' : 'main'} list ${active ? 'preserves an active session unread mark' : 'marks an inactive session read'} when opening a row`, async () => {
+					const { session } = createTestSession('Unread', { isRead: false });
+					const activeSession = active ? upcastPartial<IActiveSession>({
+						...session,
+						activeChat: session.mainChat,
+						sticky: constObservable(false),
+						isCreated: constObservable(true),
+						visibleChatTabs: session.chats,
+					}) : undefined;
+					const harness = createListHarness(disposables, [session], instantiationService => {
+						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+							override readonly activeSession = constObservable(activeSession);
+							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
+						});
+					});
+					const container = harness.createContainer();
+					const opened: string[] = [];
+					const onSessionOpen = (resource: URI) => { opened.push(resource.toString()); };
+					const list = harness.store.add(flat
+						? harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen })
+						: harness.instantiationService.createInstance(SessionsList, container, {
+							grouping: () => SessionsGrouping.Date,
+							sorting: () => SessionsSorting.Created,
+							onSessionOpen,
+						}));
+					if (list instanceof SessionsFlatList) {
+						list.setSessions([session]);
+					}
+					list.layout(300, 400);
+
+					clickRow(findSessionRow(container, 'Unread'));
+					await settle();
+
+					assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+						opened: [session.resource.toString()],
+						markedRead: active ? 0 : 1,
+					});
+				});
+			}
+		}
 
 		test('refuses to open when the trust gate returns false: no mark-read, no open', async () => {
 			const { harness, container, opened } = renderGatedList('Untrusted', async () => false);
