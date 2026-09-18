@@ -16,10 +16,11 @@ import { NotificationFocusedContext, NotificationsCenterVisibleContext, Notifica
 import { INotificationService, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 
@@ -286,6 +287,12 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 		const sortedFilters = notificationService.getFilters().sort((a, b) => a.label.localeCompare(b.label));
 
+		const removeSourceButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.removeClose),
+			tooltip: localize('removeSource', "Remove Source"),
+			alwaysVisible: true
+		};
+
 		const disposables = new DisposableStore();
 		const picker = disposables.add(quickInputService.createQuickPick<IQuickPickItem & INotificationSourceFilter>());
 
@@ -293,7 +300,8 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			id: source.id,
 			label: source.label,
 			tooltip: `${source.label} (${source.id})`,
-			filter: source.filter
+			filter: source.filter,
+			buttons: [removeSourceButton]
 		}));
 
 		picker.canSelectMany = true;
@@ -301,6 +309,21 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		picker.selectedItems = picker.items.filter(item => item.filter === NotificationsFilter.OFF);
 
 		picker.show();
+
+		disposables.add(picker.onDidTriggerItemButton(event => {
+			if (event.button !== removeSourceButton || !event.item.id) {
+				return;
+			}
+
+			notificationService.removeFilter(event.item.id);
+
+			// Rebuild items so the removed entry disappears immediately
+			// while preserving the user's current selection for the rest.
+			const previousSelectedIds = new Set(picker.selectedItems.map(item => item.id));
+			const remaining = picker.items.filter(item => item.id !== event.item.id);
+			picker.items = remaining;
+			picker.selectedItems = remaining.filter(item => previousSelectedIds.has(item.id));
+		}));
 
 		disposables.add(picker.onDidAccept(async () => {
 			for (const item of picker.items) {
