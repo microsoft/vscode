@@ -288,7 +288,7 @@ suite('ActionWidgetService', () => {
 		});
 		const removable = Object.assign(toAction({ id: 'remove', label: 'Remove Me', run: () => { } }), {
 			onRemove: async () => {
-				await timeout(200);
+				await timeout(350);
 				service.updateItems([makeParent([keep])], undefined, { preserveHover: true });
 			},
 		});
@@ -306,8 +306,10 @@ suite('ActionWidgetService', () => {
 		assert.ok(panel);
 		const removeButton = panel.querySelector<HTMLElement>('.action-list-item-toolbar .action-label');
 		assert.ok(removeButton);
-		removeButton.click();
-		await timeout(120);
+		removeButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		removeButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await timeout(450);
 
 		assert.deepStrictEqual({
 			visible: service.isVisible,
@@ -316,7 +318,7 @@ suite('ActionWidgetService', () => {
 			visible: true,
 			hides: 0,
 		});
-		await timeout(120);
+		await timeout(100);
 		service.hide();
 	});
 });

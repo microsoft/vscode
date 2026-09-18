@@ -531,6 +531,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
 			data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => e.preventDefault()));
+			data.elementDisposables.add(dom.addDisposableListener(data.toolbar, dom.EventType.CLICK, e => e.stopPropagation()));
+			data.elementDisposables.add(dom.addDisposableListener(data.toolbar, TouchEventType.Tap, e => e.stopPropagation()));
 			actionBar.push(toolbarActions, { icon: true, label: false });
 			data.elementDisposables.add(this._registerToolbar(element, actionBar));
 		}

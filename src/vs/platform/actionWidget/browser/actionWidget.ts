@@ -223,7 +223,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 		let suppressBlurHideUntil = 0;
 		renderDisposables.add(dom.addDisposableGenericMouseDownListener(widget, () => {
-			suppressBlurHideUntil = Date.now() + 250;
+			suppressBlurHideUntil = Date.now() + 1000;
 		}));
 
 		// Invisible div to block mouse interaction in the rest of the UI
