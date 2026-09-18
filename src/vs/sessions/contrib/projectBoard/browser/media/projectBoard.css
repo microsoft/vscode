@@ -9,6 +9,26 @@
 	min-height: 0;
 }
 
+.project-board-view-container {
+	width: 100%;
+	min-height: 0;
+}
+
+.project-board-view-container[hidden],
+.project-board-empty-hub[hidden],
+.project-board-empty-hub > .monaco-button[hidden] {
+	display: none;
+}
+
+.project-board-empty-hub {
+	padding: 20px;
+}
+
+.project-board-empty-hub > .monaco-button {
+	width: fit-content;
+	margin-top: 8px;
+}
+
 .project-board {
 	box-sizing: border-box;
 	width: 100%;

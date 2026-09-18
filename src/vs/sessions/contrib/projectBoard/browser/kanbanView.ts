@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -18,11 +18,16 @@ import { ICustomViewService } from '../../../services/customView/browser/customV
 import { KanbanCustomViewFocusContext } from '../../../common/contextkeys.js';
 import { KANBAN_CUSTOM_VIEW_ID, KANBAN_NEW_SESSION_COMMAND_ID } from '../../../common/projectBoard.js';
 import { IProjectBoardService, IProjectBoardView } from './projectBoardService.js';
+import { IProjectBoardCatalogService } from '../common/projectBoardCatalog.js';
 import './kanbanAccessibility.js';
 
 export class KanbanCustomView extends AbstractCustomView {
 
-	readonly title: IObservable<string> = constObservable(localize('kanbanTitle', "Agents Hub"));
+	readonly title: IObservable<string> = derived(reader => {
+		const selected = this.catalog.selectedBoardId.read(reader);
+		const board = this.catalog.boards.read(reader).find(board => board.id === selected);
+		return board ? localize('agentsHubBoardTitle', "Agents Hub — {0}", board.name) : localize('kanbanTitle', "Agents Hub");
+	});
 	override readonly description: IObservable<string | undefined> = constObservable(
 		localize('kanbanDescription', "Arrange live chats by area and priority."));
 	override readonly maxWidth = Number.POSITIVE_INFINITY;
@@ -32,6 +37,7 @@ export class KanbanCustomView extends AbstractCustomView {
 	constructor(
 		@IProjectBoardService private readonly projectBoardService: IProjectBoardService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IProjectBoardCatalogService private readonly catalog: IProjectBoardCatalogService,
 	) {
 		super();
 	}

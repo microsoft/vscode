@@ -11,7 +11,7 @@ import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { toAction } from '../../../../../base/common/actions.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -33,9 +33,13 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../se
 import { ChatInteractivity, IChat, ISession, ISessionArtifact, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
-import { IProjectBoardCard } from '../../common/projectBoardModel.js';
+import { getProjectBoardCardId, getProjectBoardSessionKey, IProjectBoardCard } from '../../common/projectBoardModel.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
+import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
+import { ProjectBoardPreviewPool } from '../../browser/projectBoardPreviewPool.js';
+import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IProjectBoardInputConfiguration, IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProjectBoardPendingActions } from '../../common/projectBoardActions.js';
@@ -45,7 +49,7 @@ import { IChatQuestionAnswers, IChatService } from '../../../../../workbench/con
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatRequestModel, IChatChangeEvent, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePanel.js';
 import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
@@ -143,6 +147,9 @@ suite('ProjectBoardService', () => {
 		});
 		instantiationService.stub(IQuickInputService, { pick, input: async () => quickInput.inputValues.shift() });
 		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ICustomViewService, { showCustomView() { } });
+		const catalog = store.add(instantiationService.createInstance(ProjectBoardCatalogService));
+		instantiationService.stub(IProjectBoardCatalogService, catalog);
 		const loadedModels = observableValue<Iterable<IChatModel>>('models', []);
 		instantiationService.stub(IChatService, { chatModels: loadedModels });
 		instantiationService.stub(IChatSessionsService, { getMaterializedSessionResource: () => undefined });
@@ -182,7 +189,7 @@ suite('ProjectBoardService', () => {
 			drafts,
 			dispose() { },
 			async closeActiveSession() { return state.closedResource; },
-			async createNewSession() { state.createdCount++; },
+			async createNewSession() { state.createdCount++; return URI.parse('test-draft:/new-session'); },
 			async openDraft(id: string): Promise<void> {
 				if (state.navigationError) {
 					throw state.navigationError;
@@ -219,8 +226,10 @@ suite('ProjectBoardService', () => {
 			},
 		});
 		let auxiliaryWindow: IAuxiliaryWindow | undefined;
+		const auxiliaryWindows: IAuxiliaryWindow[] = [];
 		instantiationService.stubInstance(ProjectBoardWindow, {
 			get content() { return auxiliaryWindow?.container ?? container; },
+			setTitle() { },
 			dispose() { },
 		});
 		let unload: Emitter<void>;
@@ -243,6 +252,7 @@ suite('ProjectBoardService', () => {
 						override readonly onUnload = unload.event;
 						override dispose(): void { state.disposeCount++; targetContainer.remove(); }
 					}();
+					auxiliaryWindows.push(auxiliaryWindow);
 					return auxiliaryWindow;
 				}
 			}(),
@@ -280,15 +290,19 @@ suite('ProjectBoardService', () => {
 					if (target === mainWindow) {
 						state.ownerFocusCount++;
 					} else {
-						assert.strictEqual(target, auxiliaryWindow?.window);
+						assert.ok(auxiliaryWindows.some(window => target === window.window));
 						state.focusCount++;
 					}
 				}
 			}(),
 			contextMenu,
+			catalog,
+			instantiationService.get(IQuickInputService),
+			instantiationService.get(IDialogService),
+			instantiationService.get(ICustomViewService),
 		));
 		return {
-			service, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
+			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, newSession, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -309,13 +323,206 @@ suite('ProjectBoardService', () => {
 		const { service, container, state } = createBoard(document);
 		await service.open();
 		assert.ok(container.querySelector('.project-board'));
-		assert.strictEqual(container.querySelector('h1')?.textContent, 'Agents Hub');
-		assert.ok(service.getAccessibleContent().startsWith('Agents Hub\n'));
+		assert.strictEqual(container.querySelector('h1')?.textContent, 'Agents Hub — Default');
+		assert.ok(service.getAccessibleContent().startsWith('Agents Hub — Default\n'));
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.project-board-column-heading'), element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
 		const firstFocusCount = state.focusCount;
 		await service.open();
 		assert.strictEqual(state.openCount, 1);
 		assert.ok(state.focusCount > firstFocusCount);
+	});
+
+	test('multiple board windows share live chats but isolate placements, settings and selection', async () => {
+		const chat = new TestChat('Shared conversation');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.metadata.set({ kind: 'ready', prompt: 'Shared prompt', context: [] }, undefined);
+		const releaseId = h.catalog.createBoard('Release');
+		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+		await h.service.open(releaseId);
+		const first = h.auxiliaryWindows[0].container;
+		const second = h.auxiliaryWindows[1].container;
+		assert.strictEqual(h.state.openCount, 2);
+		const release = store.add(h.instantiationService.createInstance(ProjectBoardState, releaseId));
+		release.moveCard(getProjectBoardCardId(h.session, chat), { rowId: 'general', columnId: 'p1' });
+		release.setDisplayOption('showLastPrompt', false);
+		assert.ok(first.querySelector('.project-board-unassigned [data-chat-resource]'));
+		assert.ok(second.querySelector('[aria-label="General, P1"] [data-chat-resource]'));
+		assert.ok(first.querySelector('.project-board-card-prompt'));
+		assert.strictEqual(second.querySelector('.project-board-card-prompt'), null);
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		assert.ok(first.querySelector('.project-board-card-needs-input'));
+		assert.ok(second.querySelector('.project-board-card-needs-input'));
+		h.catalog.renameBoard(releaseId, 'Release readiness');
+		assert.strictEqual(second.querySelector('h1')?.textContent, 'Agents Hub — Release readiness');
+		h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+		await h.service.open(releaseId);
+		assert.strictEqual(h.state.openCount, 2, 'Reopening a board reuses only its own window');
+		assert.strictEqual(first.querySelector('h1')?.textContent, 'Agents Hub — Default');
+	});
+
+	test('selection and unrelated board edits do not rebuild the current board or a standalone board', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('No redundant render')]);
+		const second = h.catalog.createBoard('Second');
+		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+		const nativeGrid = h.container.querySelector('.project-board-grid');
+		const embedded = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(embedded);
+		store.add(toDisposable(() => embedded.remove()));
+		store.add(h.service.createView(embedded));
+		const embeddedGrid = embedded.querySelector('.project-board-grid');
+		h.catalog.renameBoard(second, 'Renamed');
+		assert.strictEqual(embedded.querySelector('.project-board-grid'), embeddedGrid, 'Unrelated catalog changes must not reactivate the current view');
+		assert.strictEqual(h.container.querySelector('.project-board-grid'), nativeGrid);
+		h.catalog.selectBoard(second);
+		assert.strictEqual(h.container.querySelector('.project-board-grid'), nativeGrid, 'Embedded selection must not invalidate a standalone board');
+	});
+
+	test('history and prompt preview bursts coalesce rendering without delaying direct chat changes', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		store.add(toDisposable(() => clock.restore()));
+		const chat = new TestChat('Coalesced preview');
+		const h = createBoard(mainWindow.document, [chat]);
+		const changed = store.add(new Emitter<IChatChangeEvent>());
+		const model = new class extends mock<IChatModel>() {
+			override readonly sessionResource = chat.resource;
+			override readonly onDidChange = changed.event;
+			override readonly lastRequestObs = observableValue('last', undefined);
+			override readonly lastRequest = undefined;
+		}();
+		h.loadedModels.set([model], undefined);
+		const view = store.add(h.service.createView(h.container));
+		let renders = 0;
+		store.add(view.onDidChangeContentSize(() => renders++));
+		for (let i = 0; i < 20; i++) {
+			changed.fire({ kind: 'setCustomTitle', title: String(i) });
+		}
+		assert.strictEqual(renders, 0, 'Restoring history must not rebuild the board for every model event');
+		clock.tick(0);
+		assert.strictEqual(renders, 1);
+		for (const prompt of ['First preview', 'Final preview']) {
+			h.metadata.set({ kind: 'ready', prompt, context: [] }, undefined);
+		}
+		assert.strictEqual(renders, 1);
+		clock.tick(0);
+		assert.strictEqual(renders, 2);
+		assert.strictEqual(h.container.querySelector('.project-board-card-prompt')?.textContent, 'Final preview');
+		chat.title.set('Immediate title', undefined);
+		assert.strictEqual(h.container.querySelector('h4')?.textContent, 'Immediate title');
+	});
+
+	test('closing the last Hub surface clears idle previews without flushing another open board', async () => {
+		const clear = sinon.spy(ProjectBoardPreviewPool.prototype, 'clearIdleMetadata');
+		store.add(toDisposable(() => clear.restore()));
+		const h = createBoard(mainWindow.document, [new TestChat('Cached model')]);
+		h.metadata.set({ kind: 'ready', prompt: 'Ready preview', context: [] }, undefined);
+		await h.service.open();
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const embedded = store.add(h.service.createView(container));
+		h.closeBoard();
+		await Promise.resolve();
+		assert.strictEqual(clear.callCount, 0, 'The embedded Hub is still using the shared cache');
+		embedded.dispose();
+		assert.strictEqual(clear.callCount, 1);
+	});
+
+	test('embedded board switching preserves local folding and returns a chat to its originating board', async () => {
+		const chat = new TestChat('Return to source board');
+		const h = createBoard(mainWindow.document, [chat]);
+		const other = h.catalog.createBoard('Other');
+		store.add(h.service.createView(h.container));
+		const defaultBoard = h.container.querySelector<HTMLElement>('[data-board-id="default"]')!;
+		defaultBoard.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!.click();
+		const card = defaultBoard.querySelector<HTMLElement>('[data-chat-resource]')!;
+		card.focus();
+		card.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		await Promise.resolve();
+		await Promise.resolve();
+		h.catalog.selectBoard(other);
+		assert.strictEqual(defaultBoard.parentElement!.hidden, true);
+		h.state.closedResource = chat.resource;
+		await h.service.closeSession(99);
+		assert.strictEqual(h.catalog.selectedBoardId.get(), DEFAULT_PROJECT_BOARD_ID);
+		assert.strictEqual(defaultBoard.parentElement!.hidden, false);
+		assert.strictEqual(defaultBoard.querySelector('[data-board-control="collapse:row:general"]')?.getAttribute('aria-expanded'), 'false');
+		assert.strictEqual(mainWindow.document.activeElement, defaultBoard.querySelector('[data-chat-resource]'));
+		assert.deepStrictEqual(h.state.deletedSessions, []);
+	});
+
+	test('deleting a board closes only its window and never deletes conversations or recreates it on chat close', async () => {
+		const chat = new TestChat('Keep conversation');
+		const h = createBoard(mainWindow.document, [chat]);
+		const other = h.catalog.createBoard('Keep this board');
+		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+		const original = h.auxiliaryWindows[0].container;
+		const card = original.querySelector<HTMLElement>('[data-chat-resource]')!;
+		card.focus();
+		card.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		await Promise.resolve();
+		await Promise.resolve();
+		await h.service.open(other);
+		h.catalog.deleteBoard(DEFAULT_PROJECT_BOARD_ID);
+		assert.strictEqual(original.isConnected, false);
+		assert.ok(h.auxiliaryWindows[1].container.isConnected);
+		h.state.closedResource = chat.resource;
+		await h.service.closeSession(99);
+		assert.strictEqual(h.state.openCount, 2);
+		assert.deepStrictEqual(h.state.deletedSessions, []);
+		assert.strictEqual(h.catalog.boards.get().length, 1);
+	});
+
+	test('newly discovered conversations appear independently in every auto-including board', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Existing')]);
+		const other = h.catalog.createBoard('Another board');
+		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+		await h.service.open(other);
+		const added = new TestChat('Discovered later');
+		h.session.chats.set([...h.session.chats.get(), added], undefined);
+		for (const window of h.auxiliaryWindows) {
+			assert.strictEqual(window.container.querySelectorAll('.project-board-unassigned [data-chat-resource]').length, 2);
+		}
+		const otherState = store.add(h.instantiationService.createInstance(ProjectBoardState, other));
+		otherState.setAutoIncludeSessions(false);
+		assert.strictEqual(h.auxiliaryWindows[0].container.querySelectorAll('[data-chat-resource]').length, 2);
+		assert.strictEqual(h.auxiliaryWindows[1].container.querySelectorAll('[data-chat-resource]').length, 0);
+	});
+
+	test('deleting a session removes its known and unavailable placements from every board', async () => {
+		const chat = new TestChat('Delete everywhere');
+		const h = createBoard(mainWindow.document, [chat]);
+		const other = h.catalog.createBoard('Other');
+		const firstState = store.add(h.instantiationService.createInstance(ProjectBoardState, DEFAULT_PROJECT_BOARD_ID));
+		const otherState = store.add(h.instantiationService.createInstance(ProjectBoardState, other));
+		firstState.moveCard(getProjectBoardCardId(h.session, chat), { rowId: 'general', columnId: 'p0' });
+		otherState.moveCard(`${getProjectBoardSessionKey(h.session)}\0missing-child`, { rowId: 'general', columnId: 'p1' });
+		otherState.moveCard('unrelated-session-chat', { rowId: 'general', columnId: 'p2' });
+		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+		h.container.querySelector<HTMLElement>('[aria-label="Delete Session"]')!.click();
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.strictEqual(firstState.configuration.get().placements.length, 0);
+		assert.deepStrictEqual(otherState.configuration.get().placements.map(p => p.cardId), ['unrelated-session-chat']);
+		assert.deepStrictEqual(h.state.deletedSessions, [h.session]);
+	});
+
+	test('deleting the last board offers a focused New Board action without deleting chats', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Surviving chat')]);
+		const view = store.add(h.service.createView(h.container));
+		h.catalog.deleteBoard(DEFAULT_PROJECT_BOARD_ID);
+		view.focus();
+		const create = h.container.querySelector<HTMLElement>('[data-board-control="new-board"]')!;
+		assert.strictEqual(mainWindow.document.activeElement, create);
+		assert.strictEqual(h.container.querySelector('.project-board'), null);
+		const reset = h.container.querySelector<HTMLElement>('[data-board-control="reset-hub"]')!;
+		assert.strictEqual(mainWindow.getComputedStyle(reset).display, 'none');
+		h.quickInput.inputValues.push('Fresh board');
+		await h.service.createBoard();
+		assert.strictEqual(h.catalog.boards.get()[0].name, 'Fresh board');
+		assert.ok(h.container.querySelector('[data-chat-resource]'));
+		assert.deepStrictEqual(h.state.deletedSessions, []);
+		assert.strictEqual(h.state.createdCount, 0, 'Creating a board must not create a conversation');
 	});
 
 	suite('session list presentation', () => {
@@ -880,6 +1087,7 @@ suite('ProjectBoardService', () => {
 		};
 		await toggle(true);
 		h.metadata.set({ kind: 'ready', prompt: 'Updated while hidden', submittedAt: 2000, context: [] }, undefined);
+		await timeout(0);
 		assert.strictEqual(h.container.querySelector('.project-board-card-prompt'), null);
 		assert.ok(h.container.querySelector('[data-submitted-at="2000"]'));
 		assert.ok(h.container.querySelector('.project-board-card-status'));
@@ -1430,7 +1638,7 @@ suite('ProjectBoardService', () => {
 					primaryButton: confirmation.primaryButton,
 				}, {
 					message: 'Are you sure you want to delete this session?',
-					detail: 'This action cannot be undone.',
+					detail: 'This deletes the session and its chats from every board. This action cannot be undone.',
 					primaryButton: 'Delete',
 				});
 				return { confirmed: true };
@@ -2009,6 +2217,38 @@ suite('ProjectBoardService', () => {
 			one: { selectedValue: 'first-value', freeformValue: undefined },
 			two: { selectedValues: ['a-value', 'b-value'], freeformValue: undefined },
 		});
+
+		test('pending answer input survives embedded board switching and submits only once across boards', () => {
+			const { document } = createBoardDocument();
+			const chat = new TestChat('Shared pending question');
+			chat.status.set(SessionStatus.NeedsInput, undefined);
+			const h = createBoard(document, [chat]);
+			const second = h.catalog.createBoard('Second');
+			const carousel = new ChatQuestionCarouselData([{
+				id: 'choice', type: 'singleSelect', title: 'Choice', message: 'Choose',
+				options: [{ id: 'one', label: 'One', value: 'one' }], allowFreeformInput: true,
+			}], false, 'shared-answer');
+			h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+			h.questionCarousels.set([{ carousel, requestId: 'shared-request' }], undefined);
+			store.add(h.service.createView(h.container));
+			const first = h.container.querySelector<HTMLElement>('[data-board-id="default"]')!;
+			const textarea = first.querySelector<HTMLTextAreaElement>('textarea')!;
+			textarea.value = 'Keep my answer';
+			textarea.setSelectionRange(2, 6);
+			textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			h.catalog.selectBoard(second);
+			assert.strictEqual(first.parentElement!.hidden, true);
+			h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+			assert.strictEqual(first.querySelector('textarea'), textarea);
+			assert.deepStrictEqual([textarea.value, textarea.selectionStart, textarea.selectionEnd], ['Keep my answer', 2, 6]);
+			textarea.focus();
+			textarea.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, ctrlKey: true, bubbles: true, cancelable: true }));
+			assert.strictEqual(h.submittedAnswers.length, 1);
+			h.catalog.selectBoard(second);
+			const other = h.container.querySelector(`[data-board-id="${second}"]`)!;
+			assert.strictEqual(other.querySelector('.project-board-live-question'), null);
+			assert.strictEqual(h.submittedAnswers.length, 1);
+		});
 		h.questionCarousels.set([{ carousel: new ChatQuestionCarouselData([{ id: 'archived', type: 'text', title: 'Archived' }], false), requestId: 'archived' }], undefined);
 		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
 		assert.ok(h.container.querySelector('.project-board-live-question'));
@@ -2158,22 +2398,23 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelectorAll('.project-board-card-unavailable').length, 0);
 	});
 
-	test('PB-06 corrupt storage remains untouched until Reset Board is explicitly confirmed', async () => {
+	test('PB-06 corrupt storage remains untouched until Reset Agents Hub is explicitly confirmed', async () => {
 		const storage = store.add(new InMemoryStorageService());
-		storage.store(ProjectBoardState.STORAGE_KEY, '{broken', StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(ProjectBoardCatalogService.LEGACY_STORAGE_KEY, '{broken', StorageScope.PROFILE, StorageTarget.MACHINE);
 		const h = createBoard(mainWindow.document, [], storage);
 		let confirmed = false;
-		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed }) });
-		await h.service.open();
-		assert.ok(h.container.querySelector('.project-board-storage-error'));
-		assert.strictEqual(h.container.querySelector('[data-board-control="add-row"]')?.getAttribute('aria-disabled'), 'true');
-		h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
+		const confirm = sinon.stub(h.instantiationService.get(IDialogService), 'confirm').callsFake(async () => ({ confirmed }));
+		store.add(toDisposable(() => confirm.restore()));
+		store.add(h.service.createView(h.container));
+		assert.ok(h.container.querySelector('.project-board-empty-hub'));
+		assert.strictEqual(h.container.querySelector('[data-board-control="new-board"]')?.getAttribute('aria-disabled'), 'true');
+		h.container.querySelector<HTMLElement>('[data-board-control="reset-hub"]')!.click();
 		await Promise.resolve();
-		assert.strictEqual(storage.get(ProjectBoardState.STORAGE_KEY, StorageScope.PROFILE), '{broken');
+		assert.strictEqual(storage.get(ProjectBoardCatalogService.LEGACY_STORAGE_KEY, StorageScope.PROFILE), '{broken');
 		confirmed = true;
-		h.container.querySelector<HTMLElement>('[data-board-control="reset"]')!.click();
+		h.container.querySelector<HTMLElement>('[data-board-control="reset-hub"]')!.click();
 		await Promise.resolve();
-		assert.strictEqual(h.container.querySelector('.project-board-storage-error'), null);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-empty-hub')!.hidden, true);
 		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-column-heading')].map(element => element.textContent), ['P0', 'P1', 'P2', 'P3']);
 	});
 
@@ -2201,6 +2442,7 @@ suite('ProjectBoardService', () => {
 		chats[0].isRead.set(true, undefined);
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
 		h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
+		await timeout(0);
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
 		assert.ok(h.container.textContent?.includes('Recency unavailable'));
 	});
@@ -2241,6 +2483,7 @@ suite('ProjectBoardService', () => {
 		const titles = () => [...h.container.querySelectorAll('[aria-label="General, P0"] h4')].map(element => element.textContent);
 		assert.deepStrictEqual(titles(), ['Recency 3', 'Recency 2', 'Recency 1']);
 		models[0].lastRequestObs.set(request(5000), undefined);
+		await timeout(0);
 		assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Recency 2']);
 		chats[2].title.set('Agent update', undefined);
 		chats[2].isRead.set(true, undefined);

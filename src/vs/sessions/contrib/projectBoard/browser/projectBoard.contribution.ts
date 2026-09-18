@@ -21,11 +21,67 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { KanbanCustomViewContribution } from './kanbanView.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Menus } from '../../../browser/menus.js';
-import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../common/projectBoard.js';
+import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../common/projectBoard.js';
 import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 import './projectBoardChatSidePanel.contribution.js';
 
 registerWorkbenchContribution2(KanbanCustomViewContribution.ID, KanbanCustomViewContribution, WorkbenchPhase.BlockRestore);
+
+registerAction2(class NewAgentsHubBoardAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_NEW_BOARD_COMMAND_ID,
+			title: localize2('agentsHub.newBoard', "Agents Hub: New Board"),
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IProjectBoardService).createBoard();
+	}
+});
+
+registerAction2(class RenameAgentsHubBoardAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_RENAME_BOARD_COMMAND_ID,
+			title: localize2('agentsHub.renameBoard', "Rename Board"),
+			precondition: KanbanBoardEditableContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'boards', order: 1 }],
+		});
+	}
+	override run(accessor: ServicesAccessor, boardId?: string): Promise<void> {
+		return accessor.get(IProjectBoardService).renameBoard(boardId);
+	}
+});
+
+registerAction2(class DeleteAgentsHubBoardAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_DELETE_BOARD_COMMAND_ID,
+			title: localize2('agentsHub.deleteBoard', "Delete Board"),
+			precondition: KanbanBoardEditableContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'boards', order: 2 }],
+		});
+	}
+	override run(accessor: ServicesAccessor, boardId?: string): Promise<void> {
+		return accessor.get(IProjectBoardService).deleteBoard(boardId);
+	}
+});
+
+registerAction2(class OpenAgentsHubBoardWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID,
+			title: localize2('agentsHub.openBoardWindow', "Open Board in New Window"),
+			precondition: ChatContextKeys.enabled,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'boards', order: 3 }],
+		});
+	}
+	override run(accessor: ServicesAccessor, boardId?: string): Promise<void> {
+		return accessor.get(IProjectBoardService).open(boardId);
+	}
+});
 
 registerAction2(class ToggleKanbanOpenChatInSidePanelAction extends Action2 {
 	constructor() {

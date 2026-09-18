@@ -30,6 +30,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { IProjectBoardCatalogService } from '../../../projectBoard/common/projectBoardCatalog.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -251,6 +252,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ICommandService, commandService);
+	instantiationService.stub(IProjectBoardCatalogService, new class extends mock<IProjectBoardCatalogService>() {
+		override readonly boards = constObservable([]);
+		override readonly selectedBoardId = constObservable(undefined);
+		override readonly canEdit = true;
+	});
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);

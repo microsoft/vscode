@@ -99,12 +99,12 @@ export class CustomViewNode extends Disposable {
 			useShadows: false,
 		}));
 		this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => {
-			this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop });
+			this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop, scrollLeft: scrollContent.scrollLeft });
 		}));
 		const focusScrollSync = this._register(new MutableDisposable());
 		this._register(addDisposableListener(scrollContent, EventType.FOCUS_IN, () => {
 			focusScrollSync.value = scheduleAtNextAnimationFrame(getWindow(scrollContent), () => {
-				this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop });
+				this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop, scrollLeft: scrollContent.scrollLeft });
 			});
 		}));
 		this._scrollable.getDomNode().classList.add('custom-view-body');
