@@ -11177,7 +11177,7 @@ suite('ClaudeAgent — SDK-initiated turns', () => {
 		});
 	}
 
-	for (const ending of ['client abort', 'abort during rebind', 'stream failure', 'dispose'] as const) {
+	for (const ending of ['client abort', 'abort during rebind', 'provider abort', 'stream failure', 'dispose'] as const) {
 		test(`SDK-initiated turn has exactly one terminal action on ${ending}`, async () => {
 			const { agent, sdk } = createTestContext(disposables);
 			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -11224,6 +11224,7 @@ suite('ClaudeAgent — SDK-initiated turns', () => {
 				await agent.chats.abort(chat, chatContext(chat));
 			}
 			if (ending === 'dispose') { session.dispose(); }
+			if (ending === 'provider abort') { session.abort(); }
 			advance.complete();
 			startupGate.complete();
 			await rebound;

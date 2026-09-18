@@ -1141,10 +1141,10 @@ export class ClaudeAgentSession extends Disposable {
 	 * callback (and any interactive tool waiting on user input) unwinds
 	 * with a deny / cancel result instead of leaving stale UI behind.
 	 */
-	abort(): void {
+	abort(protocolTurnCancelled = false): void {
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
-		this._requirePipeline().abort();
+		this._requirePipeline().abort(protocolTurnCancelled);
 	}
 
 	/**

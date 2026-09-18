@@ -2378,7 +2378,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sess.abortController.abort();
 			return;
 		}
-		sess.abort();
+		sess.abort(true);
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {

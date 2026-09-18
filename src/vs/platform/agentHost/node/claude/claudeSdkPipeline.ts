@@ -503,9 +503,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * placeholder and is honored when the freshly-built pair arrives
 	 * (the rebind discards the new pair and surfaces a cancellation).
 	 */
-	abort(): void {
-		// The caller has already applied the protocol cancellation.
-		this._sdkInitiatedTurn = undefined;
+	abort(protocolTurnCancelled = false): void {
+		if (protocolTurnCancelled) {
+			this._sdkInitiatedTurn = undefined;
+		} else {
+			this._cancelSdkTurn();
+		}
 		if (this._abortController.signal.aborted) {
 			return;
 		}
