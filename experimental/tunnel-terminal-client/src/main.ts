@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -13,7 +14,9 @@ import { ProtocolClient } from './wire.js';
 
 const help = `Standalone Tunnel Terminal (Experimental)
 
-Usage: node out\\src\\main.js [--tunnel NAME_OR_ID] [options]
+Usage: tunnel [--tunnel NAME_OR_ID] [options]
+
+With no arguments, choose a remote tunnel interactively.
 
   --list                    List machines without opening a shell
   --tunnel NAME_OR_ID        Select a tunnel without the machine picker

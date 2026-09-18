@@ -67,6 +67,54 @@ real local PTY behind a WebSocket test server. `node-pty` is a **development/tes
 dependency only**: the application does not create a local PTY or require a
 local native PTY library.
 
+## Install the command on PATH
+
+After installing dependencies and building, run this **once from the project
+folder**:
+
+```powershell
+npm.cmd link
+```
+
+This registers the `tunnel` command in npm's global command directory,
+linked to this project. It does not copy the application or bundle Node.js:
+keep this folder and its installed dependencies in place. Node.js 22.x or 24.x
+must remain available on PATH. Rebuild after changing source files; you do not
+need to link again unless the project folder moves.
+
+From any directory you can then run:
+
+```powershell
+tunnel
+tunnel --tunnel my-machine
+tunnel --list
+tunnel --help
+```
+
+With no arguments, the command opens the same interactive tunnel picker as
+`npm start`. All existing options are supported unchanged, including `--cluster`,
+`--instance`, `--new-host`, `--cwd`, `--provider`, and `--client-id`. It runs the
+same entry point in the foreground, preserving terminal input/output and exit
+codes.
+
+On Windows, npm also creates **`tunnel.cmd`**. Use that name if
+PowerShell blocks npm's generated `.ps1` wrapper:
+
+```powershell
+tunnel.cmd --tunnel my-machine
+```
+
+If the command is not found, run `npm.cmd config get prefix` and ensure that
+directory is on your **user PATH**, then open a new terminal. On Linux/macOS,
+use `npm link` and put the `bin` subdirectory of `npm prefix -g` on PATH instead.
+No application startup command changes PATH automatically.
+
+To remove the command later, without deleting the project:
+
+```powershell
+npm.cmd uninstall --global experimental-tunnel-terminal-client
+```
+
 ## Host setup
 
 On a remote machine with a compatible CLI, inspect `code agent host --help`.
@@ -161,7 +209,8 @@ agent host's environment, not the environment of an existing integrated terminal
 
 Machine names are not assumed to be unique. Use `--tunnel ID --cluster ID` from
 `--list` to disambiguate. A Windows Terminal profile can invoke
-`node D:\code\vscode\experimental\tunnel-terminal-client\out\src\main.js --tunnel my-machine`
+`tunnel.cmd --tunnel my-machine` after linking the command,
+or `node D:\code\vscode\experimental\tunnel-terminal-client\out\src\main.js --tunnel my-machine`
 to avoid selecting the same machine on every launch. No URL is needed.
 
 ## Input, accessibility, and lifetime

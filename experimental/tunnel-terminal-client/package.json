@@ -5,6 +5,9 @@
 	"description": "An extension-free terminal client for agent-host-capable VS Code tunnels.",
 	"license": "MIT",
 	"type": "module",
+	"bin": {
+		"tunnel": "out/src/main.js"
+	},
 	"engines": {
 		"node": ">=22 <23 || >=24 <25"
 	},

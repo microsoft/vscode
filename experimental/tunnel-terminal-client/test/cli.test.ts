@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { test } from 'node:test';
@@ -13,12 +14,20 @@ import { ensureSupportedRuntime } from '../src/runtime.js';
 const execute = promisify(execFile);
 const mainPath = fileURLToPath(new URL('../src/main.js', import.meta.url));
 
+test('PATH command uses the same executable entry point as direct invocation', async () => {
+	const { bin }: { bin: Record<string, string> } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+	assert.deepEqual(bin, { tunnel: 'out/src/main.js' });
+	assert.match(await readFile(mainPath, 'utf8'), /^#!\/usr\/bin\/env node\r?\n/);
+});
+
 test('help is available without credentials or a TTY', async () => {
 	const { stdout, stderr } = await execute(process.execPath, [mainPath, '--help'], {
 		env: { ...process.env, TUNNEL_ACCESS_TOKEN: 'test-value-must-not-be-printed' },
 		timeout: 5000,
 	});
 	assert.match(stdout, /Ctrl\+\]/);
+	assert.match(stdout, /Usage: tunnel \[--tunnel NAME_OR_ID\]/);
+	assert.match(stdout, /With no arguments, choose a remote tunnel interactively/);
 	assert.match(stdout, /Node\.js 22\.x/);
 	assert.doesNotMatch(stdout + stderr, /test-value-must-not-be-printed/);
 	assert.equal(stderr, '');
