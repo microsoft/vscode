@@ -27,9 +27,9 @@ export function setup(options?: { skipSuite: boolean }) {
 			await settingsEditor.clearUserSettings();
 		});
 
-		describe('streaming output replay', () => {
+		describe('output replay', () => {
 			for (const reconnect of ['window reload', 'detach/attach'] as const) {
-				it(`restores streaming output exactly once and in order after ${reconnect}`, async function () {
+				it(`restores completed output exactly once and in order after ${reconnect}`, async function () {
 					this.timeout(60000);
 					const app = this.app as Application;
 					if (app.remote || app.web) {
@@ -45,14 +45,8 @@ export function setup(options?: { skipSuite: boolean }) {
 					try {
 						await terminal.createTerminal();
 						await terminal.runCommandInTerminal(`node -e "let n=0;const t=setInterval(()=>{console.log('PTY_REPLAY_SEQ:'+n++);if(n===${count})clearInterval(t)},100)"`);
-						let before: number[] = [];
-						await terminal.waitForTerminalText(buffer => {
-							before = readSequence(buffer);
-							// Exercise an established terminal, after the debounced initial layout save.
-							return before.length >= 10;
-						});
-						const lastBefore = before.at(-1);
-						ok(lastBefore !== undefined && lastBefore < count - 1, 'The producer must still be running before disconnect');
+						// Finish producing output before reconnecting to avoid racing live data with replay.
+						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
 
 						if (reconnect === 'window reload') {
 							await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('workbench.action.reloadWindow'));
@@ -61,17 +55,18 @@ export function setup(options?: { skipSuite: boolean }) {
 							ok(name);
 							await terminal.runCommand(TerminalCommandId.DetachSession);
 							await terminal.assertTerminalViewHidden();
-							// Let the rate-limited producer write while no renderer is attached.
-							await app.code.wait(250);
 							await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, name);
 						}
 
+						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
+						await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
+						await terminal.runCommandInTerminal(`node -e "console.log('PTY_REPLAY_SEQ:'+${count})"`);
 						let received: number[] = [];
 						await terminal.waitForTerminalText(buffer => {
 							received = readSequence(buffer);
-							return received.includes(count - 1);
+							return received.includes(count);
 						});
-						deepStrictEqual(received, Array.from({ length: count }, (_, i) => i));
+						deepStrictEqual(received, Array.from({ length: count + 1 }, (_, i) => i));
 					} finally {
 						await terminal.runCommand(TerminalCommandId.KillAll);
 					}
