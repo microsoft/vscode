@@ -1960,7 +1960,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
-		template.container.classList.remove('session-section-shortcut');
+		template.container.classList.remove('session-section-shortcut', 'active');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
 			'session-section-new-badge-accent',
@@ -2016,11 +2016,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}));
 		} else {
 			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
-			if (element.id === KANBAN_SECTION_ID) {
-				template.elementDisposables.add(autorun(reader => {
-					template.container.classList.toggle('active', this.customViewService.activeCustomView.read(reader)?.id === KANBAN_CUSTOM_VIEW_ID);
-				}));
-			}
 		}
 
 		template.label.textContent = element.label;

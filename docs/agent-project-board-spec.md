@@ -30,6 +30,7 @@ Moving a card changes only its placement on the current board. The same conversa
 ### Windows and navigation
 
 - The Sessions sidebar's expandable Agents Hub section contains one item per board and New Board. Selecting a board opens it in the embedded Hub without changing any standalone board window.
+- The current board owns the active-view highlight and `aria-current` marker. Agents Hub is a neutral group heading, not a second selected item; keyboard focus cues remain independent.
 - `Agents: Open Agents Hub` opens the selected board in a separate auxiliary window. There is at most one standalone window per board; different boards can remain open simultaneously. Reopening a board focuses its existing window.
 - Under custom-titlebar configuration, each board reuses the Sessions auxiliary titlebar and native controls, titled `Agents Hub — <board name>` without a session command center. Renaming updates the matching window, not the Agents owner.
 - Existing command and custom-view IDs remain stable. The v2 collection uses a new storage key and retains legacy data for recovery.

@@ -273,7 +273,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
+					override readonly activeCustomView = constObservable(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }));
 				},
 				new class extends mock<IMenuService>() { },
 			);
@@ -296,6 +296,7 @@ suite('Sessions - SessionsList', () => {
 				hasCalendar: template.icon.classList.contains('codicon-calendar'),
 			});
 			const outline = getPresentationSnapshot();
+			assert.ok(template.container.classList.contains('active'));
 
 			badgePresentation.set('unread', undefined);
 			const unread = getPresentationSnapshot();
@@ -323,6 +324,7 @@ suite('Sessions - SessionsList', () => {
 				dismissed,
 				recycledDisplay: template.newBadge.style.display,
 				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
+				recycledActiveClass: template.container.classList.contains('active'),
 			}, {
 				outline: {
 					badgeText: 'New',
@@ -371,6 +373,7 @@ suite('Sessions - SessionsList', () => {
 				},
 				recycledDisplay: 'none',
 				recycledShortcutClass: false,
+				recycledActiveClass: false,
 			});
 		});
 
@@ -697,6 +700,30 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(harness.sortChanges, []);
 			activeCustomView.set(undefined, undefined);
 			assert.strictEqual(container.querySelector('.project-board-item.active'), null);
+		});
+
+		test('only the current board has an active background, not its Agents Hub group', () => {
+			const { container, list, selectedBoardId, activeCustomView, row, click } = createBoardList();
+			const selectionColor = 'rgb(12, 34, 56)';
+			container.style.setProperty('--vscode-list-inactiveSelectionBackground', selectionColor);
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: KANBAN_CUSTOM_VIEW_ID }), undefined);
+			for (const [id, label] of [['one', 'First board'], ['two', 'Second board'], ['one', 'First board']]) {
+				click(row(`${label}, board`));
+				selectedBoardId.set(id, undefined);
+				list.update();
+				const highlighted = [...container.querySelectorAll<HTMLElement>('.project-board-section, .project-board-item')]
+					.filter(element => mainWindow.getComputedStyle(element).backgroundColor === selectionColor);
+				assert.strictEqual(highlighted.length, 1, 'The group header must not look like a second selected item');
+				assert.strictEqual(highlighted[0].querySelector('.project-board-item-label')?.textContent, label);
+				assert.strictEqual(highlighted[0].getAttribute('aria-current'), 'page');
+				assert.strictEqual(row('Agents Hub').querySelector('.session-section.active'), null);
+			}
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-chevron')!);
+			assert.strictEqual(row('Agents Hub').querySelector('.session-section.active'), null);
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-chevron')!);
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
+			assert.strictEqual(container.querySelector('.project-board-item.active'), null);
+			assert.strictEqual(container.querySelector('.project-board-section.active'), null);
 		});
 
 		test('AI gating updates dynamically and embedded flat lists never render Hub navigation', () => {
