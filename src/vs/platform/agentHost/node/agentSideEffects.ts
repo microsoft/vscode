@@ -363,6 +363,9 @@ export class AgentSideEffects extends Disposable {
 					this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
 				}
 			}
+			if (!envelope.origin && envelope.action.type === ActionType.SessionActiveClientRemoved) {
+				this._removeActiveClient(envelope.channel, envelope.action.clientId);
+			}
 			// A chat joining the catalog changes the session's authoritative
 			// membership, so every already-contributing client is re-fanned-out
 			// over the new set. Handled here (not `handleAction`) because every
@@ -416,6 +419,13 @@ export class AgentSideEffects extends Disposable {
 			}, hostCustomizations);
 			handle.tools = activeClient.tools;
 			handle.customizations = activeClient.customizations ?? [];
+		}
+	}
+
+	private _removeActiveClient(session: ProtocolURI, clientId: string): void {
+		const agent = this._options.getAgent(session);
+		for (const chat of getSessionChatsForFanOut(this._stateManager, session) ?? []) {
+			agent?.removeActiveClient(chat, this._chatContext(session, chat.toString()), clientId);
 		}
 	}
 
@@ -1572,10 +1582,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionActiveClientRemoved: {
-				const agent = this._options.getAgent(channel);
-				for (const chat of getSessionChatsForFanOut(this._stateManager, channel) ?? []) {
-					agent?.removeActiveClient(chat, this._chatContext(channel, chat.toString()), action.clientId);
-				}
+				this._removeActiveClient(channel, action.clientId);
 				break;
 			}
 			case ActionType.RootConfigChanged: {

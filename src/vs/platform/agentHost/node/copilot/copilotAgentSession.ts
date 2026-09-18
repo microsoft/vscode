@@ -43,7 +43,7 @@ import { getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -795,6 +795,11 @@ class CopilotTurn extends Disposable {
 	}
 }
 
+interface IPendingSteering {
+	readonly pendingMessage: PendingMessage;
+	readonly sender: IAgentPendingMessageSender | undefined;
+}
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -1098,7 +1103,7 @@ export class CopilotAgentSession extends Disposable {
 	 * `steering_consumed` signals so the chat UI's pending state still
 	 * clears in cleanup paths where we never observe the echo.
 	 */
-	private readonly _pendingSteeringFlips = new Map<string, PendingMessage>();
+	private readonly _pendingSteeringFlips = new Map<string, IPendingSteering>();
 
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
@@ -1424,15 +1429,15 @@ export class CopilotAgentSession extends Disposable {
 	 * handler) can associate the SDK event id with the steering turn for
 	 * history.truncate / sessions.fork mapping.
 	 */
-	private _beginSteeringTurn(steering: PendingMessage): string {
+	private _beginSteeringTurn(steering: IPendingSteering): string {
 		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
 			turnId: newTurnId,
 			startedAt: new Date().toISOString(),
-			message: steering.message,
-			queuedMessageId: steering.id,
+			message: steering.pendingMessage.message,
+			queuedMessageId: steering.pendingMessage.id,
 		});
 		// Mirror `resetTurnState` so per-turn counters/mappings (usage total,
 		// streaming part ids) don't bleed from the preempted turn into the new
@@ -1441,10 +1446,10 @@ export class CopilotAgentSession extends Disposable {
 		// response: mark it `running` immediately rather than leaving it
 		// `pending`, otherwise an abort during the steering turn would treat it
 		// as a not-yet-started queued turn and leave it open.
-		this.resetTurnState(newTurnId);
+		this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
 		const turn = this._currentTurn.value;
 		if (turn) {
-			turn.messageCharLen = steering.message.text.length;
+			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.markRunning();
 		}
 		if (this._activeRootSdkTurnId) {
@@ -1483,20 +1488,20 @@ export class CopilotAgentSession extends Disposable {
 	 * no buffered entry matches; the caller treats the `user.message` as
 	 * an ordinary echo and skips the turn flip.
 	 */
-	private _takeMatchingPendingSteering(content: string): PendingMessage | undefined {
+	private _takeMatchingPendingSteering(content: string): IPendingSteering | undefined {
 		if (this._pendingSteeringFlips.size === 0) {
 			return undefined;
 		}
-		let substringMatch: [string, PendingMessage] | undefined;
-		for (const [id, msg] of this._pendingSteeringFlips) {
-			if (msg.message.text === content) {
+		let substringMatch: [string, IPendingSteering] | undefined;
+		for (const [id, pending] of this._pendingSteeringFlips) {
+			if (pending.pendingMessage.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
-				return msg;
+				return pending;
 			}
-			if (msg.message.text.length > 0
-				&& content.includes(msg.message.text)
-				&& (!substringMatch || msg.message.text.length > substringMatch[1].message.text.length)) {
-				substringMatch = [id, msg];
+			if (pending.pendingMessage.message.text.length > 0
+				&& content.includes(pending.pendingMessage.message.text)
+				&& (!substringMatch || pending.pendingMessage.message.text.length > substringMatch[1].pendingMessage.message.text.length)) {
+				substringMatch = [id, pending];
 			}
 		}
 		if (substringMatch) {
@@ -3433,7 +3438,7 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) === true;
 	}
 
-	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
+	async sendSteering(steeringMessage: PendingMessage, sender?: IAgentPendingMessageSender): Promise<void> {
 		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
 			return;
 		}
@@ -3441,7 +3446,7 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
-			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
+			this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
 			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
 			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
 			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the

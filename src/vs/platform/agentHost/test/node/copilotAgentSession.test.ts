@@ -30,7 +30,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -12579,6 +12579,37 @@ Use the attached image as context.
 				{ kind: ToolCallContributorKind.Client, clientId: 'client-A' },
 				{ kind: ToolCallContributorKind.Client, clientId: 'client-B' },
 			]);
+		});
+
+		test('client tool start after steering prefers the steering sender', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('original-client', snapshot.tools);
+			activeClientToolSet.set('steering-client', snapshot.tools);
+			const { session, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			session.resetTurnState('turn-original', 'original-client');
+
+			await session.sendSteering(
+				{ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } },
+				{
+					clientId: 'steering-client',
+					clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+				},
+			);
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-steering',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const start = signals.find((signal): signal is IAgentActionSignal => isAction(signal, ActionType.ChatToolCallStart));
+			assert.deepStrictEqual(start && (start.action as ChatToolCallStartAction).contributor, {
+				kind: ToolCallContributorKind.Client,
+				clientId: 'steering-client',
+			});
 		});
 
 		test('completion arriving before the SDK handler registers still resolves', async () => {

@@ -3445,13 +3445,22 @@ suite('AgentSideEffects', () => {
 				message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
 			};
 			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-			sideEffects.handleAction(defaultChatUri, action);
+			sideEffects.handleAction(defaultChatUri, action, 'client-editor', AgentHostClientType.EditorWindow);
 
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
-			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
-			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
-			// Steering is always addressed by a concrete chat channel URI.
-			assert.strictEqual(agent.setPendingMessagesCalls[0].chat.toString(), defaultChatUri);
+			assert.deepStrictEqual({
+				chat: agent.setPendingMessagesCalls[0].chat.toString(),
+				steeringMessage: agent.setPendingMessagesCalls[0].steeringMessage,
+				queuedMessages: agent.setPendingMessagesCalls[0].queuedMessages,
+				senderClientId: agent.setPendingMessagesCalls[0].steeringSender?.clientId,
+				senderClientType: agent.setPendingMessagesCalls[0].steeringSender?.clientContext.clientType,
+			}, {
+				chat: defaultChatUri,
+				steeringMessage: { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } },
+				queuedMessages: [],
+				senderClientId: 'client-editor',
+				senderClientType: AgentHostClientType.EditorWindow,
+			});
 		});
 
 		test('syncs a peer chat steering message addressed by the peer chat URI', () => {
@@ -4120,16 +4129,40 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
-		test('removes the active client when it is removed', () => {
+		test('removes the active client from the provider after server disconnect cleanup', () => {
+			setupSession();
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-removal'));
+			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
+			const activeClientSet: SessionAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [] },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), activeClientSet, { clientId: 'test-client', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), activeClientSet);
+
+			stateManager.dispatchServerAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: 'test-client',
+			});
+
+			assert.deepStrictEqual(agent.removeActiveClientCalls.map(call => ({
+				chat: call.chat.toString(),
+				clientId: call.clientId,
+			})), [
+				{ chat: defaultChatUri, clientId: 'test-client' },
+				{ chat: peerChatUri.toString(), clientId: 'test-client' },
+			]);
+		});
+
+		test('removes the active client from the provider after a client-dispatched removal', () => {
 			setupSession();
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-removal'));
 			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
 
-			const action: SessionAction = {
+			sideEffects.handleAction(sessionUri.toString(), {
 				type: ActionType.SessionActiveClientRemoved,
 				clientId: 'test-client',
-			};
-			sideEffects.handleAction(sessionUri.toString(), action);
+			});
 
 			assert.deepStrictEqual(agent.removeActiveClientCalls.map(call => ({
 				chat: call.chat.toString(),
