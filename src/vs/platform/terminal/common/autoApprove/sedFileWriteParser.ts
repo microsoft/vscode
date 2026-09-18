@@ -96,22 +96,39 @@ export class SedFileWriteParser {
 			}
 			const next = tokens[i + 1];
 			const rawNext = rawTokens[i + 1];
-			if (next === '' || next === '\'\'' || next === '""') {
-				backupSuffix = undefined;
+			if (this._isSeparatedBackupSuffix(tokens, rawTokens, i)) {
+				backupSuffix = next ? {
+					value: next,
+					hasUnquotedPathExpansion: this._hasRuntimePathExpansion(rawNext),
+				} : undefined;
+				i++;
 				continue;
-			}
-			if (next && rawNext && ((rawNext.startsWith('\'') && rawNext.endsWith('\'')) || (rawNext.startsWith('"') && rawNext.endsWith('"')))) {
-				if (next.startsWith('.') && next.length <= 10 && !next.includes('/')) {
-					backupSuffix = {
-						value: next,
-						hasUnquotedPathExpansion: this._hasRuntimePathExpansion(rawNext),
-					};
-					continue;
-				}
 			}
 			backupSuffix = undefined;
 		}
 		return backupSuffix;
+	}
+
+	private _isSeparatedBackupSuffix(tokens: readonly string[], rawTokens: readonly string[], optionIndex: number): boolean {
+		const suffix = tokens[optionIndex + 1];
+		const rawSuffix = rawTokens[optionIndex + 1];
+		if (suffix === undefined || rawSuffix === undefined) {
+			return false;
+		}
+		if (suffix === '') {
+			return true;
+		}
+		const isQuoted = (rawSuffix.startsWith('\'') && rawSuffix.endsWith('\'')) || (rawSuffix.startsWith('"') && rawSuffix.endsWith('"'));
+		if (!isQuoted) {
+			return false;
+		}
+		return suffix.startsWith('.') || this._isExplicitScriptOption(tokens[optionIndex + 2]);
+	}
+
+	private _isExplicitScriptOption(token: string | undefined): boolean {
+		return token === '-e' || token === '-f' || token === '--expression' || token === '--file' ||
+			!!token?.startsWith('-e') || !!token?.startsWith('-f') ||
+			!!token?.startsWith('--expression=') || !!token?.startsWith('--file=');
 	}
 
 	private _stripSurroundingQuotes(value: string): string {
@@ -185,9 +202,45 @@ export class SedFileWriteParser {
 			) {
 				continue;
 			}
-			if (this._containsRuntimeExpansion(tokens[i])) {
+			if (decoded === '-e' || decoded === '-f' || decoded === '-l' || decoded === '--expression' || decoded === '--file' || decoded === '--line-length') {
+				i++;
+				continue;
+			}
+			if (this._couldExpandToOption(tokens[i])) {
 				return true;
 			}
+			if (decoded?.startsWith('-')) {
+				continue;
+			}
+			break;
+		}
+		return false;
+	}
+
+	private _couldExpandToOption(value: string): boolean {
+		let staticPrefix = '';
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		for (let i = 0; i < value.length; i++) {
+			const char = value[i];
+			if (char === '\\' && !inSingleQuote) {
+				if (++i < value.length) {
+					staticPrefix += value[i];
+				}
+				continue;
+			}
+			if (char === '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+				continue;
+			}
+			if (char === '"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+				continue;
+			}
+			if (!inSingleQuote && (char === '$' || char === '`' || char === '!' || (!inDoubleQuote && char === '{'))) {
+				return (staticPrefix === '' || staticPrefix === '-') && this._containsRuntimeExpansion(value);
+			}
+			staticPrefix += char;
 		}
 		return false;
 	}
@@ -378,23 +431,9 @@ export class SedFileWriteParser {
 
 				// Check if -i or -I is the last flag and next token could be backup suffix
 				if ((flags.endsWith('i') || flags.endsWith('I')) && i + 1 < tokens.length) {
-					const nextToken = tokens[i + 1];
-					const rawNextToken = rawTokens[i + 1];
-					// macOS/BSD style: -i '' or -i "" (empty string backup suffix)
-					// Only treat it as a backup suffix if it's empty or looks like a backup
-					// extension (starts with '.' and is short). Don't match sed scripts like 's/foo/bar/'.
-					if (nextToken === '' || nextToken === '\'\'' || nextToken === '""') {
+					if (this._isSeparatedBackupSuffix(tokens, rawTokens, i)) {
 						i += 2;
 						continue;
-					}
-					// Check for quoted backup suffixes like '.bak' or ".backup"
-					if (rawNextToken && ((rawNextToken.startsWith('\'') && rawNextToken.endsWith('\'')) || (rawNextToken.startsWith('"') && rawNextToken.endsWith('"')))) {
-						const unquoted = nextToken;
-						// Backup suffixes typically start with '.' and are short extensions
-						if (unquoted.startsWith('.') && unquoted.length <= 10 && !unquoted.includes('/')) {
-							i += 2;
-							continue;
-						}
 					}
 				}
 

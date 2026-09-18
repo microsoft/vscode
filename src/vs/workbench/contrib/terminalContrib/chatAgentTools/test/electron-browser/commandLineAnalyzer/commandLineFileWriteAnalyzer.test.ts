@@ -65,6 +65,10 @@ class TestFileService extends FileService {
 		if (this.realpathResults.get(resource.toString()) === 'missing') {
 			throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
 		}
+		const result = this.realpathResults.get(resource.toString());
+		if (result instanceof Error) {
+			throw result;
+		}
 		return super.stat(resource);
 	}
 }
@@ -168,6 +172,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
+			test('single-quoted literal dollar filename - allow', () => t('echo hello > \'price$today.txt\'', 'outsideWorkspace', true, 1));
+			test('escaped literal dollar filename - allow', () => t('echo hello > price\\$today.txt', 'outsideWorkspace', true, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
 			test('brace expansion - block', () => t('echo hello > {a,b}.txt', 'outsideWorkspace', false, 1));
 			test('tilde expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
@@ -192,6 +198,13 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('concatenated quoted wildcard resolves before canonicalization - block outside symlink', async () => {
 				fileService.realpathResults.set(URI.file('/workspace/project/safe-*').toString(), URI.file('/outside/file.txt'));
 				await t('echo hello > safe-"*"', 'outsideWorkspace', false, 1);
+			});
+
+			test('zsh pathname expansions are blocked while Bash treats the same characters literally', async () => {
+				for (const target of ['^foo/../package.json', '=node', 'README.md#']) {
+					await t(`echo hello > ${target}`, 'outsideWorkspace', false, 1, [cwd], '/bin/zsh');
+					await t(`echo hello > ${target}`, 'outsideWorkspace', true, 1, [cwd], '/bin/bash');
+				}
 			});
 
 			test('symlink resolving outside workspace - block', async () => {
@@ -221,6 +234,12 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('nonexistent segments below an inside workspace ancestor - allow', async () => {
 				fileService.realpathResults.set(URI.file('/workspace/project/new/file.txt').toString(), 'missing');
 				await t('echo hello > new/file.txt', 'outsideWorkspace', true, 1);
+			});
+
+			test('native ENOENT for a nonexistent file below the workspace ancestor - allow', async () => {
+				const error = Object.assign(new Error('no such file or directory'), { code: 'ENOENT' });
+				fileService.realpathResults.set(URI.file('/workspace/project/new.txt').toString(), error);
+				await t('echo hello > new.txt', 'outsideWorkspace', true, 1);
 			});
 
 			test('multiple nonexistent segments below an inside workspace ancestor - block', async () => {
@@ -356,6 +375,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('sed -i.bak inside workspace - allow', () => t('sed -i.bak \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 			test('sed --in-place=.bak inside workspace - allow', () => t('sed --in-place=.bak \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 			test('sed -i with empty backup (macOS) inside workspace - allow', () => t('sed -i \'\' \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -i with arbitrary BSD backup path outside workspace - block', () =>
+				t('sed -i \'.bak/../../../outside/target\' -e \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
 
 			// Combined flags (inside workspace)
 			test('sed -ni inside workspace - allow', () => t('sed -ni \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
@@ -374,6 +395,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			});
 			test('sed quoted wildcard filename is treated as literal - allow', () =>
 				t('sed -i \'s/x/y/\' \'safe-*\'', 'outsideWorkspace', true, 1));
+			test('sed literal dollar in replacement expression does not create a dynamic option - allow', () =>
+				t('sed -i \'s/$/x/\' file.txt', 'outsideWorkspace', true, 1));
 			test('sed expanded file path is blocked before normalization', () =>
 				t('sed -i \'s/x/y/\' ~/../outside/file.txt', 'outsideWorkspace', false, 1));
 			test('sed extended glob path is blocked before normalization', () =>

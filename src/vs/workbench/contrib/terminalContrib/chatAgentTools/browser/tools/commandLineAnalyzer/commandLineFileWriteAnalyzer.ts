@@ -15,7 +15,7 @@ import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAge
 import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
-import { isString } from '../../../../../../../base/common/types.js';
+import { hasKey, isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { parseCommand } from '../terminalCommandParser.js';
@@ -113,15 +113,16 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			.map(write => this._mapRawFileWrite(options, write.path, 'command', write.hasUnquotedPathExpansion));
 
 		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
+		const zsh = isZsh(options.shell, options.os);
 		const bashPaths = options.treeSitterLanguage === TreeSitterCommandParserLanguage.Bash
 			? allCapturedFileWrites
 				.filter((fileWrite): fileWrite is Exclude<RawFileWrite, typeof nullDevice> => fileWrite !== nullDevice)
 				.map(fileWrite => fileWrite.source === 'redirect'
-					? this._parseBashLiteralPath(fileWrite.value)
+					? this._parseBashLiteralPath(fileWrite.value, zsh)
 					: {
 						value: fileWrite.value,
 						hasUnquotedPathExpansion: fileWrite.hasUnquotedPathExpansion ?? true,
-						hasHistoryExpansion: this._parseBashLiteralPath(fileWrite.value)?.hasHistoryExpansion ?? true,
+						hasHistoryExpansion: this._parseBashLiteralPath(fileWrite.value, zsh)?.hasHistoryExpansion ?? true,
 					})
 			: [];
 		const hasUnquotedPathExpansion = bashPaths.some(path => path?.hasUnquotedPathExpansion);
@@ -141,7 +142,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 					let value = e.value;
 					if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.Bash && e.source === 'redirect') {
-						value = this._parseBashLiteralPath(value)?.value ?? value;
+						value = this._parseBashLiteralPath(value, zsh)?.value ?? value;
 					} else if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.PowerShell) {
 						const parsed = this._parsePowerShellLiteralPath(value);
 						if (parsed === undefined) {
@@ -196,7 +197,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return options.os === OperatingSystem.Windows && /(?:^|[\\/])cmd(?:\.exe)?$/i.test(options.shell);
 	}
 
-	private _parseBashLiteralPath(value: string): { value: string; hasUnquotedPathExpansion: boolean; hasHistoryExpansion: boolean } | undefined {
+	private _parseBashLiteralPath(value: string, zsh: boolean): { value: string; hasUnquotedPathExpansion: boolean; hasHistoryExpansion: boolean } | undefined {
 		let inSingleQuotes = false;
 		let inDoubleQuotes = false;
 		let result = '';
@@ -229,6 +230,9 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					if (char === '!' && this._isBashHistoryDesignator(value, i)) {
 						hasHistoryExpansion = true;
 					}
+					if (char === '$') {
+						hasUnquotedPathExpansion = true;
+					}
 					result += char;
 				}
 				continue;
@@ -251,7 +255,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				}
 				continue;
 			}
-			if (char === '*' || char === '?' || char === '[') {
+			if (char === '$' || char === '*' || char === '?' || char === '[' || zsh && (char === '~' || char === '^' || char === '#' || char === '=')) {
 				hasUnquotedPathExpansion = true;
 			}
 			if (char === '!' && this._isBashHistoryDesignator(value, i)) {
@@ -364,7 +368,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							// not recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
 							// without this guard they would be joined onto cwd and incorrectly classified
 							// as inside the workspace while expanding at runtime to a location outside it.
-							if (fileUri.fsPath.match(/[$\(\){}`~%]/) || containsCmdDelayedExpansion(fileUri.fsPath)) {
+							if (
+								fileUri.fsPath.match(/[\(\){}`~%]/) ||
+								options.treeSitterLanguage !== TreeSitterCommandParserLanguage.Bash && fileUri.fsPath.includes('$') ||
+								containsCmdDelayedExpansion(fileUri.fsPath)
+							) {
 								isAutoApproveAllowed = false;
 								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
@@ -447,7 +455,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				}
 				return suffix.length ? this._uriIdentityService.extUri.joinPath(real, ...suffix) : real;
 			} catch (error) {
-				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				if (!this._isFileNotFound(error)) {
 					return undefined;
 				}
 			}
@@ -456,7 +464,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				await this._fileService.stat(current);
 				return undefined;
 			} catch (error) {
-				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				if (!this._isFileNotFound(error)) {
 					return undefined;
 				}
 			}
@@ -468,6 +476,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			suffix.unshift(this._uriIdentityService.extUri.basename(current));
 			current = parent;
 		}
+	}
+
+	private _isFileNotFound(error: unknown): boolean {
+		return toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND ||
+			typeof error === 'object' && error !== null && hasKey(error, { code: true }) && error.code === 'ENOENT';
 	}
 
 	/**

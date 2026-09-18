@@ -78,10 +78,19 @@ suite('SedFileWriteParser', () => {
 		assert.deepStrictEqual({
 			singleQuoted: parser.extractFileWrites('sed -i \'.bak\' "s/foo/bar/" file.txt'),
 			doubleQuoted: parser.extractFileWrites('sed -i ".bak" "s/foo/bar/" file.txt'),
+			pathSuffix: parser.extractFileWrites('sed -i \'.bak/../../outside/target\' -e "s/foo/bar/" file.txt'),
 		}, {
 			singleQuoted: ['file.txt', 'file.txt.bak'],
 			doubleQuoted: ['file.txt', 'file.txt.bak'],
+			pathSuffix: ['file.txt', 'file.txt.bak/../../outside/target'],
 		});
+	});
+
+	test('does not treat a literal dollar in the sed script as a dynamic option', () => {
+		assert.deepStrictEqual(
+			parser.extractFileWriteDetails('sed -i \'s/$/x/\' file.txt'),
+			[{ path: 'file.txt', hasUnquotedPathExpansion: false }]
+		);
 	});
 
 	test('preserves runtime expansion metadata for file and backup targets', () => {
