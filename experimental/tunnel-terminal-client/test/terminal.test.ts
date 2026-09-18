@@ -110,13 +110,16 @@ test('initializes a PowerShell prompt before forwarding keyboard input', { timeo
 	state.input.write('echo ready\r');
 	assert.ok(state.actions.filter(value => value.type === 'terminal/input').every(value => !text(value.data, 'input').includes('echo ready')));
 	const marker = `\x1b]777;tunnel-prompt;${ack.id};ok\x07`;
-	action(ack.socket, ack.channel, 3, { type: 'terminal/data', data: `setup output\r\n${marker.slice(0, 15)}` });
+	const start = `\x1b]777;tunnel-prompt;${ack.id};start\x07`;
+	action(ack.socket, ack.channel, 3, { type: 'terminal/data', data: `${script}\r\n${start}setup output\r\n${marker.slice(0, 15)}` });
 	action(ack.socket, ack.channel, 4, { type: 'terminal/data', data: `${marker.slice(15)}[my-machine] PS> ` });
 	await raw;
 	state.input.write('\x1d');
 	await done;
 	assert.match(state.output.value, /\[my-machine\] PS> /);
 	assert.doesNotMatch(state.output.value, /\x1b\]777;tunnel-prompt;/);
+	assert.doesNotMatch(state.output.value, /FromBase64String|__tunnel_prompt_preference/);
+	assert.match(state.output.value, /Initializing remote prompt/);
 	assert.ok(state.actions.some(value => value.type === 'terminal/input' && text(value.data, 'input').includes('echo ready')));
 });
 
@@ -129,13 +132,14 @@ test('prompt initialization failure prevents keyboard handoff and disposes the t
 			script += text(value.data, 'input');
 			const id = /\]777;tunnel-prompt;(?<id>[\da-f-]+);error/.exec(script)?.groups?.id;
 			if (id && script.endsWith('\r')) {
-				action(socket, channel, 3, { type: 'terminal/data', data: `setup failed\r\n\x1b]777;tunnel-prompt;${id};error\x07` });
+				action(socket, channel, 3, { type: 'terminal/data', data: `${script}\r\n\x1b]777;tunnel-prompt;${id};start\x07setup failed\r\n\x1b]777;tunnel-prompt;${id};error\x07` });
 			}
 		},
 	});
 	await assert.rejects(runTerminal(state.client, { ...state, tunnelName: 'my-machine' }), /Remote prompt initialization failed/);
 	assert.deepEqual({ raw: state.input.isRaw, lastRequest: state.requests.at(-1) }, { raw: false, lastRequest: 'disposeTerminal' });
 	assert.match(state.output.value, /setup failed/);
+	assert.doesNotMatch(state.output.value, /FromBase64String/);
 });
 
 test('missing prompt acknowledgement times out without forwarding keyboard input', { timeout: 5000 }, async t => {

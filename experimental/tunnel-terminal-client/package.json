@@ -29,6 +29,7 @@
 	"devDependencies": {
 		"@types/node": "^22.0.0",
 		"@types/ws": "^8.18.1",
+		"@xterm/headless": "6.1.0-beta.303",
 		"node-pty": "1.2.0-beta.15",
 		"typescript": "~5.8.3"
 	}

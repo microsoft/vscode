@@ -244,8 +244,14 @@ Each supported shell prompt is prefixed with the selected tunnel's name:
 The client obtains the default shell's executable title from the newly created
 terminal. For PowerShell (`pwsh` or `powershell`) and Bash, it sends a one-time
 encoded initialization command through terminal input. Encoding avoids quoting
-problems; it is not encryption or an attempt to hide code. The command may be
-echoed or recorded in shell history. Other shells get an explicit warning and
+problems; it is not encryption. The setup logic is in
+[promptScripts.ts](src/promptScripts.ts). The command may be
+recorded in shell history, but its echoed text is suppressed during startup.
+The client shows a brief initialization message, then refreshes the pane's
+viewport in sync with the remote shell so the first prefixed prompt is clean.
+This does not erase terminal scrollback. Setup diagnostics after execution starts
+remain visible; if setup never starts, failures include a bounded diagnostic tail
+with long encoded payloads omitted. Other shells get an explicit warning and
 continue without a prefix; the client does not guess their command language.
 
 PowerShell keeps the original prompt and adds a **session-local `wsl` function**.

@@ -259,6 +259,7 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 			promptInitialization = createPromptInitialization(shellTitle, options.tunnelName);
 			client.dispatch(channel, { type: 'terminal/titleChanged', title: 'Standalone Tunnel Terminal' });
 			if (promptInitialization) {
+				write('\r\nInitializing remote prompt...\r\n');
 				sendInput(promptInitialization.command);
 				await deadline(
 					Promise.race([promptInitialization.ready, completion]),
@@ -297,7 +298,7 @@ export async function runTerminal(client: ProtocolClient, options: TerminalOptio
 		removeNotification();
 		removeFailure();
 		try {
-			const pendingPromptOutput = promptInitialization?.flush();
+			const pendingPromptOutput = promptInitialization?.flush(failure !== undefined);
 			promptInitialization?.dispose();
 			promptInitialization = undefined;
 			if (!outputError) {

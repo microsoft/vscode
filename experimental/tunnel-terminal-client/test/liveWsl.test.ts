@@ -8,7 +8,7 @@ import { EventEmitter, once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { connect } from 'node:net';
 import { test } from 'node:test';
-import { stripVTControlCharacters } from 'node:util';
+import xterm from '@xterm/headless';
 import { openSocket } from '../src/tunnel.js';
 import { runTerminal } from '../src/terminal.js';
 import { deadline, record, text } from '../src/wire.js';
@@ -28,10 +28,14 @@ test('opt-in: PowerShell -> WSL Bash -> PowerShell retains the same prompt prefi
 	}
 	const connection = await openSocket(connect(endpoint.port, text(endpoint.host, 'host')), `/?tkn=${encodeURIComponent(text(descriptor.connectionToken, 'connection token'))}`);
 	t.after(() => connection.dispose());
+	const screen = new xterm.Terminal({ cols: 100, rows: 30, scrollback: 1000, allowProposedApi: true });
+	t.after(() => screen.dispose());
 	class ObservedOutput extends Output {
 		override _write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-			super._write(chunk, encoding, callback);
-			this.emit('output');
+			screen.write(chunk, () => {
+				super._write(chunk, encoding, callback);
+				this.emit('output');
+			});
 		}
 	}
 	const input = new Input();
@@ -44,14 +48,22 @@ test('opt-in: PowerShell -> WSL Bash -> PowerShell retains the same prompt prefi
 	void exited.catch(() => { });
 	await deadline(Promise.race([ready, exited]), 'Live prefixed terminal startup');
 
-	async function waitForOutput(pattern: RegExp, from = 0): Promise<void> {
+	function screenText(currentLine = false): string {
+		const buffer = screen.buffer.active;
+		if (currentLine) {
+			return buffer.getLine(buffer.baseY + buffer.cursorY)?.translateToString(true) ?? '';
+		}
+		return Array.from({ length: buffer.length }, (_, i) => buffer.getLine(i)?.translateToString(true) ?? '').join('\n');
+	}
+
+	async function waitForOutput(pattern: RegExp, currentLine = false): Promise<void> {
 		let listener: (() => void) | undefined;
 		try {
 			await deadline(Promise.race([
 				exited,
 				new Promise<void>(resolve => {
 					listener = () => {
-						if (pattern.test(stripVTControlCharacters(output.value.slice(from)))) {
+						if (pattern.test(screenText(currentLine))) {
 							resolve();
 						}
 					};
@@ -60,22 +72,21 @@ test('opt-in: PowerShell -> WSL Bash -> PowerShell retains the same prompt prefi
 				}),
 			]), `Live shell output ${pattern}`);
 		} catch (error) {
-			t.diagnostic(`Last terminal output: ${JSON.stringify(stripVTControlCharacters(output.value).slice(-800))}`);
+			t.diagnostic(`Last rendered terminal: ${JSON.stringify(screenText().slice(-800))}`);
 			throw error;
 		} finally {
 			if (listener) { output.off('output', listener); }
 		}
 	}
 
-	await waitForOutput(/\[tunnel-smoke\][^\r\n]*PS(?: |>)/);
-	const beforeWsl = output.value.length;
+	await waitForOutput(/\[tunnel-smoke\] PS(?: |>)/, true);
 	input.write(`wsl -d ${distro}\r`);
-	await waitForOutput(/\[tunnel-smoke\][^\r\n]*[$#] /, beforeWsl);
-	const beforeProbe = output.value.length;
+	await waitForOutput(/\[tunnel-smoke\][^\r\n]*[$#] /, true);
 	input.write('printf \'\\n__TUNNEL_WSL__%s\\n\' "$WSL_DISTRO_NAME"; exit 0\r');
-	await waitForOutput(/__TUNNEL_WSL__[a-zA-Z0-9._-]+\r?\n/, beforeProbe);
-	await waitForOutput(/\[tunnel-smoke\][^\r\n]*PS(?: |>)/, beforeProbe);
+	await waitForOutput(/__TUNNEL_WSL__[a-zA-Z0-9._-]+\n/);
+	await waitForOutput(/\[tunnel-smoke\] PS(?: |>)/, true);
 	input.write('exit 7\r');
 	assert.equal(await done, 7);
+	assert.doesNotMatch(output.value, /FromBase64String|__tunnel_prompt_preference/);
 	assert.equal(input.isRaw, false);
 });

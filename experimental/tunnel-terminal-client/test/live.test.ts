@@ -42,5 +42,6 @@ test('opt-in: real local agent host initializes a prefixed shell and disposes it
 	assert.equal(await done, 7);
 	assert.match(output.value, /TUNNEL_REAL_HOST_SUCCESS/);
 	assert.match(output.value, /\[tunnel-smoke\]/);
+	assert.doesNotMatch(output.value, /FromBase64String|__tunnel_prompt_preference/);
 	assert.equal(input.isRaw, false);
 });
