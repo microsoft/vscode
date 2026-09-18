@@ -166,20 +166,12 @@ export class ClaudeMapperState {
 		return content;
 	}
 
-	/**
-	 * Drop any cross-message tracking that is still pending at the end
-	 * of a turn. A `tool_use` whose `tool_result` never arrives — model
-	 * misbehavior, transport drop, future cancellation — would otherwise
-	 * survive in the maps for the lifetime of the session and accumulate
-	 * across turns. Called from {@link mapResult} on every `result`
-	 * envelope; warns once per orphan to surface the protocol break.
-	 *
-	 * Phase 12 subagent state lives on {@link SubagentRegistry}, not
-	 * here; the mapper drives that drain via
-	 * `registry.drainForegroundSpawns()` from {@link mapResult}.
-	 */
+	/** Clear tool and message state at turn termination. */
 	clearPendingToolCalls(logService: ILogService): void {
 		this.toolCalls.clearPending(logService);
+		this._activeToolBlocks.clear();
+		this._completedFileEdits.clear();
+		this._currentMessageId = undefined;
 	}
 }
 
@@ -511,6 +503,12 @@ function mapResult(
 	if (isIntermediateResult) {
 		return signals;
 	}
+	clearClaudeTurnState(state, registry, logService);
+	return signals;
+}
+
+/** Clear foreground state when a protocol turn ends or is interrupted. */
+export function clearClaudeTurnState(state: ClaudeMapperState, registry: SubagentRegistry, logService: ILogService): void {
 	state.clearPendingToolCalls(logService);
 	// Phase 12 — drain orphaned subagent-spawning entries (foreground
 	// only; background entries survive across turns by design). The
@@ -518,7 +516,6 @@ function mapResult(
 	for (const orphan of registry.drainForegroundSpawns()) {
 		logService.warn(`[claudeMapSessionEvents] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
 	}
-	return signals;
 }
 
 /**
