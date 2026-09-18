@@ -54,6 +54,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
@@ -735,6 +736,19 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	};
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(IAgentSdkSetupService, {
+		_serviceBrand: undefined,
+		setups: [],
+		onDidChangeSetups: Event.None,
+		requestDownload: () => { },
+		requestDownloadOnUse: () => { },
+		openSetupDocs: () => { },
+		requestReload: () => { },
+		signInToGitHub: () => { },
+		signIn: () => { },
+		isDownloadPending: () => false,
+		reportSetupState: () => { },
+	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -11597,20 +11611,24 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
 		}));
 
-		test('handler resolves authentication before sending to an eager-created session', async () => {
+		test('handler starts the selected SDK download while authentication resolves, then sends once', async () => {
 			const authenticationRequests: ProtectedResourceMetadata[][] = [];
+			const setupSteps: string[] = [];
+			const authentication = new DeferredPromise<boolean>();
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot',
+				provider: 'claude',
 				agentId: 'eager-auth-agent',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Agent Host - Copilot',
+				sessionType: 'agent-host-claude',
+				fullName: 'Claude',
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				startSdkDownloadOnUse: () => setupSteps.push('download:claude'),
 				resolveAuthentication: async protectedResources => {
+					setupSteps.push('signIn');
 					authenticationRequests.push(protectedResources);
-					return true;
+					return authentication.p;
 				},
 			}));
 			const protectedResource: ProtectedResourceMetadata = {
@@ -11622,8 +11640,8 @@ suite('AgentHostChatContribution', () => {
 			};
 			agentHostService.setRootState({
 				agents: [{
-					provider: 'copilot',
-					displayName: 'Agent Host - Copilot',
+					provider: 'claude',
+					displayName: 'Claude',
 					description: 'test',
 					models: [],
 					protectedResources: [protectedResource],
@@ -11631,19 +11649,29 @@ suite('AgentHostChatContribution', () => {
 				activeSessions: 0,
 			});
 
-			const sessionUri = AgentSession.uri('copilot', 'eager-auth');
+			const sessionUri = AgentSession.uri('claude', 'eager-auth');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				...createSessionState({ resource: sessionUri.toString(), provider: 'claude', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
 				lifecycle: SessionLifecycle.Ready,
 				turns: [],
 			});
 
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-auth' });
+			const sessionResource = URI.from({ scheme: 'agent-host-claude', path: '/eager-auth' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
 			const registered = chatAgentService.registeredAgents.get('eager-auth-agent')!;
 			const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'eager-auth-agent', message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(0);
+			assert.deepStrictEqual({
+				setupSteps,
+				turnActionCount: agentHostService.turnActions.length,
+			}, {
+				setupSteps: ['download:claude', 'signIn'],
+				turnActionCount: 0,
+			});
+
+			await authentication.complete(true);
 			await timeout(10);
 			const turnDispatch = agentHostService.turnActions[0];
 			assert.ok(turnDispatch);
@@ -11654,9 +11682,11 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual({
 				authenticationRequests,
+				setupSteps,
 				turnActionCount: agentHostService.turnActions.length,
 			}, {
 				authenticationRequests: [[protectedResource]],
+				setupSteps: ['download:claude', 'signIn'],
 				turnActionCount: 1,
 			});
 		});

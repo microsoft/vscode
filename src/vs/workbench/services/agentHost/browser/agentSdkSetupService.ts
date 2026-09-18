@@ -64,6 +64,9 @@ export interface IAgentSdkSetupService {
 	/** Ask `agent` to fetch its SDK and remember that choice on the Agent Host. */
 	requestDownload(agent: string): void;
 
+	/** Start a missing SDK download while a turn's other prerequisites resolve. */
+	requestDownloadOnUse(agent: string): void;
+
 	/** Open the setup instructions `agent` published, if it published any. */
 	openSetupDocs(agent: string): void;
 
@@ -93,7 +96,8 @@ export interface IAgentSdkSetupService {
 	reportSetupState(agent: string, state: AgentSdkSetupState): void;
 }
 
-class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
+/** Coordinates renderer-side agent SDK setup state and actions. */
+export class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeSetups = this._register(new Emitter<readonly IAgentSdkSetupInfo[]>());
@@ -140,6 +144,14 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 
 	requestDownload(agent: string): void {
 		this._reportStep(agent, 'downloadClicked');
+		this._dispatchDownloadRequest(agent);
+	}
+
+	requestDownloadOnUse(agent: string): void {
+		const download = this._getSetup(agent)?.download;
+		if (download !== 'notDownloaded' && download !== 'downloadOnUse') {
+			return;
+		}
 		this._dispatchDownloadRequest(agent);
 	}
 
@@ -199,6 +211,9 @@ class AgentSdkSetupService extends Disposable implements IAgentSdkSetupService {
 	}
 
 	private _dispatchDownloadRequest(agent: string): void {
+		if (this._pendingRequests.has(agent)) {
+			return;
+		}
 		this._pendingRequests.add(agent);
 		this._dispatchRequest(AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agent);
 		// The statuses are unchanged but {@link isDownloadPending} is not, and

@@ -892,6 +892,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly isNewSession?: (sessionResource: URI) => boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
 	readonly onSessionMaterialized?: (sessionResource: URI) => void;
+	/** Starts a missing local SDK download while the turn resolves its other prerequisites. */
+	readonly startSdkDownloadOnUse?: () => void;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -1856,6 +1858,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
+
+			this._config.startSdkDownloadOnUse?.();
 
 			failureStage = 'provisionalSession';
 			// The chat-input picker may have pre-created a provisional session
