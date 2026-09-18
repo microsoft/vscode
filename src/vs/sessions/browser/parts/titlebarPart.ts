@@ -502,11 +502,11 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 	}
 
 	/** Creates a fixed-title auxiliary window without session or editor actions. */
-	createAuxiliaryWindowTitlebarPart(container: HTMLElement, title: string, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+	createAuxiliaryWindowTitlebarPart(container: HTMLElement, title: string, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
 		return this.createAuxiliaryTitlebar(container, instantiationService, title);
 	}
 
-	private createAuxiliaryTitlebar(container: HTMLElement, instantiationService: IInstantiationService, title?: string): IAuxiliaryTitlebarPart {
+	private createAuxiliaryTitlebar(container: HTMLElement, instantiationService: IInstantiationService, title?: string): TitlebarPart & IAuxiliaryTitlebarPart {
 		const titlebarPartContainer = $('.part.titlebar', { role: 'none' });
 		titlebarPartContainer.style.position = 'relative';
 		container.insertBefore(titlebarPartContainer, container.firstChild);

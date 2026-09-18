@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -31,6 +33,8 @@ import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -80,7 +84,9 @@ import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } fr
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { MANAGE_KANBAN_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { KANBAN_CUSTOM_VIEW_ID, KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, MANAGE_KANBAN_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { IProjectBoardCatalogService, IProjectBoardRecord } from '../../../projectBoard/common/projectBoardCatalog.js';
+import { defaultConfiguration } from '../../../projectBoard/common/projectBoardConfiguration.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -275,7 +281,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
+					override readonly activeCustomView = constObservable(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }));
 				},
 				new class extends mock<IMenuService>() { },
 			);
@@ -298,6 +304,7 @@ suite('Sessions - SessionsList', () => {
 				hasCalendar: template.icon.classList.contains('codicon-calendar'),
 			});
 			const outline = getPresentationSnapshot();
+			assert.ok(template.container.classList.contains('active'));
 
 			badgePresentation.set('unread', undefined);
 			const unread = getPresentationSnapshot();
@@ -325,6 +332,7 @@ suite('Sessions - SessionsList', () => {
 				dismissed,
 				recycledDisplay: template.newBadge.style.display,
 				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
+				recycledActiveClass: template.container.classList.contains('active'),
 			}, {
 				outline: {
 					badgeText: 'New',
@@ -373,6 +381,7 @@ suite('Sessions - SessionsList', () => {
 				},
 				recycledDisplay: 'none',
 				recycledShortcutClass: false,
+				recycledActiveClass: false,
 			});
 		});
 
@@ -873,6 +882,186 @@ suite('Sessions - SessionsList', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual(harness.commandService.calls, [{ commandId: MANAGE_KANBAN_COMMAND_ID, args: [] }]);
+	});
+
+	suite('Agents Hub boards', () => {
+		function createBoardList(enabled = true, canEdit = true) {
+			const session = createTestSession('Ordinary session').session;
+			const boards = observableValue<readonly IProjectBoardRecord[]>('boards', [
+				{ id: 'one', name: 'First board', configuration: defaultConfiguration() },
+				{ id: 'two', name: 'Second board', configuration: defaultConfiguration() },
+			]);
+			const selectedBoardId = observableValue<string | undefined>('selectedBoard', 'one');
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('activeView', undefined);
+			let contextMenu: IContextMenuDelegate | undefined;
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+				ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService)).set(enabled);
+				instantiationService.stub(IProjectBoardCatalogService, new class extends mock<IProjectBoardCatalogService>() {
+					override readonly boards = boards;
+					override readonly selectedBoardId = selectedBoardId;
+					override readonly canEdit = canEdit;
+					override selectBoard(boardId: string): void { selectedBoardId.set(boardId, undefined); }
+				});
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+					override showCustomView(id: string): void {
+						activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id }), undefined);
+					}
+				});
+				instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override readonly onDidShowContextMenu = Event.None;
+					override readonly onDidHideContextMenu = Event.None;
+					override showContextMenu(delegate: IContextMenuDelegate): void { contextMenu = delegate; }
+				});
+			});
+			const container = harness.createContainer(400, 600);
+			const opened: URI[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: session => { opened.push(session); },
+			}));
+			list.layout(600, 400);
+			const row = (label: string) => {
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.getAttribute('aria-label') === label);
+				assert.ok(row, `Missing row: ${label}`);
+				return row;
+			};
+			const click = (target: HTMLElement) => {
+				target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				target.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			};
+			return { harness, container, list, boards, selectedBoardId, activeCustomView, session, opened, row, click, getContextMenu: () => contextMenu };
+		}
+
+		test('renders nested boards, persists collapse, and keeps label activation separate', async () => {
+			const { list, harness, container, row, click } = createBoardList();
+			assert.strictEqual(row('Agents Hub').getAttribute('aria-expanded'), 'true');
+			assert.strictEqual(row('First board, board').getAttribute('aria-level'), '2');
+			assert.strictEqual(row('Second board, board').getAttribute('aria-level'), '2');
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-chevron')!);
+			assert.strictEqual(row('Agents Hub').getAttribute('aria-expanded'), 'false');
+			assert.strictEqual(container.querySelector('.project-board-item'), null);
+			assert.deepStrictEqual(harness.commandService.calls, []);
+			list.update();
+			assert.strictEqual(row('Agents Hub').getAttribute('aria-expanded'), 'false');
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-label')!);
+			await Promise.resolve();
+			assert.deepStrictEqual(harness.commandService.calls, [{ commandId: MANAGE_KANBAN_COMMAND_ID, args: [] }]);
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-chevron')!);
+			assert.ok(row('First board, board'));
+		});
+
+		test('routes click and keyboard activation by board ID and New Board without arguments', async () => {
+			const { harness, list, row, click, opened } = createBoardList();
+			click(row('Second board, board'));
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			const tree = list['tree'];
+			const first = tree.getNode().children.find(node => node.element && hasKey(node.element, { id: true }) && node.element.id === 'kanban')!.children[0].element!;
+			tree.setFocus([first]);
+			tree.setSelection([first], getSelectionKeyboardEvent('keydown', true));
+			click(row('New Board'));
+			await Promise.resolve();
+			assert.deepStrictEqual(harness.commandService.calls, [
+				{ commandId: MANAGE_KANBAN_COMMAND_ID, args: ['two'] },
+				{ commandId: MANAGE_KANBAN_COMMAND_ID, args: ['one'] },
+				{ commandId: KANBAN_NEW_BOARD_COMMAND_ID, args: [] },
+			]);
+			assert.deepStrictEqual(opened, []);
+			assert.deepStrictEqual(list.getFocusedSessions(), []);
+			assert.deepStrictEqual(harness.managementService.readSessions, []);
+		});
+
+		test('board context menus route the clicked board rather than the selected board', async () => {
+			const { harness, row, getContextMenu } = createBoardList();
+			row('Second board, board').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			const actions = getContextMenu()!.getActions();
+			assert.deepStrictEqual(actions.map(action => action.id), [KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID]);
+			for (const action of actions) {
+				await action.run();
+			}
+			assert.deepStrictEqual(harness.commandService.calls, actions.map(action => ({ commandId: action.id, args: ['two'] })));
+			row('Agents Hub').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			await getContextMenu()!.getActions()[0].run();
+			assert.deepStrictEqual(harness.commandService.calls.at(-1), { commandId: KANBAN_NEW_BOARD_COMMAND_ID, args: [] });
+		});
+
+		test('reacts to selection and external board changes without changing sessions', () => {
+			const { harness, container, boards, selectedBoardId, activeCustomView, row } = createBoardList();
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: KANBAN_CUSTOM_VIEW_ID }), undefined);
+			assert.ok(row('First board, board').querySelector('.project-board-item.active'));
+			selectedBoardId.set('two', undefined);
+			assert.ok(row('Second board, board').querySelector('.project-board-item.active'));
+			assert.strictEqual(row('First board, board').querySelector('.project-board-item.active'), null);
+			const sessionLabels = [...container.querySelectorAll('.session-item .session-title')].map(element => element.textContent);
+			assert.deepStrictEqual(sessionLabels, ['Ordinary session']);
+			boards.set([{ ...boards.get()[1], name: 'Renamed externally' }, { id: 'three', name: 'Added externally', configuration: defaultConfiguration() }], undefined);
+			assert.ok(row('Renamed externally, board').querySelector('.project-board-item.active'));
+			assert.ok(row('Added externally, board'));
+			assert.deepStrictEqual([...container.querySelectorAll('.project-board-item-label')].map(element => element.textContent), ['Renamed externally', 'Added externally', 'New Board']);
+			assert.deepStrictEqual([...container.querySelectorAll('.session-item .session-title')].map(element => element.textContent), sessionLabels);
+			assert.deepStrictEqual(harness.managementService.readSessions, []);
+			assert.deepStrictEqual(harness.sortChanges, []);
+			activeCustomView.set(undefined, undefined);
+			assert.strictEqual(container.querySelector('.project-board-item.active'), null);
+		});
+
+		test('only the current board has an active background, not its Agents Hub group', () => {
+			const { container, list, selectedBoardId, activeCustomView, row, click } = createBoardList();
+			const selectionColor = 'rgb(12, 34, 56)';
+			container.style.setProperty('--vscode-list-inactiveSelectionBackground', selectionColor);
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: KANBAN_CUSTOM_VIEW_ID }), undefined);
+			for (const [id, label] of [['one', 'First board'], ['two', 'Second board'], ['one', 'First board']]) {
+				click(row(`${label}, board`));
+				selectedBoardId.set(id, undefined);
+				list.update();
+				const highlighted = [...container.querySelectorAll<HTMLElement>('.project-board-section, .project-board-item')]
+					.filter(element => mainWindow.getComputedStyle(element).backgroundColor === selectionColor);
+				assert.strictEqual(highlighted.length, 1, 'The group header must not look like a second selected item');
+				assert.strictEqual(highlighted[0].querySelector('.project-board-item-label')?.textContent, label);
+				assert.strictEqual(highlighted[0].getAttribute('aria-current'), 'page');
+				assert.strictEqual(row('Agents Hub').querySelector('.session-section.active'), null);
+			}
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-chevron')!);
+			assert.strictEqual(row('Agents Hub').querySelector('.session-section.active'), null);
+			click(row('Agents Hub').querySelector<HTMLElement>('.session-section-chevron')!);
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
+			assert.strictEqual(container.querySelector('.project-board-item.active'), null);
+			assert.strictEqual(container.querySelector('.project-board-section.active'), null);
+		});
+
+		test('AI gating updates dynamically and embedded flat lists never render Hub navigation', () => {
+			const { harness, container, session } = createBoardList(false);
+			assert.strictEqual(container.querySelector('.project-board-section'), null);
+			const enabled = ChatContextKeys.enabled.bindTo(harness.instantiationService.get(IContextKeyService));
+			enabled.set(true);
+			assert.ok(container.querySelector('.project-board-section'));
+			enabled.set(false);
+			assert.strictEqual(container.querySelector('.project-board-item'), null);
+			const flatContainer = harness.createContainer();
+			const flat = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, flatContainer, { onSessionOpen: () => { } }));
+			flat.setSessions([session]);
+			flat.layout(300, 400);
+			assert.strictEqual(flatContainer.querySelector('.project-board-section, .project-board-item'), null);
+		});
+
+		test('read-only catalog omits creation and disables board mutations', () => {
+			const { container, row, getContextMenu } = createBoardList(true, false);
+			assert.deepStrictEqual([...container.querySelectorAll('.project-board-item-label')].map(element => element.textContent), ['First board', 'Second board']);
+			row('First board, board').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			assert.deepStrictEqual(getContextMenu()!.getActions().map(action => action.enabled), [true, false, false]);
+		});
+
+		test('Manage Agents Hub selects explicit boards before opening and preserves current selection without an ID', async () => {
+			const { harness, selectedBoardId, activeCustomView } = createBoardList();
+			const command = CommandsRegistry.getCommand(MANAGE_KANBAN_COMMAND_ID)!;
+			await harness.instantiationService.invokeFunction(accessor => command.handler(accessor, 'two'));
+			assert.strictEqual(selectedBoardId.get(), 'two');
+			assert.strictEqual(activeCustomView.get()?.id, KANBAN_CUSTOM_VIEW_ID);
+			await harness.instantiationService.invokeFunction(accessor => command.handler(accessor));
+			assert.strictEqual(selectedBoardId.get(), 'two');
+		});
 	});
 
 	suite('collapsed section status indicators', () => {

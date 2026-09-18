@@ -109,7 +109,8 @@ import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { KANBAN_CUSTOM_VIEW_ID, KANBAN_SECTION_ID, MANAGE_KANBAN_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { KANBAN_CUSTOM_VIEW_ID, KANBAN_SECTION_ID, MANAGE_KANBAN_COMMAND_ID, KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { IProjectBoardCatalogService } from '../../../projectBoard/common/projectBoardCatalog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 const $ = DOM.$;
@@ -220,7 +221,18 @@ export class SessionChatItem {
 
 export type ISessionChatItem = SessionChatItem;
 
-export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
+interface IProjectBoardListItem {
+	readonly projectBoard: true;
+	/** Undefined identifies the New Board action, not a session. */
+	readonly boardId?: string;
+	readonly label: string;
+}
+
+export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder | IProjectBoardListItem;
+
+function isProjectBoardListItem(item: SessionListItem): item is IProjectBoardListItem {
+	return 'projectBoard' in item;
+}
 
 function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 	return item instanceof SessionChatItem;
@@ -313,7 +325,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID || sectionId === KANBAN_SECTION_ID;
+	return sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID;
 }
 
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
@@ -325,7 +337,7 @@ function isSessionPlaceholder(item: SessionListItem): item is ISessionPlaceholde
 }
 
 function isSessionItem(item: SessionListItem): item is ISession {
-	return !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
+	return !isProjectBoardListItem(item) && !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
 }
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
@@ -396,6 +408,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getHeight(element: SessionListItem, reader?: IReader): number {
+		if (isProjectBoardListItem(element)) {
+			return this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
+		}
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
 			if (!this._isCompact() && getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader))) {
@@ -477,6 +492,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getTemplateId(element: SessionListItem): string {
+		if (isProjectBoardListItem(element)) {
+			return ProjectBoardItemRenderer.TEMPLATE_ID;
+		}
 		if (isSessionChatItem(element)) {
 			return SessionChatItemRenderer.TEMPLATE_ID;
 		}
@@ -584,6 +602,66 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			this.sourceContainer = undefined;
 		}
 		this.restoreHeader(template);
+		template.disposables.dispose();
+	}
+}
+
+//#endregion
+
+//#region Project Board Item Renderer
+
+interface IProjectBoardItemTemplate {
+	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly label: HTMLElement;
+	readonly disposables: DisposableStore;
+}
+
+class ProjectBoardItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, IProjectBoardItemTemplate> {
+	static readonly TEMPLATE_ID = 'project-board-item';
+	readonly templateId = ProjectBoardItemRenderer.TEMPLATE_ID;
+
+	constructor(
+		private readonly catalog: IProjectBoardCatalogService,
+		private readonly customViewService: ICustomViewService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IProjectBoardItemTemplate {
+		container.classList.add('project-board-item');
+		return {
+			container,
+			icon: DOM.append(container, $('span.project-board-item-icon')),
+			label: DOM.append(container, $('span.project-board-item-label')),
+			disposables: new DisposableStore(),
+		};
+	}
+
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: IProjectBoardItemTemplate): void {
+		template.disposables.clear();
+		const element = node.element;
+		if (!isProjectBoardListItem(element)) {
+			return;
+		}
+		template.label.textContent = element.label;
+		template.icon.className = `project-board-item-icon ${ThemeIcon.asClassName(element.boardId === undefined ? Codicon.add : Codicon.layout)}`;
+		template.disposables.add(autorun(reader => {
+			const active = element.boardId !== undefined
+				&& this.catalog.selectedBoardId.read(reader) === element.boardId
+				&& this.customViewService.activeCustomView.read(reader)?.id === KANBAN_CUSTOM_VIEW_ID;
+			template.container.classList.toggle('active', active);
+			if (active) {
+				template.container.setAttribute('aria-current', 'page');
+			} else {
+				template.container.removeAttribute('aria-current');
+			}
+		}));
+	}
+
+	disposeElement(_element: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: IProjectBoardItemTemplate): void {
+		template.disposables.clear();
+	}
+
+	disposeTemplate(template: IProjectBoardItemTemplate): void {
 		template.disposables.dispose();
 	}
 }
@@ -2036,6 +2114,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
+		private readonly toggleBoardSection?: (section: ISessionSection) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2113,8 +2192,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
-		template.container.classList.remove('session-section-shortcut');
-		template.container.classList.remove('active');
+		template.container.classList.remove('session-section-shortcut', 'active');
 		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
@@ -2140,6 +2218,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				} else {
 					row?.removeAttribute('aria-current');
 				}
+			}));
+		}
+		template.container.classList.toggle('project-board-section', element.id === KANBAN_SECTION_ID);
+		if (element.id === KANBAN_SECTION_ID && this.toggleBoardSection) {
+			template.elementDisposables.add(DOM.addDisposableListener(template.chevron, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.toggleBoardSection?.(element);
 			}));
 		}
 
@@ -2180,11 +2266,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			}));
 		} else {
 			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
-			if (element.id === KANBAN_SECTION_ID) {
-				template.elementDisposables.add(autorun(reader => {
-					template.container.classList.toggle('active', this.customViewService.activeCustomView.read(reader)?.id === KANBAN_CUSTOM_VIEW_ID);
-				}));
-			}
 		}
 
 		template.label.textContent = element.label;
@@ -2521,6 +2602,9 @@ class SessionsAccessibilityProvider {
 	}
 
 	getAriaLabel(element: SessionListItem): string | IObservable<string> | null {
+		if (isProjectBoardListItem(element)) {
+			return element.boardId === undefined ? element.label : localize('projectBoardAria', "{0}, board", element.label);
+		}
 		if (isSessionChatItem(element)) {
 			return derived(this, reader => {
 				const title = getChatTitle(element.chat, reader);
@@ -2711,6 +2795,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	getDragURI(element: SessionListItem): string | null {
+		if (isProjectBoardListItem(element)) {
+			return null;
+		}
 		if (isSessionGroupItem(element)) {
 			return `sessionGroup:${element.group.id}`;
 		}
@@ -3321,6 +3408,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService editorService: IEditorService,
+		@IProjectBoardCatalogService private readonly projectBoardCatalogService: IProjectBoardCatalogService,
 	) {
 		super();
 		if ((this.options.sessionsHeader === undefined) !== (this.options.sessionsHeaderContainer === undefined)) {
@@ -3475,6 +3563,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationsActive,
 			templateId,
 			rowClassName,
+			section => this.tree.toggleCollapsed(section),
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -3524,6 +3613,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				groupRenderer,
 				showMoreRenderer,
 				placeholderRenderer,
+				new ProjectBoardItemRenderer(this.projectBoardCatalogService, this.customViewService),
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(shortcutSectionRenderer.automationStatus, {
@@ -3555,6 +3645,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
+						if (isProjectBoardListItem(element)) {
+							return element.boardId === undefined ? 'project-board:new' : `project-board:id:${element.boardId}`;
+						}
 						if (isSessionGroupItem(element)) {
 							return `group:${element.group.id}`;
 						}
@@ -3573,11 +3666,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 						return element.resource.toString();
 					},
 					getGroupId: (element: SessionListItem) => {
+						if (isProjectBoardListItem(element)) {
+							return 4;
+						}
 						if (isSessionGroupItem(element)) {
 							return NotSelectableGroupId;
 						}
 						if (isSessionSection(element)) {
-							return NotSelectableGroupId;
+							return element.id === KANBAN_SECTION_ID ? 4 : NotSelectableGroupId;
 						}
 						if (isSessionShowMore(element)) {
 							return NotSelectableGroupId;
@@ -3597,7 +3693,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				multipleSelectionSupport: true,
 				allowNonCollapsibleParents: true,
 				enableStickyScroll: true,
-				expandOnlyOnTwistieClick: element => isSessionItem(element),
+				expandOnlyOnTwistieClick: element => isSessionItem(element) || (isSessionSection(element) && element.id === KANBAN_SECTION_ID),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				findWidgetContainer: this.options.findWidgetContainer,
@@ -3610,6 +3706,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (element: SessionListItem) => {
+						if (isProjectBoardListItem(element)) {
+							return element.label;
+						}
 						if (isSessionGroupItem(element)) {
 							return element.group.name;
 						}
@@ -3694,6 +3793,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!element) {
 				return;
 			}
+			if (isProjectBoardListItem(element)) {
+				this.tree.setSelection([]);
+				if (element.boardId === undefined) {
+					await this.commandService.executeCommand(KANBAN_NEW_BOARD_COMMAND_ID);
+				} else {
+					await this.commandService.executeCommand(MANAGE_KANBAN_COMMAND_ID, element.boardId);
+				}
+				return;
+			}
 			if (isSessionShowMore(element)) {
 				if (element.kind === 'folders') {
 					this.expandedMoreFolders = element.mode === 'more';
@@ -3776,7 +3884,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the `IsPhoneLayoutContext` reactive signal already maintained by
 		// the agents workbench.
 		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
-		const automationKeys = new Set<string>([ChatAutomationsEnabledContext.key]);
+		const automationKeys = new Set<string>([ChatAutomationsEnabledContext.key, ChatContextKeys.enabled.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(automationKeys)) {
 				this.update();
@@ -3917,6 +4025,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.refresh();
 		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
+		this._register(autorun(reader => {
+			this.projectBoardCatalogService.boards.read(reader);
+			this.update();
+		}));
 	}
 
 	/**
@@ -4148,6 +4260,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
+			if (section.id === KANBAN_SECTION_ID) {
+				const boards: IObjectTreeElement<SessionListItem>[] = this.projectBoardCatalogService.boards.get().map(board => ({
+					element: { projectBoard: true as const, boardId: board.id, label: board.name },
+				}));
+				if (this.projectBoardCatalogService.canEdit) {
+					boards.push({ element: { projectBoard: true, label: localize('newBoard', "New Board") } });
+				}
+				return {
+					element: section,
+					children: boards,
+					collapsible: true,
+					collapsed: this.getSavedCollapseState(section.id) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
+				};
+			}
 			if (isShortcutSection(section.id)) {
 				return {
 					element: section as SessionListItem,
@@ -4993,6 +5119,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
+		if (element && (isProjectBoardListItem(element) || isSessionSection(element) && element.id === KANBAN_SECTION_ID)) {
+			const boardId = isProjectBoardListItem(element) ? element.boardId : undefined;
+			const actions: IAction[] = boardId === undefined ? [] : [
+				toAction({ id: KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, label: localize('openBoardWindow', "Open in New Window"), run: () => this.commandService.executeCommand(KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, boardId) }),
+				toAction({ id: KANBAN_RENAME_BOARD_COMMAND_ID, label: localize('renameBoard', "Rename Board"), enabled: this.projectBoardCatalogService.canEdit, run: () => this.commandService.executeCommand(KANBAN_RENAME_BOARD_COMMAND_ID, boardId) }),
+				toAction({ id: KANBAN_DELETE_BOARD_COMMAND_ID, label: localize('deleteBoard', "Delete Board"), enabled: this.projectBoardCatalogService.canEdit, run: () => this.commandService.executeCommand(KANBAN_DELETE_BOARD_COMMAND_ID, boardId) }),
+			];
+			if (boardId === undefined && this.projectBoardCatalogService.canEdit) {
+				actions.push(toAction({ id: KANBAN_NEW_BOARD_COMMAND_ID, label: localize('newBoard', "New Board"), run: () => this.commandService.executeCommand(KANBAN_NEW_BOARD_COMMAND_ID) }));
+			}
+			if (actions.length) {
+				this.contextMenuService.showContextMenu({ getAnchor: () => e.anchor, getActions: () => actions });
+			}
+			return;
+		}
 		if (element && isSessionChatItem(element)) {
 			this.showChatContextMenu(element, e.anchor);
 			return;

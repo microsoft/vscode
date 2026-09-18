@@ -46,6 +46,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { KANBAN_CUSTOM_VIEW_ID, MANAGE_KANBAN_COMMAND_ID } from '../../../../common/projectBoard.js';
+import { IProjectBoardCatalogService } from '../../../projectBoard/common/projectBoardCatalog.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
@@ -1425,7 +1426,10 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 					menu: []
 				});
 			}
-			override run(accessor: ServicesAccessor): void {
+			override run(accessor: ServicesAccessor, boardId?: string): void {
+				if (boardId !== undefined) {
+					accessor.get(IProjectBoardCatalogService).selectBoard(boardId);
+				}
 				accessor.get(ICustomViewService).showCustomView(KANBAN_CUSTOM_VIEW_ID);
 			}
 		});
