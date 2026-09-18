@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -16,6 +16,9 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { MessageKind } from '../../common/state/protocol/channels-chat/state.js';
+import { withMessageRequestHiddenFromTranscript } from '../../common/state/sessionState.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
@@ -244,6 +247,8 @@ export class ClaudeSdkPipeline extends Disposable {
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
 
 	private readonly _router: ClaudeSdkMessageRouter;
+
+	private _sdkInitiatedTurn: { turnId: string; stopWatch: StopWatch } | undefined;
 
 	constructor(
 		readonly sessionId: string,
@@ -521,8 +526,48 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 	}
 
+	private _adoptSdkTurn(message: SDKMessage): void {
+		if (!this._queue.isEmpty || (message.type !== 'assistant' && message.type !== 'stream_event') || message.parent_tool_use_id !== null) {
+			return;
+		}
+		const turnId = `request_${generateUuid()}`;
+		if (!this._queue.adoptUnsolicited(turnId)) {
+			return;
+		}
+		this._sdkInitiatedTurn = { turnId, stopWatch: StopWatch.create(false) };
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: new Date().toISOString(),
+				message: withMessageRequestHiddenFromTranscript({ text: '', origin: { kind: MessageKind.SystemNotification } }, true),
+			},
+		});
+	}
+
+	private _cancelSdkTurn(): void {
+		const turn = this._sdkInitiatedTurn;
+		if (!turn) {
+			return;
+		}
+		this._sdkInitiatedTurn = undefined;
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: { type: ActionType.ChatTurnCancelled, turnId: turn.turnId, duration: Math.max(0, turn.stopWatch.elapsed()) },
+		});
+	}
+
+	override dispose(): void {
+		this._cancelSdkTurn();
+		super.dispose();
+	}
+
 	private _wireAbortHandler(controller: AbortController): void {
 		controller.signal.addEventListener('abort', () => {
+			this._cancelSdkTurn();
 			this._queue.notifyAborted();
 		}, { once: true });
 	}
@@ -676,6 +721,7 @@ export class ClaudeSdkPipeline extends Disposable {
 						this._isResumed = true;
 					}
 				}
+				this._adoptSdkTurn(message);
 				const parent = this._queue.peekParent();
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
@@ -696,6 +742,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					// Intermediate result (still pending entries from a
 					// steering preempt) does NOT fire ChatTurnComplete.
 					if (completed && this._queue.isEmpty) {
+						this._sdkInitiatedTurn = undefined;
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							resource: this.chatChannelUri,
@@ -728,6 +775,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
+				this._cancelSdkTurn();
 				this._queue.failAll(fatal);
 				this._needsRebind = true;
 			}

@@ -51,8 +51,9 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { ActionType, isChatAction } from '../../common/state/sessionActions.js';
+import { chatReducer } from '../../common/state/protocol/channels-chat/reducer.js';
+import { createChatState, TurnState, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -11121,3 +11122,110 @@ suite('ClaudeAgent — host seams', () => {
 });
 
 // #endregion
+
+suite('ClaudeAgent — SDK-initiated turns', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const canonicalFirst of [false, true]) {
+		test(`background continuation reaches completed chat state (canonicalFirst=${canonicalFirst})`, async () => {
+			const { agent, sdk } = createTestContext(disposables);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+			const sid = created.sdkSessionId;
+			const chat = defaultChatUri(created.session);
+			let state = createChatState({ resource: chat.toString(), title: 'Test', status: SessionStatus.Idle, modifiedAt: new Date().toISOString() });
+			state = chatReducer(state, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(), message: { text: 'inspect', origin: { kind: MessageKind.User } } });
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.resource.toString() === chat.toString() && isChatAction(signal.action)) {
+					state = chatReducer(state, signal.action);
+				}
+			}));
+			const finished = new DeferredPromise<void>();
+			sdk.nextQueryMessages = [
+				makeSystemInitMessage(sid),
+				makeResultSuccess(sid),
+				...(canonicalFirst ? [makeAssistantMessage(sid, [])] : []),
+				makeStreamEvent(sid, makeMessageStart()),
+				makeStreamEvent(sid, makeContentBlockStartText(0)),
+				makeStreamEvent(sid, makeTextDelta(0, 'background done')),
+				makeStreamEvent(sid, makeContentBlockStop(0)),
+				makeStreamEvent(sid, makeMessageStop()),
+				makeResultSuccess(sid),
+			];
+			sdk.queryAdvance = async index => { if (index === sdk.nextQueryMessages.length) { finished.complete(); } };
+			await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+			await finished.p;
+
+			assert.strictEqual(state.turns.length, 2);
+			const resumed = state.turns[1];
+			assert.notStrictEqual(resumed.id, 'turn-1');
+			assert.strictEqual(resumed.message.origin?.kind, MessageKind.SystemNotification);
+			assert.strictEqual(resumed.state, TurnState.Complete);
+			assert.ok(resumed.responseParts.some(part => part.kind === ResponsePartKind.Markdown && part.content === 'background done'));
+			assert.strictEqual(state.activeTurn, undefined);
+		});
+	}
+
+	for (const ending of ['abort', 'stream failure'] as const) {
+		test(`SDK-initiated turn closes on ${ending}`, async () => {
+			const { agent, sdk } = createTestContext(disposables);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+			const sid = created.sdkSessionId;
+			const chat = defaultChatUri(created.session);
+			const ready = new DeferredPromise<void>();
+			const advance = new DeferredPromise<void>();
+			const cancelled = new DeferredPromise<void>();
+			let startedTurnId: string | undefined;
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind !== 'action') {
+					return;
+				}
+				if (signal.action.type === ActionType.ChatTurnStarted) {
+					startedTurnId = signal.action.turnId;
+				}
+				if (signal.action.type === ActionType.ChatTurnCancelled && signal.action.turnId === startedTurnId) {
+					cancelled.complete();
+				}
+			}));
+			sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), makeStreamEvent(sid, makeMessageStart())];
+			sdk.queryAdvance = async index => {
+				if (index === 3) {
+					ready.complete();
+					await advance.p;
+					if (ending === 'stream failure') {
+						throw new Error('stream failed');
+					}
+				}
+			};
+			await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+			await ready.p;
+			assert.ok(startedTurnId);
+			if (ending === 'abort') {
+				await agent.chats.abort(chat, chatContext(chat));
+			}
+			advance.complete();
+			await cancelled.p;
+		});
+	}
+
+	test('idle subagent output does not start a parent turn', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sid = created.sdkSessionId;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid), makeResultSuccess(sid),
+			{ ...makeAssistantMessage(sid, []), parent_tool_use_id: 'child-1' },
+			{ ...makeStreamEvent(sid, makeMessageStart()), parent_tool_use_id: 'child-1' },
+		];
+		const finished = new DeferredPromise<void>();
+		sdk.queryAdvance = async index => { if (index === sdk.nextQueryMessages.length) { finished.complete(); } };
+		const chat = defaultChatUri(created.session);
+		await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await finished.p;
+		assert.ok(!signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted));
+	});
+});

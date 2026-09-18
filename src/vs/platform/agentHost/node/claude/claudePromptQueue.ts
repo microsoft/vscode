@@ -30,6 +30,8 @@ export interface IPendingSdkMessage {
 	readonly steeringPendingId?: string;
 }
 
+type PendingSdkTurn = Omit<IPendingSdkMessage, 'sdkMessage'>;
+
 /**
  * Owns the prompt queue + the async iterable handed to
  * `WarmQuery.query()`. Knows nothing about the SDK Query lifecycle,
@@ -50,7 +52,7 @@ export interface IPendingSdkMessage {
 export class ClaudePromptQueue extends Disposable {
 
 	private _toYield: IPendingSdkMessage[] = [];
-	private _yielded: IPendingSdkMessage[] = [];
+	private _yielded: PendingSdkTurn[] = [];
 	/**
 	 * Entries that have been popped by {@link settleHead} during the
 	 * current turn but whose deferreds haven't been completed yet — we
@@ -58,7 +60,7 @@ export class ClaudePromptQueue extends Disposable {
 	 * `result` (steering preempt; CONTEXT.md M10) does NOT settle the
 	 * original `sendMessage`'s deferred.
 	 */
-	private _popped: IPendingSdkMessage[] = [];
+	private _popped: PendingSdkTurn[] = [];
 	private _pendingPromptDeferred = new DeferredPromise<void>();
 
 	readonly iterable: AsyncIterable<SDKUserMessage> = {
@@ -108,12 +110,38 @@ export class ClaudePromptQueue extends Disposable {
 	}
 
 	/**
+	 * Register a turn the SDK started on its own — one the client never
+	 * sent (e.g. the model resuming after a background task finishes).
+	 * Seeds an in-flight entry so {@link peekParent} tags the turn's actions
+	 * with `turnId` and {@link settleHead} fires its completion on `result`.
+	 * The entry goes straight onto the yielded list, never `_toYield`, so
+	 * nothing is handed to the SDK. No-op (returns false) if a turn is
+	 * already in flight.
+	 */
+	adoptUnsolicited(turnId: string): boolean {
+		if (this._toYield.length > 0 || this._yielded.length > 0) {
+			return false;
+		}
+		const deferred = new DeferredPromise<void>();
+		// Nobody awaits this deferred; swallow a failAll rejection (abort/crash)
+		// so it doesn't surface as an unhandled rejection.
+		deferred.p.catch(() => { /* expected on abort/crash */ });
+		this._yielded.push({
+			sdkUuid: turnId,
+			turnId,
+			stopWatch: StopWatch.create(false),
+			deferred,
+		});
+		return true;
+	}
+
+	/**
 	 * Most-recent in-flight or queued entry, used by steering to inherit
 	 * its parent's `turnId`. Prefers the in-flight head over the latest
 	 * queued entry (matches CONTEXT.md M10: steering folds into the
 	 * in-progress protocol Turn).
 	 */
-	peekParent(): IPendingSdkMessage | undefined {
+	peekParent(): PendingSdkTurn | undefined {
 		return this._yielded[0] ?? this._toYield[this._toYield.length - 1];
 	}
 
@@ -125,7 +153,7 @@ export class ClaudePromptQueue extends Disposable {
 	 * until the turn ends — the M10 invariant for steering preempt.
 	 * Called by the consumer on every `result` message.
 	 */
-	settleHead(): IPendingSdkMessage | undefined {
+	settleHead(): PendingSdkTurn | undefined {
 		const completed = this._yielded.shift();
 		if (!completed) {
 			return undefined;
@@ -146,7 +174,7 @@ export class ClaudePromptQueue extends Disposable {
 
 	/** Reject every pending deferred with `err` and clear all lists. */
 	failAll(err: Error): void {
-		const rejectAll = (list: IPendingSdkMessage[]) => {
+		const rejectAll = (list: PendingSdkTurn[]) => {
 			for (const entry of list) {
 				if (!entry.deferred.isSettled) {
 					entry.deferred.error(err);
