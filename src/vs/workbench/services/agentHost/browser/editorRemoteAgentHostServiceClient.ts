@@ -17,6 +17,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import type { IAgentSessionSearchResult } from '../../../../platform/agentHost/common/agentHostSessionSearch.js';
+import type { ISessionSemanticRequest, ISessionSemanticResult } from '../../../../platform/agentHost/common/sessionSemanticSearch.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -233,6 +235,22 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._requireClient().getSessionStateFile(session, chat);
+	}
+
+	searchSessionHistory(session: URI, query: string): Promise<IAgentSessionSearchResult> {
+		return this._requireClient().searchSessionHistory(session, query);
+	}
+
+	supportsSessionHistorySearch(): Promise<boolean> {
+		return this._requireClient().supportsSessionHistorySearch();
+	}
+
+	supportsSessionSemanticSearch(): Promise<boolean> {
+		return this._requireClient().supportsSessionSemanticSearch();
+	}
+
+	sessionSemanticSearch(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult> {
+		return this._requireClient().sessionSemanticSearch(session, request);
 	}
 
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

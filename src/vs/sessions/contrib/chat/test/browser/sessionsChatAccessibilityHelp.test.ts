@@ -20,6 +20,38 @@ import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessi
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents saved session content search and keyboard navigation', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const help = provider.provideContent();
+		assert.deepStrictEqual({
+			command: help.includes('Chat: Search Agent Session Content (Preview)'),
+			button: help.includes('search button in the Sessions toolbar'),
+			titleFilter: help.includes('Sessions: Find Session by Title'),
+			scope: help.includes('all projects on connected hosts and includes archived sessions'),
+			accept: help.includes('press Enter to open its chat at the matching message'),
+			cancel: help.includes('Escape returns focus'),
+			semantic: help.includes('uses keywords by default'),
+			semanticKeyboard: help.includes('Use Tab or Shift+Tab to reach Enable Semantic Search, the sparkle toggle, and press Enter or Space'),
+			consent: help.includes('confirm before your queries and saved user and assistant messages across all projects on connected hosts are sent'),
+			decline: help.includes('Cancel sends nothing to the provider'),
+			revoke: help.includes('closing search or changing the workspace revokes it'),
+			incomplete: help.includes('incomplete semantic coverage'),
+			fallback: help.includes('falls back to keyword results'),
+			title: help.includes('title identifies Keyword or Keyword and Semantic mode'),
+			cost: help.includes('may take time and use the provider\'s quota'),
+			budget: help.includes('at most 2048 document chunks across all sessions, plus one query embedding'),
+			cache: help.includes('Unchanged cached chunks are not re-embedded'),
+			budgetExhausted: help.includes('When the budget is exhausted, search still uses cached vectors'),
+		}, { command: true, button: true, titleFilter: true, scope: true, accept: true, cancel: true, semantic: true, semanticKeyboard: true, consent: true, decline: true, revoke: true, incomplete: true, fallback: true, title: true, cost: true, budget: true, cache: true, budgetExhausted: true });
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();

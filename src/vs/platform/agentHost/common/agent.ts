@@ -14,6 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentChatSearchResult } from './agentHostSessionSearch.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -1200,6 +1201,9 @@ export interface IAgent {
 
 	/** Exact-chat operations: create, send, abort, mutate, restore history, release, and dispose. */
 	readonly chats: IAgentChats;
+
+	/** Search the persisted, user-visible history of an exact chat without materializing it. */
+	searchChatHistory?(chat: URI, context: IAgentChatContext, providerData: string | undefined, query: string): Promise<IAgentChatSearchResult>;
 
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;

@@ -1682,6 +1682,42 @@ suite('AgentHostProtocolClient', () => {
 		await resultPromise;
 	});
 
+	test('searchSessionHistory requires the capability and returns chat and turn locators unchanged', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		await assert.rejects(() => client.searchSessionHistory(session, 'authentication'), /does not support conversation content search/);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+		transport.sentMessages.length = 0;
+		const pending = client.searchSessionHistory(session, 'authentication');
+		const result = {
+			matches: [{ chat: buildChatUri(session, 'peer'), turnId: 'turn-1', role: 'assistant', snippet: 'Authentication details' }],
+			hasMore: false,
+		};
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'vscode/searchSessionHistory',
+			params: { session: session.toString(), query: 'authentication' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result });
+		assert.deepStrictEqual(await pending, result);
+	});
+
+	test('semantic search negotiates support and sends typed operations unchanged', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session');
+		assert.strictEqual(await client.supportsSessionSemanticSearch(), false);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true, true));
+		transport.sentMessages.length = 0;
+		const request = { kind: 'search' as const, model: { id: 'copilot.test', dimensions: 2 }, vector: [1, 0] };
+		const pending = client.sessionSemanticSearch(session, request);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0', id: 2, method: 'vscode/sessionSemanticSearch', params: { session: session.toString(), request },
+		});
+		const result = { kind: 'search', matches: [], hasMore: false, incomplete: true };
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result });
+		assert.deepStrictEqual({ supported: await client.supportsSessionSemanticSearch(), result: await pending }, { supported: true, result });
+	});
 	test('removeSessionArtifact propagates unsupported host errors', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.removeSessionArtifact(URI.parse('copilotcli:/session-1'), 'artifact-1');

@@ -9,6 +9,8 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import type { IAgentSessionSearchResult } from '../common/agentHostSessionSearch.js';
+import type { ISessionSemanticRequest, ISessionSemanticResult } from '../common/sessionSemanticSearch.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -121,6 +123,29 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
 		return this._agentService.diagnosticsFetch(url);
+	}
+
+	async supportsSessionHistorySearch(): Promise<boolean> {
+		return !!this._agentService.searchSessionHistory;
+	}
+
+	async supportsSessionSemanticSearch(): Promise<boolean> {
+		return !!this._agentService.sessionSemanticSearch;
+	}
+
+	sessionSemanticSearch(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult> {
+		if (!this._agentService.sessionSemanticSearch) {
+			throw new Error('Agent Host semantic search is unavailable');
+		}
+		return this._runMutation(() => this._agentService.sessionSemanticSearch!(session, request));
+	}
+
+	searchSessionHistory(session: URI, query: string): Promise<IAgentSessionSearchResult> {
+		const search = this._agentService.searchSessionHistory;
+		if (!search) {
+			throw new Error('Agent Host conversation search is unavailable');
+		}
+		return this._runMutation(() => this._agentService.searchSessionHistory!(session, query));
 	}
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {

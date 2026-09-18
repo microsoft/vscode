@@ -11,6 +11,7 @@ import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { URI } from '../../../base/common/uri.js';
+import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { IAgentEditAttributionService } from '../common/fileEditAttribution.js';
@@ -65,6 +66,7 @@ import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './sha
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
+import { AgentHostSessionSearchIndex, IAgentHostSessionSearchIndex } from './agentHostSessionSearchIndex.js';
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
@@ -81,6 +83,9 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
 	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
+	services.set(IAgentHostSessionSearchIndex, new SyncDescriptor(AgentHostSessionSearchIndex, [
+		inputs.storageResource ? joinPath(dirname(inputs.storageResource), 'agent-host-search.db').fsPath : undefined,
+	]));
 	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
 	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
 	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));

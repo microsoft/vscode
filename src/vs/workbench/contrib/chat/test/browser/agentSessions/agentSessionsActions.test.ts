@@ -21,14 +21,33 @@ import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybindin
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { RenameAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, IAgentSessionsControl } from '../../../browser/agentSessions/agentSessions.js';
+import { FindAgentSessionInViewerAction, RenameAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
+
+suite('Agent session title search', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps title-only find in the palette rather than the search toolbar', async () => {
+		const action = new FindAgentSessionInViewerAction();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		let opened = 0;
+		await instantiationService.invokeFunction(accessor => action.run(accessor, upcastPartial<IAgentSessionsControl>({
+			openFind: () => { opened++; },
+		})));
+		assert.deepStrictEqual({
+			palette: action.desc.f1,
+			title: typeof action.desc.title === 'string' ? action.desc.title : action.desc.title.value,
+			menu: action.desc.menu,
+			opened,
+		}, { palette: true, title: 'Find Agent Session by Title', menu: undefined, opened: 1 });
+	});
+});
 
 suite('RenameAgentSessionAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

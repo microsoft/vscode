@@ -21,7 +21,9 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SearchSessionHistoryExtensionMethod, searchSessionHistoryParamsValidator, SessionSemanticSearchExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { MAX_SESSION_SEARCH_QUERY_LENGTH } from '../common/agentHostSessionSearch.js';
+import { validateSessionSemanticRequest } from '../common/sessionSemanticSearch.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -679,7 +681,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact),
+				_meta: getAgentHostExtensionInitializeResultMeta(
+					this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact,
+					this._config.allowExtensionMethods !== false && !!this._agentService.searchSessionHistory,
+					this._config.allowExtensionMethods !== false && !!this._agentService.sessionSemanticSearch,
+				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -1867,6 +1873,49 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		switch (method) {
+			case SessionSemanticSearchExtensionMethod: {
+				if (!this._agentService.sessionSemanticSearch) {
+					return undefined;
+				}
+				if (!isParamsObject(params) || typeof params.session !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a URI string'));
+				}
+				try {
+					const session = URI.parse(params.session, true);
+					if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+						|| session.authority || session.query || session.fragment || parseChatUri(session)) {
+						throw new Error('session must be an Agent Session URI');
+					}
+					validateSessionSemanticRequest(params.request);
+					return this._agentService.sessionSemanticSearch(session, params.request);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid semantic search request'));
+				}
+			}
+			case SearchSessionHistoryExtensionMethod: {
+				if (!this._agentService.searchSessionHistory) {
+					return undefined;
+				}
+				const validated = searchSessionHistoryParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				const { session: resource, query } = validated.content;
+				if (!query.trim() || query.length > MAX_SESSION_SEARCH_QUERY_LENGTH) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `query must contain 1 to ${MAX_SESSION_SEARCH_QUERY_LENGTH} characters`));
+				}
+				let session: URI;
+				try {
+					session = URI.parse(resource, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+				}
+				if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+					|| session.authority || session.query || session.fragment || parseChatUri(session)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+				}
+				return this._agentService.searchSessionHistory(session, query);
+			}
 			case 'shutdown':
 				return this._agentService.shutdown();
 			case 'getNetworkDiagnosticsInfo':

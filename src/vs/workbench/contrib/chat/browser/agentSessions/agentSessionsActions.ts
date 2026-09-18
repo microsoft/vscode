@@ -26,7 +26,7 @@ import { showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatE
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -1053,18 +1053,16 @@ export class FindAgentSessionInViewerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSessionsViewer.find',
-			title: localize2('find', "Find Agent Session"),
+			title: localize2('findAgentSessionByTitle', "Find Agent Session by Title"),
 			icon: Codicon.search,
-			menu: {
-				id: MenuId.AgentSessionsToolbar,
-				group: 'navigation',
-				order: 2,
-			}
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext.negate()),
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+	override async run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? (await accessor.get(IViewsService).openView<ChatViewPane>(ChatViewId, true))?.agentSessionsControl;
 		if (control) {
 			return control.openFind();
 		} else {

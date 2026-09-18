@@ -30,6 +30,8 @@ import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '..
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
+import type { IAgentSessionSearchResult } from '../common/agentHostSessionSearch.js';
+import type { ISessionSemanticRequest, ISessionSemanticResult } from '../common/sessionSemanticSearch.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
@@ -418,6 +420,22 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return promise;
 		}
 		return this._requireClient().createSession(config);
+	}
+
+	searchSessionHistory(session: URI, query: string): Promise<IAgentSessionSearchResult> {
+		return this._getManagementService().searchSessionHistory(session, query);
+	}
+
+	supportsSessionHistorySearch(): Promise<boolean> {
+		return this._getManagementService().supportsSessionHistorySearch();
+	}
+
+	supportsSessionSemanticSearch(): Promise<boolean> {
+		return this._getManagementService().supportsSessionSemanticSearch();
+	}
+
+	sessionSemanticSearch(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult> {
+		return this._getManagementService().sessionSemanticSearch(session, request);
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {

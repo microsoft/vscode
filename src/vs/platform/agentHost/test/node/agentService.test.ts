@@ -29,6 +29,9 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
+import type { IAgentChatSearchResult } from '../../common/agentHostSessionSearch.js';
+import { SessionSearchDatabase } from '../../node/sessionSearchDatabase.js';
+import type { ISessionSemanticRequest } from '../../common/sessionSemanticSearch.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -3425,6 +3428,176 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	// ---- listSessions / listModels --------------------------------------
+
+	suite('persisted conversation search', () => {
+		class SearchAgent extends MockAgent {
+			readonly searches: { chat: string; scope: string; providerData: string | undefined; query: string }[] = [];
+
+			async searchChatHistory(chat: URI, context: IAgentChatContext, providerData: string | undefined, query: string): Promise<IAgentChatSearchResult> {
+				this.searches.push({ chat: chat.toString(), scope: context.resource.toString(), providerData, query });
+				return { matches: [{ turnId: 'sdk-user-event', role: 'assistant', snippet: 'Full response content' }], hasMore: false };
+			}
+
+			override async materializeChat(): Promise<void> {
+				throw new Error('Search must not materialize a chat');
+			}
+
+			override async getSessionMessages(): Promise<readonly Turn[]> {
+				throw new Error('Search must not restore a transcript');
+			}
+		}
+
+		async function createColdSearchService(session: URI, data: ISessionDataService): Promise<AgentService> {
+			const registry = new TransientRegistryWriteDatabase();
+			await registry.registerSession(session.toString(), { provider: AgentSession.provider(session)!, startTime: Date.now(), source: 'explicit' }, { checkTombstone: false });
+			return disposables.add(createTestAgentService(new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, registry));
+		}
+
+		test('searches cold default and peer chats using their persisted backing and storage scope', async () => {
+			const data = createPerSessionDataService();
+			const agent = disposables.add(new SearchAgent('copilot'));
+			const session = AgentSession.uri('copilot', 'search-cold');
+			const svc = await createColdSearchService(session, data.service);
+			await createAgentSession(agent, { session });
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'peer');
+			const subagent = buildSubagentChatUri(session.toString(), 'tool');
+			await data.database(session).setMetadata('defaultChatProviderData', 'default-backing');
+			await data.database(session).setMetadata('peerChats', JSON.stringify([
+				{ uri: peer, providerData: 'peer-backing' },
+				{ uri: subagent, origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool' } },
+			]));
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			const result = await svc.searchSessionHistory(session, 'content');
+			assert.deepStrictEqual({
+				searches: agent.searches,
+				result,
+				hydrated: !!getStateManager(svc).getSessionState(session.toString()),
+				sent: agent.sendMessageCalls.length,
+			}, {
+				searches: [
+					{ chat: defaultChat, scope: session.toString(), providerData: 'default-backing', query: 'content' },
+					{ chat: peer, scope: peer, providerData: 'peer-backing', query: 'content' },
+				],
+				result: {
+					matches: [
+						{ chat: defaultChat, turnId: 'sdk-user-event', role: 'assistant', snippet: 'Full response content' },
+						{ chat: peer, turnId: 'sdk-user-event', role: 'assistant', snippet: 'Full response content' },
+					],
+					hasMore: false,
+				},
+				hydrated: false,
+				sent: 0,
+			});
+		});
+
+		test('rejects missing sessions and invalid queries rather than returning no matches', async () => {
+			const session = AgentSession.uri('copilot', 'missing');
+			await assert.rejects(() => service.searchSessionHistory(session, 'content'), /Session no longer exists/);
+			await assert.rejects(() => service.searchSessionHistory(session, ' '), /Search query/);
+			await assert.rejects(() => service.searchSessionHistory(session, 'a'.repeat(513)), /Search query/);
+		});
+
+		test('maps persisted event IDs back to loaded host turn IDs', async () => {
+			const data = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SearchAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			const state = getStateManager(svc);
+			state.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'live-turn', startedAt: '2026-09-15T00:00:00Z', message: { text: 'Question', origin: { kind: MessageKind.User } } });
+			state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'live-turn', duration: 0 });
+			await data.database(session).setTurnEventId('live-turn', 'sdk-user-event');
+			const result = await svc.searchSessionHistory(session, 'content');
+			assert.deepStrictEqual(result.matches.map(match => ({ chat: match.chat, turnId: match.turnId })), [{ chat, turnId: 'live-turn' }]);
+		});
+
+		test('refreshes every peer before semantic retrieval even after the keyword result cap', async () => {
+			const data = createPerSessionDataService();
+			const session = AgentSession.uri('copilot', 'search-many-peers');
+			const svc = await createColdSearchService(session, data.service);
+			const agent = disposables.add(new class extends SearchAgent {
+				override async searchChatHistory(chat: URI, context: IAgentChatContext, providerData: string | undefined, query: string): Promise<IAgentChatSearchResult> {
+					const result = await super.searchChatHistory(chat, context, providerData, query);
+					return { matches: Array.from({ length: 20 }, () => result.matches[0]), hasMore: false };
+				}
+			}('copilot'));
+			await createAgentSession(agent, { session });
+			await data.database(session).setMetadata('peerChats', JSON.stringify(Array.from({ length: 6 }, (_, index) => ({ uri: buildChatUri(session, `peer-${index}`) }))));
+			registerTestAgentProvider(svc, agent);
+			const result = await svc.searchSessionHistory(session, 'content');
+			assert.deepStrictEqual({ refreshed: agent.searches.length, matches: result.matches.length, hasMore: result.hasMore }, { refreshed: 7, matches: 100, hasMore: true });
+		});
+
+		test('semantic operations exclude stale peer chats and reconcile live turn identities', async () => {
+			const directory = mkdtempSync(join(tmpdir(), 'semantic-host-test-'));
+			const data = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService,
+				createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, URI.file(join(directory, 'storage.json'))));
+			const agent = disposables.add(new SearchAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			const removedPeer = buildChatUri(session, 'removed-peer');
+			const database = new SessionSearchDatabase(join(directory, 'agent-host-search.db'));
+			try {
+				for (const chatUri of [chat, removedPeer]) {
+					await database.searchChat({
+						harness: 'copilot', sessionUri: session.toString(), chatUri, storageUri: session.toString(), sourceKey: chatUri,
+					}, 'authentication', async () => ({
+						revision: 'one',
+						documents: (async function* () {
+							yield { turnId: 'sdk-user-event', role: 'assistant' as const, sourceLocator: 'source', text: 'Signing in requires a fresh access token.' };
+						})(),
+					}));
+				}
+				const model = { id: 'copilot.test', dimensions: 2 };
+				const pending = await svc.sessionSemanticSearch(session, { kind: 'pending', model });
+				assert.strictEqual(pending.kind, 'pending');
+				if (pending.kind !== 'pending') { throw new Error('Expected embedding chunks'); }
+				assert.strictEqual(pending.chunks.length, 1);
+				await svc.sessionSemanticSearch(session, {
+					kind: 'store', model,
+					values: pending.chunks.map(chunk => ({ id: chunk.id, contentHash: chunk.contentHash, vector: [1, 0] })),
+				});
+				const state = getStateManager(svc);
+				state.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'live-turn', startedAt: '2026-09-15T00:00:00Z', message: { text: 'Question', origin: { kind: MessageKind.User } } });
+				state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'live-turn', duration: 0 });
+				await data.database(session).setTurnEventId('live-turn', 'sdk-user-event');
+				const result = await svc.sessionSemanticSearch(session, { kind: 'search', model, vector: [1, 0] });
+				assert.strictEqual(result.kind, 'search');
+				if (result.kind !== 'search') { throw new Error('Expected semantic matches'); }
+				assert.deepStrictEqual({
+					matches: result.matches.map(match => ({ chat: match.chat, turnId: match.turnId, role: match.role })),
+					incomplete: result.incomplete, providerHistoryReads: agent.searches.length,
+				}, { matches: [{ chat, turnId: 'live-turn', role: 'assistant' }], incomplete: false, providerHistoryReads: 0 });
+			} finally {
+				await database.whenIdle();
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('semantic operations reject unregistered sessions before accessing the cache', async () => {
+			await assert.rejects(service.sessionSemanticSearch(AgentSession.uri('copilot', 'missing'), {
+				kind: 'pending', model: { id: 'copilot.test', dimensions: 2 },
+			}), /Session no longer exists/);
+		});
+
+		test('surfaces corrupt peer catalogs instead of silently omitting their history', async () => {
+			const data = createPerSessionDataService();
+			const agent = disposables.add(new SearchAgent('copilot'));
+			const session = AgentSession.uri('copilot', 'search-corrupt');
+			const svc = await createColdSearchService(session, data.service);
+			await createAgentSession(agent, { session });
+			await data.database(session).setMetadata('peerChats', '{}');
+			registerTestAgentProvider(svc, agent);
+			await svc.listSessions();
+			await assert.rejects(() => svc.searchSessionHistory(session, 'content'), /Malformed persisted peer-chat catalog/);
+			assert.deepStrictEqual(agent.searches, []);
+		});
+	});
 
 	suite('aggregation', () => {
 
@@ -7835,6 +8008,50 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('management', () => {
+
+		test('routes semantic operations through the local management channel', async () => {
+			const session = AgentSession.uri('copilotcli', 'semantic-session');
+			const operation: ISessionSemanticRequest = { kind: 'pending', model: { id: 'copilot.test', dimensions: 2 } };
+			const calls: { session: string; request: ISessionSemanticRequest }[] = [];
+			service.sessionSemanticSearch = async (resource, request) => {
+				calls.push({ session: resource.toString(), request });
+				return { kind: 'pending', chunks: [], hasMore: false };
+			};
+			const management = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			assert.deepStrictEqual({
+				supported: await management.supportsSessionSemanticSearch(),
+				result: await management.sessionSemanticSearch(session, operation), calls,
+			}, { supported: true, result: { kind: 'pending', chunks: [], hasMore: false }, calls: [{ session: session.toString(), request: operation }] });
+		});
+
+		test('routes conversation search through management independently of protocol extensions', async () => {
+			const session = AgentSession.uri('copilotcli', 'local-search');
+			const result = { matches: [{ chat: buildDefaultChatUri(session), turnId: 'turn', role: 'assistant' as const, snippet: 'A saved document response' }], hasMore: false };
+			const calls: { session: string; query: string }[] = [];
+			service.searchSessionHistory = async (resource, query) => {
+				calls.push({ session: resource.toString(), query });
+				return result;
+			};
+			const management = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			assert.deepStrictEqual({
+				supported: await management.supportsSessionHistorySearch(),
+				result: await management.searchSessionHistory(session, 'document'),
+				calls,
+			}, {
+				supported: true,
+				result,
+				calls: [{ session: session.toString(), query: 'document' }],
+			});
+		});
+
+		test('rejects management conversation search after shutdown begins', async () => {
+			let searches = 0;
+			service.searchSessionHistory = async () => { searches++; return { matches: [], hasMore: false }; };
+			const management = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			await management.shutdown();
+			await assert.rejects(() => management.searchSessionHistory(AgentSession.uri('copilotcli', 'session'), 'document'), /shutting down/);
+			assert.strictEqual(searches, 0);
+		});
 
 		test('routes detached worktree lifecycle operations outside the local data-plane protocol', async () => {
 			const session = AgentSession.uri('copilot', 'detached-worktree');

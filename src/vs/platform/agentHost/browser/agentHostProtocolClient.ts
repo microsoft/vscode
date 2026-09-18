@@ -19,7 +19,10 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SearchSessionHistoryExtensionMethod, SessionSemanticSearchExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentSessionSearchResult } from '../common/agentHostSessionSearch.js';
+import { supportsAgentHostSessionSemanticSearch, supportsAgentHostSessionSearch } from '../common/meta/agentHostSessionSearchMeta.js';
+import { validateSessionSemanticRequest, type ISessionSemanticRequest, type ISessionSemanticResult } from '../common/sessionSemanticSearch.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -1663,6 +1666,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
+	}
+
+	async searchSessionHistory(session: URI, query: string): Promise<IAgentSessionSearchResult> {
+		if (!supportsAgentHostSessionSearch(this._initializeResult.get())) {
+			throw new Error('This Agent Host does not support conversation content search. Update the host and reconnect.');
+		}
+		return this._sendExtensionRequest(SearchSessionHistoryExtensionMethod, { session: session.toString(), query });
+	}
+
+	async supportsSessionHistorySearch(): Promise<boolean> {
+		return supportsAgentHostSessionSearch(this._initializeResult.get());
+	}
+
+	async supportsSessionSemanticSearch(): Promise<boolean> {
+		return supportsAgentHostSessionSemanticSearch(this._initializeResult.get());
+	}
+
+	async sessionSemanticSearch(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult> {
+		if (!supportsAgentHostSessionSemanticSearch(this._initializeResult.get())) {
+			throw new Error('This Agent Host does not support semantic search');
+		}
+		validateSessionSemanticRequest(request);
+		return this._sendExtensionRequest(SessionSemanticSearchExtensionMethod, { session: session.toString(), request });
 	}
 
 	private _toClientUri(uri: URI): URI {

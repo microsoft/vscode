@@ -21,6 +21,10 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
+import { MAX_SESSION_SEARCH_QUERY_LENGTH, type IAgentSessionSearchResult } from '../common/agentHostSessionSearch.js';
+import { remapSessionSearchMatches, searchSessionChats } from './agentHostSessionSearch.js';
+import { IAgentHostSessionSearchIndex } from './agentHostSessionSearchIndex.js';
+import { validateSessionSemanticRequest, type ISessionSemanticRequest, type ISessionSemanticResult } from '../common/sessionSemanticSearch.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -621,6 +625,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
+		@IAgentHostSessionSearchIndex private readonly _sessionSearchIndex: IAgentHostSessionSearchIndex,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -2103,6 +2108,49 @@ export class AgentService extends Disposable implements IAgentService {
 			inFlight.trailing = inFlight.promise.then(startTrailing, startTrailing);
 		}
 		return [...await inFlight.trailing];
+	}
+
+	async searchSessionHistory(session: URI, query: string): Promise<IAgentSessionSearchResult> {
+		if (!query.trim() || query.length > MAX_SESSION_SEARCH_QUERY_LENGTH) {
+			throw new Error(`Search query must contain 1 to ${MAX_SESSION_SEARCH_QUERY_LENGTH} characters`);
+		}
+		const { provider, chats } = await this._getSearchSessionChats(session);
+		return searchSessionChats(session, chats, query, provider, this._stateManager, this._sessionDataService);
+	}
+
+	async sessionSemanticSearch(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult> {
+		validateSessionSemanticRequest(request);
+		const { chats } = await this._getSearchSessionChats(session);
+		const chatUris = chats.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && !isSubagentChatUri(chat.uri)).map(chat => {
+			if (parseRequiredSessionUriFromChatUri(chat.uri) !== session.toString()) {
+				throw new Error('Persisted search chat does not belong to its session');
+			}
+			return chat.uri;
+		});
+		const result = await this._sessionSearchIndex.semanticSearch(session.toString(), chatUris, request);
+		return result.kind === 'search'
+			? { ...result, matches: await remapSessionSearchMatches(session, result.matches, this._stateManager, this._sessionDataService) }
+			: result;
+	}
+
+	private async _getSearchSessionChats(session: URI): Promise<{ provider: IAgent; chats: IPersistedPeerChat[] }> {
+		if (!(await this._sessionRegistry.listSessionKeys()).has(session.toString())) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, 'Session no longer exists');
+		}
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider?.searchChatHistory) {
+			throw new Error('This provider does not support persisted conversation search');
+		}
+		await this._peerChatCatalogWrites.get(session.toString());
+		await this._defaultChatBackingWrites.get(session.toString());
+		const peers = await this._readPersistedPeerChatCatalog(session, true)
+			?? (await provider.listLegacyChatBackings?.(session))?.map(entry => ({ uri: entry.uri.toString(), providerData: entry.providerData }))
+			?? [];
+		const chats: IPersistedPeerChat[] = [
+			{ uri: buildDefaultChatUri(session), providerData: await this._readDefaultChatProviderData(session) },
+			...peers,
+		];
+		return { provider, chats };
 	}
 
 	/**
@@ -6301,7 +6349,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * An empty array means the session is known to have no peer chats, so
 	 * migration is skipped.
 	 */
-	private async _readPersistedPeerChatCatalog(session: URI): Promise<IPersistedPeerChat[] | undefined> {
+	private async _readPersistedPeerChatCatalog(session: URI, strict = false): Promise<IPersistedPeerChat[] | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
 		if (!ref) {
 			return undefined;
@@ -6313,8 +6361,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const parsed = JSON.parse(raw);
 			if (!Array.isArray(parsed)) {
+				if (strict) {
+					throw new Error('Malformed persisted peer-chat catalog');
+				}
 				this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}`);
 				return undefined;
+			}
+			if (strict && parsed.some(entry => !isRecord(entry) || typeof entry.uri !== 'string' || (entry.providerData !== undefined && typeof entry.providerData !== 'string'))) {
+				throw new Error('Malformed persisted peer-chat catalog entry');
 			}
 			return parsed
 				.filter((entry): entry is IPersistedPeerChat => typeof entry?.uri === 'string')
@@ -6325,6 +6379,9 @@ export class AgentService extends Disposable implements IAgentService {
 					...(typeof entry.inheritedTurnId === 'string' ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 				}));
 		} catch (err) {
+			if (strict) {
+				throw err;
+			}
 			this._logService.warn(`[AgentService] Failed to read peer-chat catalog for ${session.toString()}: ${toErrorMessage(err)}`);
 			return undefined;
 		} finally {

@@ -16,6 +16,8 @@ import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
+import type { IAgentSessionSearchResult } from './agentHostSessionSearch.js';
+import type { ISessionSemanticRequest, ISessionSemanticResult } from './sessionSemanticSearch.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
@@ -785,6 +787,10 @@ export interface IAgentHostManagementService {
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
+	supportsSessionHistorySearch(): Promise<boolean>;
+	supportsSessionSemanticSearch(): Promise<boolean>;
+	sessionSemanticSearch(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult>;
+	searchSessionHistory(session: URI, query: string): Promise<IAgentSessionSearchResult>;
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk>;
@@ -805,6 +811,9 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
 export interface IAgentService {
+	sessionSemanticSearch?(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult>;
+	/** Search persisted user and assistant messages without materializing any chat. */
+	searchSessionHistory?(session: URI, query: string): Promise<IAgentSessionSearchResult>;
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -1126,6 +1135,12 @@ export interface IAgentConnection {
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+	/** Resolves search support on this connection's protocol or local management transport. */
+	supportsSessionHistorySearch?(): Promise<boolean>;
+	supportsSessionSemanticSearch?(): Promise<boolean>;
+	sessionSemanticSearch?(session: URI, request: ISessionSemanticRequest): Promise<ISessionSemanticResult>;
+	/** Searches over the transport selected by this connection. */
+	searchSessionHistory?(session: URI, query: string): Promise<IAgentSessionSearchResult>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;

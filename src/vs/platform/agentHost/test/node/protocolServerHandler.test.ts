@@ -17,7 +17,9 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SearchSessionHistoryExtensionMethod, SessionSemanticSearchExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostSessionSearch, supportsAgentHostSessionSemanticSearch } from '../../common/meta/agentHostSessionSearchMeta.js';
+import type { ISessionSemanticRequest } from '../../common/sessionSemanticSearch.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -156,6 +158,8 @@ class MockAgentService implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	searchSessionHistory: IAgentService['searchSessionHistory'];
+	sessionSemanticSearch: IAgentService['sessionSemanticSearch'];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -936,6 +940,129 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('advertises and routes persisted history search through the extension request', async () => {
+		const calls: { session: string; query: string }[] = [];
+		const result = { matches: [{ chat: buildDefaultChatUri('copilotcli:/session-1'), turnId: 'turn-1', role: 'assistant' as const, snippet: 'An old response mentioning authentication' }], hasMore: false };
+		agentService.searchSessionHistory = async (session, query) => {
+			calls.push({ session: session.toString(), query });
+			return result;
+		};
+		const transport = connectClient('client-search-history');
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		const initialized = initialize.result as InitializeResult;
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SearchSessionHistoryExtensionMethod, { session: 'copilotcli:/session-1', query: 'authentication' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionSearch(initialized),
+			legacy: supportsAgentHostSessionSearch({ ...initialized, _meta: undefined }),
+			malformed: supportsAgentHostSessionSearch({ ...initialized, _meta: { 'vscode.searchSessionHistory': 'true' } }),
+			uninitialized: supportsAgentHostSessionSearch(undefined),
+			response: await response,
+			calls,
+		}, {
+			supported: true,
+			legacy: false,
+			malformed: false,
+			uninitialized: false,
+			response: { jsonrpc: '2.0', id: 20, result },
+			calls: [{ session: 'copilotcli:/session-1', query: 'authentication' }],
+		});
+	});
+
+	test('rejects invalid history search requests before routing', async () => {
+		let calls = 0;
+		agentService.searchSessionHistory = async () => {
+			calls++;
+			return { matches: [], hasMore: false };
+		};
+		const transport = connectClient('client-search-history-invalid');
+		const invalidParams = [
+			undefined, null, [], {},
+			{ session: 1, query: 'term' },
+			{ session: 'session-1', query: 'term' },
+			{ session: 'copilotcli:/', query: 'term' },
+			{ session: 'copilotcli://authority/session-1', query: 'term' },
+			{ session: 'copilotcli:/session-1?query', query: 'term' },
+			{ session: buildChatUri('copilotcli:/session-1', 'peer'), query: 'term' },
+			{ session: 'copilotcli:/session-1', query: 1 },
+			{ session: 'copilotcli:/session-1', query: '' },
+			{ session: 'copilotcli:/session-1', query: ' ' },
+			{ session: 'copilotcli:/session-1', query: 'a'.repeat(513) },
+		];
+		for (const [index, params] of invalidParams.entries()) {
+			const id = index + 20;
+			const pending = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, SearchSessionHistoryExtensionMethod, params));
+			const response = await pending;
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams, JSON.stringify(params));
+		}
+		assert.strictEqual(calls, 0);
+	});
+
+	test('advertises and routes bounded semantic search operations', async () => {
+		const calls: { session: string; request: ISessionSemanticRequest }[] = [];
+		agentService.sessionSemanticSearch = async (session, request) => {
+			calls.push({ session: session.toString(), request });
+			return { kind: 'pending', chunks: [], hasMore: false };
+		};
+		const transport = connectClient('semantic');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const operation: ISessionSemanticRequest = { kind: 'pending', model: { id: 'copilot.test', dimensions: 2 } };
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SessionSemanticSearchExtensionMethod, { session: 'copilotcli:/session', request: operation }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSessionSemanticSearch(initialized.result as InitializeResult),
+			legacy: supportsAgentHostSessionSemanticSearch(undefined),
+			result: await response,
+			calls,
+		}, {
+			supported: true, legacy: false,
+			result: { jsonrpc: '2.0', id: 20, result: { kind: 'pending', chunks: [], hasMore: false } },
+			calls: [{ session: 'copilotcli:/session', request: operation }],
+		});
+	});
+
+	test('rejects invalid semantic vectors and resource envelopes before routing', async () => {
+		let calls = 0;
+		agentService.sessionSemanticSearch = async () => { calls++; return { kind: 'store' }; };
+		const transport = connectClient('invalid-semantic');
+		const model = { id: 'copilot.test', dimensions: 2 };
+		const operations = [
+			undefined, { kind: 'pending', model: { id: '', dimensions: 2 } },
+			{ kind: 'search', model, vector: [1] },
+			{ kind: 'search', model, vector: [0, 0] },
+			{ kind: 'search', model, vector: [1, Number.NaN] },
+			{ kind: 'store', model, values: [{ id: -1, contentHash: 'a'.repeat(64), vector: [1, 0] }] },
+		];
+		for (const [index, operation] of operations.entries()) {
+			const response = waitForResponse(transport, 20 + index);
+			transport.simulateMessage(request(20 + index, SessionSemanticSearchExtensionMethod, { session: 'copilotcli:/session', request: operation }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.strictEqual(calls, 0);
+	});
+
+	test('reports unsupported history search and propagates search errors', async () => {
+		const unsupported = connectClient('client-search-history-unsupported');
+		const initialize = findResponse(unsupported.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		assert.strictEqual(supportsAgentHostSessionSearch(initialize.result as InitializeResult), false);
+		const missing = waitForResponse(unsupported, 20);
+		unsupported.simulateMessage(request(20, SearchSessionHistoryExtensionMethod, { session: 'copilotcli:/session-1', query: 'term' }));
+		const missingResponse = await missing;
+		assert.ok(isJsonRpcResponse(missingResponse) && hasKey(missingResponse, { error: true }) && missingResponse.error?.code === JsonRpcErrorCodes.MethodNotFound);
+
+		const error = new Error('Persisted history is unreadable');
+		agentService.searchSessionHistory = async () => { throw error; };
+		const transport = connectClient('client-search-history-error');
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SearchSessionHistoryExtensionMethod, { session: 'copilotcli:/session-1', query: 'term' }));
+		assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack } });
+	});
+
 	test('advertises and routes artifact removal through the extension request', async () => {
 		const transport = connectClient('client-remove-artifact');
 		const initializeResponse = findResponse(transport.sent, 1);
@@ -1207,6 +1334,8 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	test('extension methods can be disabled without blocking managed settings contributions', () => {
+		agentService.searchSessionHistory = async () => { throw new Error('Search must use the local management channel'); };
+		agentService.sessionSemanticSearch = async () => { throw new Error('Semantic search must use management locally'); };
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
 		localDisposables.add(new ProtocolServerHandler(
@@ -1232,18 +1361,23 @@ suite('ProtocolServerHandler', () => {
 		const initializeResponse = findResponse(transport.sent, 1);
 		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
 		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), false);
+		assert.strictEqual(supportsAgentHostSessionSearch(initializeResponse.result as InitializeResult), false);
+		assert.strictEqual(supportsAgentHostSessionSemanticSearch(initializeResponse.result as InitializeResult), false);
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(request(3, SearchSessionHistoryExtensionMethod, { session: 'copilotcli:/session-1', query: 'document' }));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
 
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
+			searchResponse: findResponse(transport.sent, 3),
 			shutdownCalls: agentService.shutdownCalls,
 			managedSettingsPermissions: managedSettingsService.permissions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			searchResponse: { jsonrpc: '2.0', id: 3, error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${SearchSessionHistoryExtensionMethod}` } },
 			shutdownCalls: 0,
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		});

@@ -415,6 +415,20 @@ Copilot also has no AH-session container:
 
 No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
 
+#### Persisted conversation search (preview)
+
+The optional `IAgent.searchChatHistory` seam receives one exact chat, its host-owned persistence context, and opaque provider data. It must not create, resume, or materialize the conversation. `AgentService.searchSessionHistory` enumerates the orchestrator's default and peer-chat catalog and delegates through that seam; it never interprets SDK backing identifiers. Results carry chat and turn locators, an author role, and a bounded snippet. Loaded host turn IDs are reconciled with persisted event IDs before results leave the host.
+
+Remote clients discover `vscode/searchSessionHistory` through the `vscode.searchSessionHistory` initialize capability. Local utility-process connections keep protocol extensions disabled and use the management channel's `supportsSessionHistorySearch` and `searchSessionHistory` methods instead. Callers consult the connection's transport-aware support query rather than assuming protocol metadata covers the local management channel. The preview is exposed by **Chat: Search Agent Session Content (Preview)**, independently of the existing title-only Find widget. Unsupported hosts and failed reads must remain distinguishable from an empty result.
+
+Copilot reads the SDK's paginated persisted event journal and supplies normalized documents to `IAgentHostSessionSearchIndex`. That service owns one rebuildable `agent-host-search.db` beside the host's profile storage file. Harness/chat identities, turns, and documents are normalized through integer keys; the FTS rowid is the document ID. Queries constrain the owning chat before limiting results. This provider-neutral storage does not itself enable Claude or Codex search.
+
+The journal remains authoritative; search never modifies SDK or session-history databases. Index freshness is checked per chat against the persisted journal and backing identity. Rebuild and deletion synchronize metadata and FTS rows atomically. Existing session-data deletion notifications remove the corresponding cache rows. Recognized legacy `session-search.db` sidecars are removed lazily only after successful shared-cache indexing; unrelated files are left alone. Keyword search runs locally on the owning host, including for remote connections, without sending content to an embeddings endpoint. Tool-origin subagent chats, reasoning, attachments, and arbitrary tool output remain outside the preview's search scope.
+
+Semantic search adds an opt-in client-orchestrated path. The workbench obtains embeddings through registered Copilot extension providers; the host does not import extension services, own endpoint credentials, or make embedding network calls. The `sessionSemanticSearch` operation exposes bounded pending chunks, accepts vectors for unchanged chunk identities, and ranks stored embeddings within the host-authorized chat catalog. Remote transport advertises this separately from lexical search; local clients use management IPC. Vector and chunk rows belong to the same rebuildable search cache, and are invalidated with their source documents.
+
+The client must obtain explicit permission before sending saved content or queries to an embedding provider. Consent is scoped to the open search picker and its workspace scope, not persisted as general permission for future searches. Keyword search remains available without embeddings, and semantic failures or partial indexing are surfaced rather than appearing as complete empty results.
+
 ### Codex (`node/codex/codexAgent.ts`)
 
 Codex supports multiple chats per session. Each conversation — the session's default chat and every additional chat — is a distinct top-level Codex thread, explicitly bound to the concrete chat URI AH supplies:

@@ -47,7 +47,7 @@ function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined)
  * persisted before `source` existed will not be filtered; that is accepted
  * leakage rather than guessed-at content sniffing.
  */
-function isSyntheticUserMessage(event: SessionEvent): boolean {
+export function isSyntheticUserMessage(event: SessionEvent): boolean {
 	if (event.type !== 'user.message') {
 		return false;
 	}
@@ -64,7 +64,7 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
  * leaves nothing — content that is only a `<userRequest>` wrapper — we fall
  * back to the wrapper's inner text so the message is not lost.
  */
-function stripPromptScaffolding(text: string): string {
+export function stripPromptScaffolding(text: string): string {
 	const withoutAux = text
 		.replace(/<reminder>[\s\S]*?<\/reminder>\s*/g, '')
 		.replace(/<system[-_]reminder>[\s\S]*?<\/system[-_]reminder>\s*/g, '')

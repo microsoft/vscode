@@ -7,6 +7,9 @@ import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../.
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import { AgentHostSessionSearchCapabilityMetaKey, AgentHostSessionSemanticSearchCapabilityMetaKey } from './meta/agentHostSessionSearchMeta.js';
+import type { ISessionSemanticRequest, ISessionSemanticResult } from './sessionSemanticSearch.js';
+import type { IAgentSessionSearchResult } from './agentHostSessionSearch.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
@@ -20,6 +23,8 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const SearchSessionHistoryExtensionMethod = 'vscode/searchSessionHistory';
+export const SessionSemanticSearchExtensionMethod = 'vscode/sessionSemanticSearch';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -28,17 +33,21 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
+	readonly [AgentHostSessionSearchCapabilityMetaKey]?: true;
+	readonly [AgentHostSessionSemanticSearchCapabilityMetaKey]?: true;
 }
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, sessionSearch = false, semanticSearch = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		...(sessionSearch ? { [AgentHostSessionSearchCapabilityMetaKey]: true as const } : {}),
+		...(semanticSearch ? { [AgentHostSessionSemanticSearchCapabilityMetaKey]: true as const } : {}),
 	};
 }
 
@@ -65,7 +74,20 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+export const searchSessionHistoryParamsValidator = vObj({
+	session: vString(),
+	query: vString(),
+});
+
 export interface IAgentHostExtensionCommandMap {
+	[SessionSemanticSearchExtensionMethod]: {
+		params: { session: string; request: ISessionSemanticRequest };
+		result: ISessionSemanticResult;
+	};
+	[SearchSessionHistoryExtensionMethod]: {
+		params: ValidatorType<typeof searchSessionHistoryParamsValidator>;
+		result: IAgentSessionSearchResult;
+	};
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;

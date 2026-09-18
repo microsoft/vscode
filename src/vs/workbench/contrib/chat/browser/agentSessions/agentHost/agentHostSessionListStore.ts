@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, type IWorkspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -382,7 +382,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const inWorkspace = this._computeSessionInWorkspace(entry);
+		const inWorkspace = isAgentHostSessionInWorkspace(entry.summary, this._workspaceContextService.getWorkspace());
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -392,28 +392,6 @@ export class AgentHostSessionListStore extends Disposable {
 			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;
-	}
-
-	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const workingDirectories = this._containmentCandidates(entry.summary);
-		const workspace = this._workspaceContextService.getWorkspace();
-		const folders = workspace.folders;
-		const configuration = workspace.configuration;
-		const multiRoot = readSessionMultiRootMetadata(entry.summary._meta);
-		if (multiRoot) {
-			// A multi-root window matches strictly by workspace-file identity so two
-			// different `.code-workspace` files that share a folder don't cross over.
-			if (URI.isUri(configuration)) {
-				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
-			}
-			// An empty window shows every session; a single-folder (or other
-			// non-multi-root) window falls back to working-directory containment.
-			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
-		}
-		if (folders.length === 0) {
-			return true;
-		}
-		return this._matchesAnyFolder(workingDirectories, folders);
 	}
 
 	private _filterEntriesToWorkspace(): void {
@@ -432,34 +410,6 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 	}
 
-	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
-		return workingDirectories.some(directory =>
-			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
-		);
-	}
-
-	/**
-	 * The directories a session may be matched against a workspace folder by: its
-	 * working directories plus - for legacy Copilot CLI sessions only - its
-	 * server-owned project (repository) root. Those legacy sessions run out of a
-	 * `copilot-worktrees/` directory outside the repository, so working
-	 * directories alone would hide them from a window opened on that repository.
-	 * The marker has to outlive adoption: a migrated session is still a legacy
-	 * session and must not drop out of the list the moment it migrates.
-	 */
-	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
-		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
-		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
-			const project = URI.parse(summary.project.uri);
-			// A project can be a remote (e.g. `https://github.com/owner/repo`), whose
-			// `fsPath` is not a location on disk and would silently never match.
-			if (project.scheme === Schemas.file) {
-				candidates.push(project);
-			}
-		}
-		return candidates;
-	}
-
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {
 		return {
 			provider: entry.provider,
@@ -471,4 +421,25 @@ export class AgentHostSessionListStore extends Disposable {
 	private _key(provider: string, rawId: string): string {
 		return `${provider}://${rawId}`;
 	}
+}
+
+/** Matches workspace-file provenance first, otherwise folder containment with legacy worktree support. */
+export function isAgentHostSessionInWorkspace(summary: Pick<SessionSummary, 'workingDirectories' | 'project' | '_meta'>, workspace: IWorkspace): boolean {
+	const multiRoot = readSessionMultiRootMetadata(summary._meta);
+	if (multiRoot && URI.isUri(workspace.configuration)) {
+		return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), workspace.configuration);
+	}
+	if (workspace.folders.length === 0) {
+		return true;
+	}
+	const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+	if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
+		const project = URI.parse(summary.project.uri);
+		if (project.scheme === Schemas.file) {
+			candidates.push(project);
+		}
+	}
+	return candidates.some(directory =>
+		workspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
+	);
 }

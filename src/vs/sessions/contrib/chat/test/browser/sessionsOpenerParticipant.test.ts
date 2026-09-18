@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -13,7 +14,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { openSessionByResource } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
 import { SessionsOpenerParticipantContribution } from '../../browser/sessionsOpenerParticipant.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('SessionsOpenerParticipant', () => {
@@ -45,4 +46,42 @@ suite('SessionsOpenerParticipant', () => {
 
 		assert.deepStrictEqual(opened, { resource, preserveFocus: true });
 	});
+
+	for (const chatId of ['default', 'peer']) {
+		test(`opens the exact ${chatId} chat using the owning host rather than a same-ID remote session`, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			const resource = URI.parse(`agent-host-copilotcli:/session#${chatId}`);
+			const actualResource = URI.parse('agent-host-copilotcli:/session');
+			const remoteResource = URI.parse('remote-other-copilotcli:/session');
+			const backendSession = URI.parse('copilotcli:/session');
+			const session = upcastPartial<ISession>({
+				resource: actualResource,
+				mainChat: constObservable(upcastPartial<IChat>({ resource: actualResource })),
+			});
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				resolveSessionResourceIdentity: candidate => ({
+					connectionAuthority: candidate.scheme === remoteResource.scheme ? 'other' : 'local',
+					backendSession,
+				}),
+			}));
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				getSession: () => undefined,
+				getSessions: () => [upcastPartial<ISession>({ resource: remoteResource }), session],
+			}));
+			let opened: { session: URI; chat: URI; preserveFocus: boolean | undefined } | undefined;
+			instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+				openChat: async (target, chat, options) => {
+					opened = { session: target.resource, chat, preserveFocus: options?.preserveFocus };
+				},
+			}));
+			disposables.add(new SessionsOpenerParticipantContribution());
+			await instantiationService.invokeFunction(openSessionByResource, resource, { editorOptions: { preserveFocus: true } });
+			assert.deepStrictEqual(opened, {
+				session: actualResource,
+				chat: actualResource.with({ fragment: chatId === 'default' ? '' : chatId }),
+				preserveFocus: true,
+			});
+		});
+	}
 });

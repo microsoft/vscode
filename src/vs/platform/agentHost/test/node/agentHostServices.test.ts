@@ -27,6 +27,7 @@ import { IAgentHostClientConnectionService } from '../../node/agentHostClientCon
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostSessionSearchIndex } from '../../node/agentHostSessionSearchIndex.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -145,6 +146,14 @@ function assertCompleteAcyclicGraph(services: RecordingServiceCollection, extern
 
 suite('Agent Host service registrations', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers one profile-level search cache independently of chat storage', () => {
+		const services = new ServiceCollection();
+		registerCoreServices(services);
+		const descriptor = services.get(IAgentHostSessionSearchIndex);
+		assert.ok(descriptor instanceof SyncDescriptor);
+		assert.deepStrictEqual(descriptor.staticArguments, [URI.file('/agent-host-search.db').fsPath]);
+	});
 
 	test('resolves descriptors lazily and caches the instance', () => {
 		let createCount = 0;

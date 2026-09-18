@@ -47,6 +47,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import { SEARCH_AGENT_SESSION_CONTENT_COMMAND_ID, SEARCH_AGENT_SESSION_CONTENT_TITLE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionSearch.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -258,12 +259,13 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 
 MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	command: {
-		id: 'sessionsViewPane.find',
-		title: localize2('find', "Find Session"),
+		id: SEARCH_AGENT_SESSION_CONTENT_COMMAND_ID,
+		title: SEARCH_AGENT_SESSION_CONTENT_TITLE,
 		icon: Codicon.search,
 	},
 	group: 'navigation',
 	order: 20,
+	when: ChatContextKeys.enabled,
 });
 
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
@@ -456,14 +458,16 @@ registerAction2(class FindSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.find',
-			title: localize2('find', "Find Session"),
+			title: localize2('findSessionByTitle', "Find Session by Title"),
 			icon: Codicon.search,
 			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
 		});
 	}
-	override run(accessor: ServicesAccessor) {
+	override async run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		const view = await viewsService.openView<SessionsView>(SessionsViewId, true);
 		return view?.openFind();
 	}
 });

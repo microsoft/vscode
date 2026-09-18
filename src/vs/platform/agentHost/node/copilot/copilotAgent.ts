@@ -44,6 +44,9 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
+import type { IAgentChatSearchResult } from '../../common/agentHostSessionSearch.js';
+import { searchCopilotSessionHistory } from './copilotSessionSearch.js';
+import { IAgentHostSessionSearchIndex } from '../agentHostSessionSearchIndex.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
@@ -944,6 +947,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionSearchIndex private readonly _sessionSearchIndex: IAgentHostSessionSearchIndex,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
@@ -3255,6 +3259,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		},
 		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => this._getChatMessages(chat, context),
 	};
+
+	async searchChatHistory(chat: URI, context: IAgentChatContext, providerData: string | undefined, query: string): Promise<IAgentChatSearchResult> {
+		const persisted = providerData === undefined ? undefined : decodeProviderData(providerData);
+		if (providerData !== undefined && !persisted) {
+			throw new Error('Cannot search a chat with invalid Copilot backing data');
+		}
+		const sdkSessionId = this._chatBackings.get(chat.toString())?.sdkSessionId
+			?? persisted?.sdkSessionId
+			?? (isEqual(context.resource, context.configurationResource) ? AgentSession.id(context.resource) : undefined);
+		if (!sdkSessionId) {
+			throw new Error('Cannot search a chat without a persisted Copilot backing');
+		}
+		if (this._provisionalSessions.get(AgentSession.id(context.configurationResource))?.chat.toString() === chat.toString()) {
+			return { matches: [], hasMore: false };
+		}
+		const client = await this._ensureClient();
+		return searchCopilotSessionHistory(this._sessionSearchIndex, {
+			harness: this.id,
+			sessionUri: context.configurationResource.toString(),
+			chatUri: chat.toString(),
+			storageUri: context.resource.toString(),
+			sourceKey: sdkSessionId,
+		}, query, options => client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, ...options }));
+	}
 
 	getTurnDiagnosticSnapshot(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot {
 		const session = this._findChatByUri(chat);

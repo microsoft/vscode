@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -35,10 +36,31 @@ import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../brow
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SEARCH_AGENT_SESSION_CONTENT_COMMAND_ID } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionSearch.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('Sessions - Actions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the existing Sessions header search button without a duplicate overflow entry', () => {
+		const entries = MenuRegistry.getMenuItems(Menus.SidebarSessionsHeader).filter(isIMenuItem)
+			.filter(item => item.command.id === SEARCH_AGENT_SESSION_CONTENT_COMMAND_ID || item.command.id === 'sessionsViewPane.find');
+		assert.deepStrictEqual(entries.map(item => ({
+			id: item.command.id, icon: item.command.icon, group: item.group, order: item.order, when: item.when?.serialize(),
+		})), [{
+			id: SEARCH_AGENT_SESSION_CONTENT_COMMAND_ID, icon: Codicon.search, group: 'navigation', order: 20, when: ChatContextKeys.enabled.serialize(),
+		}]);
+	});
+
+	test('keeps title-only session find available in the Command Palette', () => {
+		const entry = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem)
+			.find(item => item.command.id === 'sessionsViewPane.find');
+		assert.deepStrictEqual({
+			title: entry && (typeof entry.command.title === 'string' ? entry.command.title : entry.command.title.value),
+			when: entry?.when?.serialize(),
+		}, { title: 'Find Session by Title', when: ChatContextKeys.enabled.serialize() });
+	});
 
 	test('contributes New Chat to the session header overflow', () => {
 		const action = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)

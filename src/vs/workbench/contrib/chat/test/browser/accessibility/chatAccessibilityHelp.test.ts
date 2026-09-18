@@ -14,6 +14,19 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents saved session content search and keyboard navigation', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			command: help.includes('Chat: Search Agent Session Content (Preview)'),
+			button: help.includes('search button in the sessions toolbar'),
+			titleFilter: help.includes('Chat: Find Agent Session by Title'),
+			scope: help.includes('limited to the open workspace in the editor window'),
+			emptyWindow: help.includes('An empty editor window searches all projects on connected hosts'),
+			accept: help.includes('press Enter to open its chat at the matching message'),
+			cancel: help.includes('Escape closes search and returns focus'),
+		}, { command: true, button: true, titleFilter: true, scope: true, emptyWindow: true, accept: true, cancel: true });
+	});
+
 	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -23,6 +36,27 @@ suite('Chat Accessibility Help', () => {
 			mutedPreferences: help.includes('They look muted while off but remain interactive'),
 			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
 		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
+	});
+
+	test('documents opt-in semantic search, consent, cancellation and incomplete coverage', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			default: help.includes('uses keywords by default'),
+			keyboard: help.includes('Use Tab or Shift+Tab to reach Enable Semantic Search, the sparkle toggle, and press Enter or Space'),
+			provider: help.includes('Select a registered Copilot embeddings provider'),
+			consent: help.includes('confirm before your queries and saved user and assistant messages in the search scope are sent'),
+			local: help.includes('Vectors are stored locally'),
+			decline: help.includes('Cancel sends nothing to the provider'),
+			lifetime: help.includes('closing search or changing the workspace revokes it'),
+			labels: help.includes('Keyword match, Semantic match, or Keyword and semantic match'),
+			incomplete: help.includes('incomplete semantic coverage'),
+			fallback: help.includes('falls back to keyword results'),
+			title: help.includes('title identifies Keyword or Keyword and Semantic mode'),
+			cost: help.includes('may take time and use the provider\'s quota'),
+			budget: help.includes('at most 2048 document chunks across all sessions, plus one query embedding'),
+			cache: help.includes('Unchanged cached chunks are not re-embedded'),
+			budgetExhausted: help.includes('When the budget is exhausted, search still uses cached vectors'),
+		}, { default: true, keyboard: true, provider: true, consent: true, local: true, decline: true, lifetime: true, labels: true, incomplete: true, fallback: true, title: true, cost: true, budget: true, cache: true, budgetExhausted: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
