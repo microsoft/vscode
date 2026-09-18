@@ -15,7 +15,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionTaskWithTarget, ISessionsTasksService } from './sessionsTasksService.js';
+import { hasTaskDependencies, ISessionTaskWithTarget, ISessionsTasksService } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
 
@@ -172,9 +172,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 	}
 
 	private _requiresWorkspaceTaskApproval({ task, target }: ISessionTaskWithTarget): boolean {
-		return target === 'workspace' ||
-			typeof task.dependsOn === 'string' && task.dependsOn.length > 0 ||
-			Array.isArray(task.dependsOn) && task.dependsOn.length > 0;
+		return target === 'workspace' || hasTaskDependencies(task);
 	}
 
 	private _canDispatchTasks(session: ISession): boolean {

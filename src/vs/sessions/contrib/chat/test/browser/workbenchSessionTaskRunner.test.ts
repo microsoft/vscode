@@ -226,6 +226,27 @@ suite('WorkbenchSessionTaskRunner', () => {
 		assert.deepStrictEqual(ranTasks, []);
 	});
 
+	test('runTask rejects an extension task returned for a workspace target', async () => {
+		registerMockTask('build', worktreeUri, TaskSourceKind.Extension);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+
+		await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace' });
+
+		assert.deepStrictEqual(ranTasks, []);
+	});
+
+	test('runTask rejects unapproved dependencies for a user task', async () => {
+		registerMockTask('build', worktreeUri, TaskSourceKind.User);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+
+		await runner.runTask({ ...makeTask('build'), dependsOn: 'prepare' }, session, {
+			taskTarget: 'user',
+			allowWorkspaceTaskDependencies: false,
+		});
+
+		assert.deepStrictEqual({ taskLookups, ranTasks }, { taskLookups: [], ranTasks: [] });
+	});
+
 	test('preserves approved task source across reload', async () => {
 		registerMockTask('build', worktreeUri, TaskSourceKind.User);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });

@@ -11,7 +11,7 @@ import { Task, TaskEventKind, TaskRunSource, TaskSourceKind, USER_TASKS_GROUP_KE
 import { ITaskService } from '../../../../workbench/contrib/tasks/common/taskService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionTaskRunner, ISessionTaskRunOptions } from './sessionTaskRunner.js';
-import { ITaskEntry } from './sessionsTasksService.js';
+import { hasTaskDependencies, ITaskEntry } from './sessionsTasksService.js';
 
 /**
  * Default task runner that delegates to the workbench `ITaskService`. Used
@@ -49,6 +49,9 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 		}
 		const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(cwd);
 		if (!workspaceFolder) {
+			return undefined;
+		}
+		if (options?.taskTarget === 'user' && options.allowWorkspaceTaskDependencies === false && hasTaskDependencies(task)) {
 			return undefined;
 		}
 		const targetFolder = options?.taskTarget === 'user' ? USER_TASKS_GROUP_KEY : workspaceFolder;
@@ -157,7 +160,7 @@ export class WorkbenchSessionTaskRunner implements ISessionTaskRunner {
 		if (!target) {
 			return true;
 		}
-		return target === 'user' ? task._source.kind === TaskSourceKind.User : task._source.kind !== TaskSourceKind.User;
+		return task._source.kind === (target === 'user' ? TaskSourceKind.User : TaskSourceKind.Workspace);
 	}
 
 	private _getCwd(session: ISession) {

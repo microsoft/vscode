@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
-import { ITaskEntry } from './sessionsTasksService.js';
+import { getTaskDependencyLabels, ITaskEntry } from './sessionsTasksService.js';
 
 /**
  * Operating system identifier used to pick the right OS-specific overrides on
@@ -121,13 +121,12 @@ async function resolveOwnCommand(task: ITaskEntry, ctx: ITaskResolutionContext):
  * Resolves a task's `dependsOn` chain into a single shell snippet. Returns
  * `undefined` if nothing resolves; cyclic chains are broken via `stack`.
  */
-async function resolveDependencies(task: ITaskEntry, ctx: ITaskResolutionContext, stack: Set<string>): Promise<string | undefined> {
-	if (!task.dependsOn || !ctx.lookup) {
+async function resolveDependencies(task: ITaskEntry, dependencyLabels: readonly string[], ctx: ITaskResolutionContext, stack: Set<string>): Promise<string | undefined> {
+	if (dependencyLabels.length === 0 || !ctx.lookup) {
 		return undefined;
 	}
-	const depLabels = typeof task.dependsOn === 'string' ? [task.dependsOn] : task.dependsOn;
 	const resolved: string[] = [];
-	for (const label of depLabels) {
+	for (const label of dependencyLabels) {
 		const dep = ctx.lookup(label);
 		if (!dep) {
 			continue;
@@ -154,10 +153,14 @@ async function resolveInternal(task: ITaskEntry, ctx: ITaskResolutionContext, st
 		// Cycle — break here. Other branches of the chain still resolve.
 		return undefined;
 	}
+	const dependencyLabels = getTaskDependencyLabels(task);
+	if (dependencyLabels === undefined) {
+		return undefined;
+	}
 	stack.add(task.label);
 	try {
 		const own = await resolveOwnCommand(task, ctx);
-		const deps = await resolveDependencies(task, ctx, stack);
+		const deps = await resolveDependencies(task, dependencyLabels, ctx, stack);
 		if (own && deps) {
 			return `${deps} && ${own}`;
 		}
