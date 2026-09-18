@@ -228,7 +228,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		let deferredUpdate: (() => void) | undefined;
 
 		this.updateActions(toolbar, initActions);
-		this._register(menu.onDidChange(() => {
+		this.cellDisposables.add(menu.onDidChange(() => {
 			if (dropdownIsVisible) {
 				const actions = getCellToolbarActions(menu);
 				deferredUpdate = () => this.updateActions(toolbar, actions);
@@ -239,7 +239,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			this.updateActions(toolbar, actions);
 		}));
 		this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', false);
-		this._register(toolbar.onDidChangeDropdownVisibility(visible => {
+		this.cellDisposables.add(toolbar.onDidChangeDropdownVisibility(visible => {
 			dropdownIsVisible = visible;
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
