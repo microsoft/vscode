@@ -44,7 +44,8 @@ export function setup(options?: { skipSuite: boolean }) {
 					await terminal.runCommand(TerminalCommandId.KillAll);
 					try {
 						await terminal.createTerminal();
-						await terminal.runCommandInTerminal(`node -e "let n=0;const t=setInterval(()=>{console.log('PTY_REPLAY_SEQ:'+n++);if(n===${count})clearInterval(t)},100)"`);
+						// Keep the producer alive in raw mode to avoid shell prompt and input echo redraws.
+						await terminal.runCommandInTerminal(`node -e "let n=0;const t=setInterval(()=>{console.log('PTY_REPLAY_SEQ:'+n++);if(n===${count})clearInterval(t)},100);process.stdin.setRawMode(true);require('readline').createInterface({input:process.stdin}).on('line',()=>console.log('PTY_REPLAY_SEQ:'+n++))"`);
 						// Finish producing output before reconnecting to avoid racing live data with replay.
 						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
 
@@ -60,7 +61,7 @@ export function setup(options?: { skipSuite: boolean }) {
 
 						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
 						await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
-						await terminal.runCommandInTerminal(`node -e "console.log('PTY_REPLAY_SEQ:'+${count})"`);
+						await terminal.runCommandInTerminal('continue');
 						let received: number[] = [];
 						await terminal.waitForTerminalText(buffer => {
 							received = readSequence(buffer);
