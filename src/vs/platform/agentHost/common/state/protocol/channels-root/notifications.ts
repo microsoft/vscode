@@ -176,6 +176,8 @@ export interface SessionSummaryChangedParams {
  * - Like all notifications this is ephemeral and is **not** replayed on
  *   reconnect. A client that never receives the terminal frame SHOULD expire
  *   the indicator after an idle timeout.
+ * - Completion of reported work does not establish session readiness.
+ *   Observe session lifecycle state for the durable outcome.
  *
  * @category Protocol Notifications
  * @method root/progress

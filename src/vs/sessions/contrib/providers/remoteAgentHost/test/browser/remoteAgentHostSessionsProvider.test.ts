@@ -14,7 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -84,6 +84,8 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+	readonly createdSessionConfigs: IAgentCreateSessionConfig[] = [];
+	readonly resolveSessionConfigCalls: IAgentResolveSessionConfigParams[] = [];
 
 	private _nextSeq = 0;
 
@@ -114,13 +116,17 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		if (config) {
+			this.createdSessionConfigs.push(config);
+		}
 		const uri = config?.session ?? URI.parse('copilotcli:///auto');
 		this.createdSessionUris.push(uri);
 		return uri;
 	}
 
-	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		this.resolveSessionConfigCalls.push(params);
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
@@ -447,6 +453,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	test('session types track repository source capability changes', () => {
+		const provider = createProvider(disposables, connection);
+		let changes = 0;
+		disposables.add(provider.onDidChangeSessionTypes!(() => changes++));
+		const read = () => ({
+			source: provider.sessionTypes[0].supportsRepositorySource,
+			revision: provider.sessionTypes[0].supportsRepositoryRevision,
+		});
+		const snapshots = [read()];
+		for (const capability of [{}, { revision: true }, undefined]) {
+			connection.setAgents([{
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: '',
+				models: [],
+				capabilities: { repositorySource: capability },
+			}]);
+			snapshots.push(read());
+		}
+		assert.deepStrictEqual({ snapshots, changes }, {
+			snapshots: [
+				{ source: undefined, revision: undefined },
+				{ source: true, revision: false },
+				{ source: true, revision: true },
+				{ source: undefined, revision: undefined },
+			],
+			changes: 3,
+		});
+	});
+
 	test('session-type labels omit host suffix on web', () => {
 		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: true });
 
@@ -656,6 +692,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			[],
 			'no eager createSession should be invoked for an untrusted folder',
 		);
+	});
+
+	test('createNewSession resolves typed repository inputs without eagerly preparing a checkout', async () => {
+		connection.setAgents([{
+			provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
+			capabilities: { repositorySource: { revision: true } },
+		}]);
+		const provider = createProvider(disposables, connection);
+		const repositorySource = URI.parse('https://git.example.org:8443/team/app.git');
+		const draft = provider.createNewSession(
+			URI.parse('vscode-agent-host://localhost__4321/workspace'),
+			provider.sessionTypes[0].id,
+			{ repositorySource, repositoryRevision: 'main' },
+		);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, draft.sessionId, config => config?.values.isolation === 'worktree');
+		await timeout(0);
+		const resolution = connection.resolveSessionConfigCalls.map(call => ({
+			source: call.repositorySource?.toString(), revision: call.repositoryRevision, directory: call.workingDirectory,
+		}));
+		assert.ok(resolution.length > 0);
+		assert.deepStrictEqual({
+			resolution,
+			creation: connection.createdSessionConfigs.map(call => ({
+				source: call.repositorySource?.toString(), revision: call.repositoryRevision, directories: call.workingDirectories, config: call.config,
+			})),
+		}, {
+			resolution: resolution.map(() => ({ source: repositorySource.toString(), revision: 'main', directory: undefined })),
+			creation: [],
+		});
 	});
 
 	// ---- Browse actions -------
@@ -1744,6 +1810,39 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
+	});
+
+	test('sendRequest carries typed repository source inputs separately from provider config', async () => {
+		connection.setAgents([{
+			provider: 'copilotcli', displayName: 'Copilot', description: '', models: [],
+			capabilities: { repositorySource: { revision: true } },
+		}]);
+		const sendOptions: IChatSendRequestOptions[] = [];
+		const provider = createProvider(disposables, connection, {
+			openSession: true,
+			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+				if (options) {
+					sendOptions.push(options);
+				}
+				connection.addSession(createSession('source-created-from-send', { summary: 'Repository From Send' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const repositorySource = URI.parse('https://git.example.org/team/project');
+		const session = provider.createNewSession(
+			URI.parse('vscode-agent-host://localhost__4321/workspace'),
+			provider.sessionTypes[0].id,
+			{ repositorySource, repositoryRevision: 'main' },
+		);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		assert.deepStrictEqual(sendOptions.map(options => ({
+			source: options.agentHostRepositorySource?.toString(),
+			revision: options.agentHostRepositoryRevision,
+			config: options.agentHostSessionConfig,
+		})), [{ source: repositorySource.toString(), revision: 'main', config: { isolation: 'worktree' } }]);
 	});
 
 	// ---- Session data adapter -------

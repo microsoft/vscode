@@ -23,6 +23,9 @@ import type { MessageAttachment } from '../channels-chat/state.js';
  * updates. The server also broadcasts a `root/sessionAdded` notification to all
  * clients.
  *
+ * Repository preparation MUST finish before `session/ready` or executing turns.
+ * Clients recover the outcome from session state, not progress notifications.
+ *
  * @category Commands
  * @method createSession
  * @direction Client → Server
@@ -64,11 +67,18 @@ export interface CreateSessionParams extends BaseParams {
 	 * and ignores the rest. Dispatch working-directory actions to change the set
 	 * after the session has started.
 	 *
+	 * A non-empty list and `repositorySource` are mutually exclusive.
+	 * A repository URI identifies the source, not a working-directory URI; one
+	 * source may produce multiple directories.
 	 */
 	workingDirectories?: URI[];
+	/** Credential-free source to prepare; requires the agent's repositorySource capability. */
+	repositorySource?: URI;
+	/** Requested branch, tag, or commit; requires a source and the capability's revision option. */
+	repositoryRevision?: string;
 	/**
-	 * Agent-specific configuration values collected via `resolveSessionConfig`.
-	 * Keys and values correspond to the schema returned by the server.
+	 * Session configuration values collected via `resolveSessionConfig`.
+	 * Keys and values follow the advertised {@link SessionConfigSchema}.
 	 */
 	config?: Record<string, unknown>;
 	/**
@@ -101,6 +111,9 @@ export interface CreateSessionParams extends BaseParams {
  * Disposes a session and cleans up server-side resources.
  *
  * The server broadcasts a `root/sessionRemoved` notification to all clients.
+ * Disposal MUST NOT erase a shared checkout or uncommitted user changes.
+ * Repository cleanup remains host-owned; ending a client's wait or subscription
+ * does not grant permission to delete repository data.
  *
  * @category Commands
  * @method disposeSession

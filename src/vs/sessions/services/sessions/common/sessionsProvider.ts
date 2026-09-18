@@ -51,6 +51,8 @@ export interface ISendRequestOptions {
 
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
+	readonly repositorySource?: URI;
+	readonly repositoryRevision?: string;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
 	/** Complete Automation state for providers that also own compatibility projections. */

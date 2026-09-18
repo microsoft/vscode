@@ -102,6 +102,8 @@ export interface AgentInfo {
  * @category Root State
  */
 export interface AgentCapabilities {
+	/** The host accepts typed repository inputs for session creation and configuration queries. */
+	repositorySource?: RepositorySourceCapability;
 	/**
 	 * The agent can host more than one concurrent chat per session. When absent,
 	 * clients MUST NOT call `createChat` to open chats beyond the default one the
@@ -121,6 +123,15 @@ export interface AgentCapabilities {
 	 * {@link CreateSessionParams.workingDirectories}.
 	 */
 	multipleWorkingDirectories?: MultipleWorkingDirectoriesCapability;
+}
+
+/**
+ * Options for repository-backed session creation.
+ * @category Root State
+ */
+export interface RepositorySourceCapability {
+	/** When true, clients may supply an explicit repositoryRevision. */
+	revision?: boolean;
 }
 
 /**

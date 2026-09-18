@@ -63,6 +63,14 @@ Drafts expose the shared untitled `ISession` contract and use remote workspace m
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
 
+### Repository-backed session creation
+
+A repository selection is intent, not a host filesystem directory. Agents advertise source-based creation through `capabilities.repositorySource`, with `revision: true` when revision selection is supported. The client passes `repositorySource` and optional `repositoryRevision` as typed fields on session creation and configuration queries, separate from `config` and working directories. Hosts without the capability retain the existing directory-selection behavior; explicitly supplied unsupported source inputs fail instead of silently falling back.
+
+The host owns checkout preparation and publishes its outcome through session state. Repository drafts resolve configuration without eagerly preparing a checkout; first send starts creation through the shared handler. Directory-backed drafts retain their existing eager behavior. Requested source and revision are immutable typed session metadata, separate from the resulting working directories. A source can have multiple working directories or different worktrees across sessions. A repository-backed session must reach `ready` with matching source/revision and resolved directories before the client sends a turn. The client rebinds workspace-scoped customizations to those directories, checks trust on resolved local roots, propagates creation failures and allows a cancelled local wait to stop without disposing shared host resources. Reconnection observes the existing session; a lost creation reply must not cause an unrelated session to be accepted under the same URI.
+
+This is an optional protocol capability, not a requirement that every host use Git or materialize a local directory. Directory-based requests and ordinary provider configuration keep their existing behavior.
+
 ## Authentication and recovery
 
 Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.

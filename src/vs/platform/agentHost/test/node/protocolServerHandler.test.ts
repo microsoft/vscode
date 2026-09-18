@@ -24,7 +24,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -154,6 +154,8 @@ class MockAgentService implements IAgentService {
 	readonly readErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+	readonly resolveSessionConfigCalls: IAgentResolveSessionConfigParams[] = [];
+	readonly sessionConfigCompletionsCalls: IAgentSessionConfigCompletionsParams[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
@@ -211,8 +213,14 @@ class MockAgentService implements IAgentService {
 		return session;
 	}
 
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		this.resolveSessionConfigCalls.push(params);
+		return { schema: { type: 'object', properties: {} }, values: {} };
+	}
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		this.sessionConfigCompletionsCalls.push(params);
+		return { items: [] };
+	}
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	automationCapabilities: AutomationCapabilities | undefined;
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
@@ -1950,6 +1958,44 @@ suite('ProtocolServerHandler', () => {
 			_meta,
 		});
 	});
+
+	for (const method of ['createSession', 'resolveSessionConfig', 'sessionConfigCompletions'] as const) {
+		test(`${method} rejects unsupported repository source inputs before calling the native host`, async () => {
+			const transport = connectClient('repository-source-client');
+			const inputs = [
+				{ repositorySource: 'https://example.com/team/project' },
+				{ repositoryRevision: 'main' },
+				{ repositorySource: null },
+				{ config: { repositorySource: 'https://example.com/team/project' } },
+				{ config: { repositoryRevision: null } },
+				{ config: { repositoryUrl: 'https://example.com/team/project' } },
+			];
+			const errors = [];
+			for (const [index, input] of inputs.entries()) {
+				const id = index + 2;
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, method, {
+					channel: method === 'createSession' ? 'copilot:/repository-source' : ROOT_STATE_URI,
+					provider: 'copilot',
+					...(method === 'sessionConfigCompletions' ? { property: 'branch' } : {}),
+					...input,
+				}));
+				const response = await responsePromise;
+				errors.push(isJsonRpcResponse(response) && hasKey(response, { error: true }) ? response.error?.code : undefined);
+			}
+			assert.deepStrictEqual({
+				errors,
+				creates: agentService.createSessionConfigs.length,
+				resolves: agentService.resolveSessionConfigCalls.length,
+				completions: agentService.sessionConfigCompletionsCalls.length,
+			}, {
+				errors: inputs.map(() => JsonRpcErrorCodes.InvalidParams),
+				creates: 0,
+				resolves: 0,
+				completions: 0,
+			});
+		});
+	}
 
 	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
 		const transport = connectClient('client-drain');

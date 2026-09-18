@@ -8,6 +8,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -27,7 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -39,9 +40,10 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platf
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -201,6 +203,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
+	public resolveSessionConfigCalls: IAgentResolveSessionConfigParams[] = [];
+	public repositorySessionConfig?: ResolveSessionConfigResult;
+	public nextSessionLifecycle = SessionLifecycle.Ready;
+	public nextCreateSessionResponseError?: Error;
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
 
@@ -261,6 +267,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return [...this._sessions.values()];
 	}
 
+	override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		this.resolveSessionConfigCalls.push(params);
+		return this.repositorySessionConfig
+			? { ...this.repositorySessionConfig, values: { ...this.repositorySessionConfig.values, ...params.config } }
+			: { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
+	}
+
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		if (config) {
 			this.createSessionCalls.push(config);
@@ -279,15 +292,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: resolvedWorkingDir ? [resolvedWorkingDir] : undefined,
+				...(config.repositorySource !== undefined ? { repositorySource: config.repositorySource.toString() } : {}),
+				...(config.repositoryRevision !== undefined ? { repositoryRevision: config.repositoryRevision } : {}),
 			};
 			const state: SessionState = {
 				...this._withDefaultChatCatalog(createSessionState(summary), session.toString()),
-				lifecycle: SessionLifecycle.Ready,
+				lifecycle: this.nextSessionLifecycle,
 				activeClients: [config.activeClient],
+				...(this.repositorySessionConfig ? { config: { schema: this.repositorySessionConfig.schema, values: config.config ?? {} } } : {}),
 			};
 			this.sessionStates.set(session.toString(), state);
 		}
 		this.nextResolvedWorkingDirectory = undefined;
+		this.nextSessionLifecycle = SessionLifecycle.Ready;
+		if (this.nextCreateSessionResponseError) {
+			const error = this.nextCreateSessionResponseError;
+			this.nextCreateSessionResponseError = undefined;
+			throw error;
+		}
 		return session;
 	}
 
@@ -378,6 +400,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	setRootState(state: RootState): void {
 		this._rootStateValue = state;
 		this._rootStateOnDidChange.fire(state);
+	}
+
+	enableRepositorySource(): void {
+		this.setRootState({
+			agents: [{ provider: 'copilot', displayName: 'Test', description: 'test', models: [], capabilities: { repositorySource: { revision: true } } }],
+			activeSessions: 0,
+		});
 	}
 
 	public authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
@@ -1126,7 +1155,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentHostRepositorySource: URI; agentHostRepositoryRevision: string; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1137,6 +1166,8 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		userSelectedModelId: overrides.userSelectedModelId,
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
+		agentHostRepositorySource: overrides.agentHostRepositorySource,
+		agentHostRepositoryRevision: overrides.agentHostRepositoryRevision,
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
 		metadata: overrides.metadata,
 	});
@@ -11041,6 +11072,161 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectories?.[0]?.toString(), URI.file('/custom/working/dir').toString());
 		}));
+
+		for (const alreadyExists of [false, true]) {
+			for (const hasDefaultDirectory of [false, true]) {
+				test(`repository session uses typed source inputs and reattaches after a lost response (${alreadyExists}, default directory ${hasDefaultDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+					agentHostService.enableRepositorySource();
+					const repository = URI.parse('https://example.com/owner/repo');
+					const checkout = URI.file('/host/checkout');
+					const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: 'checkout-plugin', uri: 'file:///checkout-plugin', name: 'Checkout plugin' }];
+					disposables.add(seedActiveClient('repository-session', { customizations: constObservable(customizations) }, [checkout]));
+					disposables.add(seedActiveClient('repository-session', {
+						customizations: constObservable<ClientPluginCustomization[]>([{ type: CustomizationType.Plugin, id: 'unrelated-plugin', uri: 'file:///unrelated-plugin', name: 'Unrelated plugin' }]),
+					}, [URI.file('/unrelated/current-workspace')]));
+					if (hasDefaultDirectory) {
+						agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
+					}
+					agentHostService.nextResolvedWorkingDirectory = checkout;
+					if (alreadyExists) {
+						agentHostService.nextCreateSessionResponseError = new ProtocolError(AhpErrorCodes.SessionAlreadyExists, 'Session already created');
+					}
+					agentHostService.repositorySessionConfig = {
+						schema: {
+							type: 'object',
+							properties: {},
+						},
+						values: {},
+					};
+					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider: 'copilot',
+						agentId: 'repository-session',
+						sessionType: 'repository-session',
+						fullName: 'Test',
+						description: 'test',
+						connection: agentHostService,
+						connectionAuthority: 'local',
+						resolveWorkingDirectory: () => hasDefaultDirectory ? URI.file('/unrelated/current-workspace') : repository,
+					}));
+					const resource = URI.from({ scheme: 'repository-session', path: '/new-repository' });
+					const chat = await handler.provideChatSessionContent(resource, CancellationToken.None);
+					disposables.add(toDisposable(() => chat.dispose()));
+					const registered = chatAgentService.registeredAgents.get('repository-session');
+					assert.ok(registered);
+					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource, agentHostRepositorySource: repository, agentHostRepositoryRevision: 'main' }), () => { }, [], CancellationToken.None);
+					await timeout(25);
+					const dispatch = agentHostService.turnActions[0];
+					assert.ok(dispatch);
+					const started = dispatch.action as ITurnStartedAction;
+					agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 2, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+					agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: ActionType.ChatTurnComplete, turnId: started.turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: 3, origin: undefined });
+					await turn;
+					const lastActiveClient = agentHostService.dispatchedActions.findLast(entry => entry.action.type === ActionType.SessionActiveClientSet)?.action;
+					assert.deepStrictEqual({
+						config: agentHostService.createSessionCalls[0].config,
+						initialCustomizations: agentHostService.createSessionCalls[0].activeClient?.customizations,
+						source: agentHostService.createSessionCalls[0].repositorySource?.toString(),
+						revision: agentHostService.createSessionCalls[0].repositoryRevision,
+						workingDirectories: agentHostService.createSessionCalls[0].workingDirectories,
+						discoveryDirectories: agentHostService.resolveSessionConfigCalls.map(call => call.workingDirectory),
+						discoverySources: agentHostService.resolveSessionConfigCalls.map(call => call.repositorySource?.toString()),
+						customizations: lastActiveClient?.type === ActionType.SessionActiveClientSet ? lastActiveClient.activeClient.customizations : undefined,
+					}, {
+						config: {},
+						initialCustomizations: [],
+						source: repository.toString(),
+						revision: 'main',
+						workingDirectories: undefined,
+						discoveryDirectories: [undefined],
+						discoverySources: [repository.toString()],
+						customizations,
+					});
+				}));
+			}
+		}
+
+		test('repository session does not send the first turn until the host publishes ready', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			agentHostService.enableRepositorySource();
+			const repository = URI.parse('https://example.com/owner/repo');
+			agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
+			agentHostService.nextResolvedWorkingDirectory = URI.file('/host/checkout');
+			agentHostService.nextSessionLifecycle = SessionLifecycle.Creating;
+			agentHostService.repositorySessionConfig = {
+				schema: { type: 'object', properties: {} },
+				values: {},
+			};
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'repository-ready',
+				sessionType: 'repository-ready',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveWorkingDirectory: () => repository,
+			}));
+			const resource = URI.from({ scheme: 'repository-ready', path: '/new-repository' });
+			const chat = await handler.provideChatSessionContent(resource, CancellationToken.None);
+			disposables.add(toDisposable(() => chat.dispose()));
+			const registered = chatAgentService.registeredAgents.get('repository-ready');
+			assert.ok(registered);
+			const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-ready', sessionResource: resource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const turnsBeforeReady = agentHostService.turnActions.length;
+			const backendSession = agentHostService.createSessionCalls[0].session;
+			assert.ok(backendSession);
+			agentHostService.fireAction({ channel: backendSession.toString(), action: { type: ActionType.SessionReady }, serverSeq: 1, origin: undefined });
+			await timeout(10);
+			const dispatch = agentHostService.turnActions[0];
+			assert.ok(dispatch);
+			const started = dispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 2, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: ActionType.ChatTurnComplete, turnId: started.turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: 3, origin: undefined });
+			await turn;
+			assert.deepStrictEqual({ turnsBeforeReady, turnsAfterReady: agentHostService.turnActions.length }, { turnsBeforeReady: 0, turnsAfterReady: 1 });
+		}));
+
+		test('repository session verifies trust for a newly prepared local checkout before starting a turn', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			agentHostService.enableRepositorySource();
+			const repository = URI.parse('https://example.com/owner/repo');
+			const checkout = URI.file('/new-local-checkout');
+			const trustRequests: string[] = [];
+			instantiationService.stub(IWorkspaceTrustRequestService, {
+				requestWorkspaceTrust: async () => true,
+				requestResourcesTrust: async options => {
+					trustRequests.push(options.uri.toString());
+					return false;
+				},
+			});
+			agentHostService.setInitializeResult({ defaultDirectory: URI.file('/host').toString() });
+			agentHostService.nextResolvedWorkingDirectory = checkout;
+			agentHostService.repositorySessionConfig = {
+				schema: { type: 'object', properties: {} },
+				values: {},
+			};
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'repository-trust',
+				sessionType: 'repository-trust',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveWorkingDirectory: () => repository,
+			}));
+			const registered = chatAgentService.registeredAgents.get('repository-trust');
+			assert.ok(registered);
+			await assert.rejects(registered.impl.invoke(makeRequest({
+				agentId: 'repository-trust',
+				sessionResource: URI.from({ scheme: 'repository-trust', path: '/new-trust' }),
+			}), () => { }, [], CancellationToken.None), CancellationError);
+			assert.deepStrictEqual({ trustRequests, created: agentHostService.createSessionCalls.length, turns: agentHostService.turnActions.length }, {
+				trustRequests: [checkout.toString()], created: 1, turns: 0,
+			});
+		});
 
 		test('handler forwards request session config to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(

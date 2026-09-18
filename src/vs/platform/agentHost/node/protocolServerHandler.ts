@@ -18,6 +18,7 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
+import { validateRepositorySource } from '../common/agentHostRepositorySource.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
@@ -1561,6 +1562,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		},
 		createSession: async (_client, params) => {
+			validateRepositorySource(params, undefined);
 			let createdSession: URI;
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.
@@ -1572,6 +1574,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					provider: params.provider,
 					_meta: params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
+					...(params.repositorySource !== undefined ? { repositorySource: URI.parse(params.repositorySource) } : {}),
+					...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
 					session: URI.parse(params.channel),
 					config: params.config,
 					activeClient: params.activeClient,
@@ -1660,6 +1664,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					workingDirectories: s.workingDirectories?.map(d => d.toString()),
+					...(s.repositorySource !== undefined ? { repositorySource: s.repositorySource.toString() } : {}),
+					...(s.repositoryRevision !== undefined ? { repositoryRevision: s.repositoryRevision } : {}),
 					changes: s.changes,
 					// `_meta` carries durable host provenance, including session kind
 					// and provider-native discovery provenance.
@@ -1678,16 +1684,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.fetchAutomationRuns(params);
 		},
 		resolveSessionConfig: async (_client, params) => {
+			validateRepositorySource(params, undefined);
 			return this._agentService.resolveSessionConfig({
 				provider: params.provider,
 				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				...(params.repositorySource !== undefined ? { repositorySource: URI.parse(params.repositorySource) } : {}),
+				...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
 				config: params.config,
 			});
 		},
 		sessionConfigCompletions: async (_client, params) => {
+			validateRepositorySource(params, undefined);
 			return this._agentService.sessionConfigCompletions({
 				provider: params.provider,
 				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				...(params.repositorySource !== undefined ? { repositorySource: URI.parse(params.repositorySource) } : {}),
+				...(params.repositoryRevision !== undefined ? { repositoryRevision: params.repositoryRevision } : {}),
 				config: params.config,
 				property: params.property,
 				query: params.query,

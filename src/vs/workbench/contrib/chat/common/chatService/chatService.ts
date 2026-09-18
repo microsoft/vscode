@@ -1957,6 +1957,8 @@ export interface IChatSendRequestOptions {
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	agentHostRepositorySource?: URI;
+	agentHostRepositoryRevision?: string;
 	/** Provider-specific request metadata, separate from the prompt. */
 	metadata?: Record<string, unknown>;
 
