@@ -154,6 +154,14 @@ suite('AgentHostFilterService', () => {
 		assert.strictEqual(events, 1);
 	});
 
+	test('maps reconnecting providers to connecting', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A', RemoteAgentHostConnectionStatus.reconnecting) as unknown as ISessionsProvider));
+		const service = createService(providers);
+
+		assert.strictEqual(service.hosts[0].status, AgentHostFilterConnectionStatus.Connecting);
+	});
+
 	test('setSelectedHostId fires change and restores based on platform', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
@@ -240,7 +248,7 @@ suite('AgentHostFilterService', () => {
 		assert.deepStrictEqual([...(service.selectedHost?.providerIds ?? [])], [pid('cloudsandbox:env-1'), pid('cloudsandbox:env-2')]);
 	});
 
-	test('reconnect and disconnect fan out to every member of a group', () => {
+	test('reconnect and disconnect fan out to every member of a group', async () => {
 		const providers = new StubSessionsProvidersService();
 		const envOne = new StubRemoteProvider('cloudsandbox:env-1', 'Task one', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);
 		const envTwo = new StubRemoteProvider('cloudsandbox:env-2', 'Task two', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);
@@ -248,8 +256,8 @@ suite('AgentHostFilterService', () => {
 		store.add(providers.registerProvider(envTwo as unknown as ISessionsProvider));
 		const service = createService(providers);
 
-		service.reconnect('cloudsandbox');
-		service.disconnect('cloudsandbox');
+		await service.reconnect('cloudsandbox');
+		await service.disconnect('cloudsandbox');
 
 		assert.strictEqual(envOne.connectCalls, 1);
 		assert.strictEqual(envTwo.connectCalls, 1);

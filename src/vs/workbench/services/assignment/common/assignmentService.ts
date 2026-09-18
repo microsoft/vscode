@@ -8,6 +8,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client';
 import { Memento } from '../../../common/memento.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -29,6 +30,7 @@ import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 
 export interface IAssignmentFilter {
 	/**
@@ -42,9 +44,60 @@ export interface IAssignmentFilter {
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
 
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * VS Code both query treatments by the bare name, so this prefix must be accounted for when a
+ * bare lookup misses. This is an interim workaround until tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+
+/**
+ * Resolves a treatment value preferring the `/vscode/`-scoped key emitted by the new TAS
+ * assignments endpoint over the bare key used by the legacy endpoint, so the new endpoint wins
+ * when both assign a treatment (matching the behavior once tas-client strips the scope itself).
+ * Falls back to the bare key for treatments served only by the legacy endpoint.
+ *
+ * Exported for testing.
+ */
+export function resolveScopedTreatment<T extends string | number | boolean>(read: (name: string) => T | undefined, name: string): T | undefined {
+	const scoped = read(`${ASSIGNMENTS_SCOPE_PREFIX}${name}`);
+	return scoped !== undefined ? scoped : read(name);
+}
+
+/**
+ * Builds the telemetry payload for a tas-client feature query. The queried-feature name is marked
+ * trusted so the telemetry cleaner does not redact a `/vscode/`-scoped name as a `user-file-path`.
+ *
+ * Exported for testing.
+ */
+export function toExperimentTelemetryData(props: Map<string, string>): ITelemetryData {
+	const data: ITelemetryData = {};
+	for (const [key, value] of props.entries()) {
+		data[key] = key === 'ABExp.queriedFeature' ? new TelemetryTrustedValue(value) : value;
+	}
+	return data;
+}
+
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
+	/** Resolves the effective value without delaying developer overrides; assignment metadata always comes from TAS. */
+	getTreatmentWithAssignment<T extends string | number | boolean>(name: string): Promise<ITreatmentWithAssignment<T>>;
+}
+
+export interface ITreatmentWithAssignment<T extends string | number | boolean> {
+	readonly value: T | undefined;
+	/** May remain pending after a developer override resolves; rejects on failure or cancellation, never conflating these with absence. */
+	readonly hasAssignment: Promise<boolean>;
+}
+
+export async function resolveTreatmentWithAssignment<T extends string | number | boolean>(override: T | undefined, readAssignment: () => Promise<T | undefined>): Promise<ITreatmentWithAssignment<T>> {
+	if (override !== undefined) {
+		return { value: override, hasAssignment: readAssignment().then(value => value !== undefined) };
+	}
+	const value = await readAssignment();
+	return { value, hasAssignment: Promise.resolve(value !== undefined) };
 }
 
 class MementoKeyValueStorage implements IKeyValueStorage {
@@ -114,10 +167,7 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 	}
 
 	postEvent(eventName: string, props: Map<string, string>): void {
-		const data: ITelemetryData = {};
-		for (const [key, value] of props.entries()) {
-			data[key] = value;
-		}
+		const data = toExperimentTelemetryData(props);
 
 		/* __GDPR__
 			"query-expfeature" : {
@@ -231,7 +281,19 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		const result = await this.doGetTreatment<T>(name);
+		this.logTreatment(name, result);
+		return result;
+	}
 
+	async getTreatmentWithAssignment<T extends string | number | boolean>(name: string): Promise<ITreatmentWithAssignment<T>> {
+		await this.overrideInitDelay;
+		const override = this.configurationService.getValue<T>(`experiments.override.${name}`);
+		const result = await resolveTreatmentWithAssignment(override, () => this.getAssignedTreatment<T>(name, true));
+		this.logTreatment(name, result.value);
+		return result;
+	}
+
+	private logTreatment(name: string, result: string | number | boolean | undefined): void {
 		type TASClientReadTreatmentData = {
 			treatmentName: string;
 			treatmentValue: string;
@@ -248,8 +310,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			treatmentName: name,
 			treatmentValue: JSON.stringify(result)
 		});
-
-		return result;
 	}
 
 	private async doGetTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
@@ -260,6 +320,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return override;
 		}
 
+		return this.getAssignedTreatment<T>(name, false);
+	}
+
+	private async getAssignedTreatment<T extends string | number | boolean>(name: string, requireCurrentClient: boolean): Promise<T | undefined> {
 		if (!this.tasClient) {
 			return undefined;
 		}
@@ -268,21 +332,29 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return undefined;
 		}
 
-		let result: T | undefined;
-		const client = await this.tasClient;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			if (requireCurrentClient && this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			const clientPromise: Promise<TASClient> = this.tasClient;
+			const client = await clientPromise;
 
-		// The TAS client is initialized but we need to check if the initial fetch has completed yet
-		// If it is complete, return a cached value for the treatment
-		// If not, use the async call with `checkCache: true`. This will allow the module to return a cached value if it is present.
-		// Otherwise it will await the initial fetch to return the most up to date value.
-		if (this.networkInitialized) {
-			result = client.getTreatmentVariable<T>('vscode', name);
-		} else {
-			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
+			// Prefer cached treatments while the initial fetch is still pending.
+			if (!this.networkInitialized) {
+				await client.getTreatmentVariableAsync<T>('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`, true);
+			}
+			// Assignment metadata must not outlive its client; legacy value-only reads retain their original contract.
+			if (requireCurrentClient) {
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+				if (clientPromise !== this.tasClient) {
+					continue;
+				}
+			}
+			return resolveScopedTreatment<T>(readName => client.getTreatmentVariable<T>('vscode', readName), name);
 		}
-
-		result = client.getTreatmentVariable<T>('vscode', name);
-		return result;
+		throw new CancellationError();
 	}
 
 	/**

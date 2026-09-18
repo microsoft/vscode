@@ -9,14 +9,6 @@
 	position: relative;
 	display: flex;
 	flex-direction: column;
-
-	&:empty {
-		display: none;
-	}
-
-	&:not(:empty) {
-		margin-top: 8px;
-	}
 }
 
 /* Card chrome comes from widget/media/chatCard.css. */

@@ -5,6 +5,7 @@
 
 import type { SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 
 export interface ICopilotSystemNotification {
@@ -34,17 +35,28 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			};
 		}
 		case 'agent_completed':
+		case 'agent_idle': {
+			const name = kind.displayName?.trim() || kind.description?.trim() || kind.agentType.trim();
+			const formattedName = name ? appendEscapedMarkdownInlineCode(name) : undefined;
+			if (kind.type === 'agent_idle') {
+				return {
+					messageText: formattedName
+						? localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentIdle', "Background agent is complete"),
+					startsTurn: true,
+				};
+			}
 			return {
 				messageText: kind.status === 'failed'
-					? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", kind.agentId)
-					: localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", kind.agentId),
+					? formattedName
+						? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentFailed', "Background agent failed")
+					: formattedName
+						? localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentCompleted', "Background agent completed"),
 				startsTurn: true,
 			};
-		case 'agent_idle':
-			return {
-				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
-				startsTurn: true,
-			};
+		}
 		case 'factory_completed':
 			return {
 				messageText: kind.status === 'error'

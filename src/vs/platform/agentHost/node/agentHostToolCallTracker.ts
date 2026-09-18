@@ -6,10 +6,14 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import type { SessionToolAuthenticationRequest, SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
-import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
-import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
+import { SessionInputRequestKind, type SessionToolAuthenticationRequest, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
+import { type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
+import { IAgentHostTelemetryReporter, type AgentHostExecutorClientConnectionState, type AgentHostModelTelemetryKind, type AgentHostTelemetryReporter, type IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
+import { IAgentHostTurnTracker, type AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
 
@@ -34,41 +38,6 @@ export function deriveToolInvokedResult(result: ToolCallResult): ToolInvokedResu
 	return 'error';
 }
 
-/**
- * Maps a tool call's contributor to the telemetry `toolSourceKind`. A tool with
- * no contributor is provided by the agent host itself; an MCP contributor maps
- * to `mcp` and a client contributor to `client`.
- */
-export function toolSourceKindFromContributor(contributor: ToolCallContributor | undefined): string {
-	if (!contributor) {
-		return 'agentHost';
-	}
-	// Widen to `string` so an unrecognized kind from a newer protocol version
-	// falls through to a valid telemetry value rather than `undefined`.
-	const kind: string = contributor.kind;
-	switch (kind) {
-		case ToolCallContributorKind.MCP:
-			return 'mcp';
-		case ToolCallContributorKind.Client:
-			return 'client';
-		default:
-			return kind;
-	}
-}
-
-/**
- * Whether `next` is a safe refinement of the currently recorded contributor.
- * A client contributor may only be refined by the same client, and a client
- * contributor is never replaced by a non-client one, so execution ownership
- * cannot be reassigned by a later, less specific signal.
- */
-export function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
-	if (current?.kind === ToolCallContributorKind.Client) {
-		return next.kind === ToolCallContributorKind.Client && next.clientId === current.clientId;
-	}
-	return next.kind !== ToolCallContributorKind.Client;
-}
-
 /** Per-tool-call timing state, keyed by `session:toolCallId`. */
 interface IToolCallTiming {
 	readonly lifecycleStopWatch: StopWatch;
@@ -88,6 +57,7 @@ interface IToolCallTiming {
 interface IStalledToolCall {
 	readonly blockerKind: ToolCallBlockerRequest['kind'];
 	readonly completionStopWatch: StopWatch;
+	readonly executorClientConnectionState: AgentHostExecutorClientConnectionState | undefined;
 }
 
 /**
@@ -104,7 +74,11 @@ interface IStalledToolCall {
  * tool call) are dropped via {@link clearSession} / {@link clear} so the
  * tracking map cannot leak.
  */
+export const IAgentHostToolCallTracker = createDecorator<AgentHostToolCallTracker>('agentHostToolCallTracker');
+
 export class AgentHostToolCallTracker extends Disposable {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _toolCalls = new Map<string, IToolCallTiming>();
 	private readonly _turnModels = new Map<string, { model: string; modelTelemetryKind: AgentHostModelTelemetryKind }>();
@@ -113,8 +87,9 @@ export class AgentHostToolCallTracker extends Disposable {
 	private readonly _stalledToolCalls = new Map<string, IStalledToolCall>();
 
 	constructor(
-		private readonly _reporter: AgentHostTelemetryReporter,
-		private readonly _getClientContext: (session: string, turnId: string) => IAgentHostClientTelemetryContext | undefined = () => undefined,
+		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
+		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
 	}
@@ -132,7 +107,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			model: resolvedModel?.model ?? model,
 			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
 			modelResolvedFromUsage: resolvedModel !== undefined,
-			clientContext: this._getClientContext(session, turnId),
+			clientContext: this._turnTracker.getClientTelemetryContext(session, turnId),
 		});
 	}
 
@@ -219,8 +194,10 @@ export class AgentHostToolCallTracker extends Disposable {
 				provider: timing.provider,
 				session: timing.session,
 				blockerKind: stalled.blockerKind,
+				toolCallId,
 				toolId: timing.toolId,
 				toolSourceKind: timing.toolSourceKind,
+				executorClientConnectionState: stalled.executorClientConnectionState,
 				result: resultBucket,
 				totalTimeMs,
 				timeAfterStallMs: stalled.completionStopWatch.elapsed(),
@@ -239,14 +216,17 @@ export class AgentHostToolCallTracker extends Disposable {
 		this._toolCallStallTimers.set(key, disposableTimeout(() => {
 			const stalledTimeMs = stopWatch.elapsed();
 			const clientContext = this._toolCalls.get(toolCallKey)?.clientContext;
-			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true) });
+			const executorClientConnectionState = this._getExecutorClientConnectionState(request);
+			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true), executorClientConnectionState });
 			this._reporter.toolCallStalled({
 				clientContext,
 				provider,
 				session,
 				blockerKind: request.kind,
+				toolCallId: request.toolCall.toolCallId,
 				toolId: request.toolCall.toolName,
 				toolSourceKind: toolSourceKindFromContributor(request.toolCall.contributor),
+				executorClientConnectionState,
 				stalledTimeMs,
 			});
 		}, TOOL_CALL_STALL_THRESHOLD_MS));
@@ -307,5 +287,15 @@ export class AgentHostToolCallTracker extends Disposable {
 
 	private _turnKey(session: string, turnId: string): string {
 		return `${session}\0${turnId}`;
+	}
+
+	private _getExecutorClientConnectionState(request: ToolCallBlockerRequest): AgentHostExecutorClientConnectionState | undefined {
+		if (request.kind !== SessionInputRequestKind.ToolClientExecution) {
+			return undefined;
+		}
+		if (this._clientConnections.isClientConnected(request.clientId)) {
+			return 'connected';
+		}
+		return this._clientConnections.hasSeenClient(request.clientId) ? 'disconnected' : 'unknown';
 	}
 }

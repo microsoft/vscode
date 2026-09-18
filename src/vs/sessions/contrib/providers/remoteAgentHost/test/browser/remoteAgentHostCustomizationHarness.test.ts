@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type AgentCustomization, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -17,20 +19,50 @@ import { sessionReducer } from '../../../../../../platform/agentHost/common/stat
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { IFileService, type IFileContent, type IFileStat, type IFileStatResult } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStat, type IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { MockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
+import { MockPromptsService as BaseMockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAgentHostCustomizationService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentCustomizationItemProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+
+class MockPromptsService extends BaseMockPromptsService {
+	override getDisabledPromptFiles(): ResourceSet {
+		return new ResourceSet();
+	}
+
+	override async listPromptFilesForStorage(): Promise<[]> {
+		return [];
+	}
+}
+
+/** Throws the file-not-found result used for absent optional plugin directories. */
+function throwFileNotFound(): never {
+	throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+}
+
+/** Adds deterministic metadata to a test file stat. */
+function withMetadata(stat: IFileStat): IFileStatWithMetadata {
+	return {
+		...stat,
+		mtime: stat.mtime ?? 0,
+		ctime: stat.ctime ?? 0,
+		etag: stat.etag ?? '',
+		size: stat.size ?? 0,
+		readonly: stat.readonly ?? false,
+		locked: stat.locked ?? false,
+		executable: stat.executable ?? false,
+		children: stat.children?.map(withMetadata),
+	};
+}
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 
@@ -151,10 +183,14 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
 		},
 		getFolderPickerDecision: () => undefined,
+		whenCustomizationsReady: () => Promise.resolve(),
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},
 		getWorkingDirectories(_sessionResource: URI): readonly string[] {
+			return [];
+		},
+		getClientWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
 			return [];
 		},
 		getMcpServers(_sessionResource: URI) {
@@ -226,7 +262,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -236,6 +271,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginA, pluginB]),
+			new MockPromptsService(),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -253,6 +289,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
 			type: CustomizationType.Agent,
@@ -284,7 +321,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -294,6 +330,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostScoped]),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -326,7 +363,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -336,6 +372,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostPlugin]),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -375,37 +412,32 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const skillFileUri = URI.parse(`${bundleUri}/skills/my-skill`);
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return true; }
-			override async resolveAll(resources: { resource: URI }[]): Promise<IFileStatResult[]> {
-				return resources.map(r => {
-					if (r.resource.path.endsWith('/skills')) {
-						return {
-							success: true,
-							stat: {
-								resource: r.resource,
-								name: 'skills',
-								isFile: false,
-								isDirectory: true,
-								isSymbolicLink: false,
-								readonly: false,
-								mtime: 0,
-								ctime: 0,
-								size: 0,
-								children: [{
-									name: 'my-skill',
-									resource: skillFileUri,
-									isFile: false,
-									isDirectory: true,
-									isSymbolicLink: false,
-									readonly: false,
-									mtime: 0,
-									ctime: 0,
-									size: 0,
-									children: [],
-								}],
-							},
-						} satisfies IFileStatResult;
-					}
-					return { success: false, stat: undefined } as unknown as IFileStatResult;
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				if (!resource.path.endsWith('/skills')) {
+					throwFileNotFound();
+				}
+				return withMetadata({
+					resource,
+					name: 'skills',
+					isFile: false,
+					isDirectory: true,
+					isSymbolicLink: false,
+					readonly: false,
+					mtime: 0,
+					ctime: 0,
+					size: 0,
+					children: [{
+						name: 'my-skill',
+						resource: skillFileUri,
+						isFile: false,
+						isDirectory: true,
+						isSymbolicLink: false,
+						readonly: false,
+						mtime: 0,
+						ctime: 0,
+						size: 0,
+						children: [],
+					}],
 				});
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
@@ -424,6 +456,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -459,7 +492,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -469,6 +501,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -505,7 +538,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -515,6 +547,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -543,7 +576,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -553,6 +585,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
+			new MockPromptsService(),
 		));
 
 		let changeCount = 0;
@@ -625,7 +658,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return false; }
-			override async resolveAll() { return []; }
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
@@ -635,6 +667,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -658,6 +691,52 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.strictEqual(new Set(keys).size, 2, 'all item keys should be unique');
 	});
 
+	test('provider classifies agent host synthetic customizations as built-in', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const containerUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' }).toString();
+		const skillUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/code-review' }).toString();
+		const container: Customization = {
+			type: CustomizationType.Directory,
+			id: containerUri,
+			uri: containerUri,
+			name: 'builtin',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [{
+				type: CustomizationType.Skill,
+				id: skillUri,
+				uri: skillUri,
+				name: 'code-review',
+				description: 'Review the current diff.',
+			}],
+		};
+		connection.setRootState({ agents: [createAgentInfo([container])] });
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'test-authority',
+			() => { },
+			undefined,
+			new class extends mock<IFileService>() { }(),
+			new NullLogService(),
+			createTestCustomAgentsService(connection, [container]),
+			new MockPromptsService(),
+		));
+
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({
+			name: item.name,
+			source: item.source,
+			uri: item.uri.toString(),
+		})), [{
+			name: 'code-review',
+			source: AICustomizationSources.builtin,
+			uri: 'vscode-agent-host://test-authority/skill/code-review?_ah%3DeyJzY2hlbWUiOiJhZ2VudC1idWlsdGluIn0',
+		}]);
+	});
+
 	test('provider parses skill metadata, rewrites folder URIs to SKILL.md, and skips unreadable folder skills', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/skills-bundle', uri: 'file:///plugins/skills-bundle', name: 'Skills Bundle', };
@@ -676,16 +755,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return true; }
-			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
-				return toResolve.map(({ resource }) => {
-					if (resource.path.endsWith('/skills')) {
-						return {
-							success: true,
-							stat: { name: 'skills', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: skillsDirChildren },
-						};
-					}
-					return { success: false };
-				});
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				if (!resource.path.endsWith('/skills')) {
+					throwFileNotFound();
+				}
+				return withMetadata({ name: 'skills', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: skillsDirChildren });
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				if (resource.path.endsWith('/valid-skill/SKILL.md')) {
@@ -703,6 +777,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
+			new MockPromptsService(),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -740,10 +815,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return true; }
-			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
-				return toResolve.map(({ resource }) => resource.path.endsWith('/rules')
-					? { success: true, stat: { name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: rulesDirChildren } }
-					: { success: false });
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				if (!resource.path.endsWith('/rules')) {
+					throwFileNotFound();
+				}
+				return withMetadata({ name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: rulesDirChildren });
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				const content = '---\nname: My Rule\ndescription: A synced rule\n---\n';
@@ -761,6 +837,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -791,10 +868,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const ruleResource = URI.parse(`${bundleUri}/rules/user-rule.instructions.md`);
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return true; }
-			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
-				return toResolve.map(({ resource }) => resource.path.endsWith('/rules')
-					? { success: true, stat: { name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: [{ name: 'user-rule.instructions.md', resource: ruleResource, isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined }] } }
-					: { success: false });
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				if (!resource.path.endsWith('/rules')) {
+					throwFileNotFound();
+				}
+				return withMetadata({ name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: [{ name: 'user-rule.instructions.md', resource: ruleResource, isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined }] });
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				const content = 'User rule';
@@ -811,6 +889,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 		connection.fireAction({
 			channel: agentHostSessionId,
@@ -851,10 +930,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return true; }
-			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
-				return toResolve.map(({ resource }) => resource.path.endsWith('/rules')
-					? { success: true, stat: { name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: rulesDirChildren } }
-					: { success: false });
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				if (!resource.path.endsWith('/rules')) {
+					throwFileNotFound();
+				}
+				return withMetadata({ name: 'rules', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: rulesDirChildren });
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				const content = '---\nname: My Rule\n---\n';
@@ -870,6 +950,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -901,16 +982,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			override async canHandleResource() { return true; }
-			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
-				return toResolve.map(({ resource }) => {
-					if (resource.path.endsWith('/skills')) {
-						return {
-							success: true,
-							stat: { name: 'skills', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: skillsDirChildren },
-						};
-					}
-					return { success: false };
-				});
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				if (!resource.path.endsWith('/skills')) {
+					throwFileNotFound();
+				}
+				return withMetadata({ name: 'skills', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: skillsDirChildren });
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				if (resource.path.endsWith('/lint/SKILL.md')) {
@@ -928,6 +1004,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
+			new MockPromptsService(),
 		));
 
 		const harnessId = 'remote-agent-host-test';

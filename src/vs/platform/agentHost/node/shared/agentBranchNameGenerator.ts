@@ -40,10 +40,12 @@ export interface IAgentBranchNameGeneratorRequest {
 export const IAgentBranchNameGenerator = createDecorator<IAgentBranchNameGenerator>('agentBranchNameGenerator');
 
 export interface IAgentBranchNameGenerator {
+	readonly _serviceBrand: undefined;
 	generateBranchName(request: IAgentBranchNameGeneratorRequest): Promise<string>;
 }
 
 export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,

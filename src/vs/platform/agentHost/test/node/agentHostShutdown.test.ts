@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { flushAgentHostPersistenceBeforeShutdown } from '../../node/agentHostShutdown.js';
+import { flushAgentHostPersistenceBeforeShutdown, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
 
 suite('AgentHostShutdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,5 +17,43 @@ suite('AgentHostShutdown', () => {
 			3000,
 			new NullLogService(),
 		));
+	});
+
+	test('providers shut down before persistence is flushed', async () => {
+		const steps: string[] = [];
+
+		await shutdownAgentHostBeforeDispose(
+			async () => {
+				steps.push('protocol drain');
+			},
+			async () => {
+				steps.push('provider shutdown');
+			},
+			() => {
+				steps.push('persistence flush');
+				return [Promise.resolve()];
+			},
+			3000,
+			new NullLogService(),
+		);
+
+		assert.deepStrictEqual(steps, ['protocol drain', 'provider shutdown', 'persistence flush']);
+	});
+
+	test('a failed provider shutdown still flushes persistence', async () => {
+		let persistenceFlushed = false;
+
+		await shutdownAgentHostBeforeDispose(
+			() => Promise.resolve(),
+			() => Promise.reject(new Error('provider unavailable')),
+			() => {
+				persistenceFlushed = true;
+				return [Promise.resolve()];
+			},
+			3000,
+			new NullLogService(),
+		);
+
+		assert.strictEqual(persistenceFlushed, true);
 	});
 });

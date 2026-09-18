@@ -821,14 +821,14 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: second });
 
 		const firstPrompt = peerFileOperationPrompt(
-			`Create the file at ${firstFile} containing exactly FIRST_PEER.`,
+			`Create the file at ${firstFile} containing exactly FIRST_PEER with no trailing newline.${PREFER_FILE_TOOLS} Do not verify it with another tool. Then reply exactly "created".`,
 			`node -e "require('fs').writeFileSync('first-peer.txt','FIRST_PEER')"`,
-			'Then reply exactly "created".',
+			'Do not run any other command or tool. Then reply exactly "created".',
 		);
 		const secondPrompt = peerFileOperationPrompt(
-			`Create the file at ${secondFile} containing exactly SECOND_PEER.`,
+			`Create the file at ${secondFile} containing exactly SECOND_PEER with no trailing newline.${PREFER_FILE_TOOLS} Do not verify it with another tool. Then reply exactly "created".`,
 			`node -e "require('fs').writeFileSync('second-peer.txt','SECOND_PEER')"`,
-			'Then reply exactly "created".',
+			'Do not run any other command or tool. Then reply exactly "created".',
 		);
 		await driveTurn(first, 'first-write', firstPrompt, 1);
 		await driveTurn(second, 'second-write', secondPrompt, 10);

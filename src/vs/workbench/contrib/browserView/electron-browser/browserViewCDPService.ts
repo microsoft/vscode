@@ -30,7 +30,9 @@ export class BrowserViewCDPService extends Disposable implements IBrowserViewCDP
 		return this._groupService.createGroup(
 			{ browserIds: [browserId] },
 			{
-				hostWindowId: mainWindow.vscodeWindowId,
+				host: {
+					windowId: mainWindow.vscodeWindowId
+				},
 				owner: { type: 'user' },
 				session: { scope: BrowserViewStorageScope.Ephemeral }
 			}

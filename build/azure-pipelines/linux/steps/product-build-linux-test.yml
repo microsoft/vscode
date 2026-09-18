@@ -133,8 +133,17 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         set -e
+        sudo mkdir /etc/vscode
+        echo "##vso[task.setvariable variable=created;isOutput=true]true"
+        sudo chown "$(id -u):$(id -g)" /etc/vscode
+      name: policyFixture
+      displayName: Set up native policy smoke fixture
+
+    - script: |
+        set -e
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
       env:
+        VSCODE_SMOKE_TEST_POLICY: '1'
         # Keep the smoke test data dir (user-data, extensions, workspace and the
         # Copilot CLI session state under `os.tmpdir()`) on the large work volume
         # instead of the small OS root disk (`/tmp`), which has filled up and
@@ -142,6 +151,13 @@ steps:
         TMPDIR: $(Agent.TempDirectory)
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Electron)
+
+    - script: |
+        set -e
+        sudo rm -f /etc/vscode/policy.json
+        sudo rmdir /etc/vscode
+      displayName: Clean up native policy smoke fixture
+      condition: and(always(), eq(variables['policyFixture.created'], 'true'))
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - script: npm run smoketest-no-compile -- --web --tracing --headless

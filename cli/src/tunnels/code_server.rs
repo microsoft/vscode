@@ -904,7 +904,7 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str, show_editor_link: b
 		None => return,
 	};
 
-	let arrow = style("➜").green().bold();
+	let arrow = style(output::banner_marker()).green().bold();
 	let product = QUALITYLESS_PRODUCT_NAME;
 	let version = crate::constants::VSCODE_CLI_VERSION.unwrap_or("dev");
 

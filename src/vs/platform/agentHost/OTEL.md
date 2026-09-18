@@ -2,9 +2,7 @@
 
 The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that hosts native Copilot, Claude, and Codex runtimes instead of using the extension's in-process harnesses. The agent host has its own OTel pipeline so provider-native traces can be exported to a collector or persisted locally for inspection.
 
-> **Availability:** Insiders / non-stable builds only.
-
-This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) because the agent host runs entirely outside the extension host and is independent of the extension-side OTel pipeline (`github.copilot.chat.otel.*`) documented in `extensions/copilot/docs/monitoring/`.
+This is the architecture and integration reference for OTel in Agent Host sessions. It lives next to `IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts) because Agent Host runs outside the extension host. Local Copilot Chat remains an independent extension-host pipeline configured with `github.copilot.chat.otel.*` and documented in [`extensions/copilot/docs/monitoring/agent_monitoring.md`](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md).
 
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
@@ -14,6 +12,16 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 | SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
+## Sources of Truth
+
+Agent Host owns transport routing, optional interception and persistence, resource normalization, and cross-provider trace context. Each provider owns the telemetry it produces:
+
+- **Copilot:** the Rust-native OTel lifecycle in `github/copilot-agent-runtime`. Its `docs/developer-docs/monitor.md` is the exhaustive signal and configuration reference. Audit it at the `@github/copilot` version pinned in the root `package-lock.json`, not at an arbitrary runtime `main`; cite an immutable commit permalink in the resulting issue or pull request.
+- **Claude:** the Claude runtime's native OTel implementation and launch environment.
+- **Codex:** the Codex app-server's native OTel implementation and launch overrides.
+
+Do not copy provider-native span, event, metric, or environment-variable catalogs into this document. Keep this reference focused on the VS Code-owned integration boundary. The extension-host Copilot CLI bridge under `extensions/copilot/src/extension/chatSessions/copilotcli/` is a deprecated compatibility path and is not the Agent Host architecture.
+
 ## Two Modes
 
 | Mode | Trigger | Behavior |
@@ -21,32 +29,26 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 | **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). SDK spans are not intercepted; host-produced session-title metadata uses the matching JSON/file/console forwarder. |
 | **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | The SDK is pointed at a loopback OTLP/HTTP receiver inside the agent host. Spans are decoded and written to a local SQLite database. With an OTLP/HTTP JSON external endpoint, the receiver also fans the normalized JSON body out to it. Protobuf and gRPC traces remain local because Agent Host does not transcode wire formats. |
 
-```
-                 ┌─────────────────────────────────────────────────────────────────┐
-                 │  Agent Host process (src/vs/platform/agentHost)                  │
-                 │                                                                 │
-   user setting  │   pass-through mode                                              │
-   chat.agent    │   ┌─────────────────────────┐    OTLP/HTTP    ┌──────────────┐  │
-   Host.otel.*   ─→  │ copilot-sdk             │ ─────────────── │ user-config  │  │
-                 │   │ TelemetryConfig         │                 │ OTLP sink    │  │
-   spawn-time    │   └─────────────────────────┘                 └──────────────┘  │
-   env binding   │                                                                 │
-   in            │   db mode (dbSpanExporter.enabled)                              │
-   electron-     │   ┌─────────────────────────┐    127.0.0.1    ┌──────────────┐  │
-   AgentHostStar ─→  │ copilot-sdk             │ ─────────────── │ loopback     │  │
-   ter.ts and    │   │ TelemetryConfig         │  ephemeral port │ OTLP receiver│  │
-   nodeAgent     │   │ (re-pointed at loopback)│                 │ (localOtlp   │  │
-   HostStarter   │   └─────────────────────────┘                 │  Receiver)   │  │
-   .ts           │                                               └──────┬───────┘  │
-                 │                                                      │          │
-                 │                                onSpans  ────────────►├─→ SQLite │
-                 │                                                      │   store  │
-                 │                                onForward ────────────┘          │
-                 │                                       │                         │
-                 │                                       ▼                         │
-                 │                          OtlpHttpForwarder   OTLP/HTTP          │
-                 │                          (optional fan-out) ─────────────────→  │ user-config OTLP sink
-                 └─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    settings["chat.agentHost.otel settings"] --> starter["Agent Host starter<br/>settings to spawn environment"]
+    starter --> host["Agent Host process"]
+    host --> copilot["Copilot native runtime"]
+    host --> claude["Claude runtime"]
+    host --> codex["Codex app-server"]
+
+    copilot --> mode{Trace routing mode}
+    claude --> mode
+    codex --> mode
+
+    mode -->|Pass-through| sink[User-configured exporter]
+    mode -->|DB mode: OTLP/HTTP JSON| receiver[Loopback OTLP receiver]
+    receiver --> sqlite[(SQLite span store)]
+    receiver -->|Optional compatible fan-out| sink
+
+    copilot -. Native metrics .-> sink
+    claude -. Native logs and metrics .-> sink
+    codex -. Native logs and metrics .-> sink
 ```
 
 - **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
@@ -58,7 +60,7 @@ Only traces enter the Agent Host loopback and SQLite database. When an external 
 
 | Provider | Trace configuration | Direct external signals |
 |---|---|---|
-| Copilot | SDK `TelemetryConfig` plus a trace-specific endpoint | Metrics |
+| Copilot | SDK configuration consumed by the Rust-native OTel lifecycle | Metrics |
 | Claude | `OTEL_TRACES_EXPORTER` and trace-specific endpoint | Logs and metrics |
 | Codex | `otel.trace_exporter` launch override | Logs and metrics |
 
@@ -111,7 +113,7 @@ Open **Settings** (`Ctrl+,`) and search for `agentHost otel`:
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `chat.agentHost.otel.enabled` | boolean | `false` | Enable OTel emission from the agent host. |
-| `chat.agentHost.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file`. The CLI runtime downgrades `otlp-grpc` to `otlp-http` transparently. |
+| `chat.agentHost.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file`. Provider support differs; for Copilot, `otlp-grpc` is downgraded to `otlp-http` because the runtime supports OTLP/HTTP JSON and protobuf only. |
 | `chat.agentHost.otel.otlpEndpoint` | string | `""` | OTLP endpoint URL. Accepts a bare base URL (`http://localhost:4318`) — `/v1/traces` is appended automatically when needed, matching the standard `OTEL_EXPORTER_OTLP_ENDPOINT` convention. A full signal-specific URL (`http://host:4318/v1/traces`) is used verbatim. |
 | `chat.agentHost.otel.captureContent` | boolean | `false` | Capture prompt/response content in span attributes. Privacy-sensitive — do not enable in environments that ship spans to shared sinks. |
 | `chat.agentHost.otel.outfile` | string | `""` | Output path for JSON-lines spans when `exporterType` is `file`. |
@@ -125,14 +127,19 @@ The workbench-side starter translates the settings above into the following env 
 |---|---|---|
 | `COPILOT_OTEL_ENABLED` | `chat.agentHost.otel.enabled` | Set to `true` only when the setting is on. |
 | `COPILOT_OTEL_EXPORTER_TYPE` | `chat.agentHost.otel.exporterType` | |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `chat.agentHost.otel.otlpEndpoint` | Standard OTel env var. `COPILOT_OTEL_ENDPOINT` is also accepted as an alternate and takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `chat.agentHost.otel.otlpEndpoint` | Standard OTel endpoint. |
+| `COPILOT_OTEL_ENDPOINT` | (inherited) | Alternate endpoint used only when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset. |
 | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | `chat.agentHost.otel.captureContent` | |
 | `COPILOT_OTEL_FILE_EXPORTER_PATH` | `chat.agentHost.otel.outfile` | |
 | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` | `chat.agentHost.otel.dbSpanExporter.enabled` | |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | (inherited or enterprise policy) | `grpc` and `http/grpc` select gRPC; `http/protobuf` selects HTTP protobuf; other values use HTTP JSON. Set from the managed `telemetry.protocol` when configured. |
+| `COPILOT_OTEL_PROTOCOL` | (inherited) | Alternate protocol used only when `OTEL_EXPORTER_OTLP_PROTOCOL` is unset. |
+| `COPILOT_OTEL_SOURCE_NAME` | (inherited) | Instrumentation scope name used by Copilot and host-produced metadata spans. |
 | `OTEL_SERVICE_NAME` | (inherited or enterprise policy) | `service.name` resource attribute; set from the managed `telemetry.serviceName`. |
 | `OTEL_RESOURCE_ATTRIBUTES` | (inherited or enterprise policy) | Extra resource attributes (`k=v,k2=v2`); set from the managed `telemetry.resourceAttributes`. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | (inherited) | Auth headers (e.g., `Authorization=Bearer …`). **Not** delivered from managed settings — env delivery would leak the secret to tool subprocesses; managed headers apply to the Copilot Chat extension only. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | (inherited) | Auth headers (for example, `Authorization=<value>`). **Not** delivered from managed settings — env delivery would leak the secret to tool subprocesses; managed headers apply to the Copilot Chat extension only. |
+
+Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
 > **Activation timing.** Env vars are bound at agent host **spawn time**. Changing a setting while the agent host is already running has no effect until the host respawns — restart VS Code or reload the window if you change these settings mid-session.
 
@@ -193,7 +200,7 @@ src/vs/platform/otel/
 |---|---|
 | `chat.agentHost.otel.enabled` | `COPILOT_OTEL_ENABLED` |
 | `chat.agentHost.otel.exporterType` | `COPILOT_OTEL_EXPORTER_TYPE` |
-| `chat.agentHost.otel.otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` (`COPILOT_OTEL_ENDPOINT` also accepted, takes precedence) |
+| `chat.agentHost.otel.otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` (`COPILOT_OTEL_ENDPOINT` is also accepted when the standard variable is unset) |
 | `chat.agentHost.otel.captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` |
 | `chat.agentHost.otel.outfile` | `COPILOT_OTEL_FILE_EXPORTER_PATH` |
 | `chat.agentHost.otel.dbSpanExporter.enabled` | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` |

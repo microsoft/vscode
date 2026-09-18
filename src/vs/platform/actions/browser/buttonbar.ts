@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../base/browser/dom.js';
 import { ButtonBar, ButtonWithDropdown, IButton } from '../../../base/browser/ui/button/button.js';
 import { createPixelSpinner } from '../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import './buttonbar.css';
@@ -10,7 +11,7 @@ import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hover
 import { ActionRunner, IAction, IActionRunner, IRunEvent, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -26,7 +27,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { renderAsPlaintext } from '../../../base/browser/markdownRenderer.js';
 import { stripIcons } from '../../../base/common/iconLabels.js';
 
-export type IButtonConfigProvider = (action: IAction, index: number) => {
+export interface IButtonConfig {
 	showIcon?: boolean;
 	showLabel?: boolean;
 	isSecondary?: boolean;
@@ -36,9 +37,17 @@ export type IButtonConfigProvider = (action: IAction, index: number) => {
 	/**
 	 * Renders an animated spinner ahead of the label, for a button whose work
 	 * is currently in flight rather than waiting to be started.
+	 *
+	 * The spinner occupies the button's leading slot. Where the button renders
+	 * an icon at rest — `showIcon` with an action that carries one — the spinner
+	 * takes that icon's place rather than adding to it, so the button keeps its
+	 * width while its work runs. A button with nothing in that slot at rest
+	 * grows by the width of the spinner instead.
 	 */
 	showSpinner?: boolean;
-} | undefined;
+}
+
+export type IButtonConfigProvider = (action: IAction, index: number) => IButtonConfig | undefined;
 
 export interface IWorkbenchButtonBarOptions {
 	telemetrySource?: string;
@@ -157,33 +166,46 @@ export class WorkbenchButtonBar extends ButtonBar {
 				btn.element.classList.add(customClass);
 			}
 
-			const composeLabel = (labelValue: string | IMarkdownString): string | IMarkdownString => {
-				if (showIcon && action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon) && showLabel) {
-					// this is REALLY hacky but combining a codicon and normal text is ugly because
-					// the former define a font which doesn't work for text
-					return isMarkdownString(labelValue)
-						? new MarkdownString(`$(${action.item.icon.id}) ${labelValue.value}`, {
-							isTrusted: labelValue.isTrusted, supportThemeIcons: true, supportHtml: labelValue.supportHtml
-						})
-						: `$(${action.item.icon.id}) ${labelValue}`;
+			// The icon a button shows always comes from the action, which carries
+			// it as a CSS class. `MenuItemAction` derives that class from the
+			// icon its command declares — including the toggled icon while it is
+			// checked, which reading `item.icon` directly would miss.
+			const renderActionIcon = (): HTMLElement | undefined => {
+				if (!action.class) {
+					return undefined;
 				}
-				return labelValue;
+				const element = $('span');
+				element.classList.add(...action.class.split(' '));
+				return element;
 			};
 
-			// Setting the label resets the button's children, so the spinner is
-			// (re-)attached after every label write rather than once up front.
-			const spinner = config?.showSpinner
-				? this._updateStore.add(createPixelSpinner())
-				: undefined;
-			const applySpinner = () => {
-				if (spinner) {
-					(btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element).prepend(spinner.element);
+			// The button's leading slot holds either its icon or — while its work
+			// is in flight — the spinner, never both. Both are sized identically
+			// (see buttonbar.css), so swapping one for the other leaves the
+			// button's width untouched.
+			const showSpinner = config?.showSpinner;
+			const leading = showSpinner
+				? this._updateStore.add(createPixelSpinner()).element
+				: showIcon && showLabel ? renderActionIcon() : undefined;
+			if (leading) {
+				leading.classList.add('monaco-button-leading-icon');
+				if (!showLabel) {
+					// Nothing follows it, so it carries no gap to a label.
+					leading.classList.add('monaco-button-leading-icon-only');
+				}
+			}
+
+			// Setting the label resets the button's children, so the leading slot
+			// is (re-)attached after every label write rather than once up front.
+			const applyLeading = () => {
+				if (leading) {
+					(btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element).prepend(leading);
 				}
 			};
 
 			const applyLabel = (labelValue: string | IMarkdownString) => {
 				if (showLabel) {
-					btn.label = composeLabel(labelValue);
+					btn.label = labelValue;
 				}
 
 				const labelStringValue = stripIcons(renderAsPlaintext(labelValue));
@@ -191,21 +213,21 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 				btn.setTitle(ariaLabelWithKeybinding);
 				btn.setAriaLabel(ariaLabelWithKeybinding);
-				applySpinner();
+				applyLeading();
 			};
 
 			if (showLabel) {
-				btn.label = composeLabel(customLabel ?? action.label);
+				btn.label = customLabel ?? action.label;
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
-			applySpinner();
+			applyLeading();
 
-			if (showIcon) {
+			// An icon-only button wears its icon as a codicon class on the button
+			// itself, so it is left off while the spinner stands in for it.
+			if (showIcon && !showLabel && !showSpinner) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
-					if (!showLabel) {
-						btn.icon = action.item.icon;
-					}
+					btn.icon = action.item.icon;
 				} else if (action.class) {
 					btn.element.classList.add(...action.class.split(' '));
 				}

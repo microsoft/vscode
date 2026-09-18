@@ -22,20 +22,6 @@
 	max-width: 280px;
 }
 
-.empty-file-editor-icon.codicon {
-	font-size: 24px !important;
-	width: 24px;
-	height: 24px;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.8;
-}
-
-.empty-file-editor-description {
-	font-size: var(--vscode-fontSize-body1, 13px);
-	line-height: 1.4;
-	color: var(--vscode-descriptionForeground);
-}
-
 .empty-file-editor-actions {
 	display: flex;
 	align-items: center;
