@@ -1754,7 +1754,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('removes current and legacy migration activity when its source becomes a candidate again', () => {
+	test('removes reverted migration activity while preserving copied activity', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
@@ -1783,12 +1783,29 @@ suite('aiCustomizationManagementEditor', () => {
 			sourceLabel: '/workspace/.github/prompts/legacy.prompt.md',
 			targetLabel: '/workspace/.github/skills/legacy/SKILL.md',
 			operation: 'converted',
+		}, {
+			label: 'review.prompt.md',
+			sourceLabel: '/workspace/.github/prompts/review.prompt.md',
+			targetLabel: '/workspace/.agents/prompts/review.prompt.md',
+			operation: 'copied',
+			migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
 		}]);
 
 		editor.setCustomizationsToMigrate(new Map([[category.id, [revertedPrompt, legacyPrompt]]]), new Map());
 
-		assert.deepStrictEqual(editor.getMigrationActivityState(PromptsStorage.local), {
-			activity: [],
+		const state = editor.getMigrationActivityState(PromptsStorage.local);
+		assert.deepStrictEqual({
+			activity: state.activity.map(entry => entry.items),
+			skipped: state.skipped,
+			started: state.started,
+		}, {
+			activity: [[{
+				label: 'review.prompt.md',
+				sourceLabel: '/workspace/.github/prompts/review.prompt.md',
+				targetLabel: '/workspace/.agents/prompts/review.prompt.md',
+				operation: 'copied',
+				migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
+			}]],
 			skipped: false,
 			started: true,
 		});
