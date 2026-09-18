@@ -55,7 +55,6 @@ export interface IOsc633PropertyEvent {
 	type: Osc633EventType.Property;
 	key: string;
 	value: string;
-	nonce: string | undefined;
 }
 
 export type Osc633Event =
@@ -127,8 +126,7 @@ function parseOsc633Payload(payload: string): Osc633Event | undefined {
 			return { type: Osc633EventType.CommandLine, commandLine, nonce };
 		}
 		case 'P': {
-			const nonceIdx = argsRaw.indexOf(';');
-			const deserialized = deserializeOscMessage(nonceIdx === -1 ? argsRaw : argsRaw.substring(0, nonceIdx));
+			const deserialized = deserializeOscMessage(argsRaw);
 			const eqIdx = deserialized.indexOf('=');
 			if (eqIdx === -1) {
 				return undefined;
@@ -137,7 +135,6 @@ function parseOsc633Payload(payload: string): Osc633Event | undefined {
 				type: Osc633EventType.Property,
 				key: deserialized.substring(0, eqIdx),
 				value: deserialized.substring(eqIdx + 1),
-				nonce: nonceIdx === -1 ? undefined : argsRaw.substring(nonceIdx + 1),
 			};
 		}
 		default:
