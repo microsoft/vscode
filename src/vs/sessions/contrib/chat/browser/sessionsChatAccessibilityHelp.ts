@@ -10,8 +10,8 @@ import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/ch
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { CustomViewVisibleContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -89,9 +89,14 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(chatTabsMode === SessionsChatTabsMode.Single
 			? localize('sessionsChat.sessionsListChatsAsSessionView', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to show a chat as the session view. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript.")
 			: localize('sessionsChat.sessionsListChatsAsTabs', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to open a chat as a tab. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript."));
-		content.push(archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('sessionsChat.sessionsListDoneActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Mark as Done. Open the session's context menu to pin or unpin it.")
-			: localize('sessionsChat.sessionsListArchiveActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Archive. Open the session's context menu to pin or unpin it."));
+		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? false;
+		content.push(promoteNewChatAction
+			? archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('sessionsChat.sessionsListPromotedNewChatDoneActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Mark as Done. Open the session's context menu to pin or unpin it.")
+				: localize('sessionsChat.sessionsListPromotedNewChatArchiveActions', "For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Archive. Open the session's context menu to pin or unpin it.")
+			: archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+				? localize('sessionsChat.sessionsListDefaultDoneActions', "The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session's context menu to start a new chat.")
+				: localize('sessionsChat.sessionsListDefaultArchiveActions', "The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session's context menu to start a new chat."));
 		content.push(localize('sessionsChat.sessionsListChatContextMenu', "Open a nested chat's context menu to rename it, open it to the side, or, when supported, permanently delete it. Agent Host chats also offer Copy Link."));
 		content.push(localize('sessionsChat.forkToSide', "Alt-click, or Option-click on macOS, the Fork Conversation button at a checkpoint to open the fork beside its source. Ordinary activation keeps its existing behavior. With the keyboard, activate Fork Conversation, reopen the source from the Sessions list, then choose Open to the Side from the fork's context menu."));
 		content.push(localize('sessionsChat.copySessionLink', "To copy a browser link that opens an Agent Host session in the Agents window, open the session's context menu and choose Copy Link."));

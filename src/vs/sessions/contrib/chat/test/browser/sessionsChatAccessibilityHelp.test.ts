@@ -10,22 +10,32 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
+		const contextKeyService = store.add(new ContextKeyService(configuration));
+		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChatAction);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+	}
 
 	test('describes restoring filtered pull requests from another pill context menu', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
@@ -68,6 +78,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
@@ -84,6 +95,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
@@ -105,6 +117,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const configuration = new TestConfigurationService(configuredValue === undefined ? undefined : { [SESSIONS_CHAT_TABS_SETTING]: configuredValue });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
@@ -121,11 +134,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	for (const { wording, action, dismiss } of [
-		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion' },
-		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion' },
+	for (const { wording, action, dismiss, promoteNewChatAction, expectedSessionListHelp } of [
+		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Archive. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
+		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 	]) {
-		test(`describes the actual dismiss control and Escape for ${action}`, () => {
+		test(`describes the actual dismiss control and Escape for ${action} with promoted New Chat ${promoteNewChatAction}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
 				[SESSION_ARCHIVE_NUDGE_SETTING]: true,
@@ -133,13 +148,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 			});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration, promoteNewChatAction);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const content = provider.provideContent();
 			const nudgeHelp = content.split('\n').find(line => line.includes('suggestion may appear'));
-			const sessionListHelp = content.split('\n').find(line => line.startsWith('For sessions that support multiple chats'));
+			const sessionListHelp = content.split('\n').find(line => line.includes('session row toolbar offers'));
 
 			assert.deepStrictEqual({
 				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
@@ -156,7 +172,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: true,
 				close: false,
 				onboarding: true,
-				sessionListHelp: `For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before ${action}. Open the session's context menu to pin or unpin it.`,
+				sessionListHelp: expectedSessionListHelp,
 			});
 		});
 	}
@@ -166,6 +182,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });

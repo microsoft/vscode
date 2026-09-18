@@ -15603,7 +15603,7 @@ suite('AgentHostChatContribution', () => {
 			chatAgentService: MockChatAgentService,
 			resource: URI,
 			seq: { v: number },
-			opts?: { customizations?: unknown[] },
+			opts?: { customizations?: unknown[]; afterPrompt?: (parts: IChatMcpAuthenticationRequired[]) => Promise<void> },
 		): Promise<IChatMcpAuthenticationRequired[]> {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -15637,6 +15637,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(50);
 
 			const promptParts = collected.flat().filter((p): p is IChatMcpAuthenticationRequired => p.kind === 'mcpAuthenticationRequired');
+			await opts?.afterPrompt?.(promptParts);
 
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: seq.v++, origin: undefined });
 			await turnPromise;
@@ -15818,6 +15819,34 @@ suite('AgentHostChatContribution', () => {
 			// Turn 2: still needs auth, but was already prompted → no new prompt.
 			const turn2 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
 			assert.deepStrictEqual(turn2.flatMap(p => p.servers.get()), []);
+		}));
+
+		test('marks authentication complete before a prompt is ever mounted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-before-mount' });
+			const seq = { v: 1 };
+			const snapshots: { isUsed: boolean; servers: number }[] = [];
+			await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, {
+				customizations: [authRequiredCustomization()],
+				afterPrompt: async parts => {
+					assert.strictEqual(parts.length, 1);
+					const part = parts[0];
+					snapshots.push({ isUsed: part.isUsed, servers: part.servers.get().length });
+					const dispatch = agentHostService.turnActions[agentHostService.turnActions.length - 1];
+					agentHostService.fireAction({
+						channel: parseDefaultChatUri(dispatch.channel.toString())!,
+						action: { type: ActionType.SessionCustomizationsChanged, customizations: [] },
+						serverSeq: seq.v++,
+						origin: undefined,
+					});
+					await timeout(50);
+					snapshots.push({ isUsed: part.isUsed, servers: part.servers.get().length });
+				},
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ isUsed: false, servers: 1 },
+				{ isUsed: true, servers: 0 },
+			]);
 		}));
 
 		test('re-surfaces a server that reaches Ready and then needs auth again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
