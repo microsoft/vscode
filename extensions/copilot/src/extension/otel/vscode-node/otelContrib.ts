@@ -122,14 +122,17 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 		const monitor = new OTelStaleConfigMonitor(this._otelConfigResolver, {
 			getRestartRecord: () => state.get<IOTelPolicyRestartRecord>(POLICY_RESTART_RECORD_KEY),
 			setRestartRecord: async record => state.update(POLICY_RESTART_RECORD_KEY, record),
-			restartExtensionHost: async () => {
-				void vscode.window.showWarningMessage(vscode.l10n.t("VS Code needs to restart extensions in this window to apply your organization's Copilot telemetry settings. Active sessions may ask you to confirm.")).then(undefined,
-					error => this._logService.error(error, '[OTel] Failed to show the telemetry policy restart warning'));
+			// Unlike ordinary messages, progress notifications close when their host is disposed.
+			restartExtensionHost: async () => vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: vscode.l10n.t("Restarting extensions in this window to apply your organization's Copilot telemetry settings. Active sessions may ask you to confirm."),
+				cancellable: false,
+			}, async () => {
 				await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
 				// Successful restart destroys this host. This one-off grace period is only
 				// for deciding when a still-running host should show the reload fallback.
 				await timeout(15_000);
-			},
+			}),
 			warnPolicyNotApplied: () => {
 				void this._promptReload(vscode.l10n.t("Your organization's Copilot telemetry policy could not be applied automatically. Reload the window to apply it."), true);
 			},
