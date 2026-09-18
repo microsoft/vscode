@@ -13,12 +13,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -107,9 +108,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	public createdSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto');
 		this.createdSessionUris.push(uri);
+		this.createdSessionConfigs.push(config);
 		return uri;
 	}
 
@@ -828,6 +831,31 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	// ---- Session lifecycle -------
+
+	test('advertises workspace-less creation and sends its origin to the remote host without a working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, connection);
+		provider.setAuthenticationPending(false);
+		const origin = { session: 'agent-host-copilotcli:/parent', chat: 'agent-host-copilotcli:/parent#peer', depth: 1 };
+		const session = provider.createQuickChat(provider.sessionTypes[0].id, { metadata: withRemoteSessionOrigin(undefined, origin) });
+		await timeout(0);
+		assert.deepStrictEqual({
+			supported: provider.supportsQuickChats,
+			quickChat: session.isQuickChat?.get(),
+			workspace: session.workspace.get(),
+			createdCount: connection.createdSessionConfigs.length,
+			directories: connection.createdSessionConfigs[0]?.workingDirectories,
+			origin: readRemoteSessionOrigin(connection.createdSessionConfigs[0]),
+		}, { supported: true, quickChat: true, workspace: undefined, createdCount: 1, directories: undefined, origin });
+	}));
+
+	test('does not advertise workspace-less creation for a session-dedicated host group', () => {
+		const provider = createProvider(disposables, connection, {
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				override readonly hostGroup = { id: 'dedicated', label: 'Dedicated', connectable: false };
+			},
+		});
+		assert.strictEqual(provider.supportsQuickChats, false);
+	});
 
 	test('createNewSession returns session with correct fields', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });

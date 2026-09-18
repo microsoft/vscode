@@ -403,6 +403,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
 
+	get supportsQuickChats(): boolean {
+		return this.hostGroup?.connectable !== false;
+	}
+
 	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
 	/**

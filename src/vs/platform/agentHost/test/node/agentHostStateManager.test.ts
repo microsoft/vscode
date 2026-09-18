@@ -18,6 +18,9 @@ import { withAgentCustomizationSettings } from '../../common/agentCustomizationS
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { readAgentHostResources } from '../../common/meta/agentHostResources.js';
+import { supportsRemoteSessions } from '../../common/meta/agentRemoteSessionMeta.js';
+import { collectAgentHostResources } from '../../node/agentHostResources.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -100,6 +103,24 @@ suite('AgentHostStateManager', () => {
 
 	test('omits host build info from root state _meta when not provided', () => {
 		assert.strictEqual(readHostBuildInfo(manager.rootState), undefined);
+	});
+
+	test('seeds execution resources alongside host build metadata', () => {
+		const buildInfo = { version: '1.0.0' };
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService(), { hostBuildInfo: buildInfo }));
+		assert.deepStrictEqual({
+			resources: readAgentHostResources(localManager.rootState),
+			buildInfo: readHostBuildInfo(localManager.rootState),
+			snapshotState: localManager.getSnapshot(ROOT_STATE_URI)?.state,
+		}, {
+			resources: collectAgentHostResources(),
+			buildInfo,
+			snapshotState: localManager.rootState,
+		});
+	});
+
+	test('advertises remote session origin support independently of resource metadata', () => {
+		assert.strictEqual(supportsRemoteSessions(manager.rootState), true);
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {

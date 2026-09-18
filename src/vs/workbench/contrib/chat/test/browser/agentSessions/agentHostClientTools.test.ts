@@ -54,7 +54,7 @@ import { IStorageService, InMemoryStorageService } from '../../../../../../platf
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ChatStateSubscription, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -702,6 +702,12 @@ suite('AgentHostClientTools', () => {
 				entry.emitter.fire(entry.state);
 			}
 
+			setChatState(chat: string, state: ChatState): void {
+				const entry = this._ensureLiveSubscription(StateComponents.Chat, chat);
+				entry.state = state;
+				entry.emitter.fire(state);
+			}
+
 			override readonly rootState: IAgentSubscription<RootState> = {
 				value: undefined,
 				verifiedValue: undefined,
@@ -1056,8 +1062,9 @@ suite('AgentHostClientTools', () => {
 				confirmed?: ToolCallConfirmationReason;
 				_meta?: Record<string, unknown>;
 			},
+			backendSession = AgentSession.uri('copilot', 'session-1'),
 		): void {
-			connection.applySessionAction(URI.parse(AgentSession.uri('copilot', 'session-1').toString()), {
+			connection.applySessionAction(backendSession, {
 				type: ActionType.SessionInputNeededSet,
 				request: {
 					id: `exec-${toolCall.toolCallId}`,
@@ -2793,6 +2800,95 @@ suite('AgentHostClientTools', () => {
 					.map(invocation => invocation.context?.sessionResource.toString()),
 				[sessionResource.toString()],
 			);
+		}));
+
+		test('parallel background chats retain client tool context when their snapshots include optimistic turn starts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
+			const contexts: string[] = [];
+			let clientSeq = 0;
+			let serverSeq = 0;
+
+			for (const index of [1, 2, 3]) {
+				const backendSession = AgentSession.uri('copilot', `session-${index}`);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/session-${index}` });
+				const chat = buildDefaultChatUri(backendSession.toString());
+				const subscription = disposables.add(new ChatStateSubscription(chat, connection.clientId, () => ++clientSeq, () => { }));
+				disposables.add(subscription.onDidChange(state => connection.setChatState(chat, state)));
+				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				contexts.push(sessionResource.toString());
+
+				const initial = createChatState({
+					resource: chat,
+					title: 'Test',
+					status: SessionStatus.Idle,
+					modifiedAt: '2025-01-01T00:00:00.000Z',
+				});
+				const start = {
+					type: ActionType.ChatTurnStarted,
+					turnId: `turn-${index}`,
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'reply to origin', origin: { kind: MessageKind.User } },
+				} as const;
+				if (index === 1) {
+					subscription.handleSnapshot(initial, serverSeq);
+				}
+				const startSeq = subscription.applyOptimistic(start);
+				subscription.receiveEnvelope({
+					channel: chat,
+					action: start,
+					serverSeq: ++serverSeq,
+					origin: { clientId: connection.clientId, clientSeq: startSeq },
+				});
+				if (index !== 1) {
+					subscription.handleSnapshot(chatReducer(initial, start, () => { }), serverSeq);
+				}
+
+				const toolCallId = `tool-${index}`;
+				subscription.receiveEnvelope({
+					channel: chat,
+					serverSeq: ++serverSeq,
+					origin: undefined,
+					action: {
+						type: ActionType.ChatToolCallStart,
+						turnId: start.turnId,
+						toolCallId,
+						toolName: testConfirmTool.toolReferenceName!,
+						displayName: testConfirmTool.displayName,
+						contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+					},
+				});
+				subscription.receiveEnvelope({
+					channel: chat,
+					serverSeq: ++serverSeq,
+					origin: undefined,
+					action: {
+						type: ActionType.ChatToolCallReady,
+						turnId: start.turnId,
+						toolCallId,
+						invocationMessage: 'Reply',
+						toolInput: '{}',
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					},
+				});
+				applyRunningClientExecution(connection, chat, start.turnId, {
+					toolCallId,
+					toolName: testConfirmTool.toolReferenceName!,
+					displayName: testConfirmTool.displayName,
+					invocationMessage: 'Reply',
+					toolInput: '{}',
+				}, backendSession);
+			}
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+
+			assert.deepStrictEqual({
+				contexts: toolsService.invokedToolCalls.map(invocation => invocation.context?.sessionResource.toString()),
+				declines: connection.dispatchedActions.filter(entry =>
+					entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.result.error?.code === 'clientUnavailable').length,
+			}, {
+				contexts,
+				declines: 0,
+			});
 		}));
 
 		test('denies an unclaimed confirmable client tool after the grace window without executing it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

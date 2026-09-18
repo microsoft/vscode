@@ -1921,6 +1921,7 @@ export interface IRemotePendingRequest {
 	readonly message: string;
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
+	readonly metadata?: Record<string, unknown>;
 }
 
 export interface IChatSendRequestOptions {

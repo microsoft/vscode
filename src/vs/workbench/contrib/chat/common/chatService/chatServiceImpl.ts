@@ -2398,8 +2398,11 @@ export class ChatService extends Disposable implements IChatService {
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
 			const local = existingById.get(remote.id);
+			const sendOptions = equals(local?.sendOptions.metadata, remote.metadata)
+				? local?.sendOptions ?? {}
+				: { ...local?.sendOptions, metadata: remote.metadata };
 			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)) {
-				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
+				return local.kind === remote.kind && local.sendOptions === sendOptions ? local : { ...local, kind: remote.kind, sendOptions };
 			}
 			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
 			const requestModel = new ChatRequestModel({
@@ -2410,7 +2413,7 @@ export class ChatService extends Disposable implements IChatService {
 				attachedContext: variableData.variables.slice(),
 				restoredId: remote.id,
 			});
-			return { request: requestModel, kind: remote.kind, sendOptions: local?.sendOptions ?? {} };
+			return { request: requestModel, kind: remote.kind, sendOptions };
 		});
 
 		if (existing.length === reconciled.length && reconciled.every((request, index) => existing[index] === request)) {

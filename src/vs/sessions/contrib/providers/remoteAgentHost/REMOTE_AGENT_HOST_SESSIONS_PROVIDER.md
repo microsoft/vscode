@@ -55,6 +55,10 @@ their context by address, request an explicit reconnect, and wait for the servic
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
+Hosts may publish execution-platform, CPU, and memory-capacity metadata in the root state's namespaced metadata. Remote delegation consumes these host-reported facts alongside the host-wide running-session count. Missing facts remain unknown, including when connecting to an older host; they must not satisfy explicit resource requirements. The execution environment is authoritative, so a Linux container or WSL instance reports Linux regardless of the client operating system.
+
+Hosts explicitly advertise support for preserving remote-session origins. Creation tools require that capability rather than using resource metadata or build versions as a proxy. The origin and cumulative spawn depth are included in initial publication and persisted by the host before creation succeeds; listing and restoration rehydrate them independently of provider-owned metadata.
+
 ## Session lifecycle
 
 Drafts expose the shared untitled `ISession` contract and use remote workspace metadata. First send commits through the shared Agent Host lifecycle. Existing sessions use the shared adapter and cache.

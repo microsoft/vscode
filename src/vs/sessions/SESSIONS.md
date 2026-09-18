@@ -200,6 +200,18 @@ Requests route through `ISessionsManagementService` to the provider identified b
 
 Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
 
+### Remote delegation
+
+The Remote Sessions contribution exposes `list_agent_hosts`, `create_remote_session`, `get_remote_session`, and `send_remote_message` as client tools in the Agents Window. The window owns connected-host selection and cross-host routing; hosts do not discover or authenticate to one another. Creation uses the management service's background lifecycle and does not replace the current composer or change focus.
+
+The originating chat supplies creation provenance and a return address, not a workspace or permission grant. Omitting the workspace creates a workspace-less session. An explicit target directory must already exist and be trusted; requested worktree isolation must be supported rather than silently downgraded. Repository cloning and transfer of the source checkout are not part of this creation contract.
+
+Remote creation provenance preserves host-qualified session and chat identity. Replies address the originating chat even if the active chat changes, retain agent authorship, and queue behind a busy destination. The coordinating window must remain connected; persisted provenance supports restoration, not offline delivery. Tool approval and AI/remote-host enablement apply independently of host selection.
+
+The contribution retains background chat models while initial or queued requests are running, independently of which chat is visible. Before queueing a follow-up it explicitly prepares the destination's client tools; ordinary history browsing does not claim them. Model references are released when the chat and its queue become idle, or when the host disconnects. Programmatic creation awaits its preparation callback before applying configuration and sending the first request.
+
+Inspection is a one-shot read of verified protocol state for the exact host-qualified session or chat, independent of whether its workbench chat model is loaded. It returns the chat state and bounded latest-turn response or error, not a full transcript or a delivery acknowledgement. It does not claim client tools, mark the chat read, approve input, reconnect, or send a turn. Unavailable targets are reported explicitly rather than returning stale content; temporary subscriptions are released after the read.
+
 ## State propagation
 
 Use the narrowest mechanism that represents a change:
