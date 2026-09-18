@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,9 +17,10 @@ import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/a
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isAgentHostProvider, IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostProgress, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, ISession } from '../../../../services/sessions/common/session.js';
 import { WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -196,6 +197,29 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		if (!this._devContainerDrafts.has(sessionId)) {
 			return { session: draft.session };
 		}
+		const preparation = new CancellationTokenSource(token);
+		const cancel = () => preparation.cancel();
+		const progress: IProgress<IDevContainerAgentHostProgress> = {
+			report: update => draft.preparationProgress.set({
+				message: update.message ?? draft.preparationProgress.get()?.message ?? localize('devContainerAgentHost.starting', "Starting Dev Container..."),
+				output: update.output ?? draft.preparationProgress.get()?.output ?? '',
+				cancel,
+			}, undefined),
+		};
+		progress.report({ message: localize('devContainerAgentHost.preparing', "Preparing Dev Container...") });
+		try {
+			return await this._prepareDevContainerSession(sessionId, preparation.token, query, progress);
+		} finally {
+			draft.preparationProgress.set(undefined, undefined);
+			preparation.dispose();
+		}
+	}
+
+	private async _prepareDevContainerSession(sessionId: string, token: CancellationToken, query: string, progress: IProgress<IDevContainerAgentHostProgress>): Promise<IPreparedNewSession> {
+		const draft = this._getNewSession(sessionId);
+		if (!draft) {
+			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
+		}
 		const support = this._devContainerSupport;
 		if (!support) {
 			throw new Error('Dev Container support has not been initialized.');
@@ -219,6 +243,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
 		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
+			progress.report({ message: localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container...") });
 			await draft.waitForEagerCreate();
 			const connection = this.connection;
 			if (!connection || !supportsAgentHostDetachedWorktrees(connection.initializeResult.get()) || !connection.createDetachedWorktree || !connection.claimDetachedWorktree || !connection.deleteDetachedWorktree) {
@@ -239,7 +264,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 		let target: Awaited<ReturnType<IDevContainerAgentHostService['connect']>>;
 		try {
-			target = await support.service.connect(devContainerWorkspace, token);
+			target = await support.service.connect(devContainerWorkspace, token, progress);
 		} catch (error) {
 			if (detachedWorktree) {
 				await this._deleteDetachedWorktreeOnRollback(detachedWorktree);
@@ -248,6 +273,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 		let deleteReplacement: (() => void) | undefined;
 		try {
+			progress.report({ message: localize('devContainerAgentHost.initializing', "Initializing Agent Host session...") });
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

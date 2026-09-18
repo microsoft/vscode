@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -15,6 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -29,10 +31,188 @@ import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
+import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTranscriptProgressWidget() {
+		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = mockObject<IInstantiationService>()();
+		instantiationService.createInstance.callsFake((ctor: typeof ChatContentMarkdownRenderer, element?: HTMLElement) => {
+			if (ctor === ChatContentMarkdownRenderer) {
+				return { render: () => ({ element: dom.$('span'), dispose: () => { } }) };
+			}
+			return { domNode: dom.$('.progress-container', undefined, element!), dispose: () => { } };
+		});
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: store.add(new DisposableStore()),
+			container,
+			listContainer: dom.append(container, dom.$('.interactive-list')),
+			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
+			instantiationService,
+			updateChatViewVisibility: () => { },
+		}) as ChatWidget;
+		return { widget, container, instantiationService };
+	}
+
+	test('transcript progress streams plain output without replacing controls or announcing it', () => {
+		const { widget, container, instantiationService } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Building', 'Building container', { output: 'first line', onCancel: () => { } });
+		const details = container.querySelector('details')!;
+		const summary = details.querySelector('summary')!;
+		const status = container.querySelector('[role=status]')!;
+		const phaseContent = status.firstChild!.firstChild;
+		details.open = true;
+		summary.focus();
+
+		const output = '<script>not HTML</script>\n**not markdown**';
+		widget.setTranscriptProgress('Building', 'Building container', { output, onCancel: () => { } });
+
+		assert.deepStrictEqual({
+			sameDetails: container.querySelector('details') === details,
+			samePhase: status.firstChild!.firstChild === phaseContent,
+			expanded: details.open,
+			focused: mainWindow.document.activeElement === summary,
+			output: container.querySelector('pre')!.textContent,
+			outputElements: container.querySelector('pre')!.childElementCount,
+			outputInLiveRegion: status.contains(details),
+			statusLabel: status.getAttribute('aria-label'),
+			renderCount: instantiationService.createInstance.callCount,
+		}, {
+			sameDetails: true,
+			samePhase: true,
+			expanded: true,
+			focused: true,
+			output,
+			outputElements: 0,
+			outputInLiveRegion: false,
+			statusLabel: 'Building container',
+			renderCount: 2,
+		});
+	});
+
+	test('transcript progress cancel uses the latest callback and hides when omitted', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Building', undefined, { onCancel: () => calls.push('old') });
+		const button = container.querySelector<HTMLElement>('.monaco-button')!;
+		button.focus();
+		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => calls.push('new') });
+		const remainedFocused = mainWindow.document.activeElement === button;
+		button.click();
+		widget.setTranscriptProgress('Started', undefined, { complete: true });
+		button.click();
+
+		assert.deepStrictEqual({
+			calls,
+			remainedFocused,
+			sameButton: container.querySelector('.monaco-button') === button,
+			hidden: button.hidden,
+			complete: !!container.querySelector('.show-checkmarks'),
+		}, { calls: ['new'], remainedFocused: true, sameButton: true, hidden: true, complete: true });
+	});
+
+	test('transcript progress focus prefers cancel, then output, and ignores hidden controls', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		const beforeProgress = widget.focusTranscriptProgress();
+		widget.setTranscriptProgress('Building', undefined, { output: 'output', onCancel: () => { } });
+		const withCancel = widget.focusTranscriptProgress();
+		const cancelFocused = mainWindow.document.activeElement === container.querySelector('.monaco-button');
+		widget.setTranscriptProgress('Building', undefined, { output: 'output' });
+		const withOutput = widget.focusTranscriptProgress();
+		const summaryFocused = mainWindow.document.activeElement === container.querySelector('summary');
+		widget.setTranscriptProgress('Building');
+		const withoutControls = widget.focusTranscriptProgress();
+		widget.setTranscriptProgress(undefined);
+
+		assert.deepStrictEqual({
+			beforeProgress,
+			withCancel,
+			cancelFocused,
+			withOutput,
+			summaryFocused,
+			withoutControls,
+			afterProgress: widget.focusTranscriptProgress(),
+		}, {
+			beforeProgress: false,
+			withCancel: true,
+			cancelFocused: true,
+			withOutput: true,
+			summaryFocused: true,
+			withoutControls: false,
+			afterProgress: false,
+		});
+	});
+
+	test('transcript progress retains output focus and scroll while streaming and supports keyboard scrolling', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		const output = 'a line of output\n'.repeat(50);
+		widget.setTranscriptProgress('Building', undefined, { output });
+		const details = container.querySelector('details')!;
+		const text = container.querySelector('pre')!;
+		text.style.height = '60px';
+		details.open = true;
+		details.dispatchEvent(new mainWindow.Event('toggle'));
+		text.focus();
+		text.scrollTop = 30;
+		text.dispatchEvent(new mainWindow.Event('scroll'));
+		widget.setTranscriptProgress('Building', undefined, { output: output + 'next line' });
+		const streamingScrollTop = text.scrollTop;
+		const remainedFocused = mainWindow.document.activeElement === text;
+
+		details.open = false;
+		widget.setTranscriptProgress('Starting', undefined, { output: output + 'more output' });
+		details.open = true;
+		details.dispatchEvent(new mainWindow.Event('toggle'));
+		const reopenedScrollTop = text.scrollTop;
+		// Native scrollTop can have a fractional maximum even though scrollHeight and clientHeight are integers.
+		text.scrollTop = text.scrollHeight;
+		const maximumScrollTop = text.scrollTop;
+		text.scrollTop = reopenedScrollTop;
+		text.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 35, bubbles: true }));
+		const endPosition = { scrollTop: text.scrollTop, maximumScrollTop };
+		const scrolledToEnd = text.scrollTop === maximumScrollTop;
+		text.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 36, bubbles: true }));
+
+		assert.deepStrictEqual({
+			streamingScrollTop,
+			reopenedScrollTop,
+			remainedFocused,
+			scrolledToEnd,
+			scrolledToStart: text.scrollTop,
+		}, { streamingScrollTop: 30, reopenedScrollTop: 30, remainedFocused: true, scrolledToEnd: true, scrolledToStart: 0 }, JSON.stringify(endPosition));
+	});
+
+	test('transcript progress clearing resets output and preserves the message-only API', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Building', undefined, { output: 'old output', onCancel: () => { } });
+		const details = container.querySelector('details')!;
+		details.open = true;
+		widget.setTranscriptProgress(undefined);
+		const cleared = {
+			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
+			expanded: details.open,
+			output: container.querySelector('pre')!.textContent,
+		};
+		widget.setTranscriptProgress('Connecting');
+
+		assert.deepStrictEqual({
+			cleared,
+			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
+			controlsHidden: container.querySelector<HTMLElement>('.chat-transcript-progress-controls')!.hidden,
+			statusLabel: container.querySelector('[role=status]')!.getAttribute('aria-label'),
+			shimmer: !!container.querySelector('.shimmer-progress'),
+		}, {
+			cleared: { hidden: true, expanded: false, output: '' },
+			hidden: false,
+			controlsHidden: true,
+			statusLabel: 'Connecting',
+			shimmer: true,
+		});
+	});
 
 	class RecordingEditorService extends TestEditorService {
 		readonly saveAllCalls: (ISaveAllEditorsOptions | undefined)[] = [];
