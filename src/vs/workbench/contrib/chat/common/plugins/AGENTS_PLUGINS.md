@@ -74,18 +74,18 @@ Shared base class that handles:
 
 1. **Format detection** — recognizes strict Agent Plugins v1 by its root schema, then falls back to the Copilot, Claude, and Open Plugin path conventions.
 2. **Content reading** — reads commands, skills, agents, hooks, and MCP server definitions from the filesystem.
-3. **File watching** — watches plugin directories for changes and re-reads contents on a 200 ms debounced scheduler.
+3. **File watching** — by default, watches plugin directories for changes and re-reads their contents. Sources that own atomic replacement of plugin directories can opt out and rebuild entries from discovery-level events instead.
 4. **Observable propagation** — sets the `plugins` observable on each refresh cycle.
 
 Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs exist.
 
 ### Discovery Implementations
 
-**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes.
+**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Configured sources under the Copilot CLI install root, including managed `enabledPlugins` entries, use the CLI root watcher rather than plugin-local watchers.
 
 **MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
 
-**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). Watches the deepest existing ancestor (down to the install root) and each marketplace bucket non-recursively so the first-ever install is detected without a reload.
+**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). It ignores hidden staging/tombstone directories and watches the install root recursively. Before that root exists, it watches only the nearest existing ancestor non-recursively and moves the watcher down as directories appear. CLI plugin entries do not create watchers inside their own directories, so the CLI can atomically replace them on Windows; root events rebuild those entries without requiring a reload.
 
 ### Plugin Formats
 
