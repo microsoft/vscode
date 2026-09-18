@@ -5085,7 +5085,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private async _validateModelSelection(model: ModelSelection): Promise<void> {
+		await (this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight);
+		const models = this._models.get();
+		// An empty catalog can mean the provider is unauthenticated or temporarily
+		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
+		if (models.length > 0 && !models.some(candidate => candidate.id === model.id)) {
+			throw new Error(localize('copilotAgent.modelNotAvailable', "Model '{0}' is not available.", model.id));
+		}
+	}
+
 	private async _changeModelOnce(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
+		await this._validateModelSelection(model);
 		const context = this._resolveChatContext(chat, operationContext);
 		await this._queueChat(context.configurationId, context.sequencerKey, 'changeModel', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
