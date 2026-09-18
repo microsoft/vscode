@@ -14,17 +14,32 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
 import { computeLineChangeRanges, type LineChangeOperation } from '../node/lineChangeRanges';
+import { randomUUID } from 'crypto';
 
 export const changedEntitiesViewId = 'github.copilot.changedEntities';
 
 const openChangedEntityDiffCommand = 'github.copilot.openChangedEntityDiff';
 const acceptChangedEntityCommand = 'github.copilot.changedEntities.accept';
 const restoreChangedEntityCommand = 'github.copilot.changedEntities.restore';
+const changedEntitiesDecorationScheme = 'copilot-changed-entities';
 const supportedExtensions = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']);
 const maxExplanationSnippetLength = 4000;
 
 type ChangedEntitiesTreeElement = ChangesGroupItem | ChangedFileItem | ChangedEntityItem | MessageItem;
 type ClassifiedChange = TypeScriptClassifiedModifiedLines | TypeScriptClassifiedOriginalLines;
+
+export class ChangedEntitiesDecorationProvider implements vscode.FileDecorationProvider {
+	provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
+		if (uri.scheme !== changedEntitiesDecorationScheme || new URLSearchParams(uri.query).get('accepted') !== 'true') {
+			return undefined;
+		}
+		return new vscode.FileDecoration(
+			undefined,
+			l10n.t('Accepted and hidden from diff'),
+			new vscode.ThemeColor('list.deemphasizedForeground'),
+		);
+	}
+}
 
 export class ChangedEntitiesViewContribution extends Disposable implements IExtensionContribution {
 	readonly id = 'changedEntitiesView';
@@ -35,6 +50,7 @@ export class ChangedEntitiesViewContribution extends Disposable implements IExte
 		@ILogService logService: ILogService,
 	) {
 		super();
+		this._register(vscode.window.registerFileDecorationProvider(new ChangedEntitiesDecorationProvider()));
 		const provider = this._register(new ChangedEntitiesTreeDataProvider(gitExtensionService, codeReviewService, logService));
 		this._register(vscode.window.createTreeView(changedEntitiesViewId, {
 			treeDataProvider: provider,
@@ -402,7 +418,6 @@ class ChangedFileItem {
 
 		this.treeItem = new vscode.TreeItem(path.basename(this.uri.fsPath), vscode.TreeItemCollapsibleState.Collapsed);
 		this.treeItem.id = `${changedEntitiesViewId}.file.${this.id}`;
-		this.treeItem.resourceUri = this.uri;
 		this.treeItem.iconPath = vscode.ThemeIcon.File;
 		const directory = path.dirname(this.relativePath);
 		this.directory = directory === '.' ? undefined : directory;
@@ -473,6 +488,7 @@ class ChangedFileItem {
 		const reviewable = this.entityItems === undefined || reviewChanges.length > 0;
 		const reviewed = reviewChanges.length > 0 && reviewChanges.every(change => this.isReviewed(change));
 		this.treeItem.description = reviewed ? appendAcceptedCheckmark(this.baseDescription) : this.baseDescription;
+		this.treeItem.resourceUri = createDecorationUri(this.uri, this.treeItem.id ?? randomUUID(), reviewed);
 		this.treeItem.contextValue = reviewable
 			? reviewed ? 'copilotChangedEntityAccepted' : 'copilotChangedEntityPending'
 			: 'copilotChangedEntitiesFile';
@@ -544,6 +560,7 @@ class ChangedEntityItem {
 	private readonly reviewChanges: readonly TypeScriptReviewLineChange[];
 	private readonly baseDescription: string | undefined;
 	private readonly baseAccessibilityLabel: string;
+	private readonly decorationId: string;
 
 	constructor(file: ChangedFileItem, node: MutableEntityTreeNode) {
 		this.file = file;
@@ -558,7 +575,8 @@ class ChangedEntityItem {
 			node.label,
 			this.children.length === 0 ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded,
 		);
-		this.treeItem.id = `${changedEntitiesViewId}.entity.${file.id}.${JSON.stringify(node.path)}`;
+		this.decorationId = `${changedEntitiesViewId}.entity.${file.id}.${JSON.stringify(node.path)}`;
+		this.treeItem.id = this.decorationId;
 		this.treeItem.iconPath = new vscode.ThemeIcon(getEntityIcon(node.kind));
 
 		const fullLabel = node.path.length === 0 ? node.label : node.path.join('.');
@@ -665,6 +683,7 @@ class ChangedEntityItem {
 		const reviewable = this.getEntityLink() !== undefined && reviewChanges.length > 0;
 		const reviewed = reviewable && reviewChanges.every(change => this.file.isReviewed(change));
 		this.treeItem.description = reviewed ? appendAcceptedCheckmark(this.baseDescription) : this.baseDescription;
+		this.treeItem.resourceUri = createDecorationUri(this.file.uri, this.decorationId, reviewed);
 		this.treeItem.contextValue = reviewable
 			? reviewed ? 'copilotChangedEntityAccepted' : 'copilotChangedEntityPending'
 			: this.children.length > 0 ? 'copilotChangedEntityGroup' : 'copilotChangedEntity';
@@ -850,6 +869,17 @@ function formatDelta(value: number): string {
 
 function appendAcceptedCheckmark(description: string | undefined): string {
 	return description === undefined ? '✓' : l10n.t`${description} ✓`;
+}
+
+function createDecorationUri(fileUri: vscode.Uri, itemId: string, accepted: boolean): vscode.Uri {
+	return fileUri.with({
+		scheme: changedEntitiesDecorationScheme,
+		query: new URLSearchParams({
+			item: itemId,
+			accepted: accepted.toString(),
+		}).toString(),
+		fragment: '',
+	});
 }
 
 function formatAccessibleDelta(value: number): string {

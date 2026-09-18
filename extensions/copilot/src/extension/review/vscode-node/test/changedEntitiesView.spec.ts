@@ -29,8 +29,20 @@ vi.mock('vscode', async importOriginal => {
 	class ThemeIcon extends actual.ThemeIcon {
 		static override readonly File = new ThemeIcon('file');
 	}
+	class ThemeColor {
+		constructor(readonly id: string) { }
+	}
+	class FileDecoration {
+		constructor(
+			readonly badge?: string,
+			readonly tooltip?: string,
+			readonly color?: vscode.ThemeColor,
+		) { }
+	}
 	return {
 		...actual,
+		FileDecoration,
+		ThemeColor,
 		ThemeIcon,
 		TreeItem,
 		TreeItemCollapsibleState: {
@@ -51,7 +63,7 @@ import { TypeScriptChangeClassification, type ICodeReviewService, type TypeScrip
 import type { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
-import { ChangedEntitiesTreeDataProvider } from '../changedEntitiesView';
+import { ChangedEntitiesDecorationProvider, ChangedEntitiesTreeDataProvider } from '../changedEntitiesView';
 
 suite('Changed entities view', () => {
 	test('classifies one aggregate Git file lazily and renders nested entity paths', async () => {
@@ -206,6 +218,7 @@ suite('Changed entities view', () => {
 		]));
 		const logService = { error: vi.fn() } as unknown as ILogService;
 		const provider = new ChangedEntitiesTreeDataProvider(gitExtensionService, codeReviewService, logService);
+		const decorationProvider = new ChangedEntitiesDecorationProvider();
 		const refreshEvents: unknown[] = [];
 		const refreshListener = provider.onDidChangeTreeData(element => refreshEvents.push(element));
 		try {
@@ -230,15 +243,18 @@ suite('Changed entities view', () => {
 				file: {
 					contextValue: files[0].treeItem.contextValue,
 					description: files[0].treeItem.description,
+					decoration: serializeDecoration(decorationProvider.provideFileDecoration(files[0].treeItem.resourceUri!)),
 				},
 				parent: {
 					contextValue: entities[1].treeItem.contextValue,
 					description: entities[1].treeItem.description,
+					decoration: serializeDecoration(decorationProvider.provideFileDecoration(entities[1].treeItem.resourceUri!)),
 				},
 				child: {
 					contextValue: members[0].treeItem.contextValue,
 					description: members[0].treeItem.description,
 					accessibilityLabel: members[0].treeItem.accessibilityInformation?.label,
+					decoration: serializeDecoration(decorationProvider.provideFileDecoration(members[0].treeItem.resourceUri!)),
 				},
 			};
 			await provider.setReviewed(members[0], false);
@@ -247,6 +263,7 @@ suite('Changed entities view', () => {
 				contextValue: entities[1].treeItem.contextValue,
 				description: entities[1].treeItem.description,
 				accessibilityLabel: entities[1].treeItem.accessibilityInformation?.label,
+				decoration: serializeDecoration(decorationProvider.provideFileDecoration(entities[1].treeItem.resourceUri!)),
 			};
 			await provider.setReviewed(entities[1], false);
 			await provider.setReviewed(files[0], true);
@@ -254,6 +271,7 @@ suite('Changed entities view', () => {
 				contextValue: files[0].treeItem.contextValue,
 				description: files[0].treeItem.description,
 				accessibilityLabel: files[0].treeItem.accessibilityInformation?.label,
+				decoration: serializeDecoration(decorationProvider.provideFileDecoration(files[0].treeItem.resourceUri!)),
 			};
 			await provider.setReviewed(files[0], false);
 			const explanationInputsBeforeHover = [...codeReviewService.explanationInputs];
@@ -360,26 +378,40 @@ suite('Changed entities view', () => {
 						file: {
 							contextValue: 'copilotChangedEntityPending',
 							description: 'src — CC: [0/-5]',
+							decoration: undefined,
 						},
 						parent: {
 							contextValue: 'copilotChangedEntityPending',
 							description: undefined,
+							decoration: undefined,
 						},
 						child: {
 							contextValue: 'copilotChangedEntityAccepted',
 							description: 'Signature change, Statement addition — CC: [+2/+3], Runtime: O(1) -> O(n) ✓',
 							accessibilityLabel: 'Reader.listen, method, Signature change, Statement addition, cognitive complexity increased by 2, cyclomatic complexity increased by 3, runtime complexity changed from O(1) to O(n). Open diff. Accepted and hidden from diff.',
+							decoration: {
+								tooltip: 'Accepted and hidden from diff',
+								color: 'list.deemphasizedForeground',
+							},
 						},
 					},
 					acceptedParentState: {
 						contextValue: 'copilotChangedEntityAccepted',
 						description: '✓',
 						accessibilityLabel: 'Reader, class changed entity group. Accepted and hidden from diff.',
+						decoration: {
+							tooltip: 'Accepted and hidden from diff',
+							color: 'list.deemphasizedForeground',
+						},
 					},
 					acceptedFileState: {
 						contextValue: 'copilotChangedEntityAccepted',
 						description: 'src — CC: [0/-5] ✓',
 						accessibilityLabel: 'Changed file src\\reader.ts, cognitive complexity unchanged, cyclomatic complexity decreased by 5. Accepted and hidden from diff.',
+						decoration: {
+							tooltip: 'Accepted and hidden from diff',
+							color: 'list.deemphasizedForeground',
+						},
 					},
 					calls: [
 						{
@@ -648,5 +680,15 @@ function serializeTooltip(tooltip: vscode.TreeItem['tooltip']): string | { markd
 		isTrusted: tooltip.isTrusted,
 		supportHtml: tooltip.supportHtml,
 		supportThemeIcons: tooltip.supportThemeIcons,
+	};
+}
+
+function serializeDecoration(decoration: vscode.FileDecoration | undefined): { tooltip: string | undefined; color: string | undefined } | undefined {
+	if (decoration === undefined) {
+		return undefined;
+	}
+	return {
+		tooltip: decoration.tooltip,
+		color: decoration.color?.id,
 	};
 }
