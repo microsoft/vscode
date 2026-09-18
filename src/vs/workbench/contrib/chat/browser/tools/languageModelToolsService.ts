@@ -767,7 +767,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
 				{
-					result: 'success',
+					result: toolResult.toolResultError ? 'error' : 'success',
 					chatSessionId: dto.context?.sessionResource ? chatSessionResourceToId(dto.context.sessionResource) : undefined,
 					toolId: activeTool.data.id,
 					toolExtensionId: activeTool.data.source.type === 'extension' ? activeTool.data.source.extensionId.value : undefined,
