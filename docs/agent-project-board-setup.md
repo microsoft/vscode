@@ -72,7 +72,7 @@ After pulling changes that add CSS files, fully restart the isolated OSS instanc
 1. Enable/sign into GitHub Copilot through the normal UI using your own account and entitlement.
 2. For bounded tests, choose the empty `$demo` folder in Agents rather than asking a model to modify the VS Code checkout.
 3. Verify that the model picker is populated and a harmless prompt receives a real response. A remote-connection account badge alone does not establish Copilot authentication.
-4. Run **Agents: Open Agents Hub** from the command palette, or choose **Agents Hub** in the Sessions sidebar for the embedded view.
+4. Expand **Agents Hub** in the Sessions sidebar and select a named board. Run **Agents: Open Agents Hub** to open that board in its own window, or use the board's **Open in New Window** action.
 
 An empty board is expected before chats exist. Create a session in Agents or use the board's New Session button. Independently created chats should appear without reopening the board.
 
@@ -80,6 +80,10 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 
 ## 4. Check the basic workflow
 
+- Upgrade an existing single-board profile and verify Default retains all labels, placements and display preferences. The legacy payload must remain available for recovery.
+- Create a second board from the Agents Hub section. Confirm existing and newly created chats appear in both boards' Unassigned trays, while placing a chat or changing settings on one board leaves the other unchanged.
+- Open both boards in separate windows and switch the embedded Hub independently. Rename a board and verify only its title changes; delete it and verify conversations and unrelated windows survive.
+- Enter a pending answer, switch embedded boards and return. Verify the input survives and answering on one board resolves the same request on other boards without duplicate submission.
 - Create a session, send a bounded prompt, close its standalone window, move its card to General/P1 and reopen it. Verify title and transcript.
 - Check both closing while Busy and after completion.
 - Scroll to the lowest cards; expand a cell and verify its contents remain reachable.
@@ -148,6 +152,8 @@ Prepare a visible dedicated chat, close its standalone window, ensure its compos
 ```powershell
 node scripts\test-project-board.mts http://127.0.0.1:9337 "<dedicated-test-chat-URI>"
 ```
+
+When multiple board windows are open, append the board's stable ID as a third argument (`default` for the migrated board). The gate selects that window without closing unrelated boards.
 
 The gate performs native focus transitions through the existing smoke driver, real wheel/keyboard input, popup priority, Enter/Escape, input restoration and window cleanup. It does not send prompts. Failed runs retain nonempty test input for inspection.
 

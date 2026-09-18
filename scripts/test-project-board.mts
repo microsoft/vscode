@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { chromium, expect, type CDPSession, type Page } from '@playwright/test';
 import type { IWindowDriver } from '../src/vs/workbench/services/driver/common/driver.js';
 
-const [endpoint, resource] = process.argv.slice(2);
-assert.ok(endpoint && resource, 'Usage: node scripts/test-project-board.mts <CDP endpoint> <dedicated test chat URI>');
+const [endpoint, resource, boardId] = process.argv.slice(2);
+assert.ok(endpoint && resource, 'Usage: node scripts/test-project-board.mts <CDP endpoint> <dedicated test chat URI> [board ID]');
 const address = new URL(endpoint);
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(address.hostname), 'Use a local, isolated OSS instance');
 
@@ -39,9 +39,12 @@ try {
 	await expect.poll(() => context.pages().length).toBe(targets.length);
 	initialPages = new Set(context.pages());
 	await Promise.all(context.pages().map(prepare));
+	const boardSelector = boardId
+		? `.project-board-scrollable > .project-board[data-board-id=${JSON.stringify(boardId)}]`
+		: '.project-board-scrollable';
 	for (const page of context.pages()) {
-		if (await page.locator('.project-board-scrollable').count()) {
-			assert.equal(board, undefined, 'Expected one board window');
+		if (await page.locator(boardSelector).count()) {
+			assert.equal(board, undefined, 'Pass a board ID when multiple board windows are open');
 			board = page;
 		}
 	}

@@ -110,7 +110,7 @@ export class ProjectBoardChatWindows extends Disposable {
 		return await group.closeEditor(input) ? resource : undefined;
 	}
 
-	async createNewSession(): Promise<void> {
+	async createNewSession(): Promise<URI> {
 		const types = this.sessionsManagementService.getQuickChatSessionTypes();
 		const active = this.sessionsService.activeSession.get();
 		const target = types.find(type => type.providerId === active?.providerId && type.sessionType.id === active.sessionType)
@@ -130,6 +130,7 @@ export class ProjectBoardChatWindows extends Disposable {
 		this.publishDrafts();
 		try {
 			await this.openDraft(entry.id);
+			return entry.resource;
 		} catch (error) {
 			if (!entry.hasContent && !entry.submitted) {
 				await this.discardDraft(entry);

@@ -18,6 +18,8 @@ import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePan
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
+import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
+import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
 
 function renderBoard({ container, disposableStore, theme }: ComponentFixtureContext, width: number, collapseChats = false): void {
 	container.classList.add('kanban-custom-view');
@@ -69,7 +71,9 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 		dispose() { },
 	});
 	instantiationService.stubInstance(ProjectBoardChatSidePanel, { close() { }, dispose() { } });
-	const state = disposableStore.add(instantiationService.createInstance(ProjectBoardState));
+	const catalog = disposableStore.add(instantiationService.createInstance(ProjectBoardCatalogService));
+	instantiationService.stub(IProjectBoardCatalogService, catalog);
+	const state = disposableStore.add(instantiationService.createInstance(ProjectBoardState, DEFAULT_PROJECT_BOARD_ID));
 	state.setDisplayOption('showSessionList', true);
 	state.moveCards(sessions[0].chats.get().map(chat => getProjectBoardCardId(sessions[0], chat)), { rowId: 'general', columnId: 'p0' });
 	state.moveCards(sessions[1].chats.get().map(chat => getProjectBoardCardId(sessions[1], chat)), { rowId: 'general', columnId: 'p1' });

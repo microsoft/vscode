@@ -939,6 +939,35 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.sessions-list-control .project-board-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: 100%;
+	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size320);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+
+	.project-board-item-label {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&.active {
+		background-color: var(--vscode-list-inactiveSelectionBackground);
+	}
+}
+
+.session-section.project-board-section .session-section-chevron.collapsible {
+	display: flex;
+	cursor: pointer;
+}
+
+.session-section.project-board-section .session-section-chevron.collapsible + .session-section-icon {
+	display: none;
+}
+
 .monaco-list-row:hover .session-section .session-section-chevron.collapsible,
 .sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible,
 .monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {

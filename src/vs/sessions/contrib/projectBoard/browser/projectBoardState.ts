@@ -5,36 +5,47 @@
 
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IProjectBoardAxis, IProjectBoardConfiguration, IProjectBoardDisplayOptions, IProjectBoardPlacement } from '../common/projectBoardConfiguration.js';
+import { IProjectBoardCatalogService } from '../common/projectBoardCatalog.js';
+import { defaultConfiguration, IProjectBoardAxis, IProjectBoardConfiguration, IProjectBoardDisplayOptions, IProjectBoardPlacement, isIdentifier } from '../common/projectBoardConfiguration.js';
 
+/** A board-scoped view of the shared catalog; it never follows embedded selection. */
 export class ProjectBoardState extends Disposable {
-	static readonly STORAGE_KEY = 'sessions.projectBoard.configuration';
+	private readonly _configuration;
+	readonly configuration: IObservable<IProjectBoardConfiguration>;
+	private readonly _isAvailable = observableValue(this, true);
+	readonly isAvailable: IObservable<boolean> = this._isAvailable;
 
-	private readonly _configuration = observableValue<IProjectBoardConfiguration>(this, freezeConfiguration(defaultConfiguration()));
-	readonly configuration: IObservable<IProjectBoardConfiguration> = this._configuration;
-	private editable = true;
-	private saving = false;
-	private storedValue: string | undefined;
-
-	get canEdit(): boolean { return this.editable; }
+	get canEdit(): boolean { return this._isAvailable.get() && this.catalog.canEdit; }
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		readonly boardId: string,
+		@IProjectBoardCatalogService private readonly catalog: IProjectBoardCatalogService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
-		this.load();
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ProjectBoardState.STORAGE_KEY, this._store)(() => {
-			if (!this.saving && this.editable) {
-				this.load();
-			}
+		const board = catalog.boards.get().find(board => board.id === boardId);
+		if (!board) {
+			const error = new Error(localize('projectBoard.unknownBoard', "The board no longer exists."));
+			this.dispose();
+			this.report(error);
+			throw error;
+		}
+		this._configuration = observableValue<IProjectBoardConfiguration>(this, board.configuration);
+		this.configuration = this._configuration;
+		this._register(autorun(reader => {
+			const board = catalog.boards.read(reader).find(board => board.id === boardId);
+			transaction(tx => {
+				this._isAvailable.set(!!board, tx);
+				if (board) {
+					this._configuration.set(board.configuration, tx);
+				}
+			});
 		}));
 	}
 
@@ -48,10 +59,7 @@ export class ProjectBoardState extends Disposable {
 			if (!['showSessionList', 'showStateDuration', 'showCredits', 'showLastPrompt', 'showModelDetails', 'showPermissionDetails'].includes(key) || typeof enabled !== 'boolean') {
 				throw new Error(localize('projectBoard.invalidDisplayOption', "The board display option is invalid."));
 			}
-			return {
-				...configuration,
-				display: { showStateDuration: false, showCredits: false, ...configuration.display, [key]: enabled },
-			};
+			return { ...configuration, display: { showStateDuration: false, showCredits: false, ...configuration.display, [key]: enabled } };
 		});
 	}
 
@@ -74,12 +82,7 @@ export class ProjectBoardState extends Disposable {
 	}
 
 	reset(): void {
-		try {
-			this.save(defaultConfiguration());
-		} catch (error) {
-			this.report(localize('projectBoard.resetFailed', "Could not reset Project Board configuration."), error);
-			throw error;
-		}
+		this.mutate(() => defaultConfiguration());
 	}
 
 	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {
@@ -180,158 +183,13 @@ export class ProjectBoardState extends Disposable {
 		return label.trim();
 	}
 
-	private load(): void {
-		try {
-			const value = this.storageService.get(ProjectBoardState.STORAGE_KEY, StorageScope.PROFILE);
-			if (value === this.storedValue) {
-				return;
-			}
-			const configuration = value === undefined ? defaultConfiguration() : parseConfiguration(value);
-			this.storedValue = value;
-			this._configuration.set(freezeConfiguration(configuration), undefined);
-		} catch (error) {
-			this.editable = false;
-			this.report(localize('projectBoard.loadFailed', "Could not load Project Board configuration. Editing is disabled to protect saved data. Reset the board, or repair the stored configuration and restart."), error);
-			this._configuration.set(freezeConfiguration(this._configuration.get()), undefined);
-		}
-	}
-
 	private mutate(update: (configuration: IProjectBoardConfiguration) => IProjectBoardConfiguration): void {
-		try {
-			if (this.editable) {
-				// Re-read before editing in case another window changed storage before its event arrived.
-				this.load();
-			}
-			if (!this.editable) {
-				throw new Error(localize('projectBoard.editingDisabled', "Project Board editing is disabled. Reset the board, or repair its saved configuration and restart."));
-			}
-			this.save(update(this._configuration.get()));
-		} catch (error) {
-			this.report(localize('projectBoard.saveFailed', "Could not update Project Board configuration."), error);
-			throw error;
-		}
+		// The catalog validates availability against its latest storage snapshot and reports failures.
+		this.catalog.updateBoard(this.boardId, update);
 	}
 
-	private save(value: IProjectBoardConfiguration): void {
-		const configuration = freezeConfiguration(value);
-		const serialized = JSON.stringify(configuration);
-		this.saving = true;
-		try {
-			this.storageService.store(ProjectBoardState.STORAGE_KEY, serialized, StorageScope.PROFILE, StorageTarget.MACHINE);
-		} finally {
-			this.saving = false;
-		}
-		this.storedValue = serialized;
-		this.editable = true;
-		this._configuration.set(configuration, undefined);
+	private report(error: unknown): void {
+		this.logService.error('[ProjectBoardState] Could not open board.', error);
+		this.notificationService.error(localize('projectBoard.openFailed', "Could not open board. {0}", toErrorMessage(error)));
 	}
-
-	private report(message: string, error: unknown): void {
-		this.logService.error(`[ProjectBoardState] ${message}`, error);
-		this.notificationService.error(localize('projectBoard.configurationError', "{0} {1}", message, toErrorMessage(error)));
-	}
-}
-
-function defaultConfiguration(): IProjectBoardConfiguration {
-	return {
-		version: 1,
-		rows: [{ id: 'general', label: localize('projectBoard.general', "General") }],
-		columns: [
-			{ id: 'p0', label: localize('projectBoard.p0', "P0") },
-			{ id: 'p1', label: localize('projectBoard.p1', "P1") },
-			{ id: 'p2', label: localize('projectBoard.p2', "P2") },
-			{ id: 'p3', label: localize('projectBoard.p3', "P3") },
-		],
-		placements: [],
-		autoIncludeSessions: true,
-	};
-}
-
-function freezeConfiguration(configuration: IProjectBoardConfiguration): IProjectBoardConfiguration {
-	return Object.freeze({
-		version: configuration.version,
-		rows: Object.freeze(configuration.rows.map(axis => Object.freeze({ ...axis }))),
-		columns: Object.freeze(configuration.columns.map(axis => Object.freeze({ ...axis }))),
-		placements: Object.freeze(configuration.placements.map(placement => Object.freeze({ ...placement }))),
-		autoIncludeSessions: configuration.autoIncludeSessions,
-		...(configuration.openChatInSidePanel !== undefined ? { openChatInSidePanel: configuration.openChatInSidePanel } : {}),
-		...(configuration.display ? { display: Object.freeze({ ...configuration.display }) } : {}),
-	});
-}
-
-function isIdentifier(value: unknown): value is string {
-	return typeof value === 'string' && value.trim().length > 0;
-}
-
-function hasKeys(value: unknown, keys: readonly string[], optionalKeys: readonly string[] = []): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
-		&& keys.every(key => Object.hasOwn(value, key))
-		&& Object.keys(value).every(key => keys.includes(key) || optionalKeys.includes(key));
-}
-
-function parseConfiguration(raw: string): IProjectBoardConfiguration {
-	const value: unknown = JSON.parse(raw);
-	if (!hasKeys(value, ['version', 'rows', 'columns', 'placements'], ['autoIncludeSessions', 'display', 'openChatInSidePanel']) || value.version !== 1) {
-		throw new Error(localize('projectBoard.invalidVersion', "The saved board format or version is not supported."));
-	}
-	if (Object.hasOwn(value, 'autoIncludeSessions') && typeof value.autoIncludeSessions !== 'boolean') {
-		throw new Error(localize('projectBoard.invalidSavedAutoIncludeSessions', "The saved auto-include sessions option is invalid."));
-	}
-	if (Object.hasOwn(value, 'openChatInSidePanel') && typeof value.openChatInSidePanel !== 'boolean') {
-		throw new Error(localize('projectBoard.invalidSavedOpenChatInSidePanel', "The saved chat opening option is invalid."));
-	}
-	let display: IProjectBoardDisplayOptions | undefined;
-	if (Object.hasOwn(value, 'display')) {
-		const options = value.display;
-		if (!hasKeys(options, ['showStateDuration', 'showCredits'], ['showDescription', 'showLastPrompt', 'showModelDetails', 'showPermissionDetails', 'showSessionList'])
-			|| typeof options.showStateDuration !== 'boolean' || typeof options.showCredits !== 'boolean'
-			|| Object.values(options).some(value => typeof value !== 'boolean')) {
-			throw new Error(localize('projectBoard.invalidDisplayOptions', "The saved board display options are invalid."));
-		}
-		display = {
-			showStateDuration: options.showStateDuration, showCredits: options.showCredits,
-			...(typeof options.showSessionList === 'boolean' ? { showSessionList: options.showSessionList } : {}),
-			...(typeof options.showDescription === 'boolean' ? { showLastPrompt: options.showDescription } : {}),
-			...(typeof options.showLastPrompt === 'boolean' ? { showLastPrompt: options.showLastPrompt } : {}),
-			...(typeof options.showModelDetails === 'boolean' ? { showModelDetails: options.showModelDetails } : {}),
-			...(typeof options.showPermissionDetails === 'boolean' ? { showPermissionDetails: options.showPermissionDetails } : {}),
-		};
-	}
-	const validAxes = (axes: unknown): axes is IProjectBoardAxis[] => {
-		if (!Array.isArray(axes) || axes.length === 0) {
-			return false;
-		}
-		const ids = new Set<string>();
-		return axes.every(axis => {
-			if (!hasKeys(axis, ['id', 'label']) || !isIdentifier(axis.id) || !isIdentifier(axis.label) || axis.label !== axis.label.trim() || ids.has(axis.id)) {
-				return false;
-			}
-			ids.add(axis.id);
-			return true;
-		});
-	};
-	if (!validAxes(value.rows) || !validAxes(value.columns) || !Array.isArray(value.placements)) {
-		throw new Error(localize('projectBoard.invalidAxes', "The saved board axes or placements are invalid."));
-	}
-	const rowIds = new Set(value.rows.map(axis => axis.id));
-	const columnIds = new Set(value.columns.map(axis => axis.id));
-	const cardIds = new Set<string>();
-	const placements: (IProjectBoardPlacement & { cardId: string })[] = [];
-	for (const placement of value.placements) {
-		if (!hasKeys(placement, ['cardId', 'rowId', 'columnId']) || !isIdentifier(placement.cardId) || !isIdentifier(placement.rowId) || !isIdentifier(placement.columnId)
-			|| !rowIds.has(placement.rowId) || !columnIds.has(placement.columnId) || cardIds.has(placement.cardId)) {
-			throw new Error(localize('projectBoard.invalidPlacements', "The saved board contains an invalid or duplicate placement."));
-		}
-		cardIds.add(placement.cardId);
-		placements.push({ cardId: placement.cardId, rowId: placement.rowId, columnId: placement.columnId });
-	}
-	return {
-		version: 1,
-		rows: value.rows,
-		columns: value.columns,
-		placements,
-		autoIncludeSessions: value.autoIncludeSessions !== false,
-		...(typeof value.openChatInSidePanel === 'boolean' ? { openChatInSidePanel: value.openChatInSidePanel } : {}),
-		...(display ? { display } : {}),
-	};
 }
