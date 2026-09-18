@@ -124,9 +124,46 @@ suite('ProjectBoardCatalog', () => {
 			firstPlacement: { rowId: 'general', columnId: 'p0' }, secondPlacement: { rowId: 'general', columnId: 'p3' },
 			firstId: defaultId, secondId: id, firstColumn: 'P0', firstDisplay: { showStateDuration: false, showCredits: true },
 		});
+
 		const retained = first.configuration.get();
 		second.reset();
 		assert.deepStrictEqual({ first: first.configuration.get(), second: second.configuration.get() }, { first: retained, second: defaultConfiguration() });
+	});
+
+	test('selection preserves board snapshots and does not republish unchanged configurations', () => {
+		const { catalog, state, storage } = create();
+		const second = catalog.createBoard('Second');
+		const firstState = state(defaultId);
+		const before = catalog.boards.get();
+		const config = firstState.configuration.get();
+		let boardChanges = 0;
+		let configChanges = 0;
+		disposables.add(autorun(reader => { catalog.boards.read(reader); boardChanges++; }));
+		disposables.add(autorun(reader => { firstState.configuration.read(reader); configChanges++; }));
+		catalog.selectBoard(second);
+		assert.strictEqual(catalog.boards.get(), before);
+		assert.strictEqual(firstState.configuration.get(), config);
+		assert.deepStrictEqual([boardChanges, configChanges], [1, 1]);
+		const write = sinon.spy(storage, 'store');
+		catalog.selectBoard(second);
+		assert.strictEqual(write.callCount, 0, 'Reselecting the current board does not write storage');
+		catalog.renameBoard(second, 'Renamed');
+		assert.strictEqual(catalog.boards.get()[0], before[0]);
+		assert.strictEqual(catalog.boards.get()[1].configuration, before[1].configuration);
+		assert.strictEqual(configChanges, 1);
+	});
+
+	test('external selection writes retain identities while real board changes still publish', () => {
+		const first = create();
+		const id = first.catalog.createBoard('Other');
+		const second = create(first.storage);
+		const initial = first.catalog.boards.get();
+		second.catalog.selectBoard(id);
+		assert.strictEqual(first.catalog.boards.get(), initial);
+		assert.strictEqual(first.catalog.selectedBoardId.get(), id);
+		second.state(id).setAutoIncludeSessions(false);
+		assert.strictEqual(first.catalog.boards.get()[0], initial[0]);
+		assert.notStrictEqual(first.catalog.boards.get()[1].configuration, initial[1].configuration);
 	});
 
 	test('deleting selection chooses first remaining board and deleting last persists empty without backend work', () => {

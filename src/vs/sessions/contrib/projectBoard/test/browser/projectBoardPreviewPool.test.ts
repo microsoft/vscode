@@ -41,8 +41,9 @@ suite('ProjectBoardPreviewPool', () => {
 
 	function metadataStub(instantiation: TestInstantiationService) {
 		const calls = { credits: [] as boolean[], configuration: [] as boolean[], disposed: 0 };
+		const metadata = observableValue<IProjectBoardMetadata>('metadata', { kind: 'loading' });
 		const helper: IProjectBoardMetadataLease = {
-			metadata: observableValue<IProjectBoardMetadata>('metadata', { kind: 'loading' }),
+			metadata,
 			credits: observableValue<number | undefined>('credits', undefined),
 			creditsError: observableValue<string | undefined>('creditsError', undefined),
 			configuration: observableValue<IProjectBoardInputConfiguration | undefined>('configuration', undefined),
@@ -52,7 +53,7 @@ suite('ProjectBoardPreviewPool', () => {
 			dispose: () => { calls.disposed++; },
 		};
 		instantiation.stubInstance(ProjectBoardMetadata, helper);
-		return { helper, calls };
+		return { helper, calls, metadata };
 	}
 
 	function questionStub(instantiation: TestInstantiationService) {
@@ -101,6 +102,7 @@ suite('ProjectBoardPreviewPool', () => {
 			assert.strictEqual(shared.questionCarousels, lease.questionCarousels);
 			return { ...stub, lease, shared };
 		});
+
 		assert.strictEqual(h.pool.acquireQuestions(chat('overflow')), undefined);
 		assert.strictEqual(h.created.callCount, 8);
 		metadataStub(h.instantiation);
@@ -111,6 +113,45 @@ suite('ProjectBoardPreviewPool', () => {
 		const replacement = questionStub(h.instantiation);
 		assert.strictEqual(store.add(h.pool.acquireQuestions(chat('overflow'))!).preview, replacement.helper.preview);
 		assert.strictEqual(helpers[0].calls.disposed, 1);
+	});
+
+	test('ready metadata stays warm between boards but idle entries yield to the global quota', () => {
+		const h = setup();
+		const helpers = Array.from({ length: projectBoardMetadataLimits.activeHelpers }, (_, index) => {
+			const stub = metadataStub(h.instantiation);
+			stub.metadata.set({ kind: 'ready', prompt: `Prompt ${index}`, context: [] }, undefined);
+			const lease = store.add(h.pool.acquireMetadata(chat(String(index)))!);
+			lease.dispose();
+			return stub;
+		});
+		assert.ok(helpers.every(helper => helper.calls.disposed === 0), 'Loaded previews survive a board switch without retaining extra leases');
+		const revived = store.add(h.pool.acquireMetadata(chat('0'))!);
+		assert.strictEqual(revived.metadata, helpers[0].helper.metadata);
+		assert.strictEqual(h.created.callCount, projectBoardMetadataLimits.activeHelpers);
+		revived.dispose();
+		metadataStub(h.instantiation);
+		store.add(h.pool.acquireMetadata(chat('new'))!);
+		assert.strictEqual(helpers[1].calls.disposed, 1, 'Evict the least recently used idle entry before loading another model');
+		assert.strictEqual(helpers[0].calls.disposed, 0, 'A recently reused entry remains warm');
+		h.pool.clearIdleMetadata();
+		assert.ok(helpers.every(helper => helper.calls.disposed === 1), 'Closing the last Hub view releases warm cached models');
+	});
+
+	test('idle ready entries disable optional observation and active entries survive cache clearing', () => {
+		const h = setup();
+		const stub = metadataStub(h.instantiation);
+		stub.metadata.set({ kind: 'ready', context: [] }, undefined);
+		const first = store.add(h.pool.acquireMetadata(chat())!);
+		first.setIncludeCredits(true);
+		first.setIncludeConfiguration(true);
+		first.dispose();
+		assert.deepStrictEqual(stub.calls, { credits: [true, false], configuration: [true, false], disposed: 0 });
+		const active = store.add(h.pool.acquireMetadata(chat())!);
+		h.pool.clearIdleMetadata();
+		assert.strictEqual(stub.calls.disposed, 0);
+		active.dispose();
+		h.pool.clearIdleMetadata();
+		assert.strictEqual(stub.calls.disposed, 1);
 	});
 
 	test('all metadata observables are shared and feature flags aggregate across leases', () => {

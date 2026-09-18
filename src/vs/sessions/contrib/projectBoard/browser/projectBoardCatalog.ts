@@ -6,6 +6,8 @@
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../base/common/observable.js';
+import { equals } from '../../../../base/common/objects.js';
+import { equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -144,7 +146,7 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 			const collection = raw === undefined ? defaultCollection() : validateCollection(JSON.parse(raw));
 			this.storedValue = raw;
 			this.loaded = true;
-			this.collection.set(freezeCollection(collection), undefined);
+			this.collection.set(freezeCollection(collection, this.collection.get()), undefined);
 		} catch (error) {
 			this.editable = false;
 			this.report(localize('projectBoard.catalogLoadFailed', "Could not load Agents Hub configuration. Editing is disabled to protect saved data. Reset the Hub, or repair the stored configuration and restart."), error);
@@ -169,8 +171,11 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 	}
 
 	private save(value: IProjectBoardCollection): void {
-		const collection = freezeCollection(validateCollection(value));
+		const collection = freezeCollection(validateCollection(value), this.editable ? this.collection.get() : undefined);
 		const serialized = JSON.stringify(collection);
+		if (this.editable && serialized === this.storedValue) {
+			return;
+		}
 		this.saving = true;
 		try {
 			this.storageService.store(ProjectBoardCatalogService.STORAGE_KEY, serialized, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -218,10 +223,22 @@ function validateCollection(value: unknown): IProjectBoardCollection {
 	return { version: 2, boards, ...(typeof value.selectedBoardId === 'string' ? { selectedBoardId: value.selectedBoardId } : {}) };
 }
 
-function freezeCollection(collection: IProjectBoardCollection): IProjectBoardCollection {
+function freezeCollection(collection: IProjectBoardCollection, previous?: IProjectBoardCollection): IProjectBoardCollection {
+	const oldBoards = new Map(previous?.boards.map(board => [board.id, board]));
+	const records = collection.boards.map(board => {
+		const old = oldBoards.get(board.id);
+		const configuration = old && equals(old.configuration, board.configuration) ? old.configuration : freezeConfiguration(board.configuration);
+		return old && old.name === board.name && old.configuration === configuration
+			? old
+			: Object.freeze({ ...board, configuration });
+	});
+	const boards = previous && arrayEquals(records, previous.boards) ? previous.boards : Object.freeze(records);
+	if (previous && boards === previous.boards && collection.selectedBoardId === previous.selectedBoardId) {
+		return previous;
+	}
 	return Object.freeze({
 		...collection,
-		boards: Object.freeze(collection.boards.map(board => Object.freeze({ ...board, configuration: freezeConfiguration(board.configuration) }))),
+		boards,
 	});
 }
 

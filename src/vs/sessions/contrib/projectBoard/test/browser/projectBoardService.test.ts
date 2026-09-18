@@ -11,7 +11,7 @@ import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { toAction } from '../../../../../base/common/actions.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -37,6 +37,7 @@ import { getProjectBoardCardId, getProjectBoardSessionKey, IProjectBoardCard } f
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreview, ProjectBoardQuestionPreviewState } from '../../browser/projectBoardQuestions.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
+import { ProjectBoardPreviewPool } from '../../browser/projectBoardPreviewPool.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IProjectBoardInputConfiguration, IProjectBoardMetadata, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
@@ -48,7 +49,7 @@ import { IChatQuestionAnswers, IChatService } from '../../../../../workbench/con
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { submitChatQuestionCarousel } from '../../../../../workbench/contrib/chat/common/chatService/chatQuestionCarouselHelpers.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatRequestModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatRequestModel, IChatChangeEvent, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePanel.js';
 import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
@@ -357,6 +358,73 @@ suite('ProjectBoardService', () => {
 		await h.service.open(releaseId);
 		assert.strictEqual(h.state.openCount, 2, 'Reopening a board reuses only its own window');
 		assert.strictEqual(first.querySelector('h1')?.textContent, 'Agents Hub — Default');
+	});
+
+	test('selection and unrelated board edits do not rebuild the current board or a standalone board', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('No redundant render')]);
+		const second = h.catalog.createBoard('Second');
+		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
+		const nativeGrid = h.container.querySelector('.project-board-grid');
+		const embedded = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(embedded);
+		store.add(toDisposable(() => embedded.remove()));
+		store.add(h.service.createView(embedded));
+		const embeddedGrid = embedded.querySelector('.project-board-grid');
+		h.catalog.renameBoard(second, 'Renamed');
+		assert.strictEqual(embedded.querySelector('.project-board-grid'), embeddedGrid, 'Unrelated catalog changes must not reactivate the current view');
+		assert.strictEqual(h.container.querySelector('.project-board-grid'), nativeGrid);
+		h.catalog.selectBoard(second);
+		assert.strictEqual(h.container.querySelector('.project-board-grid'), nativeGrid, 'Embedded selection must not invalidate a standalone board');
+	});
+
+	test('history and prompt preview bursts coalesce rendering without delaying direct chat changes', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		store.add(toDisposable(() => clock.restore()));
+		const chat = new TestChat('Coalesced preview');
+		const h = createBoard(mainWindow.document, [chat]);
+		const changed = store.add(new Emitter<IChatChangeEvent>());
+		const model = new class extends mock<IChatModel>() {
+			override readonly sessionResource = chat.resource;
+			override readonly onDidChange = changed.event;
+			override readonly lastRequestObs = observableValue('last', undefined);
+			override readonly lastRequest = undefined;
+		}();
+		h.loadedModels.set([model], undefined);
+		const view = store.add(h.service.createView(h.container));
+		let renders = 0;
+		store.add(view.onDidChangeContentSize(() => renders++));
+		for (let i = 0; i < 20; i++) {
+			changed.fire({ kind: 'setCustomTitle', title: String(i) });
+		}
+		assert.strictEqual(renders, 0, 'Restoring history must not rebuild the board for every model event');
+		clock.tick(0);
+		assert.strictEqual(renders, 1);
+		for (const prompt of ['First preview', 'Final preview']) {
+			h.metadata.set({ kind: 'ready', prompt, context: [] }, undefined);
+		}
+		assert.strictEqual(renders, 1);
+		clock.tick(0);
+		assert.strictEqual(renders, 2);
+		assert.strictEqual(h.container.querySelector('.project-board-card-prompt')?.textContent, 'Final preview');
+		chat.title.set('Immediate title', undefined);
+		assert.strictEqual(h.container.querySelector('h4')?.textContent, 'Immediate title');
+	});
+
+	test('closing the last Hub surface clears idle previews without flushing another open board', async () => {
+		const clear = sinon.spy(ProjectBoardPreviewPool.prototype, 'clearIdleMetadata');
+		store.add(toDisposable(() => clear.restore()));
+		const h = createBoard(mainWindow.document, [new TestChat('Cached model')]);
+		h.metadata.set({ kind: 'ready', prompt: 'Ready preview', context: [] }, undefined);
+		await h.service.open();
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const embedded = store.add(h.service.createView(container));
+		h.closeBoard();
+		await Promise.resolve();
+		assert.strictEqual(clear.callCount, 0, 'The embedded Hub is still using the shared cache');
+		embedded.dispose();
+		assert.strictEqual(clear.callCount, 1);
 	});
 
 	test('embedded board switching preserves local folding and returns a chat to its originating board', async () => {
@@ -1019,6 +1087,7 @@ suite('ProjectBoardService', () => {
 		};
 		await toggle(true);
 		h.metadata.set({ kind: 'ready', prompt: 'Updated while hidden', submittedAt: 2000, context: [] }, undefined);
+		await timeout(0);
 		assert.strictEqual(h.container.querySelector('.project-board-card-prompt'), null);
 		assert.ok(h.container.querySelector('[data-submitted-at="2000"]'));
 		assert.ok(h.container.querySelector('.project-board-card-status'));
@@ -2373,6 +2442,7 @@ suite('ProjectBoardService', () => {
 		chats[0].isRead.set(true, undefined);
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
 		h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
+		await timeout(0);
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
 		assert.ok(h.container.textContent?.includes('Recency unavailable'));
 	});
@@ -2413,6 +2483,7 @@ suite('ProjectBoardService', () => {
 		const titles = () => [...h.container.querySelectorAll('[aria-label="General, P0"] h4')].map(element => element.textContent);
 		assert.deepStrictEqual(titles(), ['Recency 3', 'Recency 2', 'Recency 1']);
 		models[0].lastRequestObs.set(request(5000), undefined);
+		await timeout(0);
 		assert.deepStrictEqual(titles(), ['Recency 0', 'Recency 3', 'Recency 2']);
 		chats[2].title.set('Agent update', undefined);
 		chats[2].isRead.set(true, undefined);

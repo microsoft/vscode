@@ -21,6 +21,7 @@ interface IMetadataFeatures {
 }
 
 interface IMetadataEntry extends IMetadataFeatures {
+	readonly key: string;
 	readonly helper: ProjectBoardMetadata;
 	readonly leases: Set<IMetadataFeatures>;
 }
@@ -54,14 +55,28 @@ export class ProjectBoardPreviewPool extends Disposable {
 		}
 		const key = chat.resource.toString();
 		let entry = this._metadata.get(key);
+		if (entry && !entry.leases.size && entry.helper.metadata.get().kind !== 'ready') {
+			this._metadata.delete(key);
+			entry.helper.dispose();
+			entry = undefined;
+		}
 		if (!entry) {
 			if (this._metadata.size >= projectBoardMetadataLimits.activeHelpers) {
-				return undefined;
+				const idle = [...this._metadata].find(([, candidate]) => !candidate.leases.size);
+				if (!idle) {
+					return undefined;
+				}
+				this._metadata.delete(idle[0]);
+				idle[1].helper.dispose();
 			}
 			entry = {
+				key,
 				helper: this._instantiationService.createInstance(ProjectBoardMetadata, chat),
 				leases: new Set(), includeCredits: false, includeConfiguration: false,
 			};
+			this._metadata.set(key, entry);
+		} else {
+			this._metadata.delete(key);
 			this._metadata.set(key, entry);
 		}
 		const retained = entry;
@@ -94,8 +109,15 @@ export class ProjectBoardPreviewPool extends Disposable {
 				if (retained.leases.size) {
 					this._updateMetadataFeatures(retained);
 				} else {
-					this._metadata.delete(key);
-					retained.helper.dispose();
+					// Ready previews stay warm within the same quota; unfinished loads still cancel.
+					if (retained.helper.metadata.get().kind === 'ready') {
+						this._metadata.delete(key);
+						this._metadata.set(key, retained);
+						this._updateMetadataFeatures(retained);
+					} else {
+						this._metadata.delete(key);
+						retained.helper.dispose();
+					}
 					if (!this._isDisposed) {
 						this._availability.schedule();
 					}
@@ -111,13 +133,23 @@ export class ProjectBoardPreviewPool extends Disposable {
 			entry.helper.setIncludeCredits(includeCredits);
 		}
 		// Updating an observable can synchronously release the last lease or dispose the pool.
-		if (this._isDisposed || !entry.leases.size) {
+		if (this._isDisposed || this._metadata.get(entry.key) !== entry) {
 			return;
 		}
+
 		const includeConfiguration = [...entry.leases].some(lease => lease.includeConfiguration);
 		if (entry.includeConfiguration !== includeConfiguration) {
 			entry.includeConfiguration = includeConfiguration;
 			entry.helper.setIncludeConfiguration(includeConfiguration);
+		}
+	}
+
+	clearIdleMetadata(): void {
+		for (const [key, entry] of [...this._metadata]) {
+			if (!entry.leases.size) {
+				this._metadata.delete(key);
+				entry.helper.dispose();
+			}
 		}
 	}
 

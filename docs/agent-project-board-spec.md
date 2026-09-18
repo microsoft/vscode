@@ -50,6 +50,8 @@ Moving a card changes only its placement on the current board. The same conversa
 - Each board owns its axes, placements, display mode/fields and chat-opening preference. Auto-include Sessions can be disabled independently for a curated board.
 - Deleting a board requires confirmation and removes only its organization. It closes that board's window and selects another board in the embedded Hub when needed; deleting the last board shows New Board rather than silently recreating data.
 - Switching embedded boards retains their local folding, scrolling and pending answer inputs. Inactive views stop discovering/loading new previews; shared bounded preview leases preserve pending interactions without multiplying transcript references per board.
+- Selection-only changes retain board/configuration identities and do not reactivate unrelated views. Burst history/prompt-preview updates coalesce their DOM rendering, while direct user changes and pending actions remain immediate.
+- Ready metadata previews may stay warm without active leases inside the existing sixteen-model budget. Idle entries yield to active demand in least-recently-used order; optional credit/configuration observation is disabled while idle. Unfinished loads still cancel, and closing the last Hub surface clears idle previews.
 - Async pickers and management actions retain their originating board ID; deleted IDs are rejected rather than redirected to another board.
 
 ### Layout and placement
@@ -172,7 +174,7 @@ Use VS Code core DOM, CSS, observables and services; do not introduce a webview,
 ## Capability boundaries
 
 - Multiple named boards in one canonical Agents profile; no cross-device synchronization, team sharing or execution isolation.
-- At most sixteen displayed chat models are retained for prompt metadata. Already-loaded hidden chats can supply timestamp-only updates; cold hidden histories remain unknown until expanded.
+- At most sixteen distinct active or warm-cached chat models are retained for prompt metadata across all boards. Already-loaded hidden chats can supply timestamp-only updates; cold hidden histories remain unknown until expanded.
 - At most eight Needs Input cards load question previews concurrently. Additional cards direct users to their chat.
 - Missing prompt text/time is explicit. An empty stored request is informational (`No prompt text`), not an agent failure.
 - Local Copilot flows have been exercised in Windows OSS with real models. Other providers and macOS/Linux native behavior require their own validation.
