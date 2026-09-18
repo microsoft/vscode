@@ -11,7 +11,29 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('getSessionOwnedGitHubPullRequestRefs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('filters multi-PR provenance without falling back to an inherited primary PR', () => {
+		const primary = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
+		const owned = { ...primary, number: 2, createdByThisSession: true };
+		const info: IGitHubInfo = { owner: 'owner', repo: 'repo', pullRequest: primary };
+		assert.deepStrictEqual([
+			getSessionOwnedGitHubPullRequestRefs(undefined),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [primary, owned, { ...primary, createdByThisSession: false }] }),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [] }),
+		], [[], [owned], []]);
+	});
+
+	test('accepts legacy primary PRs and preserves presentation and state', () => {
+		const primary = { number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1'), title: 'PR', icon: Codicon.gitPullRequest, state: 'open' as const, liveState: 'merged' as const };
+		assert.deepStrictEqual(getSessionOwnedGitHubPullRequestRefs({ owner: 'owner', repo: 'repo', pullRequest: primary }), [
+			{ owner: 'owner', repo: 'repo', ...primary },
+		]);
+	});
+});
 
 suite('isActiveSessionStatus', () => {
 

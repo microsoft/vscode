@@ -87,6 +87,7 @@ type FirstTimeWindowOpenEvent = {
 	workspacePreselectedAtEmission: boolean | undefined;
 	workspaceSelectionOriginAtEmission: IWorkspaceSelectionSnapshot['origin'] | undefined;
 	workspaceSelectionStateAtEmission: IWorkspaceSelectionSnapshot['state'] | undefined;
+	nonArchivedSessionListCount: number;
 	windowCloseDurationMs: number | undefined;
 	emissionReason: FirstTimeWindowOpenEmissionReason;
 };
@@ -114,6 +115,7 @@ type FirstTimeWindowOpenClassification = {
 	workspacePreselectedAtEmission: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the new-session view has a workspace when this event is emitted. May include later user actions; undefined for a created session.' };
 	workspaceSelectionOriginAtEmission: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Detailed workspace origin at delayed emission, using the same values as workspaceSelectionOrigin. Allows later user selection to be distinguished from automatic selection.' };
 	workspaceSelectionStateAtEmission: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Picker state at delayed emission: none, noWorkspace, selected, or unresolved. Not a selection-settled signal.' };
+	nonArchivedSessionListCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-archived, non-automation sessions currently in the Sessions list.' };
 	windowCloseDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds before the Agents window closed, capped at three minutes.' };
 	emissionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the delayed first-time window event was emitted: timer, close, quit, reload, or otherShutdown.' };
 	owner: 'benibenj';
@@ -133,6 +135,7 @@ export class SessionsWindowOpenTelemetry extends Disposable {
 		private readonly _context: ISessionsWindowOpenContext,
 		private readonly _getSignInDialogShown: () => boolean,
 		private readonly _getViewState: () => ISessionsWindowOpenViewState,
+		private readonly _getNonArchivedSessionListCount: () => number,
 		private readonly _telemetryService: ITelemetryService,
 		lifecycleService: ILifecycleService,
 	) {
@@ -233,6 +236,7 @@ export class SessionsWindowOpenTelemetry extends Disposable {
 			workspacePreselectedAtEmission: emissionState.workspacePreselected,
 			workspaceSelectionOriginAtEmission: emissionState.workspaceSelection?.origin,
 			workspaceSelectionStateAtEmission: emissionState.workspaceSelection?.state,
+			nonArchivedSessionListCount: this._getNonArchivedSessionListCount(),
 			windowCloseDurationMs,
 			emissionReason,
 		});

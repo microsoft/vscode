@@ -754,6 +754,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const requestActivity = new MutableDisposable<IDisposable>();
 		try {
 			requestActivity.value = provider.startNewSessionRequest?.(session.sessionId);
+			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true, options.query));
 
 			// The session is graduating into the list (being sent),
@@ -785,7 +786,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 			}
 			this._onDidStartSession.fire(updatedSession);
-			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
+			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, newSessionConfig, options });
 		} finally {
 			requestActivity.dispose();
 			inFlightRequest?.dispose();
@@ -934,7 +935,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, resolvedOptions, token), token);
+			const newSessionConfig = provider.getNewSessionConfig
+				? await raceCancellationError(provider.getNewSessionConfig(session.sessionId), token)
+				: undefined;
+			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, resolvedOptions, newSessionConfig, token), token);
 		} catch (e) {
 			// The send never committed, so the draft is stranded. Dispose it
 			// through its provider to release the eager backend session before
@@ -1057,8 +1061,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let graduatingProvider = provider;
 		let graduatingSession = session;
 		try {
+			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query));
-			await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options);
+			await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig);
 		} catch (error) {
 			graduatingProvider.deleteNewSession(graduatingSession.sessionId);
 			throw error;
@@ -1081,7 +1086,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Providers are multi-new-session aware, so the graduating session and a
 	 * concurrently reseeded composer draft coexist without conflict.
 	 */
-	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, newSessionConfig: ISendRequestSentEvent['newSessionConfig'], token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -1116,7 +1121,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return undefined;
 		}
 		this._onDidStartSession.fire(updatedSession);
-		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, options });
+		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, newSessionConfig, options });
 		return updatedSession;
 	}
 

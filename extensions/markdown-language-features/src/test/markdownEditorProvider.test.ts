@@ -7,8 +7,139 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
-import { getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
+import { computeMarkdownEditorEdit, getInDocumentLinkTargetRange, getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers, readMarkdownEditorEdit } from '../preview/markdownEditorProvider';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
+
+suite('Markdown editor links', () => {
+	test('validates edits from the webview', () => {
+		assert.deepStrictEqual({
+			valid: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new', editEpoch: 2 }),
+			negativeStart: readMarkdownEditorEdit({ start: -1, endExclusive: 3, text: 'new', editEpoch: 2 }),
+			reversed: readMarkdownEditorEdit({ start: 3, endExclusive: 1, text: 'new', editEpoch: 2 }),
+			fractional: readMarkdownEditorEdit({ start: 1.5, endExclusive: 3, text: 'new', editEpoch: 2 }),
+			nonText: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 4, editEpoch: 2 }),
+			staleShape: readMarkdownEditorEdit({ start: 1, endExclusive: 3, text: 'new' }),
+		}, {
+			valid: { start: 1, endExclusive: 3, text: 'new', editEpoch: 2 },
+			negativeStart: undefined,
+			reversed: undefined,
+			fractional: undefined,
+			nonText: undefined,
+			staleShape: undefined,
+		});
+	});
+
+	test('maps sequential LF webview edits onto a CRLF document', () => {
+		const resource = vscode.Uri.file('/workspace/readme.md');
+		const first = computeMarkdownEditorEdit(resource, 'ab\r\n', vscode.EndOfLine.CRLF, 'ab\r\n', {
+			start: 1,
+			endExclusive: 1,
+			text: '\n',
+			editEpoch: 0,
+		});
+		const second = first && computeMarkdownEditorEdit(resource, first.expectedDocumentText, vscode.EndOfLine.CRLF, first.nextWebviewText, {
+			start: 2,
+			endExclusive: 2,
+			text: 'x',
+			editEpoch: 0,
+		});
+
+		assert.deepStrictEqual({
+			first: first && {
+				range: [first.range.start.line, first.range.start.character, first.range.end.line, first.range.end.character],
+				replacementText: first.replacementText,
+				expectedDocumentText: first.expectedDocumentText,
+				nextWebviewText: first.nextWebviewText,
+			},
+			second: second && {
+				range: [second.range.start.line, second.range.start.character, second.range.end.line, second.range.end.character],
+				expectedDocumentText: second.expectedDocumentText,
+				nextWebviewText: second.nextWebviewText,
+			},
+		}, {
+			first: {
+				range: [0, 1, 0, 1],
+				replacementText: '\r\n',
+				expectedDocumentText: 'a\r\nb\r\n',
+				nextWebviewText: 'a\nb\r\n',
+			},
+			second: {
+				range: [1, 0, 1, 0],
+				expectedDocumentText: 'a\r\nxb\r\n',
+				nextWebviewText: 'a\nxb\r\n',
+			},
+		});
+	});
+
+	test('maps only positioned links within the current document to source ranges', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# First\n\n## Target\n' });
+		const targetPosition = { line: 2, character: 0 };
+
+		assert.deepStrictEqual({
+			currentDocument: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri,
+				positionOrRange: targetPosition,
+			}),
+			otherDocument: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri.with({ path: `${document.uri.path}-other` }),
+				positionOrRange: targetPosition,
+			}),
+			currentDocumentRange: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri,
+				positionOrRange: {
+					start: targetPosition,
+					end: { line: 2, character: 6 },
+				},
+			}),
+			currentDocumentColumn: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri,
+				positionOrRange: { line: 2, character: 3 },
+			}),
+			currentDocumentDifferentEol: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri,
+				positionOrRange: targetPosition,
+			}, '# First\r\n\r\n## Target\r\n'),
+			withoutPosition: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri,
+			}),
+			outsideDocument: getInDocumentLinkTargetRange(document, {
+				kind: 'file',
+				uri: document.uri,
+				positionOrRange: { line: document.lineCount, character: 0 },
+			}),
+		}, {
+			currentDocument: {
+				start: document.offsetAt(new vscode.Position(2, 0)),
+				endExclusive: document.offsetAt(new vscode.Position(2, 9)),
+				selectionStart: document.offsetAt(new vscode.Position(2, 0)),
+			},
+			otherDocument: undefined,
+			currentDocumentRange: {
+				start: document.offsetAt(new vscode.Position(2, 0)),
+				endExclusive: document.offsetAt(new vscode.Position(2, 6)),
+				selectionStart: document.offsetAt(new vscode.Position(2, 0)),
+			},
+			currentDocumentColumn: {
+				start: document.offsetAt(new vscode.Position(2, 0)),
+				endExclusive: document.offsetAt(new vscode.Position(2, 9)),
+				selectionStart: document.offsetAt(new vscode.Position(2, 3)),
+			},
+			currentDocumentDifferentEol: {
+				start: 11,
+				endExclusive: 20,
+				selectionStart: 11,
+			},
+			withoutPosition: undefined,
+			outsideDocument: undefined,
+		});
+	});
+});
 
 suite('Markdown editor diff', () => {
 	test('maps modified-side line changes to quick diff gutter markers', async () => {
@@ -32,6 +163,7 @@ suite('Markdown editor initial state', () => {
 		const state = {
 			content: '</meta><script>globalThis.modified = true</script><!--\n# Heading "quoted"',
 			documentVersion: 17,
+			editEpoch: 3,
 			readonly: true,
 			richLinksEnabled: true,
 			linkPresentationRules: [],

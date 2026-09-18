@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
@@ -19,13 +25,13 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
-import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
+import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { IMigratedCustomizationsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -73,6 +79,10 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationInProgress: boolean;
 		customizationMigrationWritesInProgress: boolean;
 		customizationMigrationLoading: boolean;
+		customizationMigrationLoadError: string | undefined;
+		customizationMigrationRefreshSequence: number;
+		customizationMigrationRefreshDelayer: Delayer<void>;
+		customizationMigrationRequest: DisposableStore;
 		selectedCustomizationMigrationTargets: Map<string, ICustomizationSourceFolder>;
 		explicitlySelectedCustomizationMigrationTargets: Set<string>;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
@@ -99,7 +109,7 @@ suite('aiCustomizationManagementEditor', () => {
 		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
 		editorDisposables: DisposableStore;
-		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string> };
+		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById'] };
 		migrationListContainer: HTMLElement | undefined;
 		migrationSectionLists: readonly unknown[];
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
@@ -120,7 +130,9 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationPageDisposables: DisposableStore;
 		migrationBannerDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
-		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'>;
+		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'> & {
+			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
+		};
 		dialogService: { confirm(): Promise<{ confirmed: boolean }> };
 		quickInputService: {
 			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean } | undefined>;
@@ -138,7 +150,9 @@ suite('aiCustomizationManagementEditor', () => {
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
 		refreshCustomizationMigrationInfoFromPromptChange(): void;
+		refreshCustomizationMigrationInfoFromMcpChange(): void;
 		refreshCustomizationMigrationInfo(): Promise<void>;
+		cancelCustomizationMigrationRefresh(): void;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
 		updateCustomizationMigrationActionState(): void;
@@ -204,6 +218,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
 		editor.editorPreviewDisposables = new DisposableStore();
 		editor.editorDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
+		editor.customizationMigrationRefreshSequence = 0;
+		editor.customizationMigrationRefreshDelayer = editor.editorPreviewDisposables.add(new Delayer<void>(0));
+		editor.customizationMigrationRequest = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.storageService = editor.editorPreviewDisposables.add(new InMemoryStorageService());
 		editor.workspaceService = {
 			activeProjectRoot: observableValue<URI | undefined>('project', URI.file('/workspace')),
@@ -212,6 +229,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
+			findHarnessById: () => undefined,
 		};
 		editor.hoverService = hoverService ?? {
 			setupManagedHover: () => ({
@@ -911,6 +929,189 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.strictEqual(refreshCount, 2);
 		editor.editorPreviewDisposables.dispose();
 	});
+
+	function createMigrationRefreshEditor(compute: (session: URI, token: CancellationToken) => Promise<readonly IMcpServerCustomizationMigrationCandidate[]>) {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+		}));
+		store.add(editor.editorPreviewDisposables);
+		const renders: boolean[] = [];
+		const applied: (readonly CustomizationMigrationCandidate[])[] = [];
+		editor.renderCustomizationMigrationPage = () => renders.push(editor.customizationMigrationLoading);
+		editor.setCustomizationsToMigrate = candidates => {
+			applied.push([...candidates.values()].flat());
+			editor.renderCustomizationMigrationPage();
+		};
+		editor.customizationMigrationService.computeMigration = async (session, type, token = CancellationToken.None) => {
+			assert.strictEqual(type, CustomizationMigrationType.McpServers);
+			return {
+				type: CustomizationMigrationType.McpServers,
+				servers: [],
+				candidates: await compute(session, token),
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			};
+		};
+		return { editor, renders, applied };
+	}
+
+	test('coalesces migration invalidations into one computation and loading transition', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let computations = 0;
+		const { editor, renders, applied } = createMigrationRefreshEditor(async () => {
+			computations++;
+			return [];
+		});
+		editor.refreshCustomizationMigrationInfoFromMcpChange();
+		editor.refreshCustomizationMigrationInfoFromMcpChange();
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+		await editor.refreshCustomizationMigrationInfo();
+		const firstBurst = { computations, renders: [...renders], applied: [...applied] };
+		editor.refreshCustomizationMigrationInfoFromMcpChange();
+		await editor.refreshCustomizationMigrationInfo();
+		assert.deepStrictEqual({ firstBurst, computations, renders, applied }, {
+			firstBurst: { computations: 1, renders: [true, false], applied: [[]] },
+			computations: 2, renders: [true, false, true, false], applied: [[], []],
+		});
+	}));
+
+	test('cancels superseded migration work before applying the new session result', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const blocked = new DeferredPromise<void>();
+		const requests: { session: string; token: CancellationToken }[] = [];
+		const { editor, applied } = createMigrationRefreshEditor(async (session, token) => {
+			requests.push({ session: session.path, token });
+			if (requests.length === 1) {
+				firstStarted.complete();
+				await raceCancellationError(blocked.p, token);
+			}
+			return [];
+		});
+		const first = editor.refreshCustomizationMigrationInfo();
+		await firstStarted.p;
+		editor.harnessService.activeSessionResource.set(URI.parse('agent-host-test:/session-b'), undefined);
+		const second = editor.refreshCustomizationMigrationInfo();
+		const firstCancelled = requests[0].token.isCancellationRequested;
+		// Release an uncooperative provider as well, so a cancellation regression cannot hang the test.
+		blocked.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({ firstCancelled, sessions: requests.map(request => request.session), applied }, {
+			firstCancelled: true, sessions: ['/session-a', '/session-b'], applied: [[]],
+		});
+	}));
+
+	test('cancels queued migration work on close and allows a later refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let computations = 0;
+		const { editor, applied } = createMigrationRefreshEditor(async () => {
+			computations++;
+			return [];
+		});
+		const pending = editor.refreshCustomizationMigrationInfo();
+		editor.cancelCustomizationMigrationRefresh();
+		await pending;
+		const beforeReopen = computations;
+		await editor.refreshCustomizationMigrationInfo();
+		assert.deepStrictEqual({ beforeReopen, computations, applied }, {
+			beforeReopen: 0, computations: 1, applied: [[]],
+		});
+	}));
+
+	test('disposal cancels in-flight migration work without applying a result', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = new DeferredPromise<void>();
+		const blocked = new DeferredPromise<void>();
+		let requestToken: CancellationToken = CancellationToken.None;
+		const { editor, applied } = createMigrationRefreshEditor(async (_session, token) => {
+			requestToken = token;
+			started.complete();
+			await blocked.p;
+			return [];
+		});
+		const pending = editor.refreshCustomizationMigrationInfo();
+		await started.p;
+		editor.editorPreviewDisposables.dispose();
+		blocked.complete();
+		await pending;
+		await timeout(0);
+		assert.deepStrictEqual({ cancelled: requestToken.isCancellationRequested, applied }, { cancelled: true, applied: [] });
+	}));
+
+	test('passes cancellation through file migration and destination discovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const folderStarted = new DeferredPromise<void>();
+		const blocked = new DeferredPromise<void>();
+		const migrationTokens: CancellationToken[] = [];
+		const folderTokens: CancellationToken[] = [];
+		const { editor, applied } = createMigrationRefreshEditor(async () => []);
+		const candidate: MigratableConfiguration = {
+			uri: URI.file('/user-data/reviewer.agent.md'),
+			type: PromptsType.agent,
+			storage: PromptsStorage.user,
+			source: PromptFileSource.UserData,
+		};
+		editor.configurationService = createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
+		});
+		editor.customizationMigrationService.computeMigration = async (_session, _type, token = CancellationToken.None) => {
+			migrationTokens.push(token);
+			return { type: CustomizationMigrationType.UserData, files: [candidate.uri], candidates: [candidate] };
+		};
+		editor.harnessService.findHarnessById = () => ({
+			id: 'agent-host-copilotcli',
+			label: 'Copilot',
+			icon: Codicon.copilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideSourceFolders: async (_session, _type, token) => {
+					folderTokens.push(token);
+					if (folderTokens.length === 1) {
+						folderStarted.complete();
+						await raceCancellationError(blocked.p, token);
+					}
+					return [];
+				},
+			},
+		});
+
+		const first = editor.refreshCustomizationMigrationInfo();
+		await folderStarted.p;
+		const second = editor.refreshCustomizationMigrationInfo();
+		const firstCancelled = folderTokens[0].isCancellationRequested;
+		blocked.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({
+			firstCancelled,
+			migrationRequests: migrationTokens.length,
+			folderRequests: folderTokens.length,
+			sameTokens: migrationTokens.every((token, index) => token === folderTokens[index]),
+			applied,
+		}, {
+			firstCancelled: true, migrationRequests: 2, folderRequests: 2, sameTokens: true, applied: [[candidate]],
+		});
+	}));
+
+	test('reports migration computation errors and allows retry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let computations = 0;
+		const expectedError = new Error('Migration discovery failed');
+		const { editor, applied } = createMigrationRefreshEditor(async () => {
+			if (++computations === 1) {
+				throw expectedError;
+			}
+			return [];
+		});
+		const errors: Error[] = [];
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await editor.refreshCustomizationMigrationInfo();
+			const failed = { message: editor.customizationMigrationLoadError, applied: applied.length };
+			await editor.refreshCustomizationMigrationInfo();
+			assert.deepStrictEqual({ failed, errors, computations, message: editor.customizationMigrationLoadError, applied }, {
+				failed: { message: expectedError.message, applied: 0 },
+				errors: [expectedError], computations: 2, message: undefined, applied: [[]],
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	}));
 
 	test('disables migration while another migration is in progress', () => {
 		const editor = createTestEditor();

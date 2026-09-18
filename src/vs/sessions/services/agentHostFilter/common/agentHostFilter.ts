@@ -106,21 +106,21 @@ export interface IAgentHostFilterService {
 	 * fresh connect attempt. No-op if the entry is unknown. A grouped entry
 	 * fans out to every member.
 	 */
-	reconnect(hostId: string): void;
+	reconnect(hostId: string): Promise<void>;
 
 	/**
 	 * Tear down the active connection for the given entry without forgetting
 	 * it. No-op if the entry is unknown or already disconnected. A grouped
 	 * entry fans out to every member.
 	 */
-	disconnect(hostId: string): void;
+	disconnect(hostId: string): Promise<void>;
 
 	/**
 	 * Trigger every registered discovery handler and resolve once they
 	 * have all settled. {@link isDiscovering} is `true` for the duration
 	 * of the call. No-op when no handlers are registered.
 	 */
-	rediscover(): Promise<void>;
+	rediscover(): Promise<boolean>;
 
 	/**
 	 * Register a callback invoked when {@link rediscover} runs. Used by

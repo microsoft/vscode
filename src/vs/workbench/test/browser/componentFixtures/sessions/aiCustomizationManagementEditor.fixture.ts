@@ -666,8 +666,9 @@ function makeFixtureTool(id: string, displayName: string, description: string, s
 	};
 }
 
+const fixtureToolExtensionId = 'acme.agent-tools';
 const fixtureToolExtension = new class extends mock<IExtension>() {
-	override readonly identifier = { id: 'acme.agent-tools', uuid: undefined };
+	override readonly identifier = { id: fixtureToolExtensionId, uuid: undefined };
 	override readonly displayName = 'Acme Agent Tools';
 	override readonly publisherDisplayName = 'Acme';
 	override readonly description = 'Issue tracking and deployment tools for agents.';
@@ -695,17 +696,34 @@ const fixtureToolSets: readonly IToolSet[] = [
 		description: 'Acme Agent Tools',
 		detail: 'Tools contributed by the Acme extension.',
 		icon: Codicon.extensions,
-		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') },
+		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) },
 		getTools: () => [
-			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
-			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
+			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
+			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
 		],
 	},
 ];
 
+const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
+	const toolSetNumber = index + 1;
+	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) };
+	return {
+		id: `acme-agent-tools-${toolSetNumber}`,
+		referenceName: `acme${toolSetNumber}`,
+		description: `Acme Tool Set ${toolSetNumber}`,
+		detail: `Extension tool set ${toolSetNumber}`,
+		icon: Codicon.extensions,
+		source,
+		getTools: () => [
+			makeFixtureTool(`acme.tool-${toolSetNumber}`, `Acme Tool ${toolSetNumber}`, `Tool from extension set ${toolSetNumber}`, source),
+		],
+	};
+});
+
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
 	readonly files?: readonly IFixtureFile[];
+	readonly toolSets?: readonly IToolSet[];
 	readonly configuration?: Record<string, unknown>;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
@@ -728,6 +746,7 @@ interface IRenderEditorOptions {
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
+	readonly pluginReadmeContent?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
@@ -770,6 +789,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const toolSets = options.toolSets ?? fixtureToolSets;
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
 			: options.selectedSection === AICustomizationManagementSection.Instructions ? PromptsType.instructions
@@ -782,6 +802,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
+	const delayedReadFiles = new ResourceSet();
+	if (options.pluginReadmeContent !== undefined) {
+		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
+		fileContents.set(pluginReadmeUri, options.pluginReadmeContent);
+		delayedReadFiles.add(pluginReadmeUri);
+	}
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
@@ -994,6 +1020,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					return fileContents.has(resource) || createdFolders.has(resource);
 				}
 				override async readFile(resource: URI) {
+					if (delayedReadFiles.has(resource)) {
+						await timeout(50);
+					}
 					const value = fileContents.get(resource) ?? '';
 					return createFixtureFileContentStat(resource, value);
 				}
@@ -1070,7 +1099,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
 			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
-				override readonly toolSets = constObservable(options.emptyToolExtensions ? fixtureToolSets.filter(toolSet => toolSet.source.type !== 'extension') : fixtureToolSets);
+				override readonly toolSets = constObservable(options.emptyToolExtensions
+					? toolSets.filter(toolSet => toolSet.source.type !== 'extension')
+					: toolSets);
 			}());
 			const fixtureToolState: IToolEnablementState = { toolSets: new Map(), tools: new Map() };
 			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
@@ -1087,7 +1118,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override canExecuteOnSessionsWindow() { return true; }
 			}());
 			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
-				override readonly isSessionsWindow = false;
+				override readonly isSessionsWindow = isSessionsWindow;
 			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
@@ -1160,6 +1191,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	modelServiceRef.value = instantiationService.get(IModelService);
 	languageServiceRef.value = instantiationService.get(ILanguageService);
+	if (options.pluginReadmeContent !== undefined) {
+		instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer({
+			async renderCodeBlock(_languageAlias, value) {
+				await timeout(50);
+				const code = DOM.$('code');
+				code.textContent = value;
+				return code;
+			},
+		});
+	}
 	for (const [uri, content] of fileContents) {
 		if (!modelServiceRef.value.getModel(uri)) {
 			const model = modelServiceRef.value.createModel(content, null, uri, false);
@@ -1244,22 +1285,55 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 
 	if (options.openFirstItem) {
-		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
-			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
-		const openItemLabel = options.openItemLabel;
-		const rowToOpen = openItemLabel
-			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .plugin-home-row') as HTMLElement | undefined;
-		if (rowToOpen) {
-			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
-			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-
-			if (options.editorDisplayMode === 'raw') {
-				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
-				modeButton?.click();
+		if (options.pluginReadmeContent !== undefined) {
+			const plugin = installedPlugins.find(plugin => plugin.label === 'CircleCI');
+			if (!plugin) {
+				throw new Error('CircleCI fixture plugin not found');
 			}
+			await editor.showPluginDetail({
+				kind: AgentPluginItemKind.Installed,
+				name: plugin.label,
+				description: '/workspace/.copilot/plugins',
+				plugin,
+			});
+		} else {
+			const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
+				.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
+			const openItemLabel = options.openItemLabel;
+			const rowToOpen = openItemLabel
+				? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
+				: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .monaco-list-row.plugin-list-item, .plugin-home-row') as HTMLElement | undefined;
+			if (rowToOpen) {
+				rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+				rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+
+				if (options.editorDisplayMode === 'raw') {
+					const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
+					modeButton?.click();
+				}
+			}
+		}
+
+		if (options.pluginReadmeContent !== undefined) {
+			let pluginDetailContainer: HTMLElement | null = null;
+			let overflowingCodeBlock: HTMLElement | null = null;
+			for (let attempt = 0; attempt < 40 && (!pluginDetailContainer || !overflowingCodeBlock); attempt++) {
+				await timeout(50);
+				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
+				if (pluginDetailView?.style.display !== 'none' && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+					pluginDetailContainer = detailContainer;
+					overflowingCodeBlock = codeBlock;
+				}
+			}
+			if (!pluginDetailContainer || !overflowingCodeBlock) {
+				throw new Error('Overflowing plugin detail did not render');
+			}
+			pluginDetailContainer.scrollTop = pluginDetailContainer.scrollHeight;
+			await timeout(50);
 		}
 	}
 }
@@ -1475,6 +1549,15 @@ const marketplacePlugins: IMarketplacePlugin[] = [
 	makeMarketplacePlugin('PlanetScale', 'Serverless MySQL database management', 'planetscale-plugin'),
 	makeMarketplacePlugin('Vercel', 'Deployment and preview environments', 'vercel-plugin'),
 ];
+
+const overflowingPluginReadme = [
+	'# CircleCI plugin',
+	'Use this plugin to manage issues and projects from your agent session.',
+	...Array.from({ length: 12 }, (_, index) => `## Workflow ${index + 1}\n\nConfigure and run workflow ${index + 1} with the settings described below.`),
+	'```text',
+	'circleci configure --workspace example-corporation --project visual-studio-code --include-archived-projects false --sync-assignees true --output-format json --include-workflow-metadata true --include-job-metadata true',
+	'```',
+].join('\n\n');
 
 async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false): Promise<void> {
 	const height = browse ? 600 : 800;
@@ -2210,11 +2293,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows Built-in Tools and an Extension Tools section with a count of eight.'],
 		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
+			sessionResource: agentHostCopilotSessionResource,
+			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Tools,
-			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			toolSets: [...fixtureToolSets.filter(toolSet => toolSet.source.type !== 'extension'), ...overflowingExtensionToolSets],
 			managementSections: [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Tools,
@@ -2254,6 +2340,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PromptMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
@@ -2279,6 +2366,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ConfiguredLocationsMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
@@ -2511,10 +2599,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugin detail view — same alignment check for the detail back button.
 	PluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The plugin detail page shows an overflowing README with themed vertical and horizontal scrollbars.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
 			openFirstItem: true,
+			pluginReadmeContent: overflowingPluginReadme,
 		}),
 	}),
 

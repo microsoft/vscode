@@ -192,13 +192,15 @@ user chooses a workspace and session type
 
 On first send, the provider creates or selects the chat, sends the request, and commits the session. Providers may preserve the draft facade or notify the management service through the separate replacement lifecycle. Consumers follow that lifecycle rather than assuming one strategy or a replacement field on a catalog event.
 
+Providers may expose an `ISessionConfigurationSnapshot` of resolved draft configuration. Providers normalize common properties, such as isolation, and retain the full provider-specific values separately in `providerConfig`. Management captures the snapshot before draft preparation or replacement and includes it in the successful first-request notification without interpreting provider values. Consumers use the typed common properties without knowing provider keys; the full snapshot is not a telemetry payload.
+
 ### Existing session
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
 
 ### Multiple chats
 
-Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
+Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
 
 ## State propagation
 

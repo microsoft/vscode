@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -18,7 +19,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -36,6 +37,9 @@ import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.c
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	readonly visibleSessionsCount: number;
+	readonly nonArchivedSessionListCount: number;
+	readonly isolationKind: 'worktree' | 'folder';
 	readonly totalAttachementCount: number;
 	readonly attachmentKinds: string;
 }
@@ -56,12 +60,16 @@ function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry & 
 		&& data !== null
 		&& typeof Reflect.get(data, 'isNewSession') === 'boolean'
 		&& typeof Reflect.get(data, 'isNewChat') === 'boolean'
+		&& typeof Reflect.get(data, 'visibleSessionsCount') === 'number'
+		&& typeof Reflect.get(data, 'nonArchivedSessionListCount') === 'number'
+		&& (Reflect.get(data, 'isolationKind') === 'worktree' || Reflect.get(data, 'isolationKind') === 'folder')
 		&& typeof Reflect.get(data, 'totalAttachementCount') === 'number'
 		&& typeof Reflect.get(data, 'attachmentKinds') === 'string';
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly requestSentEvents: IRequestSentTelemetry[] = [];
+	readonly requestSentPayloads: unknown[] = [];
 	readonly sessionCounts: ISessionCountsTelemetry[] = [];
 	readonly sessionSummaries: unknown[] = [];
 
@@ -70,9 +78,13 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 			this.sessionSummaries.push(data);
 		}
 		if (eventName === 'agents/requestSent' && isRequestSentTelemetry(data)) {
+			this.requestSentPayloads.push(data);
 			this.requestSentEvents.push({
 				isNewSession: data.isNewSession,
 				isNewChat: data.isNewChat,
+				visibleSessionsCount: data.visibleSessionsCount,
+				nonArchivedSessionListCount: data.nonArchivedSessionListCount,
+				isolationKind: data.isolationKind,
 				totalAttachementCount: data.totalAttachementCount,
 				attachmentKinds: data.attachmentKinds,
 			});
@@ -149,7 +161,7 @@ const workspace = createWorkspace(URI.parse('file:///repo'));
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
+	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = []): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
 		const onModelAdded = disposables.add(new Emitter<ITextModel>());
@@ -166,7 +178,7 @@ suite('SessionsTelemetryContribution', () => {
 			override getSessions(): ISession[] { return [...sessions]; }
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([]);
+			override readonly visibleSessions = constObservable(visibleSessions);
 			override readonly activeSession = activeSession ?? constObservable(undefined);
 			override readonly onDidToggleSessionStickiness = Event.None;
 		}();
@@ -206,8 +218,10 @@ suite('SessionsTelemetryContribution', () => {
 				override readonly extUri = extUri;
 			}(),
 			storageService,
-			new class extends mock<ISearchService>() { }(),
-			new class extends mock<IConfigurationService>() { }(),
+			new class extends mock<ISearchService>() {
+				override async fileSearch() { return { results: [], messages: [], limitHit: false }; }
+			}(),
+			new TestConfigurationService(),
 			commandService,
 			feedbackService,
 			sessionsPartService,
@@ -241,10 +255,84 @@ suite('SessionsTelemetryContribution', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual(telemetryService.requestSentEvents, [
-			{ isNewSession: true, isNewChat: true, totalAttachementCount: 0, attachmentKinds: '{}' },
-			{ isNewSession: false, isNewChat: true, totalAttachementCount: 0, attachmentKinds: '{}' },
-			{ isNewSession: false, isNewChat: false, totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
+			{ isNewSession: true, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
+			{ isNewSession: false, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
+			{ isNewSession: false, isNewChat: false, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
 		]);
+	});
+
+	test('requestSent snapshots the non-archived Sessions list count independently of visible grid slots', async () => {
+		const secondSessionArchived = observableValue('secondSessionArchived', false);
+		const secondSession = { ...session, sessionId: 'second', resource: URI.parse('test:///second'), isArchived: secondSessionArchived };
+		const archivedSession = { ...session, sessionId: 'archived', resource: URI.parse('test:///archived'), isArchived: constObservable(true) };
+		const automationSession = { ...session, sessionId: 'automation', resource: URI.parse('test:///automation'), isAutomation: constObservable(true) };
+		const visibleSession = upcastPartial<IActiveSession>(session);
+		const { telemetryService, onDidSendRequest } = setup([session, secondSession, archivedSession, automationSession], undefined, [visibleSession]);
+
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'new session' } });
+		secondSessionArchived.set(true, undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual(telemetryService.requestSentEvents, [{
+			isNewSession: true,
+			isNewChat: true,
+			visibleSessionsCount: 1,
+			nonArchivedSessionListCount: 2,
+			isolationKind: 'folder',
+			totalAttachementCount: 0,
+			attachmentKinds: '{}',
+		}]);
+	});
+
+	test('requestSent uses the selected isolation for new sessions and workspace state otherwise', async () => {
+		const root = URI.file('/repo');
+		const workTreeUri = URI.file('/repo-worktree');
+		const worktreeWorkspace = createWorkspace(root, [{
+			root, workingDirectory: workTreeUri, name: 'repo', description: undefined,
+			gitRepository: { uri: root, workTreeUri, baseBranchName: 'main', gitHubInfo: constObservable(undefined) },
+		}]);
+		const { telemetryService, onDidSendRequest } = setup([]);
+		const cases: { workspace: ISessionWorkspace | undefined; newSessionConfig?: ISendRequestSentEvent['newSessionConfig']; isNewSession: boolean; isNewChat: boolean }[] = [
+			{ workspace: undefined, newSessionConfig: { isolation: 'worktree', providerConfig: {} }, isNewSession: true, isNewChat: true },
+			{ workspace, newSessionConfig: { isolation: 'worktree', providerConfig: {} }, isNewSession: true, isNewChat: true },
+			{ workspace: worktreeWorkspace, newSessionConfig: { isolation: 'folder', providerConfig: {} }, isNewSession: true, isNewChat: true },
+			{ workspace: undefined, isNewSession: true, isNewChat: true },
+			{ workspace: worktreeWorkspace, isNewSession: true, isNewChat: true },
+			{ workspace, newSessionConfig: { isolation: 'worktree', providerConfig: {} }, isNewSession: false, isNewChat: true },
+			{ workspace: worktreeWorkspace, newSessionConfig: { isolation: 'folder', providerConfig: {} }, isNewSession: false, isNewChat: false },
+			{ workspace: worktreeWorkspace, newSessionConfig: { providerConfig: {} }, isNewSession: true, isNewChat: true },
+			{ workspace, newSessionConfig: { isolation: 'worktree', providerConfig: { isolation: 'folder', useWorktree: true } }, isNewSession: true, isNewChat: true },
+			{ workspace, newSessionConfig: { providerConfig: { isolation: 'worktree' } }, isNewSession: true, isNewChat: true },
+		];
+		for (const [index, entry] of cases.entries()) {
+			onDidSendRequest.fire({
+				...entry,
+				session: { ...session, sessionId: `session-${index}`, workspace: constObservable(entry.workspace) },
+				chat,
+				options: { query: 'hi' },
+			});
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(telemetryService.requestSentEvents.map(e => e.isolationKind), [
+			'worktree', 'worktree', 'folder', 'folder', 'worktree', 'folder', 'worktree', 'worktree', 'worktree', 'folder',
+		]);
+	});
+
+	test('requestSent does not emit raw configuration values', async () => {
+		const withPrivateValues = setup([session]);
+		const withoutPrivateValues = setup([session]);
+		const event = { session, chat, isNewSession: true, isNewChat: true, options: { query: 'hi' } };
+		withPrivateValues.onDidSendRequest.fire({ ...event, newSessionConfig: { isolation: 'worktree', providerConfig: { branch: 'private-branch', providerOption: { privateValue: 'secret' } } } });
+		withoutPrivateValues.onDidSendRequest.fire({ ...event, newSessionConfig: { isolation: 'worktree', providerConfig: {} } });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			payloads: withPrivateValues.telemetryService.requestSentPayloads,
+			count: withPrivateValues.telemetryService.requestSentPayloads.length,
+		}, {
+			payloads: withoutPrivateValues.telemetryService.requestSentPayloads, count: 1,
+		});
 	});
 
 	test('requestSent session counts exclude the session the request was sent to', async () => {
