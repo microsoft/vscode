@@ -39,7 +39,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService, IActiveSession, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
@@ -49,6 +49,7 @@ import { ISessionsProvidersService } from '../../browser/sessionsProvidersServic
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import type { SessionView } from '../../../../browser/parts/sessionView.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -231,7 +232,7 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined> } {
+): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
@@ -258,21 +259,24 @@ function createSessionsManagementService(
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const focusSession = disposables.add(new Emitter<string | undefined>());
-	const view = createView(instantiationService, service, disposables, customViewService, new TestSessionsPartService(focusSession.event));
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession };
+	const sessionsPartService = new TestSessionsPartService(focusSession.event);
+	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService);
+	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService };
 }
 
-/**
- * Passive sessions part stub. The view service drives it but the tests only
- * exercise the view/model behaviour, so the calls are no-ops.
- */
+/** Sessions part stub that records focus requests without rendering views. */
 class TestSessionsPartService extends mock<ISessionsPartService>() {
+	readonly sessionViews = new Map<string | undefined, SessionView>();
+	readonly focusedSessions: (string | undefined)[] = [];
+	focusedSessionView: SessionView | undefined;
 	constructor(override readonly onDidFocusSession: Event<string | undefined> = Event.None) {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
 	override updateVisibleSessions(): void { }
-	override focusSession(): void { }
+	override focusSession(session: IActiveSession | undefined): void { this.focusedSessions.push(session?.sessionId); }
+	override getSessionView(sessionId: string | undefined): SessionView | undefined { return this.sessionViews.get(sessionId); }
+	override getFocusedSessionView(): SessionView | undefined { return this.focusedSessionView; }
 }
 
 class TestCustomView extends AbstractCustomView {
@@ -3383,6 +3387,53 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const focusInSession of [false, true]) {
+		test(`background draft replacement ${focusInSession ? 'restores composer focus' : 'preserves focus outside the session'}`, async () => {
+			const drafts = [
+				stubSession({ sessionId: 'first-draft', providerId: 'test' }),
+				stubSession({ sessionId: 'replacement-draft', providerId: 'test' }),
+			];
+			const other = stubSession({ sessionId: 'other', providerId: 'test' });
+			const folderUri = URI.parse('test:///folder');
+			let createIndex = 0;
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [other]; }
+				override resolveWorkspace(): ISessionWorkspace { return { uri: folderUri, folders: [], label: 'Folder', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false }; }
+				override createNewSession(): ISession { return drafts[createIndex++]; }
+			}(drafts[0]);
+			const { view, sessionsPartService } = createSessionsManagementService(drafts[0], disposables, provider);
+			await view.openNewSession({ folderUri });
+			const sessionView = new class extends mock<SessionView>() { }();
+			sessionsPartService.sessionViews.set(drafts[0].sessionId, sessionView);
+			sessionsPartService.focusedSessionView = focusInSession ? sessionView : undefined;
+			sessionsPartService.focusedSessions.length = 0;
+
+			await view.openNewSession({ folderUri, preserveNavigation: true });
+			const afterReplacement = {
+				active: view.activeSession.get()?.sessionId,
+				focused: [...sessionsPartService.focusedSessions],
+			};
+			await view.openSession(other.resource);
+
+			assert.deepStrictEqual({
+				afterReplacement,
+				afterExplicitOpen: {
+					active: view.activeSession.get()?.sessionId,
+					focused: sessionsPartService.focusedSessions,
+				},
+			}, {
+				afterReplacement: {
+					active: 'replacement-draft',
+					focused: focusInSession ? ['replacement-draft'] : [],
+				},
+				afterExplicitOpen: {
+					active: 'other',
+					focused: focusInSession ? ['replacement-draft', 'other'] : ['other'],
+				},
+			});
+		});
+	}
+
 	test('automation draft lifecycle and session template are isolated from the new-session draft', async () => {
 		const drafts = [
 			stubSession({ sessionId: 'automation-workspace', providerId: 'test' }),
@@ -3517,26 +3568,37 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('replacing the active session in place (same id, new resource) re-points the active session', async () => {
-		const before = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///before') });
-		const after = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///after') });
-		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-		const provider = new class extends TestSessionsProvider {
-			override readonly onDidReplaceSession = onDidReplaceSession.event;
-			constructor() { super(before); }
-			override getSessions(): ISession[] { return [before]; }
-		};
-		const { view } = createSessionsManagementService(before, disposables, provider);
+	for (const focusInSession of [false, true]) {
+		test(`same-ID session replacement ${focusInSession ? 'restores composer focus' : 'preserves external focus'}`, async () => {
+			const before = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///before') });
+			const after = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///after') });
+			const other = stubSession({ sessionId: 'other', providerId: 'test' });
+			const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidReplaceSession = onDidReplaceSession.event;
+				constructor() { super(before); }
+				override getSessions(): ISession[] { return [before, other]; }
+			};
+			const { view, sessionsPartService } = createSessionsManagementService(before, disposables, provider);
 
-		await view.openSession(before.resource);
-		assert.strictEqual(view.activeSession.get()?.resource.toString(), before.resource.toString());
+			await view.openSession(before.resource);
+			const sessionView = new class extends mock<SessionView>() { }();
+			sessionsPartService.sessionViews.set(before.sessionId, sessionView);
+			sessionsPartService.focusedSessionView = focusInSession ? sessionView : undefined;
+			sessionsPartService.focusedSessions.length = 0;
 
-		// A same-id replacement still needs to force the active session update
-		// so consumers observe the new resource.
-		onDidReplaceSession.fire({ from: before, to: after });
+			onDidReplaceSession.fire({ from: before, to: after });
+			view.insertAt(other, after.sessionId, 'right', false);
 
-		assert.strictEqual(view.activeSession.get()?.resource.toString(), after.resource.toString());
-	});
+			assert.deepStrictEqual({
+				activeResource: view.activeSession.get()?.resource.toString(),
+				focusedSessions: sessionsPartService.focusedSessions,
+			}, {
+				activeResource: after.resource.toString(),
+				focusedSessions: focusInSession ? ['same'] : [],
+			});
+		});
+	}
 
 	test('replacing a non-active session leaves the active session unchanged', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
