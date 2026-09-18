@@ -51,7 +51,7 @@ import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
+import { ClaudeSdkPipeline, IRematerializer, type IClaudeObservedModelLimits, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
@@ -316,6 +316,10 @@ export class ClaudeAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
+
+	private readonly _onDidObserveModelLimits = this._register(new Emitter<IClaudeObservedModelLimits>());
+	/** Relays the pipeline's {@link ClaudeSdkPipeline.onDidObserveModelLimits} for native (BYO-Anthropic) turns only. */
+	readonly onDidObserveModelLimits: Event<IClaudeObservedModelLimits> = this._onDidObserveModelLimits.event;
 
 	/**
 	 * Real Copilot credits (in nano-AIU) billed by CAPI for the current
@@ -683,6 +687,14 @@ export class ClaudeAgentSession extends Disposable {
 			throw err;
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
+		this._register(pipeline.onDidObserveModelLimits(limits => {
+			// Only a native turn describes the native catalog: the agent applies
+			// observations to `@provider=anthropic` rows, and a Copilot-routed
+			// turn's `modelUsage` must not overwrite them.
+			if (this._transportKind === 'native') {
+				this._onDidObserveModelLimits.fire(limits);
+			}
+		}));
 		this._pipeline = pipeline;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {

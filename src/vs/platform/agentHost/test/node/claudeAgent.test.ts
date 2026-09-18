@@ -20,6 +20,7 @@ import {
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
+	makeModelUsage,
 	makeResultSuccess,
 	makeStreamEvent,
 	makeSystemInitMessage,
@@ -45,7 +46,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -1633,6 +1634,88 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
 			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
 		]);
+	});
+
+	test('a native model gains its context window from the first turn that reports it', async () => {
+		// `supportedModels()` carries no token limits, so the native catalog is
+		// published without any and the context-usage widget has no denominator.
+		// A `result` names the serving model with its `contextWindow` and
+		// `maxOutputTokens`; the agent folds those into the catalog. The SDK
+		// catalog names most models by alias (`haiku`) with the concrete id only
+		// in `resolvedModel`, while `modelUsage` keys by the concrete id; the
+		// alias row must still receive the limits.
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'haiku', resolvedModel: 'claude-haiku-4-5-20251001', displayName: 'Haiku', description: '' },
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		const haiku = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'haiku');
+		const sonnet = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929');
+		const limitsOf = (models: readonly IAgentModelInfo[]) => models.map(m => ({ id: m.id, maxContextWindow: m.maxContextWindow, maxPromptTokens: m.maxPromptTokens, maxOutputTokens: m.maxOutputTokens }));
+		const before = limitsOf(agent.models.get());
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: haiku } });
+		const result = makeResultSuccess(created.sdkSessionId);
+		result.modelUsage = {
+			'claude-haiku-4-5-20251001': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }),
+		};
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const afterFirst = agent.models.get();
+
+		// A repeat observation republishes nothing (same array reference).
+		const result2 = makeResultSuccess(created.sdkSessionId);
+		result2.modelUsage = result.modelUsage;
+		sdk.nextQueryMessages = [result2];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'again', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.deepStrictEqual({ before, after: limitsOf(afterFirst), repeatRepublished: agent.models.get() !== afterFirst }, {
+			before: [
+				{ id: haiku, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
+				{ id: sonnet, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
+			],
+			after: [
+				{ id: haiku, maxContextWindow: 200_000, maxPromptTokens: 136_000, maxOutputTokens: 64_000 },
+				{ id: sonnet, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
+			],
+			repeatRepublished: false,
+		});
+	});
+
+	test('a Copilot-routed turn does not fill native model limits', async () => {
+		// The pipeline reports `modelUsage` limits on every transport, but only a
+		// native turn describes the native catalog: the session forwards
+		// observations for native turns only, so a proxy turn cannot overwrite
+		// the native rows.
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		sdk.supportedModelsResult = [
+			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+		];
+		await agent.authenticate('https://api.github.com', 'tok');
+		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+			await tick();
+		}
+		await tick();
+		const copilotOpus = toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6');
+		const nativeSonnet = toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: copilotOpus } });
+		const result = makeResultSuccess(created.sdkSessionId);
+		result.modelUsage = {
+			'claude-sonnet-4-5-20250929': makeModelUsage({ inputTokens: 1, outputTokens: 1, contextWindow: 200_000, maxOutputTokens: 64_000 }),
+		};
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const native = agent.models.get().find(m => m.id === nativeSonnet);
+		assert.deepStrictEqual(
+			{ found: native !== undefined, maxContextWindow: native?.maxContextWindow, maxPromptTokens: native?.maxPromptTokens, maxOutputTokens: native?.maxOutputTokens },
+			{ found: true, maxContextWindow: undefined, maxPromptTokens: undefined, maxOutputTokens: undefined },
+		);
 	});
 
 	test('an SDK account report of "nothing configured" publishes an empty catalog instead of the SDK static list', async () => {
