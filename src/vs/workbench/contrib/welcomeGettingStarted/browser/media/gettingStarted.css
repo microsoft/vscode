@@ -877,6 +877,8 @@
 	text-overflow: ellipsis;
 	max-width: 100%;
 	user-select: none;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container .button-link {
@@ -1068,11 +1070,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button) {
 	color: var(--vscode-textLink-foreground);
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: var(--text-link-decoration);
 }
 
 /* Make arrow icons consistent with the next and back buttons in color */
