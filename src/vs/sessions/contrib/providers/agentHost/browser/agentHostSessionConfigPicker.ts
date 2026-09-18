@@ -39,7 +39,7 @@ import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/c
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { Menus } from '../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -76,6 +76,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
+const PICKER_OPEN_ATTRIBUTE = 'data-picker-open';
 const repositoryConfigSequencer = new SequencerByKey<string>();
 
 function showActiveSessionModePicker(accessor: ServicesAccessor): void {
@@ -200,6 +201,7 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 		trigger.role = 'button';
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
+		trigger.setAttribute('aria-expanded', 'false');
 		disposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			disposables.add(dom.addDisposableListener(trigger, eventType, e => {
@@ -899,10 +901,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const currentValue = provider.getSessionConfig(sessionId)?.values[property] ?? schema.default;
 		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
-		const repositoryState = property === SessionConfigKey.Branch
+		const isBranchPicker = property === SessionConfigKey.Branch;
+		const repositoryConfigContainer = isBranchPicker
+			? trigger.closest<HTMLElement>('.new-chat-repo-config-container')
+			: undefined;
+		const repositoryState = isBranchPicker
 			? this._getRepositoryBranchState(sessionId)
 			: undefined;
-		const onShowChanges = property === SessionConfigKey.Branch
+		const onShowChanges = isBranchPicker
 			? () => this._showChanges()
 			: undefined;
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted, repositoryState?.branchName, repositoryState?.uncommittedChanges, onShowChanges);
@@ -940,10 +946,14 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				})
 				: undefined,
 			onHide: () => {
+				trigger.setAttribute('aria-expanded', 'false');
+				repositoryConfigContainer?.removeAttribute(PICKER_OPEN_ATTRIBUTE);
 				trigger.focus();
 			},
 		};
 
+		trigger.setAttribute('aria-expanded', 'true');
+		repositoryConfigContainer?.setAttribute(PICKER_OPEN_ATTRIBUTE, 'true');
 		this._actionWidgetService.show<IConfigPickerItem>(
 			`agentHostSessionConfig.${property}`,
 			false,
@@ -1578,13 +1588,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 
 			properties.forEach(([property, schema], index) => {
 				const commandId = this._registerRepositoryProperty(property, actionViewItemService);
+				const order = index + 1;
 				this._repositoryMenuItems.add(MenuRegistry.appendMenuItem(Menus.NewSessionRepositoryConfig, {
 					command: {
 						id: commandId,
 						title: schema.title ?? property,
 					},
-					group: 'navigation',
-					order: index + 1,
+					group: getNewSessionRepositoryConfigGroup(order, commandId),
+					order,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						IsQuickChatSessionContext.negate(),
