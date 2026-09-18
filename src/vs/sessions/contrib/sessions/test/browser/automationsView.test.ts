@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -584,6 +586,7 @@ suite('AutomationsCardsWidget', () => {
 
 	suiteSetup(() => archiveActionRegistration = registerAction2(ArchiveSessionAction));
 	suiteTeardown(() => archiveActionRegistration.dispose());
+	teardown(() => sinon.restore());
 
 	function getSessionAction(widget: AutomationsCardsWidget, label: string): HTMLElement | undefined {
 		return [...widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .action-label')]
@@ -2228,6 +2231,29 @@ suite('AutomationsCardsWidget', () => {
 				message: 'Failed to delete automation.',
 				detail: 'delete failed',
 			}],
+		});
+	});
+
+	test('More Actions keeps a concise hover and a name-specific accessible label after renaming', () => {
+		const setTitle = sinon.spy(Button.prototype, 'setTitle');
+		const { automationService, widget } = setup();
+		const source = automation();
+		automationService.setAutomations([source]);
+		const button = getMoreActionsButton(widget);
+		const getButtonLabels = () => ({
+			title: setTitle.getCalls().findLast(call => call.thisValue.element === button)?.args[0],
+			ariaLabel: button.getAttribute('aria-label'),
+		});
+		const initial = getButtonLabels();
+
+		automationService.setAutomations([{ ...source, name: 'Renamed daily review' }]);
+
+		assert.deepStrictEqual({
+			initial,
+			renamed: getButtonLabels(),
+		}, {
+			initial: { title: 'More Actions...', ariaLabel: 'More Actions for Daily review' },
+			renamed: { title: 'More Actions...', ariaLabel: 'More Actions for Renamed daily review' },
 		});
 	});
 
