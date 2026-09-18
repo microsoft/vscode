@@ -6,7 +6,7 @@
 import { rejectIfNotCanceled, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, autorun, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
 import { filterWithPrevious } from './utils.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
@@ -112,6 +112,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 						lastUnchangedRegionsOrigRanges[idx].length,
 						r.visibleLineCountTop.read(reader),
 						r.visibleLineCountBottom.read(reader),
+						r.minimumHiddenLineCount,
 					)).filter(isDefined);
 
 			const newRanges: UnchangedRegion[] = [];
@@ -121,7 +122,14 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				if (touching.length > 1) {
 					didChange = true;
 					const sumLineCount = touching.reduce((sum, r) => sum + r.lineCount, 0);
-					const r = new UnchangedRegion(touching[0].originalLineNumber, touching[0].modifiedLineNumber, sumLineCount, touching[0].visibleLineCountTop.read(undefined), touching[touching.length - 1].visibleLineCountBottom.read(undefined));
+					const r = new UnchangedRegion(
+						touching[0].originalLineNumber,
+						touching[0].modifiedLineNumber,
+						sumLineCount,
+						touching[0].visibleLineCountTop.read(undefined),
+						touching[touching.length - 1].visibleLineCountBottom.read(undefined),
+						touching[0].minimumHiddenLineCount,
+					);
 					newRanges.push(r);
 				} else {
 					newRanges.push(touching[0]);
@@ -151,11 +159,12 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		}));
 
 		const updateUnchangedRegions = (result: IDocumentDiff, tx: ITransaction, reader?: IReader) => {
+			const minimumHiddenLineCount = this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
 			const newUnchangedRegions = UnchangedRegion.fromDiffs(
 				result.changes,
 				model.original.getLineCount(),
 				model.modified.getLineCount(),
-				this._options.hideUnchangedRegionsMinimumLineCount.read(reader),
+				minimumHiddenLineCount,
 				this._options.hideUnchangedRegionsContextLineCount.read(reader),
 			);
 
@@ -182,6 +191,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 								// The visible area can shrink by edits -> we have to account for this
 								Math.min(r.visibleLineCountTop.get(), length),
 								Math.min(r.visibleLineCountBottom.get(), length - r.visibleLineCountTop.get()),
+								minimumHiddenLineCount,
 							);
 						}
 						).filter(isDefined),
@@ -483,12 +493,12 @@ export class UnchangedRegion {
 					modStart += minContext;
 					length -= minContext;
 				}
-				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
+				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0, minHiddenLineCount));
 			} else if (length >= minContext * 2 + minHiddenLineCount) {
 				origStart += minContext;
 				modStart += minContext;
 				length -= minContext * 2;
-				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
+				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0, minHiddenLineCount));
 			}
 		}
 
@@ -504,10 +514,10 @@ export class UnchangedRegion {
 	}
 
 	private readonly _visibleLineCountTop = observableValue<number>(this, 0);
-	public readonly visibleLineCountTop: ISettableObservable<number> = this._visibleLineCountTop;
+	public readonly visibleLineCountTop: IObservable<number> = this._visibleLineCountTop;
 
 	private readonly _visibleLineCountBottom = observableValue<number>(this, 0);
-	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
+	public readonly visibleLineCountBottom: IObservable<number> = this._visibleLineCountBottom;
 
 	private readonly _shouldHideControls = derived(this, reader => /** @description isVisible */
 		this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
@@ -520,15 +530,11 @@ export class UnchangedRegion {
 		public readonly lineCount: number,
 		visibleLineCountTop: number,
 		visibleLineCountBottom: number,
+		public readonly minimumHiddenLineCount: number,
 	) {
-		const visibleLineCountTop2 = Math.max(Math.min(visibleLineCountTop, this.lineCount), 0);
-		const visibleLineCountBottom2 = Math.max(Math.min(visibleLineCountBottom, this.lineCount - visibleLineCountTop), 0);
-
-		softAssert(visibleLineCountTop === visibleLineCountTop2);
-		softAssert(visibleLineCountBottom === visibleLineCountBottom2);
-
-		this._visibleLineCountTop.set(visibleLineCountTop2, undefined);
-		this._visibleLineCountBottom.set(visibleLineCountBottom2, undefined);
+		softAssert(visibleLineCountTop === Math.max(Math.min(visibleLineCountTop, this.lineCount), 0));
+		softAssert(visibleLineCountBottom === Math.max(Math.min(visibleLineCountBottom, this.lineCount - visibleLineCountTop), 0));
+		this.setState(visibleLineCountTop, visibleLineCountBottom, undefined);
 	}
 
 	public setVisibleRanges(visibleRanges: LineRangeMapping[], tx: ITransaction): UnchangedRegion[] {
@@ -550,7 +556,7 @@ export class UnchangedRegion {
 
 				const length = (isLast ? modifiedEndLineNumberEx : r.endLineNumberExclusive) - modifiedStartLineNumber;
 
-				const newR = new UnchangedRegion(originalStartLineNumber, modifiedStartLineNumber, length, 0, 0);
+				const newR = new UnchangedRegion(originalStartLineNumber, modifiedStartLineNumber, length, 0, 0, this.minimumHiddenLineCount);
 				newR.setHiddenModifiedRange(r, tx);
 				result.push(newR);
 
@@ -595,13 +601,19 @@ export class UnchangedRegion {
 	}
 
 	public showMoreAbove(count = 10, tx: ITransaction | undefined): void {
-		const maxVisibleLineCountTop = this.getMaxVisibleLineCountTop();
-		this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + count, maxVisibleLineCountTop), tx);
+		this.setState(this._visibleLineCountTop.get() + count, this._visibleLineCountBottom.get(), tx, RevealPreference.FromTop);
 	}
 
 	public showMoreBelow(count = 10, tx: ITransaction | undefined): void {
-		const maxVisibleLineCountBottom = this.lineCount - this._visibleLineCountTop.get();
-		this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + count, maxVisibleLineCountBottom), tx);
+		this.setState(this._visibleLineCountTop.get(), this._visibleLineCountBottom.get() + count, tx, RevealPreference.FromBottom);
+	}
+
+	public setVisibleLineCountTop(count: number, tx: ITransaction | undefined): void {
+		this.setState(count, this._visibleLineCountBottom.get(), tx, RevealPreference.FromTop);
+	}
+
+	public setVisibleLineCountBottom(count: number, tx: ITransaction | undefined): void {
+		this.setState(this._visibleLineCountTop.get(), count, tx, RevealPreference.FromBottom);
 	}
 
 	public showAll(tx: ITransaction | undefined): void {
@@ -612,9 +624,9 @@ export class UnchangedRegion {
 		const top = lineNumber + 1 - (this.modifiedLineNumber + this._visibleLineCountTop.get());
 		const bottom = (this.modifiedLineNumber - this._visibleLineCountBottom.get() + this.lineCount) - lineNumber;
 		if (preference === RevealPreference.FromCloserSide && top < bottom || preference === RevealPreference.FromTop) {
-			this._visibleLineCountTop.set(this._visibleLineCountTop.get() + top, tx);
+			this.setVisibleLineCountTop(this._visibleLineCountTop.get() + top, tx);
 		} else {
-			this._visibleLineCountBottom.set(this._visibleLineCountBottom.get() + bottom, tx);
+			this.setVisibleLineCountBottom(this._visibleLineCountBottom.get() + bottom, tx);
 		}
 	}
 
@@ -622,20 +634,27 @@ export class UnchangedRegion {
 		const top = lineNumber - this.originalLineNumber;
 		const bottom = (this.originalLineNumber + this.lineCount) - lineNumber;
 		if (preference === RevealPreference.FromCloserSide && top < bottom || preference === RevealPreference.FromTop) {
-			this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + bottom - top, this.getMaxVisibleLineCountTop()), tx);
+			this.setVisibleLineCountTop(this._visibleLineCountTop.get() + bottom - top, tx);
 		} else {
-			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + top - bottom, this.getMaxVisibleLineCountBottom()), tx);
+			this.setVisibleLineCountBottom(this._visibleLineCountBottom.get() + top - bottom, tx);
 		}
 	}
 
 	public collapseAll(tx: ITransaction | undefined): void {
-		this._visibleLineCountTop.set(0, tx);
-		this._visibleLineCountBottom.set(0, tx);
+		this.setState(0, 0, tx);
 	}
 
-	public setState(visibleLineCountTop: number, visibleLineCountBottom: number, tx: ITransaction | undefined): void {
+	public setState(visibleLineCountTop: number, visibleLineCountBottom: number, tx: ITransaction | undefined, revealPreference: RevealPreference = RevealPreference.FromCloserSide): void {
 		visibleLineCountTop = Math.max(Math.min(visibleLineCountTop, this.lineCount), 0);
 		visibleLineCountBottom = Math.max(Math.min(visibleLineCountBottom, this.lineCount - visibleLineCountTop), 0);
+		const hiddenLineCount = this.lineCount - visibleLineCountTop - visibleLineCountBottom;
+		if (hiddenLineCount > 0 && hiddenLineCount < this.minimumHiddenLineCount) {
+			if (revealPreference === RevealPreference.FromTop || revealPreference === RevealPreference.FromCloserSide && visibleLineCountTop >= visibleLineCountBottom) {
+				visibleLineCountTop += hiddenLineCount;
+			} else {
+				visibleLineCountBottom += hiddenLineCount;
+			}
+		}
 
 		this._visibleLineCountTop.set(visibleLineCountTop, tx);
 		this._visibleLineCountBottom.set(visibleLineCountBottom, tx);
