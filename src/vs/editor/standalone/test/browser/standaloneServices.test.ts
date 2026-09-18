@@ -24,7 +24,7 @@ suite('StandaloneTextModelService', () => {
 
 	for (const releaseCreatorFirst of [false, true]) {
 		test(`shares explicit model ownership (creator first: ${releaseCreatorFirst})`, async () => {
-			const services = createModelServices(disposables);
+			const services = createModelServices(disposables.add(new DisposableStore()));
 			const owner = disposables.add(services.get(IModelService).createSharedModel('shared', null));
 			const resolver = services.createInstance(StandaloneTextModelService);
 			const reference = disposables.add(await resolver.createModelReference(owner.object.uri));
