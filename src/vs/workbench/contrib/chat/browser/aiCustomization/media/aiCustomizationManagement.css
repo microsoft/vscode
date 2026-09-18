@@ -2498,10 +2498,6 @@ per-word capitalization does not survive translation. */
 	opacity: 0.85;
 }
 
-.mcp-server-item .mcp-server-icon {
-	display: none;
-}
-
 .mcp-server-item .mcp-server-details {
 	flex: 1;
 	display: flex;

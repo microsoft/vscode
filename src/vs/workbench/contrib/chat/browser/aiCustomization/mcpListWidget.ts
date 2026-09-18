@@ -178,7 +178,6 @@ export function getToggledMcpEnablementState(state: ContributionEnablementState)
 
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
-	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly statusBadge: HTMLElement;
 	readonly description: HTMLElement;
@@ -262,9 +261,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		container.classList.add('mcp-server-item');
 		container.style.minHeight = `${MCP_INSTALLED_ITEM_HEIGHT}px`;
 
-		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
-		typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
-
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
@@ -283,7 +279,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 
 		const template: IMcpServerItemTemplateData = {
 			container,
-			typeIcon,
 			name,
 			statusBadge,
 			description,
