@@ -26,7 +26,7 @@ export class TerminalResizeDebouncer extends Disposable {
 	// Owned by the disposable store so the pending timer is cancelled on dispose,
 	// avoiding callbacks that fire against a torn-down xterm renderer.
 	private readonly _debounceResizeXScheduler = this._register(new RunOnceScheduler(
-		() => this._resizeXCallback(this._latestX),
+		() => this._resizeBothCallback(this._latestX, this._latestY),
 		Constants.DebounceResizeXDelay,
 	));
 
