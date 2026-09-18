@@ -6,7 +6,7 @@
 
 import assert from 'assert';
 import * as extHostTypes from '../../common/extHostTypes.js';
-import { ChatAgentResult, LanguageModelChatMessage2, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
+import { ChatAgentResult, LanguageModelChatMessage2, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, ThemableDecorationAttachmentRenderOptions, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
@@ -175,6 +175,37 @@ suite('ExtHostTypeConverter', function () {
 		const dto2 = WorkspaceEdit.from(ws2);
 		const first2 = <IWorkspaceTextEditDto>dto2.edits[0];
 		assert.strictEqual(first2.textEdit.insertAsSnippet, true);
+	});
+
+	test('ThemableDecorationAttachmentRenderOptions forwards fontSize, fontFamily and opacity', function () {
+
+		const converted = ThemableDecorationAttachmentRenderOptions.from({
+			contentText: 'hello',
+			fontStyle: 'italic',
+			fontWeight: 'bold',
+			fontSize: '10px',
+			fontFamily: 'monospace',
+			opacity: '0.55',
+			color: '#000000'
+		});
+
+		assert.deepStrictEqual(converted, {
+			contentText: 'hello',
+			contentIconPath: undefined,
+			border: undefined,
+			borderColor: undefined,
+			fontStyle: 'italic',
+			fontWeight: 'bold',
+			fontSize: '10px',
+			fontFamily: 'monospace',
+			opacity: '0.55',
+			textDecoration: undefined,
+			color: '#000000',
+			backgroundColor: undefined,
+			margin: undefined,
+			width: undefined,
+			height: undefined
+		});
 	});
 });
 
