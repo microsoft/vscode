@@ -579,6 +579,41 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('echo hi > /dev/null 2>&1', opts), 'approved');
 			assert.deepStrictEqual(seen, []);
 		});
+
+		test('requires confirmation for redirect pathname globs', () => {
+			const allowAllDestinations = { isWriteDestApproved: () => true };
+			const powershell = { language: 'powershell', isWriteDestApproved: () => true } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('echo hi > *.txt', allowAllDestinations),
+				approver.shouldAutoApprove('echo hi > ?ut.txt', allowAllDestinations),
+				approver.shouldAutoApprove('echo hi > .[e]nv', allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > '*.txt'`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > "?.txt"`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > '[x].txt'`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > "packag"[e]".json"`, allowAllDestinations),
+				approver.shouldAutoApprove(`Write-Host hi >'.[m]cp.json'`, powershell),
+				approver.shouldAutoApprove(`Write-Host hi >".[c]odex/hooks.json"`, powershell),
+			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch']);
+		});
+
+		test('preserves quote stripping for non-glob redirect destinations', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return false;
+				},
+			};
+			const results = [
+				approver.shouldAutoApprove('echo hi > "/outside/"report".txt"', opts),
+				approver.shouldAutoApprove(`echo hi >> '/outside/'report'.txt'`, opts),
+				approver.shouldAutoApprove(`Write-Host hi > '/outside/report''s.txt'`, { ...opts, language: 'powershell' }),
+			];
+			assert.deepStrictEqual({ results, destinations }, {
+				results: ['noMatch', 'noMatch', 'noMatch'],
+				destinations: ['/outside/"report".txt', `/outside/'report'.txt`, `/outside/report''s.txt`],
+			});
+		});
 	});
 
 	suite('evaluate', () => {

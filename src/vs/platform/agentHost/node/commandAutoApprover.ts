@@ -82,6 +82,10 @@ function classifyFileRedirect(redirectText: string, isPowerShell?: boolean): Fil
 	if (isSafeRedirectDestination(rawDest, isPowerShell)) {
 		return { kind: 'safeWrite' };
 	}
+	const fullyQuoted = /^'[^']*'$/.test(rawDest) || /^"(?:[^"\\]|\\.)*"$/.test(rawDest);
+	if (/[*?\[]/.test(rawDest) && (isPowerShell || !fullyQuoted)) {
+		return { kind: 'unsafeWrite', dest: undefined };
+	}
 	let dest = rawDest;
 	if ((dest.startsWith(`'`) && dest.endsWith(`'`)) ||
 		(dest.startsWith('"') && dest.endsWith('"'))) {
