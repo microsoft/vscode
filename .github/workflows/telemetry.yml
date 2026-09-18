@@ -25,3 +25,11 @@ jobs:
         run: 'npx --package=@vscode/telemetry-extractor@1.14.0 --yes vscode-telemetry-extractor -s .'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Validate core telemetry metadata'
+        run: |
+          # Match the extractor version and core telemetry scope used by Azure.
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor --sourceDir . --excludedDir extensions --applyEndpoints
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
