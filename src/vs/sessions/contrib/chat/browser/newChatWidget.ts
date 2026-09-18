@@ -76,6 +76,7 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	private _pendingWorkspaceCreation: Promise<IOpenNewSessionResult> | undefined;
 	private _createdSessionId: string | undefined;
 	private _preferredDevContainerFolderUri: URI | undefined;
 
@@ -166,6 +167,10 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
 			onUserSelection: () => newSessionComposerService.notifyUserWorkspaceSelection(),
+			whenSelectionAccepted: async () => {
+				const result = await this._pendingWorkspaceCreation;
+				return !!result?.session && this._session.get()?.sessionId === result.session.sessionId;
+			},
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,
@@ -713,10 +718,15 @@ export class NewChatWidget extends Disposable {
 		let changedWhilePending = false;
 		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
 		let result: IOpenNewSessionResult;
+		const creation = this._createSessionNow(folderUri, userPick, creationCts.token);
+		this._pendingWorkspaceCreation = creation;
 		try {
-			result = await this._createSessionNow(folderUri, userPick, creationCts.token);
+			result = await creation;
 		} finally {
 			pendingChange.dispose();
+			if (this._pendingWorkspaceCreation === creation) {
+				this._pendingWorkspaceCreation = undefined;
+			}
 		}
 		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
 		if (isCurrentCreation) {

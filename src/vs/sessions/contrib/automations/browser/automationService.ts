@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -22,6 +22,7 @@ import {
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
 	AutomationCatalogueState,
+	IAutomationProviderDescriptor,
 	type AutomationMutationGuard,
 	assertAutomationSessionTemplateAuthority,
 	IAutomationRunClaim,
@@ -598,6 +599,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 export class AutomationService extends AutomationStore implements IAutomationService {
 
 	declare readonly _serviceBrand: undefined;
+	readonly unavailableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
 
 	constructor(
 		@IStorageService storageService: IStorageService,
