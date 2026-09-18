@@ -86,6 +86,12 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', GeneralShellType.PowerShell), '\'/foo/bar\'\'baz"qux\'');
 		});
 
+		test('should reject PowerShell Unicode quote delimiters', () => {
+			for (const quote of ['\u2018', '\u2019', '\u201A', '\u201B']) {
+				throws(() => escapeNonWindowsPath(`/foo/${quote}bar`, GeneralShellType.PowerShell));
+			}
+		});
+
 		test('should default to POSIX escaping for unknown shells', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar'), '\'/foo/bar\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), `'/foo/bar'\\''baz'`);

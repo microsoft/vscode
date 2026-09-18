@@ -24,6 +24,9 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 		case PosixShellType.Fish:
 			return `'${path.replaceAll('\\', '\\\\').replaceAll('\'', '\\\'')}'`;
 		case GeneralShellType.PowerShell:
+			if (/[\u2018-\u201B]/.test(path)) {
+				throw new Error('Path contains unsupported PowerShell quote delimiters');
+			}
 			return `'${path.replaceAll('\'', '\'\'')}'`;
 		default:
 			return `'${path.replaceAll('\'', '\'\\\'\'')}'`;
