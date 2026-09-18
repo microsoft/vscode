@@ -1,6 +1,6 @@
 ---
-name: build-champ
-description: build-champ
+name: build-champ-triage
+description: Find out why a build has failed
 disable-model-invocation: true
 ---
 # Role

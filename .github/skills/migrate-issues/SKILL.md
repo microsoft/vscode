@@ -1,6 +1,6 @@
 ---
-name: migrate
-description: migrate
+name: migrate-issues
+description: migrate GitHub issues from one repository to another
 disable-model-invocation: true
 ---
 # Issue Migration Prompt
