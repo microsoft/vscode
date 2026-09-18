@@ -650,9 +650,9 @@ export class StartFindWithArgsAction extends EditorAction {
 
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+				seedSearchStringFromSelection: args?.searchString === undefined && (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
 				seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-				seedSearchStringFromGlobalClipboard: true,
+				seedSearchStringFromGlobalClipboard: args?.searchString === undefined,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
 				updateSearchScope: args?.findInSelection || false,
