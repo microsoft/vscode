@@ -20,6 +20,7 @@ import { ISendRequestOptions } from '../../../../services/sessions/common/sessio
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
@@ -182,7 +183,9 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
-	readonly _workspacePickerVisibleKey: { set(value: boolean): void };
+	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
+		readonly pickerVisibility: SessionInputPickerVisibility;
+	};
 	readonly _workspacePicker: {
 		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
 	};
@@ -260,10 +263,12 @@ suite('NewChatWidget', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
+		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
+		const workspaceVisibility: boolean[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
-			_workspacePickerVisibleKey: { set: () => { } },
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
+					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 					const row = document.createElement('div');
 					target.appendChild(row);
 					for (const trigger of triggers) {
@@ -276,6 +281,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_newChatInput: {
+				pickerVisibility,
 				sessionTypePicker: {
 					render: (target, options) => {
 						if (harnessLabels.length <= 1) {
@@ -293,20 +299,23 @@ suite('NewChatWidget', () => {
 		};
 
 		disposables.add(renderWorkspacePicker.call(harness, container));
+		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 
-		assert.deepStrictEqual(
-			Array.from(harness._workspacePickerRow?.children ?? [], element => ({
+		assert.deepStrictEqual({
+			items: Array.from(harness._workspacePickerRow?.children ?? [], element => ({
 				label: element.textContent,
 				className: element.className,
 			})),
-			[
+			workspaceTriggers,
+			workspaceVisibility,
+		}, {
+			items: [
 				{ label: 'Workspace', className: '' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
-		);
-		assert.deepStrictEqual(workspaceTriggers, [
-			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
-		]);
+			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false }],
+			workspaceVisibility: [false, true],
+		});
 	});
 
 	test('restores workspace, harness, context DOM and tab order after quick chat', () => {

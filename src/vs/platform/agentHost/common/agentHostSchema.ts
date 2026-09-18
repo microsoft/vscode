@@ -557,6 +557,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichL
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
+/** Root config key selecting compact artifact-tool prompt wording independently of tool deferral. */
+export const AgentHostArtifactToolsCompactPromptsConfigKey = 'artifactToolsCompactPrompts';
+
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -564,6 +567,11 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+// Root config key forwarded from the renderer when the `chat.agentHost.sessionCatalog.enabled`
+// setting changes. When `false`, the host lists sessions from provider metadata and per-session
+// storage instead of the central catalog, and performs no catalog import or background repair.
+export const AgentHostSessionCatalogEnabledConfigKey = 'sessionCatalogEnabled';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -885,6 +893,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
+	[AgentHostArtifactToolsCompactPromptsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.artifactToolsCompactPrompts.title', "Compact Artifact Tool Prompts"),
+		description: localize('agentHost.config.artifactToolsCompactPrompts.description', "Whether artifact tools use compact prompt wording instead of the original guidance. Does not change tool availability or deferral."),
+		default: false,
+	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
@@ -896,6 +910,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
+	}),
+	[AgentHostSessionCatalogEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.sessionCatalogEnabled.title', "Session Catalog"),
+		description: localize('agentHost.config.sessionCatalogEnabled.description', "Whether the session list is served from the central catalog. When disabled, sessions are listed from provider metadata and per-session storage instead."),
+		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

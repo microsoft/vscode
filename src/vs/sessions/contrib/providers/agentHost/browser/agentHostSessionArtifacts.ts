@@ -31,14 +31,15 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact | undefined {
+function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri: URI) => URI): ISessionArtifact | undefined {
 	const kind = kindByType.get(artifact.type);
 	if (!kind) {
 		return undefined;
 	}
 
 	const link = parseUri(artifact.link);
-	const uri = parseUri(artifact.uri);
+	const parsedUri = parseUri(artifact.uri);
+	const uri = parsedUri && artifact.type === SessionArtifactType.File ? mapFileUri(parsedUri) : parsedUri;
 	// An artifact the client cannot act on is not worth surfacing.
 	if (!link && !uri && !artifact.commitHash) {
 		return undefined;
@@ -95,7 +96,7 @@ function gitHubLink(artifact: IProtocolSessionArtifact): string | undefined {
 	return undefined;
 }
 
-export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
+export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFileUri: (uri: URI) => URI = uri => uri): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
 	const pullRequestUrls: string[] = [];
 	const pullRequestTitles = new Map<string, string>();
@@ -103,7 +104,7 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 	const issueTitles = new Map<string, string>();
 
 	for (const artifact of readSessionArtifacts(meta)) {
-		const mapped = toSessionArtifact(artifact);
+		const mapped = toSessionArtifact(artifact, mapFileUri);
 		if (!mapped) {
 			continue;
 		}

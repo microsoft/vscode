@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
-import { equals } from '../../../../../base/common/objects.js';
+import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
@@ -65,7 +65,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -528,7 +528,7 @@ export interface IAgentHostAdapterOptions {
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
-	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
+	/** Optional URI mapping for host-side file resources (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
@@ -1036,7 +1036,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return partitionSessionArtifacts(meta).entries.map(entry => entry.artifact);
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(entry => entry.artifact);
 		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
@@ -4244,6 +4244,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
 		return this._getNewSession(sessionId)?.getConfigValues();
+	}
+
+	async getNewSessionConfig(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined> {
+		const newSession = this._getNewSession(sessionId);
+		await newSession?.waitForConfigurationReady();
+		const providerConfig = deepClone(newSession?.getConfigValues());
+		if (!providerConfig) {
+			return undefined;
+		}
+		const isolation = providerConfig[SessionConfigKey.Isolation];
+		return {
+			isolation: isolation === 'worktree' || isolation === 'folder' ? isolation : undefined,
+			providerConfig,
+		};
 	}
 
 	async setIsolationMode(sessionId: string, mode: string): Promise<void> {

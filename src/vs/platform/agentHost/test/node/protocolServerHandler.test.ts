@@ -17,7 +17,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -39,6 +39,7 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { MockDevContainerService } from '../common/mockDevContainerService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -393,6 +394,7 @@ suite('ProtocolServerHandler', () => {
 	let telemetryService: TestTelemetryService;
 	let agentHostTelemetryService: AgentHostTelemetryService;
 	let clientConnections: AgentHostClientConnectionService;
+	let devContainerService: MockDevContainerService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -447,6 +449,7 @@ suite('ProtocolServerHandler', () => {
 			agentHostTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			devContainerService = disposables.add(new MockDevContainerService()),
 		));
 	});
 
@@ -475,8 +478,42 @@ suite('ProtocolServerHandler', () => {
 				'vscode.detachedWorktrees': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
+				'vscode.devContainers': true,
 			},
 		});
+	});
+
+	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {
+		const first = connectClient('client-1');
+		const second = connectClient('client-1');
+		first.simulateMessage(request(2, DevContainerConnectExtensionMethod, { connectionId: 'container', workspaceFolder: '/repo', name: 'Project' }));
+		const trust = findRequest(first.sent, RequestAgentHostWorkspaceTrustExtensionMethod);
+		assert.ok(trust);
+		assert.strictEqual(findRequest(second.sent, RequestAgentHostWorkspaceTrustExtensionMethod), undefined);
+		assert.strictEqual(devContainerService.connects.length, 0);
+		first.simulateMessage({ jsonrpc: '2.0', id: trust.id, result: { trusted: true } });
+		await handler.whenIdle();
+		const connectionId = devContainerService.connects[0].connectionId;
+		devContainerService.output.fire({ connectionId, data: 'output' });
+		assert.deepStrictEqual(first.sent.at(-1), { jsonrpc: '2.0', method: DevContainerOutputNotification, params: { connectionId: 'container', data: 'output' } });
+		second.simulateMessage(request(3, DevContainerDisconnectExtensionMethod, { connectionId: 'container' }));
+		await handler.whenIdle();
+		const rejected = findResponse(second.sent, 3);
+		assert.ok(rejected && hasKey(rejected, { error: true }) && rejected.error?.code === AhpErrorCodes.NotFound);
+		first.simulateClose();
+		assert.deepStrictEqual(devContainerService.disconnects, [connectionId]);
+	});
+
+	test('Dev Containers reject denied trust before running the launcher', async () => {
+		const transport = connectClient('client-1');
+		transport.simulateMessage(request(2, DevContainerConnectExtensionMethod, { connectionId: 'container', workspaceFolder: '/repo', name: 'Project' }));
+		const trust = findRequest(transport.sent, RequestAgentHostWorkspaceTrustExtensionMethod);
+		assert.ok(trust);
+		transport.simulateMessage({ jsonrpc: '2.0', id: trust.id, result: { trusted: false } });
+		await handler.whenIdle();
+		const response = findResponse(transport.sent, 2);
+		assert.ok(response && hasKey(response, { error: true }) && response.error?.code === AhpErrorCodes.PermissionDenied);
+		assert.deepStrictEqual(devContainerService.connects, []);
 	});
 
 	test('routes a workspace trust request to the initiating client', async () => {
@@ -1222,6 +1259,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1232,8 +1270,12 @@ suite('ProtocolServerHandler', () => {
 		const initializeResponse = findResponse(transport.sent, 1);
 		assert.ok(initializeResponse && hasKey(initializeResponse, { result: true }));
 		assert.strictEqual(supportsAgentHostArtifactRemoval(initializeResponse.result as InitializeResult), false);
+		assert.strictEqual(supportsAgentHostDevContainers(initializeResponse.result as InitializeResult), false);
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(request(3, DevContainerIsDockerAvailableExtensionMethod, undefined));
+		const containerResponse = findResponse(transport.sent, 3);
+		assert.ok(containerResponse && hasKey(containerResponse, { error: true }) && containerResponse.error?.code === JsonRpcErrorCodes.MethodNotFound);
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
@@ -2586,6 +2628,7 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				localDisposables.add(new MockDevContainerService()),
 			)));
 		}
 
@@ -2631,6 +2674,7 @@ suite('ProtocolServerHandler', () => {
 				telemetryService,
 				managedSettingsService,
 				tracker,
+				localDisposables.add(new MockDevContainerService()),
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -2679,6 +2723,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2728,6 +2773,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2769,6 +2815,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -2818,6 +2865,7 @@ suite('ProtocolServerHandler', () => {
 			localTelemetry,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -3161,7 +3209,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result, [['after-reconnect.txt', FileType.File]]);
 	});
 
-	test('overlapping reconnect keeps earlier reverse-RPC requests alive until that transport closes', async () => {
+	test('overlapping reconnect retries a filesystem read while the earlier reverse-RPC request remains valid', async () => {
 		const transport1 = connectClient('client-fs-overlap');
 		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap', '/workspace'));
@@ -3170,6 +3218,7 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const replacementRequestPromise = Event.toPromise(Event.filter(transport2.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-fs-overlap',
@@ -3177,18 +3226,25 @@ suite('ProtocolServerHandler', () => {
 			subscriptions: [],
 		}));
 		await reconnectRespPromise;
+		const replacementRequest = await replacementRequestPromise;
+		assert.ok(isJsonRpcRequest(replacementRequest));
 
 		transport1.simulateMessage({
 			jsonrpc: '2.0',
 			id: reverseRequest.id,
 			result: { entries: [{ name: 'from-original-transport.txt', type: 'file' as const }] },
 		});
+		transport2.simulateMessage({
+			jsonrpc: '2.0',
+			id: replacementRequest.id,
+			result: { entries: [{ name: 'from-replacement-transport.txt', type: 'file' as const }] },
+		});
 
 		const result = await readPromise;
-		assert.deepStrictEqual(result, [['from-original-transport.txt', FileType.File]]);
+		assert.deepStrictEqual(result, [['from-replacement-transport.txt', FileType.File]]);
 	});
 
-	test('closing an older overlapping transport rejects its pending reverse-RPC requests', async () => {
+	test('closing an older overlapping transport does not fail the retried filesystem read', async () => {
 		const transport1 = connectClient('client-fs-overlap-close');
 		const reverseRequestPromise = Event.toPromise(Event.filter(transport1.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const readPromise = fileSystemProvider.readdir(agentHostUri('client-fs-overlap-close', '/workspace'));
@@ -3196,6 +3252,7 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
+		const replacementRequestPromise = Event.toPromise(Event.filter(transport2.onDidSend, msg => isJsonRpcRequest(msg) && msg.method === 'resourceList'));
 		const reconnectRespPromise = waitForResponse(transport2, 1);
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-fs-overlap-close',
@@ -3203,10 +3260,17 @@ suite('ProtocolServerHandler', () => {
 			subscriptions: [],
 		}));
 		await reconnectRespPromise;
+		const replacementRequest = await replacementRequestPromise;
+		assert.ok(isJsonRpcRequest(replacementRequest));
 
 		transport1.simulateClose();
+		transport2.simulateMessage({
+			jsonrpc: '2.0',
+			id: replacementRequest.id,
+			result: { entries: [{ name: 'from-replacement-transport.txt', type: 'file' as const }] },
+		});
 
-		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
+		assert.deepStrictEqual(await readPromise, [['from-replacement-transport.txt', FileType.File]]);
 	});
 
 	test('client disconnect cleans up', () => {
@@ -4069,6 +4133,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -4174,6 +4239,7 @@ suite('ProtocolServerHandler', () => {
 			NullTelemetryService,
 			managedSettingsService,
 			clientConnections,
+			localDisposables.add(new MockDevContainerService()),
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -4313,6 +4379,7 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				localDisposables.add(new MockDevContainerService()),
 			));
 		});
 
@@ -4485,6 +4552,7 @@ suite('ProtocolServerHandler', () => {
 				NullTelemetryService,
 				managedSettingsService,
 				clientConnections,
+				localDisposables.add(new MockDevContainerService()),
 			));
 		});
 

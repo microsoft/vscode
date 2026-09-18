@@ -17,6 +17,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -119,6 +120,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.ex
 
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
+
+/** Configuration key selecting compact artifact-tool prompt wording. */
+export const ArtifactToolsCompactPromptsSettingId = 'chat.artifactTools.compactPrompts';
 
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
@@ -1058,6 +1062,9 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+
+	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
+	readonly devContainerService?: IDevContainerAgentHostMainService;
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;

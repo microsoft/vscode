@@ -1707,15 +1707,17 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('selects provider-native autonomous session config and respects policy', async () => {
+	test('selects provider-native autonomous session config, preserves allow all, and respects policy', async () => {
 		const { agent, configurationService } = createTestAgentContext(disposables);
 		try {
 			const selected = agent.getAutonomousSessionConfig({});
+			const allowAll = agent.getAutonomousSessionConfig({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
 			configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
 			const restricted = agent.getAutonomousSessionConfig({});
 
-			assert.deepStrictEqual({ selected, restricted }, {
+			assert.deepStrictEqual({ selected, allowAll, restricted }, {
 				selected: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' },
+				allowAll: { [SessionConfigKey.Mode]: 'autopilot' },
 				restricted: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 		} finally {
@@ -5721,6 +5723,14 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('sets the default and configured skill character budgets', () => {
+			assert.deepStrictEqual([
+				createCopilotCliEnvironment({})['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({ SKILL_CHAR_BUDGET: '15000' })['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({}, [], false, false, 30_000)['SKILL_CHAR_BUDGET'],
+			], ['15000', '15000', '30000']);
+		});
+
 		for (const enabled of [false, true]) {
 			test(`sets standalone HydraFusion flags to ${enabled} and preserves inherited environment`, () => {
 				const ambient = Object.freeze({
@@ -6363,11 +6373,40 @@ suite('CopilotAgent', () => {
 					advisor: env?.['ANTHROPIC_ADVISOR'],
 					hydraFusion: env?.['HYDRAFUSION'],
 					hydraFusionRollout: env?.['HYDRAFUSION_ROLLOUT'],
+					skillCharBudget: env?.['SKILL_CHAR_BUDGET'],
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
 					hydraFusion: 'false',
 					hydraFusionRollout: 'false',
+					skillCharBudget: '15000',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('applies skill character budget changes by restarting the runtime', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.SkillCharBudget]: 30_000 },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				const initialBudget = getCreatedClientOptions(agent).at(-1)?.env?.['SKILL_CHAR_BUDGET'];
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.SkillCharBudget]: 35_000 });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					initialBudget,
+					updatedBudget: getCreatedClientOptions(agent).at(-1)?.env?.['SKILL_CHAR_BUDGET'],
+					stopCallCount: client.stopCallCount,
+				}, {
+					initialBudget: '30000',
+					updatedBudget: '35000',
+					stopCallCount: 1,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -7404,59 +7443,30 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema offers the Auto routing profile only to the Auto model, and only while the gate is on', async () => {
+	test('configSchema offers the Auto routing profile by default only to the Auto model', async () => {
 		const models: ITestCopilotModelInfo[] = [
 			{ id: 'auto', name: 'Auto' },
 			{ id: 'claude-sonnet', name: 'Claude Sonnet' },
 		];
-		const configSchemasFor = async (autoModeTiers: boolean) => {
-			const { agent } = createTestAgentContext(disposables, {
-				copilotClient: new TestCopilotClient([], models),
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: autoModeTiers },
-			});
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				const published = await waitForState(agent.models, published => published.length === models.length);
-				return published.map(model => model.configSchema?.properties.tier);
-			} finally {
-				await disposeAgent(agent);
-			}
-		};
-
-		const [auto, concrete] = await configSchemasFor(true);
-		assert.deepStrictEqual({
-			auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
-			concrete,
-			gateOff: await configSchemasFor(false),
-		}, {
-			// The enum carries the runtime's wire values, not the retired names.
-			auto: {
-				enum: ['efficiency', 'balance', 'intelligence'],
-				default: 'balance',
-				enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
-			},
-			concrete: undefined,
-			gateOff: [undefined, undefined],
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], models),
 		});
-	});
-
-	test('re-publishes the Auto routing profile picker when the gate flips', async () => {
-		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			await waitForState(agent.models, models => models.length === 1);
+			const published = await waitForState(agent.models, published => published.length === models.length);
+			const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
 
-			// The picker is built while the model list is enumerated, so a flip has to re-enumerate.
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
-			const enabled = await waitForState(agent.models, models => models[0]?.configSchema?.properties.tier !== undefined);
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
-			const disabled = await waitForState(agent.models, models => models[0]?.configSchema === undefined);
-
-			assert.deepStrictEqual(
-				[enabled[0].configSchema?.properties.tier?.default, disabled[0].configSchema],
-				['balance', undefined]
-			);
+			assert.deepStrictEqual({
+				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
+				concrete,
+			}, {
+				auto: {
+					enum: ['efficiency', 'balance', 'intelligence'],
+					default: 'balance',
+					enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
+				},
+				concrete: undefined,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -12523,7 +12533,6 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12575,9 +12584,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('changeModel applies Auto preferences, overrides, and resets only to the targeted chat', async () => {
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
-			});
+			const { agent, configurationService } = createTestAgentContext(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'auto-tier-peer');
 				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
@@ -12597,11 +12604,10 @@ suite('CopilotAgent', () => {
 				];
 
 				await agent.chats.changeModel(chatA, selections[0], exactChatContext(session, chatA));
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false, [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
 				await agent.chats.changeModel(chatA, selections[1], exactChatContext(session, chatA));
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: '' });
 				await agent.chats.changeModel(chatA, selections[2], exactChatContext(session, chatA));
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
 				await agent.chats.changeModel(chatA, selections[3], exactChatContext(session, chatA));
 				await agent.chats.changeModel(chatA, selections[4], exactChatContext(session, chatA));
 
@@ -12627,7 +12633,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not apply a provisional Auto routing preference when the gate turns off before the first send', async () => {
+		test('applies a provisional Auto routing preference on the first send without opting in', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			const capiCalls: SessionConfig['capi'][] = [];
@@ -12635,10 +12641,9 @@ suite('CopilotAgent', () => {
 				capiCalls.push(config.capi);
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
-			const { agent, configurationService } = createTestAgentContext(disposables, {
+			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12651,13 +12656,12 @@ suite('CopilotAgent', () => {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
 				});
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual({ model: JSON.parse(stored ?? 'null'), capiCalls }, {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
-					capiCalls: [undefined],
+					capiCalls: [{ autoTier: 'intelligence' }],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -14992,21 +14996,25 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await writeExtensionHostMarker(userHome, sessionId);
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'Legacy title' });
 				// Metadata an older build wrote: adopted, but without the provenance marker.
 				const seed = sessionDataService.openDatabase(session);
 				await seed.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+				await seed.object.setMetadata('customTitle', 'Legacy title');
 				seed.dispose();
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
 				const db = await sessionDataService.tryOpenDatabase(session);
 				const marker = await db?.object.getMetadata('agentHost.ehcliAdopted');
+				const title = await db?.object.getMetadata('customTitle');
+				const titleSource = await db?.object.getMetadata('customTitleSource');
+				const isRead = await db?.object.getMetadata(AH_META_IS_READ_DB_KEY);
 				db?.dispose();
 
 				assert.deepStrictEqual(
-					{ reason: adopted.reason, marker },
-					{ reason: 'alreadyNative', marker: 'true' },
+					{ reason: adopted.reason, marker, title, titleSource, isRead },
+					{ reason: 'alreadyNative', marker: 'true', title: 'Legacy title', titleSource: 'user', isRead: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15236,7 +15244,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ first, second, configValues },
-					{ first: { adopted: true, eligible: true, reason: 'adopted' }, second: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+					{ first: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-adopt', titleSource: 'auto', isRead: true } }, second: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15299,7 +15307,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, archived },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, archived: 'true' },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-archived', titleSource: 'auto', isRead: true } }, archived: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15337,7 +15345,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(
 					{ adopted, usages },
 					{
-						adopted: { adopted: true, eligible: true, reason: 'adopted' },
+						adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-credits', titleSource: 'auto', isRead: true } },
 						usages: [
 							['evt-1', JSON.stringify({ model: 'gpt-5.4', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })],
 							['evt-2', JSON.stringify({ model: 'gpt-5.4-mini', _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
@@ -15365,14 +15373,26 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'My Legacy Session' });
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
+				const retried = await ensureDefaultChatAdopted(agent, session);
 
 				const db = await sessionDataService.tryOpenDatabase(session);
 				const customTitle = await db?.object.getMetadata('customTitle');
+				const isRead = await db?.object.getMetadata(AH_META_IS_READ_DB_KEY);
 				db?.dispose();
 
 				assert.deepStrictEqual(
-					{ adopted, customTitle },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, customTitle: 'My Legacy Session' },
+					{ adopted, retried, customTitle, isRead },
+					{
+						adopted: {
+							adopted: true,
+							eligible: true,
+							reason: 'adopted',
+							listVisible: { title: 'My Legacy Session', titleSource: 'user', isRead: true },
+						},
+						retried: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' },
+						customTitle: 'My Legacy Session',
+						isRead: 'true',
+					},
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15402,7 +15422,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, title },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, title: 'Telemetry analysis for Agents window' },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'Telemetry analysis for Agents window', titleSource: 'auto', isRead: true } }, title: 'Telemetry analysis for Agents window' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15432,7 +15452,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, title },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, title: `SDK ${sessionId}` },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: `SDK ${sessionId}`, titleSource: 'auto', isRead: true } }, title: `SDK ${sessionId}` },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15461,7 +15481,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, isRead },
-					{ adopted: { adopted: true, eligible: true, reason: 'adopted' }, isRead: 'true' },
+					{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-read', titleSource: 'auto', isRead: true } }, isRead: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -15540,7 +15560,7 @@ suite('CopilotAgent', () => {
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
-				assert.deepStrictEqual(adopted, { adopted: true, eligible: true, reason: 'adopted' });
+				assert.deepStrictEqual(adopted, { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-originless', titleSource: 'auto', isRead: true } });
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });

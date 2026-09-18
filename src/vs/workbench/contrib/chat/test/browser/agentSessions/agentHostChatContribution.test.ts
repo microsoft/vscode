@@ -85,7 +85,9 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
 import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -114,7 +116,8 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatResponseModel, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -2257,6 +2260,99 @@ suite('AgentHostChatContribution', () => {
 			}]);
 
 		}));
+
+		for (const initialEffort of ['max', 'xhigh']) {
+			test(`selecting xhigh from ${initialEffort} on a restored model updates the AHP draft`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const modelId = 'agent-host-copilot:claude-opus-4.8';
+				const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({
+					id: 'claude-opus-4.8',
+					name: 'Claude Opus 4.8',
+					configurationSchema: {
+						properties: {
+							thinkingLevel: { enum: ['high', 'xhigh', 'max'], default: 'high' },
+							contextSize: { type: 'number', enum: [200_000, 936_000], default: 200_000 },
+						},
+					},
+				});
+				const selectedModel = { identifier: modelId, metadata: modelMetadata };
+				const languageModels = new Map([[modelId, modelMetadata]]);
+				const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, {
+					languageModels,
+					languageModelsServiceOverride: {
+						getModelConfiguration: () => undefined,
+						setModelConfiguration: async () => { },
+					},
+				});
+				const backendSession = AgentSession.uri('copilot', 'draft-effort');
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/draft-effort' });
+				seedDraftSession(agentHostService, backendSession, 'Draft Effort', {
+					text: '',
+					origin: { kind: MessageKind.User },
+					model: { id: modelMetadata.id, config: { thinkingLevel: 'max', contextSize: 936_000 } },
+				});
+				const { inputModel } = createDraftInputModel({
+					attachments: [],
+					mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel,
+					modelConfiguration: { thinkingLevel: initialEffort, contextSize: 936_000 },
+					selectedModelReason: ModelSelectionReason.SessionRestore,
+					inputText: '',
+					selections: [],
+					contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource,
+					inputModel,
+					onDidChangePendingRequests: Event.None,
+					getPendingRequests: () => [],
+				}));
+
+				const configurationStore = disposables.add(new ChatModelConfigurationStore(
+					() => 'chat.modelConfiguration.panel.agent-host-copilot',
+					instantiationService.get(ILanguageModelsService),
+					instantiationService.get(IStorageService),
+				));
+				const intent = new IntendedModelSlot();
+				const syncInput = (): void => inputModel.setState({
+					selectedModel: controller.currentModel.get(),
+					modelConfiguration: configurationStore.getModelConfiguration(modelId),
+					selectedModelReason: controller.selectionReason,
+				});
+				const controller = disposables.add(new ChatInputModelSelectionController({
+					getCurrentSessionType: () => 'agent-host-copilot',
+					getModels: () => [selectedModel],
+					getAllModels: () => [selectedModel],
+					getConfiguredModelValue: () => undefined,
+					isEmpty: () => false,
+					isModelSupportedHere: () => true,
+					getDeclaredDefaultModel: () => undefined,
+					getBoundConversationKey: () => sessionResource.toString(),
+					getIntentHolder: () => intent,
+					applyModel: syncInput,
+					restoreModelConfiguration: (modelId, configuration) => {
+						if (configuration) {
+							configurationStore.restoreModelConfiguration(modelId, configuration);
+						}
+					},
+				}));
+				disposables.add(configurationStore.onDidChange(syncInput));
+				disposables.add(configurationStore.onDidSelectConfiguration(() => controller.applySelection(selectedModel, syncInput, true)));
+				controller.syncFromConversationState(selectedModel, inputModel.state.get()?.modelConfiguration, 'agent-host-copilot', sessionResource.toString());
+
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				await timeout(500);
+				agentHostService.dispatchedActions.length = 0;
+
+				await configurationStore.setModelConfiguration(modelId, { thinkingLevel: 'xhigh' });
+				await timeout(500);
+				const draftActions = agentHostService.dispatchedActions.map(entry => entry.action).filter(action => action.type === ActionType.ChatDraftChanged);
+
+				assert.deepStrictEqual(draftActions.map(action => action.draft?.model), [
+					{ id: 'claude-opus-4.8', config: { thinkingLevel: 'xhigh', contextSize: 936_000 } },
+				]);
+			}));
+		}
 
 		test('flushes pending chat input draft when the session is disposed', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
@@ -8158,7 +8254,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
-		test('history requests get per-turn modelId from usage or message model', async () => {
+		test('history requests get per-turn model selection from usage or message model', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
 				['agent-host-copilot:sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Sonnet 4.6', pricing: '2x' })],
@@ -8182,7 +8278,7 @@ suite('AgentHostChatContribution', () => {
 					},
 					{
 						id: 'turn-2',
-						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
+						message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'xhigh' } } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-2', content: 'A2' }],
 						usage: undefined,
 						state: TurnState.Complete,
@@ -8191,7 +8287,7 @@ suite('AgentHostChatContribution', () => {
 				activeTurn: {
 					id: 'turn-active',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
+					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'max' } } },
 					responseParts: [],
 					usage: { _meta: { cost: 1 } },
 				},
@@ -8203,11 +8299,11 @@ suite('AgentHostChatContribution', () => {
 
 			const requests = session.history.filter((h): h is IChatSessionRequestHistoryItem => h.type === 'request');
 			assert.deepStrictEqual(
-				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId })),
+				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
 				[
-					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7' },
-					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6' },
-					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6' },
+					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7', modelConfiguration: undefined },
+					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6', modelConfiguration: { reasoningEffort: 'xhigh' } },
+					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6', modelConfiguration: { reasoningEffort: 'max' } },
 				],
 			);
 
@@ -12415,7 +12511,12 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 			const metadata = { 'test.request': { enabled: true } };
-			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: { metadata } });
+			const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+			pendingRequests.push({
+				request,
+				kind: ChatRequestQueueKind.Queued,
+				sendOptions: { metadata, userSelectedModelId: 'agent-host-copilot:claude-opus-4.8', userSelectedModelConfiguration: modelConfiguration },
+			});
 			chatModel.firePendingRequestsChanged();
 
 			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
@@ -12441,6 +12542,7 @@ suite('AgentHostChatContribution', () => {
 						text,
 						origin: { kind: MessageKind.User },
 						_meta: metadata,
+						model: { id: 'claude-opus-4.8', config: modelConfiguration },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
@@ -12502,6 +12604,7 @@ suite('AgentHostChatContribution', () => {
 					message: {
 						text: 'queued elsewhere',
 						origin: { kind: MessageKind.User },
+						model: { id: 'auto' },
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',
@@ -12520,7 +12623,7 @@ suite('AgentHostChatContribution', () => {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
 					id: 'remote-steering-1',
-					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User } },
+					message: { text: 'steered elsewhere', origin: { kind: MessageKind.User }, model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } } },
 				} as ChatAction,
 				serverSeq: 2,
 				origin: undefined,
@@ -12531,6 +12634,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				model: pendingRequests.map(p => ({ id: p.request.id, kind: p.kind, message: p.request.message.text })),
 				protocol: last?.requests.map(r => ({ id: r.id, kind: r.kind, message: r.message })),
+				selections: last?.requests.map(r => ({ modelId: r.modelId, modelConfiguration: r.modelConfiguration })),
 				elementCorrelationId: elementVariable ? getElementAttachmentCorrelationId(elementVariable) : undefined,
 				echoedActions: agentHostService.dispatchedActions.filter(d =>
 					d.action.type === ActionType.ChatPendingMessageSet
@@ -12545,6 +12649,10 @@ suite('AgentHostChatContribution', () => {
 				protocol: [
 					{ id: 'remote-steering-1', kind: ChatRequestQueueKind.Steering, message: 'steered elsewhere' },
 					{ id: 'remote-queued-1', kind: ChatRequestQueueKind.Queued, message: 'queued elsewhere' },
+				],
+				selections: [
+					{ modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } },
+					{ modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
 				],
 				elementCorrelationId: 'remote-element',
 				echoedActions: [],
@@ -12680,6 +12788,7 @@ suite('AgentHostChatContribution', () => {
 					message: withMessageRequestHiddenFromTranscript({
 						text: 'Continue in the requested workspace.',
 						origin: { kind: MessageKind.SystemNotification },
+						model: { id: 'claude-opus-4.8', config: { reasoningEffort: 'xhigh' } },
 						_meta: toAgentWorkspaceContinuationMessageMeta(),
 					}, true),
 				} as ChatAction,
@@ -12691,8 +12800,8 @@ suite('AgentHostChatContribution', () => {
 
 			// onDidStartServerRequest should have fired, carrying the provider turn id
 			assert.deepStrictEqual(
-				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden })),
-				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true }],
+				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden, modelId: e.modelId, modelConfiguration: e.modelConfiguration })),
+				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true, modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'xhigh' } }],
 			);
 
 			// isCompleteObs should be false (turn in progress)
@@ -15038,7 +15147,12 @@ suite('AgentHostChatContribution', () => {
 				getOrActivateProviderIdForServer: async () => 'github',
 				getSessions: (async (_providerId: string, scopes?: ReadonlyArray<string>) => {
 					if (scopes !== undefined) {
-						return [{ scopes: [...scopes], accessToken: tokenRef.current }];
+						return [{
+							id: 'session-id',
+							account: { id: 'account-1', label: 'Account 1' },
+							scopes: [...scopes],
+							accessToken: tokenRef.current,
+						}];
 					}
 					return [];
 				}) as unknown as IAuthenticationService['getSessions'],
@@ -15181,6 +15295,40 @@ suite('AgentHostChatContribution', () => {
 				authenticateCalls: [
 					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
 					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+				],
+			});
+		});
+
+		test('does not restore a rejected exact session after recovering with a broader session', async () => {
+			const account = { id: 'account-1', label: 'Account 1' };
+			const exactSession = { id: 'exact-session', scopes: ['read:user'], accessToken: 'stale-token', account };
+			const broaderSession = { id: 'broader-session', scopes: ['read:user', 'repo'], accessToken: 'fresh-token', account };
+			const authService: Partial<IAuthenticationService> = {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: (async (_providerId: string, scopes?: ReadonlyArray<string>) => scopes ? [exactSession] : [exactSession, broaderSession]) as IAuthenticationService['getSessions'],
+			};
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, authService);
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(protectedResource(), AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(protectedResource(), AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 1 });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'stale-token' },
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'stale-token' },
+					{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'fresh-token' },
 				],
 			});
 		});
@@ -15396,6 +15544,7 @@ suite('AgentHostChatContribution', () => {
 				commandCalls: [{
 					commandId: CHAT_SETUP_ACTION_ID,
 					args: [undefined, {
+						telemetrySource: 'agentHost',
 						forceSignInDialog: true,
 						additionalScopes: ['read:user'],
 						dialogTitle: 'Sign in to use GitHub Copilot',
@@ -15454,7 +15603,7 @@ suite('AgentHostChatContribution', () => {
 			chatAgentService: MockChatAgentService,
 			resource: URI,
 			seq: { v: number },
-			opts?: { customizations?: unknown[] },
+			opts?: { customizations?: unknown[]; afterPrompt?: (parts: IChatMcpAuthenticationRequired[]) => Promise<void> },
 		): Promise<IChatMcpAuthenticationRequired[]> {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -15488,6 +15637,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(50);
 
 			const promptParts = collected.flat().filter((p): p is IChatMcpAuthenticationRequired => p.kind === 'mcpAuthenticationRequired');
+			await opts?.afterPrompt?.(promptParts);
 
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: seq.v++, origin: undefined });
 			await turnPromise;
@@ -15669,6 +15819,34 @@ suite('AgentHostChatContribution', () => {
 			// Turn 2: still needs auth, but was already prompted → no new prompt.
 			const turn2 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
 			assert.deepStrictEqual(turn2.flatMap(p => p.servers.get()), []);
+		}));
+
+		test('marks authentication complete before a prompt is ever mounted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-before-mount' });
+			const seq = { v: 1 };
+			const snapshots: { isUsed: boolean; servers: number }[] = [];
+			await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, {
+				customizations: [authRequiredCustomization()],
+				afterPrompt: async parts => {
+					assert.strictEqual(parts.length, 1);
+					const part = parts[0];
+					snapshots.push({ isUsed: part.isUsed, servers: part.servers.get().length });
+					const dispatch = agentHostService.turnActions[agentHostService.turnActions.length - 1];
+					agentHostService.fireAction({
+						channel: parseDefaultChatUri(dispatch.channel.toString())!,
+						action: { type: ActionType.SessionCustomizationsChanged, customizations: [] },
+						serverSeq: seq.v++,
+						origin: undefined,
+					});
+					await timeout(50);
+					snapshots.push({ isUsed: part.isUsed, servers: part.servers.get().length });
+				},
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ isUsed: false, servers: 1 },
+				{ isUsed: true, servers: 0 },
+			]);
 		}));
 
 		test('re-surfaces a server that reaches Ready and then needs auth again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

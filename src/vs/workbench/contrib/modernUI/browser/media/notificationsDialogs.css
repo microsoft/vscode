@@ -36,7 +36,7 @@
 /*
  * Reposition the notification center to sit within the Modern UI outer gutter:
  * an 8px horizontal inset, and a bottom inset that clears the 28px status bar
- * plus the 4px gutter (32px total). `!important` is required to win over the base
+ * plus the same 8px gutter (36px total). `!important` is required to win over the base
  * positioning rules (which vary with the status bar) and, for `top-right`, over
  * the inline `top` offset the notification controller applies in JS.
  *
@@ -46,7 +46,7 @@
  */
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-center {
 	right: var(--modern-ui-notifications-inline-inset, var(--vscode-spacing-size80));
-	bottom: var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320));
+	bottom: var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size360));
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
@@ -57,7 +57,7 @@
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-center.bottom-left {
 	right: auto;
 	left: var(--modern-ui-notifications-inline-inset, var(--vscode-spacing-size80));
-	bottom: var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320));
+	bottom: var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size360));
 }
 
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-center.top-right {
@@ -66,13 +66,17 @@
 }
 
 /*
- * Toasts mirror the center, but each toast carries a 4px margin, so every
+ * Toasts mirror the center, but each toast carries a 4px outer margin, so every
  * container offset is reduced by 4px to keep the visible toast surface aligned
- * with the center (8px / 32px / 35px once the margin is added back).
+ * with the center (8px / 36px / 35px once the margin is added back).
  */
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-toasts {
 	right: calc(var(--modern-ui-notifications-inline-inset, var(--vscode-spacing-size80)) - var(--vscode-spacing-size40));
-	bottom: calc(var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320)) - var(--vscode-spacing-size40));
+	bottom: calc(var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size360)) - var(--vscode-spacing-size40));
+}
+
+.modern-ui-notifications-dialogs.monaco-workbench > .notifications-toasts .notification-toast-container:not(:last-child) > .notification-toast {
+	margin-bottom: var(--vscode-spacing-sizeNone);
 }
 
 .modern-ui-notifications-dialogs.monaco-workbench.nostatusbar > .notifications-toasts:not(.top-right) {
@@ -82,7 +86,7 @@
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-toasts.bottom-left {
 	right: auto;
 	left: calc(var(--modern-ui-notifications-inline-inset, var(--vscode-spacing-size80)) - var(--vscode-spacing-size40));
-	bottom: calc(var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size320)) - var(--vscode-spacing-size40));
+	bottom: calc(var(--modern-ui-notifications-block-end-inset, var(--vscode-spacing-size360)) - var(--vscode-spacing-size40));
 }
 
 .modern-ui-notifications-dialogs.monaco-workbench > .notifications-toasts.top-right {

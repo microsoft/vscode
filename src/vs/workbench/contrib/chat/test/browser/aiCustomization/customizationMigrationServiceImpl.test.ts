@@ -418,7 +418,7 @@ suite('CustomizationMigrationService', () => {
 				},
 			],
 			hint: {
-				message: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
+				message: 'Found 2 workspace customizations and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
 				counts: [
 					{ type: CustomizationMigrationType.UserData, count: 1 },
@@ -460,7 +460,7 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			message: 'Found 1 workspace customization file that is present but not used by Claude and could be migrated.',
+			message: 'Found 1 workspace customization that is present but not used by Claude and could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
@@ -486,11 +486,39 @@ suite('CustomizationMigrationService', () => {
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			message: 'Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
+			message: 'Found 2 workspace customizations and 2 user customizations that are present but not used by Claude and could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: 1 },
 				{ type: CustomizationMigrationType.PromptFiles, count: 3 },
+			],
+		});
+	});
+
+	test('uses singular wording for a single user customization', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{ uri: URI.file('/workspace/.github/prompts/one.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/workspace/.github/prompts/two.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/user-data/prompts/three.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
+		]));
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireMcpServerSupportScope() { return undefined; }
+		}();
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+			override getClientWorkingDirectoryUris() { return []; }
+		}();
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
+
+		assert.deepStrictEqual(hint, {
+			message: 'Found 2 workspace customizations and 1 user customization that are present but not used by Claude and could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [
+				{ type: CustomizationMigrationType.UserData, count: 1 },
+				{ type: CustomizationMigrationType.PromptFiles, count: 2 },
 			],
 		});
 	});
@@ -883,7 +911,7 @@ suite('CustomizationMigrationService', () => {
 			disabledRequestedTypes: [],
 			disabledSourceFolderTypes: [],
 			promptOnlyHint: {
-				message: 'Found 1 workspace customization file that is present but not used by Copilot and could be migrated.',
+				message: 'Found 1 workspace customization that is present but not used by Copilot and could be migrated.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},

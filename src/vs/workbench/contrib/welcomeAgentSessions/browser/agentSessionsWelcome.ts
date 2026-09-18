@@ -615,6 +615,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				},
 				this.commandService,
 				this.telemetryService,
+				this.configurationService,
 			);
 			this.sessionsControlDisposables.add(agentsBanner.disposables);
 			append(container, agentsBanner.element);

@@ -34,7 +34,6 @@ import { Constants } from '../../../../base/common/uint.js';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ExplorerItem, NewExplorerItem } from '../common/explorerModel.js';
-import { getErrorMessage } from '../../../../base/common/errors.js';
 import { triggerUpload } from '../../../../base/browser/dom.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -1277,7 +1276,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		notificationService.error(toErrorMessage(new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))), false));
+		notificationService.error(toErrorMessage(e, false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.

@@ -15,7 +15,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -43,7 +43,7 @@ import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
-import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { ChatRequestTextPart, IChatPromptText, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
 
@@ -155,6 +155,8 @@ export interface IChatRequestModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	setShouldBeBlocked(value: boolean): void;
 	readonly modelId?: string;
+	/** The selected model's configuration when this request was submitted. */
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
 	/** The request source, independent of the request text or responding participant. */
@@ -408,6 +410,7 @@ export interface IChatRequestModelParameters {
 	attachedContext?: IChatRequestVariableEntry[];
 	isCompleteAddedRequest?: boolean;
 	modelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	restoredId?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
@@ -431,6 +434,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
 	public readonly modelId?: string;
+	public readonly modelConfiguration?: IStringDictionary<unknown>;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
@@ -510,6 +514,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._attachedContext = params.attachedContext;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this.modelId = params.modelId;
+		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
@@ -1019,6 +1024,17 @@ export class Response extends AbstractResponse implements IDisposable {
 			}));
 			this._responseParts.push(progress);
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'mcpAuthenticationRequired') {
+			this._responseParts.push(progress);
+			let initialUpdate = true;
+			registerAutorunSelfDisposable(this._store, reader => {
+				progress.servers.read(reader);
+				this._contentChanged(initialUpdate ? quiet : false);
+				initialUpdate = false;
+				if (progress.isUsed) {
+					reader.dispose();
+				}
+			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
 			this._contentChanged(quiet);
@@ -1939,6 +1955,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
 	requestSource?: ChatRequestSource;
@@ -2976,6 +2993,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
+			modelConfiguration: raw.modelConfiguration,
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			requestSource: getRestoredChatRequestSource(raw, parsedRequest.text),
@@ -3191,6 +3209,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		origin?: IChatRequestOrigin,
 		isRequestHiddenFromTranscript?: boolean,
 		requestSource?: ChatRequestSource,
+		modelConfiguration?: IStringDictionary<unknown>,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3213,6 +3232,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			attachedContext: attachments,
 			isCompleteAddedRequest,
 			modelId,
+			modelConfiguration,
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
@@ -3380,6 +3400,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
+					modelConfiguration: r.modelConfiguration,
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					...(r.requestSource !== undefined ? { requestSource: r.requestSource } : {}),
@@ -3423,13 +3444,31 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 }
 
-export function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {
+export function updateRanges(variableData: IChatRequestVariableData, promptText: IChatPromptText): IChatRequestVariableData {
+	const mapOffset = (offset: number): number => {
+		if (!promptText.rangeEdits) {
+			return offset - promptText.diff;
+		}
+
+		const leadingTrim = promptText.leadingTrim ?? 0;
+		let mappedOffset = offset - leadingTrim;
+		for (const edit of promptText.rangeEdits) {
+			const oldLength = edit.range.endExclusive - edit.range.start;
+			if (offset >= edit.range.endExclusive) {
+				mappedOffset += edit.newLength - oldLength;
+			} else if (offset > edit.range.start) {
+				return Math.max(0, mappedOffset - (offset - edit.range.start) + Math.min(offset - edit.range.start, edit.newLength));
+			}
+		}
+		return Math.max(0, mappedOffset);
+	};
+
 	return {
 		variables: variableData.variables.map(v => ({
 			...v,
 			range: v.range && {
-				start: v.range.start - diff,
-				endExclusive: v.range.endExclusive - diff
+				start: mapOffset(v.range.start),
+				endExclusive: mapOffset(v.range.endExclusive)
 			}
 		}))
 	};

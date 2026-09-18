@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
@@ -780,7 +781,8 @@ function buildMobileSheetShell(
 			if (event.key !== 'Tab') {
 				return;
 			}
-			const targets = [...headerFocusTargets, ...bodyFocusTargets].filter(target => target.getAttribute('aria-disabled') !== 'true');
+			// aria-disabled buttons remain in the native tab order while their action is pending.
+			const targets = [...headerFocusTargets, ...bodyFocusTargets];
 			const first = targets[0];
 			const last = targets[targets.length - 1];
 			if (event.shiftKey && event.target === first) {
@@ -828,6 +830,7 @@ function buildMobileSheetShell(
 		adjustForKeyboard();
 	}
 
+	let windowClosing = false;
 	const close = (onAnimationEnd?: () => void) => {
 		if (closed) {
 			return;
@@ -839,11 +842,21 @@ function buildMobileSheetShell(
 		// so nothing fires during the 180ms close animation. The DOM
 		// node itself is removed at the end of the animation.
 		disposables.dispose();
-		DOM.getWindow(workbenchContainer).setTimeout(() => {
+		const finish = () => {
 			overlay.remove();
 			onAnimationEnd?.();
-		}, 180);
+		};
+		if (windowClosing) {
+			finish();
+		} else {
+			win.setTimeout(finish, 180);
+		}
 	};
+
+	disposables.add(Event.once(Event.filter(Event.any(DOM.onWillUnregisterWindow, DOM.onDidUnregisterWindow), window => window === win))(() => {
+		windowClosing = true;
+		options.onDismiss();
+	}));
 
 	return { overlay, backdrop, sheet, disposables, close, setBodyFocusTargets: targets => { bodyFocusTargets = targets; } };
 }

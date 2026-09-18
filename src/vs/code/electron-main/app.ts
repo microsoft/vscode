@@ -16,6 +16,7 @@ import { getPathLabel } from '../../base/common/labels.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
+import { mark } from '../../base/common/performance.js';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
 import { assertType } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
@@ -150,6 +151,7 @@ import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../pla
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
+import { createRemoteResourceRequestHandler } from '../../platform/protocol/electron-main/remoteResourceProtocol.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -690,6 +692,7 @@ export class CodeApplication extends Disposable {
 	}
 
 	async startup(): Promise<void> {
+		mark('code/willStartCodeApplication');
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
@@ -731,17 +734,21 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Resolve unique machine ID
+		mark('code/willResolveMachineId');
 		const [machineId, sqmId, devDeviceId] = await Promise.all([
 			resolveMachineId(this.stateService, this.logService),
 			resolveSqmId(this.stateService, this.logService),
 			resolveDevDeviceId(this.stateService, this.logService)
 		]);
+		mark('code/didResolveMachineId');
 
 		// Shared process
 		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId, devDeviceId);
 
 		// Services
+		mark('code/willInitAppServices');
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
+		mark('code/didInitAppServices');
 
 		// Error telemetry
 		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
@@ -769,16 +776,22 @@ export class CodeApplication extends Disposable {
 		this._register(appInstantiationService.createInstance(UserDataProfilesHandler));
 
 		// Init Channels
+		mark('code/willInitChannels');
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
+		mark('code/didInitChannels');
 
 		// Setup Protocol URL Handlers
+		mark('code/willSetupProtocolUrlHandlers');
 		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
+		mark('code/didSetupProtocolUrlHandlers');
 
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Open Windows
+		mark('code/willOpenFirstWindow');
 		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
+		mark('code/didOpenFirstWindow');
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
@@ -1622,12 +1635,8 @@ export class CodeApplication extends Disposable {
 		this.installMutex();
 
 		// Remote Authorities
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
+		protocol.handle(Schemas.vscodeRemoteResource, createRemoteResourceRequestHandler(this.logService));
+		this._register(toDisposable(() => protocol.unhandle(Schemas.vscodeRemoteResource)));
 
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
