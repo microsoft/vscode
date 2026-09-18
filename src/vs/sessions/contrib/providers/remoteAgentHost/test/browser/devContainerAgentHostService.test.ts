@@ -120,6 +120,11 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 		this.connection?.dispose();
 	}
 
+	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
+		this._connections = this._connections.map(connection => ({ ...connection, status }));
+		this._onDidChangeConnections.fire();
+	}
+
 	dispose(): void {
 		this._onDidChangeConnections.dispose();
 	}
@@ -691,6 +696,76 @@ suite('Dev Container Agent Host Service', () => {
 			phases: ['Starting Dev Container...', 'Connecting to Dev Container...', 'Waiting for agents in Dev Container...'],
 		});
 	});
+
+	for (const outcome of ['connected', 'canceled', 'disconnected'] as const) {
+		test(`a new session follows an automatic reconnect until ${outcome}`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteAgentHostService = store.add(new TestRemoteAgentHostService());
+			const service = store.add(new TestDevContainerAgentHostService(
+				instantiationService,
+				remoteAgentHostService,
+				store.add(new TestSessionsProvidersService()),
+				store.add(new InMemoryStorageService()),
+			));
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			const workspace = URI.file('/source');
+			let connectorCalls = 0;
+			let connectorProgress: IProgress<IDevContainerAgentHostProgress> | undefined;
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				createConnection: async (_workspace, address, _token, progress) => {
+					connectorCalls++;
+					connectorProgress = progress;
+					return {
+						address,
+						name: 'Dev Container',
+						workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/source' }),
+						transportFactory: () => undefined as never,
+					};
+				},
+			}));
+			const original = await service.connect(workspace, CancellationToken.None);
+			remoteAgentHostService.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+			connectorProgress!.report({ message: 'Reconnecting', output: 'already running\n' });
+			const updates: IDevContainerAgentHostProgress[] = [];
+			const tokenSource = store.add(new CancellationTokenSource());
+			let settled = false;
+			const joining = service.connect(workspace, tokenSource.token, { report: update => updates.push(update) });
+			void joining.then(() => settled = true, () => settled = true);
+			await Promise.resolve();
+			await Promise.resolve();
+			const settledBeforeReconnection = settled;
+			connectorProgress!.report({ output: 'new output\n' });
+			if (outcome === 'connected') {
+				remoteAgentHostService.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+				await (await joining).release();
+			} else if (outcome === 'canceled') {
+				tokenSource.cancel();
+				await assert.rejects(joining, CancellationError);
+				remoteAgentHostService.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			} else {
+				remoteAgentHostService.dropConnection();
+				await assert.rejects(joining, /disconnected while reconnecting/);
+			}
+			connectorProgress!.report({ output: 'after waiting\n' });
+			const removedBeforeOriginalRelease = remoteAgentHostService.removedAddress;
+			await original.release();
+			assert.deepStrictEqual({
+				connectorCalls,
+				settledBeforeReconnection,
+				removedBeforeOriginalRelease,
+				updates,
+			}, {
+				connectorCalls: 1,
+				settledBeforeReconnection: false,
+				removedBeforeOriginalRelease: undefined,
+				updates: [
+					{ message: 'Reconnecting', output: 'already running\n' },
+					{ message: 'Reconnecting', output: 'already running\nnew output\n' },
+				],
+			});
+		});
+	}
 
 	test('disconnect cancels an in-flight container connection', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

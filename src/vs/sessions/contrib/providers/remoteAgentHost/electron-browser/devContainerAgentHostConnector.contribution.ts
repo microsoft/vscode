@@ -332,20 +332,23 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		const workspaceFolder = devContainerSourcePath(workspaceUri);
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
 		const outputWriter = new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService);
-		const progressListener = progress ? Event.filter(mainService.onDidOutput, event => event.connectionId === connectionId)(
-			event => progress.report({ output: event.data })
-		) : undefined;
+		const connectWithProgress = async (connectionId: string) => {
+			const listener = progress ? Event.filter(mainService.onDidOutput, event => event.connectionId === connectionId)(
+				event => progress.report({ output: event.data })
+			) : undefined;
+			try {
+				return await mainService.connect({ connectionId, workspaceFolder, name });
+			} finally {
+				listener?.dispose();
+			}
+		};
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
 		try {
-			const result = await mainService.connect({
-				connectionId,
-				workspaceFolder,
-				name,
-			});
+			const result = await connectWithProgress(connectionId);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -370,11 +373,8 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				const reconnectConnectionId = generateUuid();
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
-					await mainService.connect({
-						connectionId: reconnectConnectionId,
-						workspaceFolder,
-						name,
-					});
+					progress?.report({ message: localize('devContainerAgentHost.reconnecting', "Reconnecting to Dev Container...") });
+					await connectWithProgress(reconnectConnectionId);
 					return {
 						connectionId: reconnectConnectionId,
 						close: async () => {
@@ -444,7 +444,6 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 			}
 			throw error;
 		} finally {
-			progressListener?.dispose();
 			cancellationListener.dispose();
 		}
 	}

@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isClientTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -213,6 +214,7 @@ suite('Dev Container Agent Host Connector', () => {
 			const outputs = store.add(new Emitter<{ connectionId: string; data: string }>());
 			const output: string[] = [];
 			const progressOutput: string[] = [];
+			const phases: string[] = [];
 			let dockerChecks = 0;
 			let dockerAvailable = true;
 			let supported = true;
@@ -227,7 +229,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
-					outputs.fire({ connectionId: config.connectionId, data: 'remote container output' });
+					outputs.fire({ connectionId: config.connectionId, data: `remote container output ${configs.length}` });
 					outputs.fire({ connectionId: 'unrelated', data: 'unrelated output' });
 					return { connectionId: config.connectionId, address: 'devcontainer:container', name: config.name, remoteWorkspaceFolder: '/workspaces/project' };
 				}
@@ -280,25 +282,47 @@ suite('Dev Container Agent Host Connector', () => {
 			const withoutDocker = await connector.isAvailable(workspaceUri);
 			dockerAvailable = true;
 			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None, {
-				report: update => { if (update.output) { progressOutput.push(update.output); } },
+				report: update => {
+					if (update.output) {
+						progressOutput.push(update.output);
+					}
+					if (update.message) {
+						phases.push(update.message);
+					}
+				},
 			});
+			if (target.transportDisposable) {
+				store.add(target.transportDisposable);
+			}
 			outputs.fire({ connectionId: configs[0].connectionId, data: 'after startup' });
+			const firstTransport = store.add(target.transportFactory());
+			assert.ok(isClientTransport(firstTransport));
+			await firstTransport.connect();
+			firstTransport.dispose();
+			const reconnectedTransport = store.add(target.transportFactory());
+			assert.ok(isClientTransport(reconnectedTransport));
+			await reconnectedTransport.connect();
+			outputs.fire({ connectionId: configs[0].connectionId, data: 'stale connection' });
+			outputs.fire({ connectionId: configs[1].connectionId, data: 'after reconnect' });
+			reconnectedTransport.dispose();
 			target.transportDisposable?.dispose();
 			await Promise.resolve();
 			assert.deepStrictEqual({
 				available, oldHostAvailable, withoutDocker, dockerChecks,
 				workspaces: configs.map(config => config.workspaceFolder),
-				output: output.filter(value => value === 'remote container output'),
+				output: output.filter(value => value.startsWith('remote container output')),
 				progressOutput,
+				phases,
 				workspace: target.workspaceUri,
 				disconnected: disconnected.length,
 			}, {
 				available: true, oldHostAvailable: false, withoutDocker: false, dockerChecks: 2,
-				workspaces: ['/remote/project'],
-				output: ['remote container output'],
-				progressOutput: ['remote container output'],
+				workspaces: ['/remote/project', '/remote/project'],
+				output: ['remote container output 1', 'remote container output 2'],
+				progressOutput: ['remote container output 1', 'remote container output 2'],
+				phases: ['Reconnecting to Dev Container...'],
 				workspace: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority('devcontainer:test'), path: '/workspaces/project' }),
-				disconnected: 1,
+				disconnected: 2,
 			});
 		});
 	}

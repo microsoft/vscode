@@ -64,7 +64,7 @@ export interface IDevContainerAgentHostService {
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	/** Reports the current phase and a bounded snapshot of startup output. */
+	/** Reports the current phase and a bounded output snapshot, including when joining an automatic reconnect. */
 	connect(workspaceUri: URI, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<IDevContainerAgentHostTarget>;
 	disconnect(workspaceUri: URI): Promise<void>;
 }

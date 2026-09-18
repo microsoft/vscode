@@ -118,6 +118,12 @@ export class AgentsWindow {
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
+	async waitForSessionPreparationOutput(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden]) .chat-terminal-output-container.expanded .xterm-screen`).waitFor({ state: 'visible', timeout: 30_000 });
+		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+	}
+
 	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		await this.fillQuickInputAfterCommand('workbench.action.sessions.connectViaSSH', 'Connect via SSH', `${options.username}@${options.host}:${options.port}`, 120_000);

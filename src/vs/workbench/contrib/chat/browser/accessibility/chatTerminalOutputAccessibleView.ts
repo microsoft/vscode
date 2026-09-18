@@ -9,6 +9,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ITerminalChatService } from '../../../terminal/browser/terminal.js';
+import { IChatWidgetService } from '../chat.js';
 
 export class ChatTerminalOutputAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 115;
@@ -17,13 +18,9 @@ export class ChatTerminalOutputAccessibleView implements IAccessibleViewImplemen
 	readonly when = ChatContextKeys.inChatTerminalToolOutput;
 
 	getProvider(accessor: ServicesAccessor) {
-		const terminalChatService = accessor.get(ITerminalChatService);
-		const part = terminalChatService.getFocusedProgressPart();
-		if (!part) {
-			return;
-		}
-
-		const content = part.getCommandAndOutputAsText();
+		const transcriptOutput = accessor.get(IChatWidgetService).lastFocusedWidget?.getTranscriptProgressOutput?.();
+		const part = transcriptOutput ? undefined : accessor.get(ITerminalChatService).getFocusedProgressPart();
+		const content = transcriptOutput?.provideContent() ?? part?.getCommandAndOutputAsText();
 		if (!content) {
 			return;
 		}
@@ -31,8 +28,8 @@ export class ChatTerminalOutputAccessibleView implements IAccessibleViewImplemen
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.ChatTerminalOutput,
 			{ type: AccessibleViewType.View, id: AccessibleViewProviderId.ChatTerminalOutput, language: 'text' },
-			() => content,
-			() => part.focusOutput(),
+			() => transcriptOutput?.provideContent() ?? content,
+			() => transcriptOutput ? transcriptOutput.focus() : part?.focusOutput(),
 			AccessibilityVerbositySettingId.TerminalChatOutput
 		);
 	}
