@@ -6,6 +6,7 @@
 import type MarkdownIt from 'markdown-it';
 import * as vscode from 'vscode';
 import { extendMarkdownIt as extendMarkdownItWithFrontMatter } from './extensions/yamlPreamble/yamlPreamble';
+import { extendMarkdownIt as extendMarkdownItWithTaskList } from './extensions/taskList/taskList';
 import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MarkdownPreviewConfiguration } from './preview/previewConfig';
@@ -146,6 +147,7 @@ export class MarkdownItEngine implements IMdParser {
 				}
 
 				md = extendMarkdownItWithFrontMatter(md);
+				md = extendMarkdownItWithTaskList(md);
 
 				this.#addImageRenderer(md);
 				this.#addFencedRenderer(md);
