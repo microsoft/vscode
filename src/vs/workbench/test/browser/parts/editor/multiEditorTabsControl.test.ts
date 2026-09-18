@@ -391,6 +391,17 @@ suite('MultiEditorTabsControl', () => {
 		const wrappedUpper = measure();
 		const measurements = [multiple, single, wrappedBottom, wrappedUpper];
 
+		const oldWrappedOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, tabSizing: 'fit', tabActionLocation: 'left' };
+		control.updateOptions(oldWrappedOptions, partOptions);
+		await layoutConnectedGroup(group, 400);
+		const leftMultiple = measure();
+
+		model.closeEditor(secondEditor);
+		control.closeEditor(secondEditor);
+		await layoutConnectedGroup(group, 400);
+		const leftSingle = measure();
+
 		assert.deepStrictEqual({
 			single: {
 				top: single.top === multiple.top,
@@ -407,11 +418,18 @@ suite('MultiEditorTabsControl', () => {
 				right: measurements.every(measurement => measurement.right === multiple.right),
 				left: measurements.every(measurement => measurement.left === multiple.left),
 			},
+			leftAction: {
+				top: leftSingle.top === leftMultiple.top,
+				right: leftSingle.right === leftMultiple.right,
+				left: leftSingle.left === leftMultiple.left,
+				width: leftSingle.width === leftMultiple.width,
+			},
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
 			wrapped: { top: true, right: true, left: true },
 			horizontal: { right: true, left: true },
+			leftAction: { top: true, right: true, left: true, width: true },
 			actionPadding: true,
 		});
 	});
