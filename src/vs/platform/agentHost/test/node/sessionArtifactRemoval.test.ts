@@ -65,6 +65,7 @@ suite('Session Artifact Removal', () => {
 	function addConcurrentReference({ stateManager, session, artifactAccessor }: Awaited<ReturnType<typeof createFixture>>): Promise<string> {
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
+			useCompactPrompts: artifactAccessor.useCompactPrompts,
 			persist: artifactAccessor.persist,
 		});
 		return Promise.resolve(group.execute(stateManager, { sessionUri: session.toString(), chatUri: buildDefaultChatUri(session), turnId: 'turn' }, ArtifactServerToolName.AddArtifactOrReference, {
@@ -258,6 +259,24 @@ suite('Session Artifact Removal', () => {
 			meta: withSessionArtifacts(meta, artifacts.slice(2)),
 			persisted: stringifySessionArtifacts(artifacts.slice(2)),
 		});
+	});
+
+	test('removing an already-absent id is idempotent and leaves the collection unchanged', async () => {
+		const database = store.add(await SessionDatabase.open(':memory:'));
+		const { service, session, stateManager, meta } = await createFixture(database);
+		await service.removeSessionArtifact(session, 'pr');
+		const afterFirstRemoval = stateManager.getSessionState(session.toString())?._meta;
+		// The same id removed again, and one that was never recorded, are both no-ops.
+		await service.removeSessionArtifact(session, 'pr');
+		await service.removeSessionArtifact(session, 'never-recorded');
+		assert.deepStrictEqual({
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+		}, {
+			meta: afterFirstRemoval,
+			persisted: stringifySessionArtifacts(artifacts.slice(1)),
+		});
+		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, artifacts.slice(1)));
 	});
 
 	test('rejects empty ids without changing metadata', async () => {

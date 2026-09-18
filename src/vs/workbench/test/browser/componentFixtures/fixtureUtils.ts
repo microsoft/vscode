@@ -101,6 +101,7 @@ import { TestContextService } from '../../common/workbenchTestServices.js';
 import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
@@ -607,9 +608,9 @@ export class FixtureModelService extends ModelService {
  * are automatically resolvable. URIs without a backing model fail loudly so
  * that callers don't silently receive a null `textEditorModel`.
  */
-export class FixtureTextModelService extends mock<ITextModelService>() {
+export class FixtureTextModelService extends InMemoryTextModelService {
 	constructor(@IModelService private readonly _modelService: IModelService) {
-		super();
+		super(_modelService);
 	}
 
 	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -617,19 +618,7 @@ export class FixtureTextModelService extends mock<ITextModelService>() {
 		if (!model) {
 			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
 		}
-		return {
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			object: { textEditorModel: model } as IResolvedTextEditorModel,
-			dispose() { },
-		};
-	}
-
-	override registerTextModelContentProvider(): IDisposable {
-		return { dispose() { } };
-	}
-
-	override canHandleResource(): boolean {
-		return false;
+		return super.createModelReference(resource);
 	}
 }
 

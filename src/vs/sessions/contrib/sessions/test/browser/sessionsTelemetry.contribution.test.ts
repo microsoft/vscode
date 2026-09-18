@@ -33,6 +33,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.contribution.js';
+import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -259,6 +260,23 @@ suite('SessionsTelemetryContribution', () => {
 			{ isNewSession: false, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: false, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
 		]);
+	});
+
+	test('requestSent includes editor usage without incrementing it for Agents messages', async () => {
+		const { telemetryService, storageService, onDidSendRequest } = setup([session]);
+		const usage = new EditorChatUsage(storageService);
+		usage.recordSubmission('local', true, true, false, Date.now() - 5000);
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'agents message' } });
+		await Promise.resolve();
+		const payload = telemetryService.requestSentPayloads[0];
+		assert.ok(payload && typeof payload === 'object');
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(payload).filter(([key]) => key.startsWith('editor'))), {
+			editorSessionsByProvider: '{"local":1}',
+			editorMessages: 1,
+			editorMessagesWithOtherSessionInProgress: 1,
+			editorMessagesWithOtherSessionInProgressAcrossWindows: 1,
+			editorLastMessageSecondsAgo: 5,
+		});
 	});
 
 	test('requestSent snapshots the non-archived Sessions list count independently of visible grid slots', async () => {

@@ -451,6 +451,55 @@
         "$generated": true
       },
       {
+        "command": "markdown.editor.copyLinesUp",
+        "title": "%markdown.editor.copyLinesUp.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesDown",
+        "title": "%markdown.editor.copyLinesDown.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.moveLinesUp",
+        "title": "%markdown.editor.moveLinesUp.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.moveLinesDown",
+        "title": "%markdown.editor.moveLinesDown.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLines",
+        "title": "%markdown.editor.deleteLines.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.joinLines",
+        "title": "%markdown.editor.joinLines.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.toggleLocked",
+        "title": "%markdown.editor.toggleLocked.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
         "command": "markdown.editor.undo",
         "title": "%markdown.editor.undo.title%",
         "category": "Markdown Editor",
@@ -820,6 +869,41 @@
         },
         {
           "command": "markdown.editor.deleteLineRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.copyLinesUp",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.copyLinesDown",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.moveLinesUp",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.moveLinesDown",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.deleteLines",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.joinLines",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.toggleLocked",
           "when": "false",
           "$generated": true
         },
@@ -1211,6 +1295,72 @@
       {
         "command": "markdown.editor.deleteLineRight",
         "key": "ctrl+k",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesUp",
+        "key": "shift+alt+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesUp",
+        "key": "shift+alt+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isWindows",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesUp",
+        "key": "ctrl+shift+alt+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isLinux",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesDown",
+        "key": "shift+alt+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesDown",
+        "key": "shift+alt+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isWindows",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.copyLinesDown",
+        "key": "ctrl+shift+alt+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isLinux",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.moveLinesUp",
+        "key": "alt+up",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.moveLinesDown",
+        "key": "alt+down",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLines",
+        "key": "shift+cmd+k",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.deleteLines",
+        "key": "ctrl+shift+k",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isMac",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.joinLines",
+        "key": "ctrl+j",
         "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && isMac",
         "$generated": true
       },
@@ -1791,7 +1941,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "^0.0.2-95",
+    "@vscode/markdown-editor": "^0.0.2-99",
     "@vscode/observables": "^0.1.1-0",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",

@@ -302,11 +302,13 @@ async function resolveAgentHostSessionType(agentHostService: IAgentHostService):
 	return `agent-host-${resolved.provider}`;
 }
 
+type NewAgentHostSessionSendOptions = Parameters<typeof openChatSession>[2];
+
 // Open a new Agent Host session at the given position. Shared by the session
 // type picker command and the static sidebar/editor commands below.
 // Delegates to `openChatSession` so the session type picker, context keys,
 // and welcome flows all stay in sync with the dynamic per-agent path.
-async function openNewAgentHostSession(accessor: ServicesAccessor, position: ChatSessionPosition): Promise<void> {
+async function openNewAgentHostSession(accessor: ServicesAccessor, position: ChatSessionPosition, chatSendOptions?: NewAgentHostSessionSendOptions): Promise<void> {
 	// Snapshot the services we need synchronously — `accessor` is only valid
 	// before the first `await`. Use the instantiation service to mint a fresh
 	// accessor for the downstream `openChatSession` call.
@@ -317,7 +319,7 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 		type: sessionType,
 		displayName: getAgentSessionProviderName(sessionType),
 		position,
-	}));
+	}, chatSendOptions));
 }
 
 // Static sidebar/editor open commands for the Agent Host umbrella scheme.
@@ -327,9 +329,9 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 // invoke before the dynamic registration has occurred.
 CommandsRegistry.registerCommand(
 	`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
-	accessor => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar)
+	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar, chatSendOptions)
 );
 CommandsRegistry.registerCommand(
 	`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
-	accessor => openNewAgentHostSession(accessor, ChatSessionPosition.Editor)
+	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Editor, chatSendOptions)
 );
