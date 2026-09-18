@@ -145,8 +145,6 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			},
 			notifyPolicyRestarted: () => {
 				this._logService.info('[OTel] Extensions were restarted to apply enterprise telemetry policy.');
-				void vscode.window.showInformationMessage(vscode.l10n.t("Extensions were restarted to apply your organization's Copilot telemetry policy.")).then(undefined,
-					error => this._logService.error(error, '[OTel] Failed to show the telemetry policy restart confirmation'));
 			},
 		}, this._logService);
 		// One startup check and configuration-event checks; no polling.

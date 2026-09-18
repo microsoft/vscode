@@ -108,10 +108,10 @@ the user's maps. Other VS Code settings are unaffected.
 
 When late enterprise OTel settings turn on external export after Copilot's telemetry service
 started without it, Copilot can restart the extension hosts for that window to recover. It shows
-a progress notification before requesting the restart and confirms it afterward. The progress
-notification clears automatically when the host restarts or the attempt ends, rather than
-leaving a stale restart warning. This also interrupts other extensions
-in the window. If the restart is unavailable, vetoed, or fails to apply the settings,
+a progress notification before requesting the restart; that notice clears automatically when
+the host restarts or the attempt ends. Successful recovery is logged without another toast.
+Restarting also interrupts other extensions in the window. If the restart is unavailable,
+vetoed, or fails to apply the settings,
 a warning offers **Reload Window** instead. User changes and policy withdrawal remain
 opt-in reloads. Exporter behavior and environment-variable precedence are unchanged.
 It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
