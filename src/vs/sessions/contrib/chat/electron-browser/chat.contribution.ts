@@ -110,6 +110,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			() => getNonArchivedSessionListCount(this.sessionsManagementService.getSessions()),
 			this.telemetryService,
 			this.lifecycleService,
+			this.storageService,
 		);
 		if (!context.hasSessionArgument) {
 			this._workspaceSelectionTelemetry.value = this.instantiationService.createInstance(SessionsWorkspaceSelectionTelemetry, source, context);

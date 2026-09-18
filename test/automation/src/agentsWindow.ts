@@ -289,6 +289,11 @@ export class AgentsWindow {
 		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
 	}
 
+	private async isSessionTypePickerDisabled(): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return await picker.getAttribute('aria-disabled') === 'true';
+	}
+
 	/**
 	 * Returns whether the given session type appears in the new-session picker.
 	 *
@@ -368,7 +373,7 @@ export class AgentsWindow {
 	async selectSessionType(label: string, options?: { providerLabel?: string }): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
-		if (!options?.providerLabel && await this.isSessionTypeSelected(label)) {
+		if (await this.isSessionTypeSelected(label) && (!options?.providerLabel || await this.isSessionTypePickerDisabled())) {
 			return;
 		}
 
@@ -418,7 +423,7 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			if (!providerNeedle && await this.isSessionTypeSelected(label)) {
+			if (await this.isSessionTypeSelected(label) && (!providerNeedle || await this.isSessionTypePickerDisabled())) {
 				return;
 			}
 

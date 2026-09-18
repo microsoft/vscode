@@ -16,10 +16,11 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
+import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
-import type { ITurnTokenTotal, ToolCallContributor } from '../common/state/sessionState.js';
+import { isSubagentChatUri, isSubagentSession, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
@@ -55,6 +56,12 @@ interface ITurnBlocker {
 	readonly toolCallId: string | undefined;
 }
 
+interface IRootTurnTiming {
+	readonly hostRootTurnOrdinal: number;
+	readonly hostProcessAgeMs: number;
+	titleGenerationStrategy: AutomaticTitleGenerationStrategy | undefined;
+}
+
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
 	readonly stopWatch: StopWatch;
@@ -64,6 +71,7 @@ interface ITurnTiming {
 	readonly turnId: string;
 	readonly parentTurnId: string | undefined;
 	readonly parentToolCallId: string | undefined;
+	readonly rootTiming: IRootTurnTiming | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly selectedModel: string | undefined;
@@ -140,10 +148,12 @@ interface ITurnUsage {
 export const IAgentHostTurnTracker = createDecorator<AgentHostTurnTracker>('agentHostTurnTracker');
 
 export class AgentHostTurnTracker extends Disposable {
+	private _hostRootTurnOrdinal = 0;
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _turnTimings = new Map<string, ITurnTiming>();
+	private readonly _rootTurnTimings = new Map<string, IRootTurnTiming>();
 	private readonly _turnUsages = new Map<string, ITurnUsage>();
 	private readonly _hangWatchdogs = this._register(new DisposableMap<string>());
 	/** Maps `session:requestId` to the turn key blocked on that request. */
@@ -170,6 +180,7 @@ export class AgentHostTurnTracker extends Disposable {
 		super();
 		this._register(toDisposable(() => {
 			this._turnTimings.clear();
+			this._rootTurnTimings.clear();
 			this._turnUsages.clear();
 			this._blockerTurnKeys.clear();
 		}));
@@ -177,7 +188,17 @@ export class AgentHostTurnTracker extends Disposable {
 
 	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session)): void {
 		const key = this._key(session, turnId);
-		this._turnTimings.set(key, {
+		let rootTiming = this._rootTurnTimings.get(key);
+		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(parseChatUri(session)?.session ?? session) && !rootTiming;
+		if (isNewRootTurn) {
+			rootTiming = {
+				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
+				hostProcessAgeMs: Math.round(process.uptime() * 1000),
+				titleGenerationStrategy: undefined,
+			};
+			this._rootTurnTimings.set(key, rootTiming);
+		}
+		const timing: ITurnTiming = {
 			stopWatch: StopWatch.create(false),
 			agent,
 			session,
@@ -185,6 +206,7 @@ export class AgentHostTurnTracker extends Disposable {
 			turnId,
 			parentTurnId,
 			parentToolCallId,
+			rootTiming,
 			model,
 			modelTelemetryKind,
 			selectedModel: model,
@@ -212,10 +234,32 @@ export class AgentHostTurnTracker extends Disposable {
 			lastHangReason: undefined,
 			lastHangStopWatch: undefined,
 			quietWindows: 0,
-		});
+		};
+		this._turnTimings.set(key, timing);
+		if (isNewRootTurn) {
+			this._logTurnTiming(timing);
+		}
 		this._turnUsages.set(key, {});
 		this._armHangWatchdog(key);
 		this._onDidStartTurn.fire(agent.id);
+	}
+
+	/** Captures the effective title strategy once, before sending a root turn to its provider. */
+	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing?.rootTiming && timing.rootTiming.titleGenerationStrategy === undefined) {
+			timing.rootTiming.titleGenerationStrategy = strategy;
+			// Enrich the start marker without resampling its cohort fields.
+			this._logTurnTiming(timing);
+		}
+	}
+
+	private _logTurnTiming(timing: ITurnTiming): void {
+		this._logService.info(`[AgentHostTurnTiming] ${JSON.stringify({
+			schemaVersion: 1, sessionId: parseChatUri(timing.session)?.session ?? timing.session,
+			chatId: timing.session, turnId: timing.turnId, provider: timing.agent.id,
+			...timing.rootTiming,
+		})}`);
 	}
 
 	markFirstProgress(session: string, turnId: string): void {
@@ -449,6 +493,9 @@ export class AgentHostTurnTracker extends Disposable {
 			turnId,
 			parentTurnId: timing.parentTurnId,
 			parentToolCallId: timing.parentToolCallId,
+			hostRootTurnOrdinal: timing.rootTiming?.hostRootTurnOrdinal,
+			hostProcessAgeMs: timing.rootTiming?.hostProcessAgeMs,
+			titleGenerationStrategy: timing.rootTiming?.titleGenerationStrategy,
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
@@ -511,6 +558,11 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	clearSession(session: string): void {
 		const prefix = `${session}\0`;
+		for (const key of this._rootTurnTimings.keys()) {
+			if (key.startsWith(prefix)) {
+				this._rootTurnTimings.delete(key);
+			}
+		}
 		for (const [key, timing] of this._turnTimings) {
 			if (key.startsWith(prefix)) {
 				this._disposeTurn(key, timing);
@@ -531,6 +583,11 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	clearTurnsExcept(session: string, keepTurnIds: ReadonlySet<string>): void {
 		const prefix = `${session}\0`;
+		for (const key of this._rootTurnTimings.keys()) {
+			if (key.startsWith(prefix) && !keepTurnIds.has(key.slice(prefix.length))) {
+				this._rootTurnTimings.delete(key);
+			}
+		}
 		for (const [key, timing] of this._turnTimings) {
 			if (key.startsWith(prefix) && !keepTurnIds.has(timing.turnId)) {
 				this._disposeTurn(key, timing);

@@ -36,6 +36,10 @@
 	cursor: pointer;
 }
 
+.sessions-chat-agent-host-config .sessions-chat-picker-slot.sessions-chat-config-checkbox.resolving .action-label {
+	pointer-events: auto;
+}
+
 .sessions-chat-agent-host-config .sessions-chat-config-checkbox.disabled .action-label,
 .sessions-chat-agent-host-config .sessions-chat-config-checkbox.disabled .sessions-chat-dropdown-label,
 .sessions-chat-agent-host-config .sessions-chat-config-checkbox.resolving .action-label,

@@ -2489,7 +2489,7 @@ per-word capitalization does not survive translation. */
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px 6px 30px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
@@ -2508,10 +2508,6 @@ per-word capitalization does not survive translation. */
 .mcp-server-item.builtin {
 	cursor: default;
 	opacity: 0.85;
-}
-
-.mcp-server-item .mcp-server-icon {
-	display: none;
 }
 
 .mcp-server-item .mcp-server-details {
@@ -3802,5 +3798,4 @@ pane is first mounted. View switches inside the modal are not animated. */
 	inset: 0;
 	overflow: hidden;
 	box-sizing: border-box;
-	padding: 0 var(--vscode-spacing-size160) 0 0;
 }
