@@ -4347,7 +4347,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([sdkSession('test-session-1', previous.fsPath)]);
 			const resumedConfigs: Array<{
 				workingDirectory: string | undefined;
-				skillDirectories: readonly string[] | undefined;
+				skillDirectoryNames: readonly string[] | undefined;
 				instructionDirectories: readonly string[] | undefined;
 				mcpServerNames: readonly string[];
 				hasClientTool: boolean;
@@ -4355,7 +4355,7 @@ suite('CopilotAgent', () => {
 			client.resumeSession = async (_sessionId, options) => {
 				resumedConfigs.push({
 					workingDirectory: options?.workingDirectory,
-					skillDirectories: options?.skillDirectories,
+					skillDirectoryNames: options?.skillDirectories?.map(directory => basename(directory)),
 					instructionDirectories: options?.instructionDirectories,
 					mcpServerNames: Object.keys(options?.mcpServers ?? {}),
 					hasClientTool: options?.tools?.some(tool => tool.name === 'workspace_client_tool') ?? false,
@@ -4395,7 +4395,7 @@ suite('CopilotAgent', () => {
 				}, {
 					resumedConfigs: [{
 						workingDirectory: next.fsPath,
-						skillDirectories: [],
+						skillDirectoryNames: ['customize-cloud-agent', 'github-pr-media'],
 						instructionDirectories: [],
 						mcpServerNames: ['workspace-server'],
 						hasClientTool: true,
@@ -14677,7 +14677,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{
 					workingDirectory: capturedConfig.workingDirectory,
-					skillDirectories: capturedConfig.skillDirectories,
+					skillDirectoryNames: capturedConfig.skillDirectories?.map(directory => basename(directory)),
 					instructionDirectories: capturedConfig.instructionDirectories,
 					agentDiscoveryProjectPaths: client.agentDiscoveryRequests.at(-1)?.projectPaths,
 					instructionDiscoveryProjectPaths: client.instructionDiscoveryRequests.at(-1)?.projectPaths,
@@ -14685,7 +14685,7 @@ suite('CopilotAgent', () => {
 				},
 				{
 					workingDirectory: worktree.fsPath,
-					skillDirectories: [],
+					skillDirectoryNames: ['customize-cloud-agent', 'github-pr-media'],
 					instructionDirectories: [],
 					agentDiscoveryProjectPaths: [worktree.fsPath],
 					instructionDiscoveryProjectPaths: [worktree.fsPath],
