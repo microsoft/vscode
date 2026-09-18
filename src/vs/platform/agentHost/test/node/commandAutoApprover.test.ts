@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawnSync } from 'child_process';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { gitAutoApproveRules } from '../../../terminal/common/autoApprove/gitAutoApproveRules.js';
@@ -740,8 +742,90 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual([
 				approver.shouldAutoApprove('Write-Host hi>../../outside.txt', options),
 				approver.shouldAutoApprove('Write-Host hi >../../outside.txt', options),
-			], ['approved', 'noMatch']);
+				approver.shouldAutoApprove('Write-Host pre"literal>text"post>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host pre"literal>text"post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal>text\'post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post', options),
+				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host escaped`>text', options),
+				approver.shouldAutoApprove('Write-Host payload>$null', options),
+			], ['approved', 'noMatch', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved']);
 			assert.deepStrictEqual(seen, ['../../outside.txt']);
+		});
+
+		test('classifies only generic tokens that begin with a PowerShell redirect', () => {
+			const seen: string[] = [];
+			const options = {
+				...pwsh,
+				isWriteDestApproved: (dest: string) => {
+					seen.push(dest);
+					return false;
+				},
+			};
+
+			const redirects = ['1', '2', '3', '4', '5', '6', '*'].map(stream => `Write-Host hi ${stream}>../../outside.txt`);
+			assert.deepStrictEqual([
+				...redirects.map(command => approver.shouldAutoApprove(command, options)),
+				approver.shouldAutoApprove('Write-Host hi 2>>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host hi 2>&1', options),
+				approver.shouldAutoApprove('Write-Host hi2>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host hi 2`>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host \'2>../../outside.txt\'', options),
+			], [
+				...redirects.map(() => 'noMatch'),
+				'noMatch',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
+			]);
+			assert.deepStrictEqual(seen, [
+				...redirects.map(() => '../../outside.txt'),
+				'../../outside.txt',
+			]);
+		});
+
+		(isWindows ? test : test.skip)('matches native PowerShell redirection AST boundaries', () => {
+			const commands = [
+				'Write-Host hi>outside.txt',
+				'Write-Host hi >outside.txt',
+				'Write-Host \"hi>outside.txt\"',
+				'Write-Host escaped`>outside.txt',
+				'Write-Host hi 2>outside.txt',
+				'Write-Host hi 2`>outside.txt',
+			];
+			const script = [
+				'$commands = [Console]::In.ReadToEnd() | ConvertFrom-Json',
+				'$result = @($commands | ForEach-Object {',
+				'$tokens = $null',
+				'$errors = $null',
+				'$ast = [System.Management.Automation.Language.Parser]::ParseInput($_, [ref]$tokens, [ref]$errors)',
+				'[pscustomobject]@{ RedirectCount = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.RedirectionAst] }, $true)).Count; ErrorCount = @($errors).Count }',
+				'})',
+				'$result | ConvertTo-Json -Compress',
+			].join('; ');
+			const expected = [
+				{ RedirectCount: 0, ErrorCount: 0 },
+				{ RedirectCount: 1, ErrorCount: 0 },
+				{ RedirectCount: 0, ErrorCount: 0 },
+				{ RedirectCount: 0, ErrorCount: 0 },
+				{ RedirectCount: 1, ErrorCount: 0 },
+				{ RedirectCount: 0, ErrorCount: 0 },
+			];
+			const testedExecutables: string[] = [];
+			for (const executable of ['powershell.exe', 'pwsh.exe']) {
+				const child = spawnSync(executable, ['-NoProfile', '-NonInteractive', '-Command', script], {
+					encoding: 'utf8',
+					input: JSON.stringify(commands),
+				});
+				if ((child.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+					continue;
+				}
+				assert.strictEqual(child.status, 0, child.stderr);
+				assert.deepStrictEqual(JSON.parse(child.stdout), expected);
+				testedExecutables.push(executable);
+			}
+			assert.ok(testedExecutables.length > 0);
 		});
 
 		// The grammar parses `--flag=value` as an assignment expression that
