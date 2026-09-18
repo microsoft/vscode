@@ -306,6 +306,11 @@ jobs:
         timeout-minutes: 15
         run: npm run test-node
 
+      - name: Run JSON schema client tests
+        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        timeout-minutes: 5
+        run: node node_modules/mocha/bin/mocha.js --reporter dot extensions/json-language-features/client/out/test/schemaRequests.test.js
+
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 30

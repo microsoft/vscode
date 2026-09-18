@@ -6,7 +6,7 @@
 import { Uri } from 'vscode';
 
 /**
- * Resolve the URL exactly as the schema transports will interpret it.
+ * Resolve the effective URL used for schema trust checks and request dispatch.
  */
 export function getSchemaRequestUrl(uri: Uri): URL {
 	return new URL(uri.toString(true));
@@ -19,7 +19,7 @@ function asMatchableUri(url: Uri | URL): Uri {
 		}
 		url = getSchemaRequestUrl(url);
 	}
-	return Uri.parse(url.href).with({ authority: url.host });
+	return Uri.parse(url.href).with({ authority: url.host, path: url.pathname });
 }
 
 /**

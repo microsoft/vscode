@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { readFileSync } from 'fs';
+import { promises as fs, readFileSync } from 'fs';
+import { createHash } from 'crypto';
 import { createRequire } from 'module';
+import { tmpdir } from 'os';
 import * as path from 'path';
 import { parse } from 'url';
 import { compileFunction, createContext } from 'vm';
@@ -20,6 +22,8 @@ export interface RequestOptions {
 	workspaceTrusted?: boolean;
 	schemas?: { url: string }[];
 	extensionSchemas?: string[];
+	cache?: boolean;
+	schemaResponse?: () => { content: string; etag?: string };
 }
 
 export interface RequestRecord {
@@ -89,6 +93,10 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 	const documents: string[] = [];
 	const files: string[] = [];
 	const handlers = new Map<string, (url: string) => Promise<string>>();
+	const commands = new Map<string, () => Promise<void>>();
+	const schemaNotifications: string[][] = [];
+	const cacheDirectory = options.cache ? await fs.mkdtemp(path.join(tmpdir(), 'json-schema-cache-test-')) : undefined;
+	const state = new Map<string, object>();
 	const subscriptions: Disposable[] = [];
 	const disposable = () => new Disposable();
 	const statusItem = () => ({ dispose() { }, update() { } });
@@ -103,7 +111,11 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 		}
 		async start() { }
 		async stop() { }
-		async sendNotification() { }
+		async sendNotification(type: MessageType, value: string | string[]) {
+			if (type.method === 'json/schemaContent') {
+				schemaNotifications.push(typeof value === 'string' ? [value] : [...value]);
+			}
+		}
 	}
 
 	const protocol = {
@@ -125,10 +137,15 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 			LogLevel: { Trace: 1 },
 			env: { appName: 'Schema Tests', appHost: transport },
 			l10n: { t: (message: string) => message },
-			commands: { registerCommand: disposable },
+			commands: {
+				registerCommand: (id: string, handler: () => Promise<void>) => {
+					commands.set(id, handler);
+					return new Disposable(() => commands.delete(id));
+				}
+			},
 			languages: { registerCodeActionsProvider: disposable },
 			extensions: { allAcrossExtensionHosts: [extension], onDidChange: disposable },
-			window: { createStatusBarItem: statusItem, createOutputChannel: () => log },
+			window: { createStatusBarItem: statusItem, createOutputChannel: () => log, showInformationMessage: async () => undefined },
 			workspace: {
 				isTrusted: options.workspaceTrusted ?? true,
 				getConfiguration: (section?: string) => ({
@@ -171,19 +188,23 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 			createSchemaLoadStatusItem: statusItem,
 			createLanguageStatusItem: statusItem
 		},
-		'./schemaCache': {},
 		'@vscode/extension-telemetry': class { dispose() { } },
 		fs: {
 			promises: {
-				readFile: async () => Buffer.from(JSON.stringify({ main: './client/out/node/jsonClientMain', aiKey: '' }))
+				...fs,
+				readFile: async (filename: string) => path.basename(filename) === 'package.json'
+					? Buffer.from(JSON.stringify({ main: './client/out/node/jsonClientMain', aiKey: '' }))
+					: fs.readFile(filename),
 			}
 		},
 		path,
+		crypto: { createHash },
 		'request-light': {
 			xhr: async ({ url }: { url: string }) => {
 				const destination = parse(url);
 				requests.push({ url, host: destination.host, path: destination.pathname });
-				return { status: 200, headers: {}, responseText: schema };
+				const response = options.schemaResponse?.() ?? { content: schema };
+				return { status: 200, headers: { etag: response.etag }, responseText: response.content };
 			}
 		}
 	};
@@ -211,7 +232,13 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 	const context: Partial<ExtensionContext> = {
 		subscriptions,
 		extensionUri: Uri.parse('vscode-test://extension/json'),
-		globalStorageUri: Uri.parse('vscode-test://storage/json'),
+		globalStorageUri: cacheDirectory ? Uri.file(cacheDirectory) : Uri.parse('vscode-test://storage/json'),
+		globalState: {
+			keys: () => [...state.keys()],
+			get: <T>(key: string, fallback?: T): T | undefined => state.has(key) ? state.get(key) as T : fallback,
+			update: async (key: string, value: object) => { state.set(key, value); },
+			setKeysForSync: () => { }
+		},
 		asAbsolutePath: (value: string) => path.resolve(__dirname, value)
 	};
 	await main.activate(context as ExtensionContext);
@@ -223,9 +250,21 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 		checked,
 		documents,
 		files,
+		schemaNotifications,
+		async clearCache() {
+			const command = commands.get('json.clearCache');
+			assert.ok(command, 'The production client must register the cache-clear command');
+			await command();
+		},
 		async dispose() {
-			await main.deactivate();
-			subscriptions.forEach(subscription => subscription.dispose());
+			try {
+				await main.deactivate();
+				subscriptions.forEach(subscription => subscription.dispose());
+			} finally {
+				if (cacheDirectory) {
+					await fs.rm(cacheDirectory, { recursive: true, force: true });
+				}
+			}
 		}
 	};
 }

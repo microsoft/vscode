@@ -226,6 +226,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
 	const fileSchemaErrors = new Map<string, string>();
+	const schemaRequestAliases = new Map<string, string>();
 	let schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
 	let trustedDomains = workspace.getConfiguration().get<Record<string, boolean>>(SettingIds.trustedDomains, {});
 
@@ -240,7 +241,14 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	toDispose.push(commands.registerCommand(CommandIds.clearCacheCommandId, async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
-			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
+			const schemaIds = new Set(cachedSchemas);
+			for (const [schemaId, requestUrl] of schemaRequestAliases) {
+				if (schemaIds.has(requestUrl)) {
+					schemaIds.add(schemaId);
+					schemaRequestAliases.delete(schemaId);
+				}
+			}
+			await client.sendNotification(SchemaContentChangeNotification.type, [...schemaIds]);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
@@ -439,7 +447,11 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: requestUrl.href });
 			}
 			try {
-				return await runtime.schemaRequests.getContent(requestUrl.href);
+				const content = await runtime.schemaRequests.getContent(requestUrl.href);
+				if (runtime.schemaRequests.clearCache && requestUrl.href !== uriPath) {
+					schemaRequestAliases.set(uriPath, requestUrl.href);
+				}
+				return content;
 			} catch (e) {
 				throw new ResponseError(SchemaRequestServiceErrors.HTTPError, e.toString(), e);
 			}

@@ -8,6 +8,7 @@ import { suite, suiteSetup, test } from 'mocha';
 import { createMatcher, createSchemaClient, RequestOptions } from './schemaRequestTestUtils';
 
 const disguisedHost = 'https://attacker.example%5Cfake.trusted.example/schema.json';
+const encodedSeparators = ['%252F', '%252f'];
 
 suite('JSON schema URL matching', () => {
 	let matches: Awaited<ReturnType<typeof createMatcher>>;
@@ -34,6 +35,26 @@ suite('JSON schema URL matching', () => {
 			'https://*.trusted.example/private/': false,
 			'https://*.trusted.example': true
 		}), false);
+	});
+
+	for (const separator of encodedSeparators) {
+		test(`regression: ${separator} remains encoded during path-scope matching`, () => {
+			const url = `https://api.trusted.example/schemas${separator}..${separator}private/schema.json`;
+			assert.strictEqual(matches(url, { 'https://api.trusted.example/schemas/': true }), false);
+		});
+	}
+
+	test('controls: request and pattern paths preserve the same encoded characters', () => {
+		assert.deepStrictEqual([
+			matches('https://api.trusted.example/schema%20files/main.json', { 'https://api.trusted.example/schema%20files/': true }),
+			matches('https://api.trusted.example/schemas%252Fdata/main.json', { 'https://api.trusted.example/schemas%252Fdata/': true }),
+			matches('https://api.trusted.example/schemas%252F..%252Fprivate/schema.json', {
+				'https://api.trusted.example/schemas%252F..%252Fprivate/': false,
+				'https://api.trusted.example': true
+			}),
+			matches('https://api.trusted.example/schemas/../private/schema.json', { 'https://api.trusted.example/schemas/': true }),
+			matches('https://api.trusted.example/schemas%255C..%255Cprivate/schema.json', { 'https://api.trusted.example/schemas/': true }),
+		], [true, true, false, false, false]);
 	});
 
 	test('controls: ordinary domains, ports, paths, schemes and ordered denials', () => {
@@ -82,6 +103,16 @@ for (const transport of ['browser', 'node'] as const) {
 				assert.deepStrictEqual({ error: result, requests: client.requests }, { error: 2, requests: [] });
 			});
 		});
+
+		for (const separator of encodedSeparators) {
+			test(`regression: ${separator} cannot enter an allowed path by decoding again`, async () => {
+				await withClient({ trustedDomains: { 'https://api.trusted.example/schemas/': true } }, async client => {
+					const url = `https://api.trusted.example/schemas${separator}..${separator}private/schema.json`;
+					const error = await client.request(url).then(() => undefined, error => error.code);
+					assert.deepStrictEqual({ error, requests: client.requests }, { error: 2, requests: [] });
+				});
+			});
+		}
 
 		test('regression: the checked and fetched canonical destinations are identical', async () => {
 			await withClient({ trustedDomains: { 'https://*.trusted.example/schemas/': true } }, async client => {
@@ -189,3 +220,55 @@ for (const transport of ['browser', 'node'] as const) {
 		});
 	});
 }
+
+suite('JSON schema cache invalidation', () => {
+	test('regression: cache clearing invalidates every original schema ID sharing a canonical URL', async () => {
+		let version = 1;
+		const canonical = 'https://json.schemastore.org/package.json';
+		const aliases = ['https://json.schemastore.org:443/package.json', 'https://json.schemastore.org/folder/../package.json'];
+		const client = await createSchemaClient('node', {
+			trustedDomains: { 'https://json.schemastore.org': true },
+			cache: true,
+			schemaResponse: () => ({ content: JSON.stringify({ title: `schema-${version}` }), etag: `etag-${version}` })
+		});
+		try {
+			const initial = await client.request(aliases[0]);
+			version = 2;
+			const cachedAlias = await client.request(aliases[1]);
+			const cachedCanonical = await client.request(canonical);
+			const requestsBeforeClear = client.requests.length;
+			await client.clearCache();
+			const refreshed = await client.request(aliases[0]);
+
+			assert.deepStrictEqual({
+				contents: [initial, cachedAlias, cachedCanonical, refreshed].map(content => JSON.parse(content).title),
+				requestsBeforeClear,
+				requestUrls: client.requests.map(request => request.url),
+				invalidated: client.schemaNotifications,
+			}, {
+				contents: ['schema-1', 'schema-1', 'schema-1', 'schema-2'],
+				requestsBeforeClear: 1,
+				requestUrls: [canonical, canonical],
+				invalidated: [[canonical, ...aliases]],
+			});
+		} finally {
+			await client.dispose();
+		}
+	});
+
+	test('controls: clearing a canonical cache entry preserves its schema ID', async () => {
+		const canonical = 'https://json.schemastore.org/package.json';
+		const client = await createSchemaClient('node', {
+			trustedDomains: { 'https://json.schemastore.org': true },
+			cache: true,
+			schemaResponse: () => ({ content: '{"type":"object"}', etag: 'canonical-etag' })
+		});
+		try {
+			await client.request(canonical);
+			await client.clearCache();
+			assert.deepStrictEqual(client.schemaNotifications, [[canonical]]);
+		} finally {
+			await client.dispose();
+		}
+	});
+});
