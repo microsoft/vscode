@@ -46,6 +46,33 @@ const startupTimeout = 90_000;
 const fakeModelToken = 'smoketest-fake-agent-host-token';
 const tunnelTokenEnvironmentKey = 'VSCODE_SMOKE_TEST_TUNNEL_TOKEN';
 
+async function readConnectionLogTail(file: string): Promise<string> {
+	const handle = await fs.promises.open(file, 'r');
+	try {
+		const { size } = await handle.stat();
+		const length = Math.min(size, 256 * 1024);
+		const start = size - length;
+		const buffer = Buffer.alloc(length);
+		let offset = 0;
+		while (offset < length) {
+			const { bytesRead } = await handle.read(buffer, offset, length - offset, start + offset);
+			if (bytesRead === 0) {
+				break;
+			}
+			offset += bytesRead;
+		}
+		const content = buffer.toString('utf8', 0, offset);
+		if (start === 0) {
+			return content;
+		}
+		// Discard the leading partial entry, including any truncated credential.
+		const firstEntry = content.search(/^\d{4}-\d{2}-\d{2} /m);
+		return firstEntry === -1 ? '' : content.slice(firstEntry);
+	} finally {
+		await handle.close();
+	}
+}
+
 interface ITunnelCli {
 	executable: string;
 	consentFile?: string;
@@ -903,7 +930,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 			];
 			for (const file of files) {
 				try {
-					const entries = (await fs.promises.readFile(file, 'utf8')).split(/(?=^\d{4}-\d{2}-\d{2} )/m)
+					const entries = (await readConnectionLogTail(file)).split(/(?=^\d{4}-\d{2}-\d{2} )/m)
 						.filter(entry => /\[WSL|\[RemoteAgentHost|WSLRelayTransport/.test(entry)).slice(-20);
 					report(`${path.relative(options.logsPath, file)}:\n${entries.length ? entries.map(entry => resources.redact(entry).slice(0, 2000)).join('\n') : '(no WSL or remote-host entries)'}`);
 				} catch (error) {

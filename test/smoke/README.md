@@ -113,7 +113,7 @@ Source runs launch the compiled standalone Agent Host with the checkout's matchi
 
 Fixtures isolate their source Agent Host, credentials, endpoint registry, and CLI state, and remove their containers and temporary tunnels during teardown. Failures retain the existing smoke-runner diagnostics and redacted remote-host logs under `.build/logs/smoke-tests-electron/`. Do not run two Electron smoke runners concurrently in the same checkout: the runner shares its top-level output and test-data directories.
 
-WSL connection failures also print a bounded, redacted snapshot of the focused control, visible pickers and dialogs, notifications, and recent WSL/remote-host entries from renderer and shared-process logs to the CI task output. Connection milestones remain in `smoke-test-runner.log`. Azure Windows jobs publish log artifacts on cancellation as well as success/failure, with a ten-minute cancellation budget for cleanup and publication; the normal job and picker timeouts are unchanged.
+WSL connection failures also print a bounded, redacted snapshot of the focused control, visible pickers and dialogs, notifications, and recent WSL/remote-host entries from renderer and shared-process logs to the CI task output. Each log read is limited to its last 256 KiB, discarding a leading partial entry. Connection milestones remain in `smoke-test-runner.log`. The standard Azure Windows product-build and CI test jobs publish log artifacts on cancellation as well as success/failure, with a ten-minute cancellation budget for cleanup and publication; the normal job and picker timeouts are unchanged. The separate Flaky Smoke Tests pipeline does not yet use these cancellation settings.
 
 ### Error: Could not get a unique tmp filename, max tries reached
 

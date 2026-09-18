@@ -3568,26 +3568,37 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('replacing the active session in place (same id, new resource) re-points the active session', async () => {
-		const before = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///before') });
-		const after = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///after') });
-		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-		const provider = new class extends TestSessionsProvider {
-			override readonly onDidReplaceSession = onDidReplaceSession.event;
-			constructor() { super(before); }
-			override getSessions(): ISession[] { return [before]; }
-		};
-		const { view } = createSessionsManagementService(before, disposables, provider);
+	for (const focusInSession of [false, true]) {
+		test(`same-ID session replacement ${focusInSession ? 'restores composer focus' : 'preserves external focus'}`, async () => {
+			const before = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///before') });
+			const after = stubSession({ sessionId: 'same', providerId: 'test', resource: URI.parse('test:///after') });
+			const other = stubSession({ sessionId: 'other', providerId: 'test' });
+			const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidReplaceSession = onDidReplaceSession.event;
+				constructor() { super(before); }
+				override getSessions(): ISession[] { return [before, other]; }
+			};
+			const { view, sessionsPartService } = createSessionsManagementService(before, disposables, provider);
 
-		await view.openSession(before.resource);
-		assert.strictEqual(view.activeSession.get()?.resource.toString(), before.resource.toString());
+			await view.openSession(before.resource);
+			const sessionView = new class extends mock<SessionView>() { }();
+			sessionsPartService.sessionViews.set(before.sessionId, sessionView);
+			sessionsPartService.focusedSessionView = focusInSession ? sessionView : undefined;
+			sessionsPartService.focusedSessions.length = 0;
 
-		// A same-id replacement still needs to force the active session update
-		// so consumers observe the new resource.
-		onDidReplaceSession.fire({ from: before, to: after });
+			onDidReplaceSession.fire({ from: before, to: after });
+			view.insertAt(other, after.sessionId, 'right', false);
 
-		assert.strictEqual(view.activeSession.get()?.resource.toString(), after.resource.toString());
-	});
+			assert.deepStrictEqual({
+				activeResource: view.activeSession.get()?.resource.toString(),
+				focusedSessions: sessionsPartService.focusedSessions,
+			}, {
+				activeResource: after.resource.toString(),
+				focusedSessions: focusInSession ? ['same'] : [],
+			});
+		});
+	}
 
 	test('replacing a non-active session leaves the active session unchanged', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
