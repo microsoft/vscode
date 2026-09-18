@@ -863,6 +863,14 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			}),
 			expectedVisualDescriptions: ['Hover reveals the inactive close without covering its ellipsized basename or extension.'],
 		}),
+		SingleTab: defineComponentFixture({
+			render: renderConnectedSurface(0, undefined, undefined, {
+				editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
+				partOptions: { editorActionsLocation: 'hidden' },
+			}),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The single connected tab retains the same close-button spacing and visible cap width as an active tab beside another tab. Its terminal shoulder turns into the document well without crowding the action.'],
+		}),
 		NarrowWindow: defineComponentFixture({
 			render: renderConnectedSurface(0, undefined, undefined, {
 				width: 420,

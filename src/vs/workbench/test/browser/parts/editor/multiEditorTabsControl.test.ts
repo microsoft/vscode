@@ -349,6 +349,73 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({ clean, dirty, focused }, { clean: ['1', '0'], dirty: ['1', '1'], focused: ['1', '1'] });
 	});
 
+	test('connected close actions keep consistent spacing across terminal and wrapped tabs', async () => {
+		const group = connectedGroup();
+		const measure = () => {
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+			const action = tab.querySelector<HTMLElement>('.action-label')!;
+			const label = tab.querySelector<HTMLElement>('.monaco-icon-label-container')!;
+			const fillBounds = fill.getBoundingClientRect();
+			const actionBounds = action.getBoundingClientRect();
+			const actionStyle = mainWindow.getComputedStyle(action);
+			return {
+				top: actionBounds.top - fillBounds.top,
+				right: fillBounds.right - actionBounds.right,
+				left: actionBounds.left - label.getBoundingClientRect().right,
+				width: fillBounds.width,
+				padding: [actionStyle.paddingTop, actionStyle.paddingRight, actionStyle.paddingBottom, actionStyle.paddingLeft],
+			};
+		};
+
+		await layoutConnectedGroup(group, 400);
+		const multiple = measure();
+
+		const secondEditor = model.getEditorByIndex(1)!;
+		model.closeEditor(secondEditor);
+		control.closeEditor(secondEditor);
+		await layoutConnectedGroup(group, 400);
+		const single = measure();
+
+		model.openEditor(secondEditor, { pinned: true, active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 150);
+		const wrappedBottom = measure();
+
+		model.openEditor(model.getEditorByIndex(0)!, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		await layoutConnectedGroup(group, 150);
+		const wrappedUpper = measure();
+		const measurements = [multiple, single, wrappedBottom, wrappedUpper];
+
+		assert.deepStrictEqual({
+			single: {
+				top: single.top === multiple.top,
+				right: single.right === multiple.right,
+				left: single.left === multiple.left,
+				width: single.width === multiple.width,
+			},
+			wrapped: {
+				top: wrappedBottom.top === wrappedUpper.top,
+				right: wrappedBottom.right === wrappedUpper.right,
+				left: wrappedBottom.left === wrappedUpper.left,
+			},
+			horizontal: {
+				right: measurements.every(measurement => measurement.right === multiple.right),
+				left: measurements.every(measurement => measurement.left === multiple.left),
+			},
+			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
+		}, {
+			single: { top: true, right: true, left: true, width: true },
+			wrapped: { top: true, right: true, left: true },
+			horizontal: { right: true, left: true },
+			actionPadding: true,
+		});
+	});
+
 	test('reveals the active tab with its right shoulder outside the label and action', async () => {
 		const group = connectedGroup();
 		const oldOptions = partOptions;
