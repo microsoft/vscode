@@ -148,16 +148,42 @@ export class AgentsWindow {
 
 	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
+		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
 		await this.quickaccess.runCommand('workbench.action.sessions.connectViaWSL', { keepOpen: true });
+		this.code.logger.log('[agentsWindow] WSL connection: command selected; waiting for distribution or folder picker');
 		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
 		const folderPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: `Select Folder on ${distro}` }) });
 		await distroPicker.or(folderPicker).first().waitFor({ timeout: 120_000 });
 		if (await distroPicker.isVisible()) {
+			this.code.logger.log(`[agentsWindow] WSL connection: selecting distribution ${distro}`);
 			await distroPicker.locator('.quick-input-list .monaco-list-row').filter({
 				has: page.getByText(distro, { exact: true }),
 			}).click({ timeout: 30_000 });
 		}
+		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
 		await this.selectRemoteFolder(distro, workspacePath);
+		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
+	}
+
+	async getRemoteConnectionDiagnostics(): Promise<string> {
+		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
+			const activeElement = document.activeElement;
+			return {
+				windowFocused: document.hasFocus(),
+				activeElement: activeElement ? { tag: activeElement.tagName, id: activeElement.id, className: activeElement.getAttribute('class')?.slice(0, 500) } : undefined,
+				quickInputs: Array.from(document.querySelectorAll('.quick-input-widget')).filter(element => element.checkVisibility()).slice(0, 5).map(element => ({
+					title: element.querySelector('.quick-input-title')?.textContent?.slice(0, 500),
+					value: element.querySelector('input')?.value.slice(0, 500),
+					focusedRow: element.querySelector('.monaco-list-row.focused')?.textContent?.slice(0, 500),
+					rows: Array.from(element.querySelectorAll('.monaco-list-row')).slice(0, 10).map(row => row.textContent?.slice(0, 500)),
+				})),
+				notifications: Array.from(document.querySelectorAll('.notification-list-item')).slice(-10).map(element => ({
+					message: element.querySelector('.notification-list-item-message')?.textContent?.slice(0, 2000),
+					source: element.querySelector('.notification-list-item-source')?.textContent?.slice(0, 500),
+				})),
+				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
+			};
+		}));
 	}
 
 	private async fillQuickInput(title: string, value: string): Promise<void> {

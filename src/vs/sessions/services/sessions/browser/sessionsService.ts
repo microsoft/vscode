@@ -545,7 +545,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
-		this._visibility.updateSession(from, to);
+		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
+		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
+		this._visibility.updateSession(from, to, preserveFocus);
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
