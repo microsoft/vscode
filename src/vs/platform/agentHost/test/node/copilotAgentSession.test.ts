@@ -672,6 +672,20 @@ class CapturingTelemetryService implements ITelemetryService {
 // ---- Helpers ----------------------------------------------------------------
 
 /**
+ * Projects `agentHost.providerSendBlocked` payloads into a stable shape for
+ * assertions: the two duration fields are wall-clock measurements, so only
+ * their presence is comparable.
+ */
+function providerSendBlockedEvents(telemetryService: CapturingTelemetryService): unknown[] {
+	return telemetryService.events
+		.filter(event => event.eventName === 'agentHost.providerSendBlocked')
+		.map(event => {
+			const { sendBlockedMs, slowestMcpServerMs, agentSessionId, ...rest } = event.data as Record<string, unknown>;
+			return { ...rest, hasBlockedMs: typeof sendBlockedMs === 'number', hasSlowestMcpServerMs: typeof slowestMcpServerMs === 'number' };
+		});
+}
+
+/**
  * Invokes a client-SDK tool's handler with the minimal fields the SDK
  * contract requires, and narrows the `unknown` return type to
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
@@ -3178,6 +3192,47 @@ suite('CopilotAgentSession', () => {
 		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
 
 		assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, turnEndCount }, { hasActiveTurn: false, turnEndCount: 1 });
+	});
+
+	test('send blocking telemetry carries the MCP snapshot and flags only the first send', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+
+		// Drive the readiness tracker through the real subscription rather than
+		// the tracker API, so a broken wiring in `_registerHandlers` is caught.
+		for (const [serverName, status] of [['ready-server', 'connected'], ['broken-server', 'failed'], ['off-server', 'disabled'], ['slow-server', 'pending']] as const) {
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status } as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+		}
+
+		await session.send('first', undefined, 'turn-1');
+		await session.send('second', undefined, 'turn-2');
+
+		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [
+			{
+				provider: 'copilot', isFirstSendOfSession: true, sendFailed: false,
+				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
+				hasBlockedMs: true, hasSlowestMcpServerMs: true,
+			},
+			{
+				provider: 'copilot', isFirstSendOfSession: false, sendFailed: false,
+				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
+				hasBlockedMs: true, hasSlowestMcpServerMs: true,
+			},
+		]);
+	});
+
+	test('send blocking telemetry still reports when the provider send rejects', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+		mockSession.send = async () => { throw new Error('send failed'); };
+
+		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
+
+		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [{
+			provider: 'copilot', isFirstSendOfSession: true, sendFailed: true,
+			mcpServerCount: 0, mcpReadyCount: 0, mcpFailedCount: 0, mcpUnresolvedCount: 0, mcpStoppedCount: 0,
+			hasBlockedMs: true, hasSlowestMcpServerMs: false,
+		}]);
 	});
 
 	test('`/env` runs the runtime command when listed and emits markdown output', async () => {

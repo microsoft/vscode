@@ -35,6 +35,7 @@ suite('CopilotMcpReadinessTracker', () => {
 			readyCount: 2,
 			failedCount: 1,
 			unresolvedCount: 1,
+			stoppedCount: 0,
 			slowestServerMs: 28918,
 		});
 	});
@@ -49,7 +50,7 @@ suite('CopilotMcpReadinessTracker', () => {
 		tracker.observe('server', 'connected');
 
 		assert.deepStrictEqual(tracker.snapshot(), {
-			serverCount: 1, readyCount: 1, failedCount: 0, unresolvedCount: 0, slowestServerMs: 500,
+			serverCount: 1, readyCount: 1, failedCount: 0, unresolvedCount: 0, stoppedCount: 0, slowestServerMs: 500,
 		});
 	});
 
@@ -60,8 +61,28 @@ suite('CopilotMcpReadinessTracker', () => {
 		clock.advanceTo(2000);
 
 		assert.deepStrictEqual([tracker.snapshot(), new CopilotMcpReadinessTracker(new TestClock()).snapshot()], [
-			{ serverCount: 1, readyCount: 0, failedCount: 0, unresolvedCount: 1, slowestServerMs: undefined },
-			{ serverCount: 0, readyCount: 0, failedCount: 0, unresolvedCount: 0, slowestServerMs: undefined },
+			{ serverCount: 1, readyCount: 0, failedCount: 0, unresolvedCount: 1, stoppedCount: 0, slowestServerMs: undefined },
+			{ serverCount: 0, readyCount: 0, failedCount: 0, unresolvedCount: 0, stoppedCount: 0, slowestServerMs: undefined },
+		]);
+	});
+
+	test('excludes servers that never start from the window rather than reporting zero', () => {
+		const clock = new TestClock();
+		const allStopped = new CopilotMcpReadinessTracker(clock);
+		allStopped.observe('off', 'disabled');
+		allStopped.observe('absent', 'not_configured');
+
+		// A stopped server observed first must not anchor the window early.
+		const mixed = new CopilotMcpReadinessTracker(clock);
+		mixed.observe('off', 'disabled');
+		clock.advanceTo(1000);
+		mixed.observe('real', 'pending');
+		clock.advanceTo(4000);
+		mixed.observe('real', 'connected');
+
+		assert.deepStrictEqual([allStopped.snapshot(), mixed.snapshot()], [
+			{ serverCount: 2, readyCount: 0, failedCount: 0, unresolvedCount: 0, stoppedCount: 2, slowestServerMs: undefined },
+			{ serverCount: 2, readyCount: 1, failedCount: 0, unresolvedCount: 0, stoppedCount: 1, slowestServerMs: 3000 },
 		]);
 	});
 });

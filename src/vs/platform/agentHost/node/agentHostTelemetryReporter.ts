@@ -207,6 +207,7 @@ export interface IAgentHostProviderSendBlockedEvent {
 	mcpReadyCount: number;
 	mcpFailedCount: number;
 	mcpUnresolvedCount: number;
+	mcpStoppedCount: number;
 	slowestMcpServerMs: number | undefined;
 }
 
@@ -216,6 +217,7 @@ export interface IAgentHostMcpReadinessReport {
 	readonly readyCount: number;
 	readonly failedCount: number;
 	readonly unresolvedCount: number;
+	readonly stoppedCount: number;
 	readonly slowestServerMs: number | undefined;
 }
 
@@ -229,6 +231,7 @@ export type IAgentHostProviderSendBlockedClassification = {
 	mcpReadyCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had connected when the send returned.' };
 	mcpFailedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had failed when the send returned.' };
 	mcpUnresolvedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers still starting or awaiting authentication when the send returned.' };
+	mcpStoppedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that never started because they are disabled or not configured, and so took no part in the startup window.' };
 	slowestMcpServerMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed MCP server to the last one to settle; absent when none had settled.' };
 	owner: 'vijayupadya';
 	comment: 'Measures how long the provider send call blocks before a turn can start, with the MCP server startup context it overlaps.';
@@ -1072,6 +1075,7 @@ export class AgentHostTelemetryReporter {
 			mcpReadyCount: mcp.readyCount,
 			mcpFailedCount: mcp.failedCount,
 			mcpUnresolvedCount: mcp.unresolvedCount,
+			mcpStoppedCount: mcp.stoppedCount,
 			slowestMcpServerMs: mcp.slowestServerMs,
 		});
 	}
