@@ -20,7 +20,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { SessionIdContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -197,7 +197,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 								icon: Codicon.sync,
 								precondition: enabled ? undefined : ContextKeyExpr.false(),
 							},
-							group: 'navigation',
+							group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, SessionSyncChangesAction.ID),
 							order: Number.MAX_SAFE_INTEGER,
 							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId)),
 						}));

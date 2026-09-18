@@ -26,7 +26,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { SessionIdContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -131,7 +131,7 @@ suite('Session Sync Changes', () => {
 			second: getVisibleEntries(second.session).length,
 			aiDisabled: getVisibleEntries(first.session, false).length,
 		}, {
-			first: [{ id: commandId, group: 'navigation', order: Number.MAX_SAFE_INTEGER }],
+			first: [{ id: commandId, group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, commandId), order: Number.MAX_SAFE_INTEGER }],
 			second: 0,
 			aiDisabled: 0,
 		});

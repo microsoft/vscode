@@ -1169,7 +1169,7 @@ suite('mcpListWidget', () => {
 				},
 				createSection: (entries: readonly Entry[], width = 500, height = 300) => {
 					const root = DOM.append(document.body, DOM.$('.plugin-list-widget'));
-					root.style.cssText = `width: ${width}px; height: ${height}px; --vscode-spacing-size120: 12px; --vscode-spacing-size80: 8px; --vscode-fontSize-body1: 13px; --vscode-fontSize-body2: 11px;`;
+					root.style.cssText = `width: ${width}px; height: ${height}px; --vscode-spacing-size160: 16px; --vscode-spacing-size120: 12px; --vscode-spacing-size80: 8px; --vscode-spacing-size60: 6px; --vscode-fontSize-body1: 13px; --vscode-fontSize-body2: 11px;`;
 					store.add({ dispose: () => root.remove() });
 					const instantiationService = workbenchInstantiationService({}, store);
 					instantiationService.stub(IListService, store.add(new ListService()));
@@ -1409,6 +1409,29 @@ suite('mcpListWidget', () => {
 			});
 		});
 
+		test('installed rows match customization list density and name alignment', async () => {
+			const server = createAgentHostServer();
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			const section = ctx.createSection([
+				{ type: 'session-server-item', server },
+				{ type: 'server-item', server: native.workbenchServer, localServer: native.server },
+				{ type: 'builtin-item', id: 'builtin', label: 'Builtin', description: 'Ordinary description' },
+			]);
+			await section.settle();
+			const reference = DOM.append(section.root, DOM.$('.ai-customization-list-item'));
+			const referencePadding = DOM.getWindow(reference).getComputedStyle(reference).padding;
+			assert.deepStrictEqual(
+				[...section.container.querySelectorAll<HTMLElement>('.mcp-server-item')].map((row, index) => ({
+					height: section.list.getElementHeight(index),
+					matchingPadding: DOM.getWindow(row).getComputedStyle(row).padding === referencePadding,
+					nameInset: row.querySelector<HTMLElement>('.mcp-server-name')!.getBoundingClientRect().left - row.getBoundingClientRect().left,
+				})),
+				Array.from({ length: 3 }, () => ({ height: 44, matchingPadding: true, nameInset: 16 })),
+			);
+		});
+
 		test('explicitly expanded errors show every line and unbroken token, resize and preserve actions', async () => {
 			const server = erroring();
 			const ctx = createRenderer(server);
@@ -1457,7 +1480,7 @@ suite('mcpListWidget', () => {
 				padding: DOM.getWindow(row).getComputedStyle(row).paddingBottom,
 			}, {
 				grew: true, narrowGrew: true, text: message, textFitsVertically: true, textFitsHorizontally: true, nextRowBelow: true,
-				healthyHeight: 66, contentHeight: narrowHeight + 66, minimumAllocation: narrowHeight + 66,
+				healthyHeight: 44, contentHeight: narrowHeight + 44, minimumAllocation: narrowHeight + 44,
 				stableAction: true, focus: true, whiteSpace: 'pre-wrap', wrap: 'anywhere', padding: '12px',
 			});
 			button.click();
@@ -1472,7 +1495,7 @@ suite('mcpListWidget', () => {
 			ctx.setServers([createAgentHostServer()]);
 			ctx.notifyUnchanged();
 			await section.settle();
-			assert.deepStrictEqual([section.list.getElementHeight(0), section.list.contentHeight, section.container.clientHeight, row.classList.contains('has-error')], [66, 132, 132, false]);
+			assert.deepStrictEqual([section.list.getElementHeight(0), section.list.contentHeight, section.container.clientHeight, row.classList.contains('has-error')], [44, 88, 88, false]);
 		});
 
 		test('offscreen errors are remeasured on recycling without losing the visible scroll anchor', async () => {
@@ -1517,7 +1540,7 @@ suite('mcpListWidget', () => {
 				height: section.list.getElementHeight(15),
 				diagnostics: section.container.querySelectorAll('.mcp-server-description.error').length,
 				renderedRows: section.container.querySelectorAll('.mcp-server-item').length < entries.length,
-			}, { height: 66, diagnostics: 0, renderedRows: true });
+			}, { height: 44, diagnostics: 0, renderedRows: true });
 		});
 
 		test('native errors resize while visible and after a collapsed section changes', async () => {
@@ -1531,11 +1554,11 @@ suite('mcpListWidget', () => {
 			native.connectionState.set({ state: McpConnectionState.Kind.Error, message: longError }, undefined);
 			await section.settle();
 			const longHeight = section.list.getElementHeight(0);
-			assert.ok(longHeight > 66);
+			assert.ok(longHeight > 44);
 			assert.strictEqual(section.container.querySelector('.test-management-action'), button);
 			native.enablement.set(ContributionEnablementState.DisabledProfile, undefined);
 			await section.settle();
-			assert.strictEqual(section.list.getElementHeight(0), 66);
+			assert.strictEqual(section.list.getElementHeight(0), 44);
 			section.container.hidden = true;
 			section.container.style.display = 'none';
 			native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
@@ -1551,7 +1574,7 @@ suite('mcpListWidget', () => {
 			}, { height: longHeight, allocatedHeight: longHeight, text: longError });
 			native.connectionState.set({ state: McpConnectionState.Kind.Stopped }, undefined);
 			await section.settle();
-			assert.strictEqual(section.list.getElementHeight(0), 66);
+			assert.strictEqual(section.list.getElementHeight(0), 44);
 		});
 
 		test('switching sessions clears a tall diagnostic and shrinks its section', async () => {
@@ -1571,7 +1594,7 @@ suite('mcpListWidget', () => {
 				allocatedHeight: section.container.clientHeight,
 				ariaLabel: section.container.querySelector('.mcp-server-item')?.getAttribute('aria-label'),
 				text: section.container.querySelector('.mcp-server-description')?.textContent,
-			}, { height: 66, allocatedHeight: 66, ariaLabel: 'Server One', text: '' });
+			}, { height: 44, allocatedHeight: 44, ariaLabel: 'Server One', text: '' });
 		});
 
 		for (const message of ['Connection refused', '', ' \t\r\n ', 'First line\nSecond line\r\nThird line', 'Long diagnostic '.repeat(100), '<b>not HTML</b> [not a link](command:test) $(error)']) {
@@ -1733,7 +1756,7 @@ suite('mcpListWidget', () => {
 			const entries: Entry[] = servers.map(server => ({ type: 'session-server-item', server }));
 			const ariaReads = new Set<Entry>();
 			ctx.setAriaProvider(entry => derived(ctx, () => { ariaReads.add(entry); return entry.type === 'session-server-item' ? entry.server.name : ''; }));
-			const section = ctx.createSection(entries, 600, 264);
+			const section = ctx.createSection(entries, 600, 176);
 			await section.settle();
 			const updateHeight = sinon.spy(section.list, 'updateElementHeight');
 			const rerender = sinon.spy(section.list, 'rerender');
@@ -1775,7 +1798,7 @@ suite('mcpListWidget', () => {
 			replaceError(450, 'Offscreen failure');
 			await section.settle();
 			assert.deepStrictEqual({ updates: updateHeight.args, offscreenAria: ariaReads.has(entries[450]), wholeList: rerender.callCount },
-				{ updates: [[450, 66]], offscreenAria: false, wholeList: 0 });
+				{ updates: [[450, 44]], offscreenAria: false, wholeList: 0 });
 			section.list.reveal(450);
 			await section.settle();
 			assert.ok(ariaReads.has(entries[450]), 'ARIA subscribes once the row is rendered');

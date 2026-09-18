@@ -266,6 +266,71 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('npm audit'), 'approved');
 		});
 
+		test('requires approval for package manager install options', () => {
+			const exactCommands = [
+				'npm ci',
+				'npm ci   ',
+				'yarn install --frozen-lockfile',
+				'yarn  install  --frozen-lockfile   ',
+				'pnpm install --frozen-lockfile',
+				'pnpm  install  --frozen-lockfile   ',
+			];
+			const commandsWithOptions = [
+				'npm ci --prefix /outside/project',
+				'npm ci --workspace other',
+				'npm ci -w other',
+				'npm ci --workspaces',
+				'npm ci --script-shell=/tmp/payload',
+				'yarn install --frozen-lockfile --cwd /outside/project',
+				'yarn install --frozen-lockfile --modules-folder /outside/modules',
+				'yarn install --frozen-lockfile --focus',
+				'yarn install --frozen-lockfile --no-lockfile',
+				'pnpm install --frozen-lockfile -C /outside/project',
+				'pnpm install --frozen-lockfile --dir /outside/project',
+				'pnpm install --frozen-lockfile --filter other',
+				'pnpm install --frozen-lockfile --workspace-root',
+				'pnpm install --frozen-lockfile --no-frozen-lockfile',
+			];
+			const forwardedRules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+
+			for (const options of [undefined, { autoApproveRules: forwardedRules }]) {
+				assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, options)), exactCommands.map(() => 'approved'));
+				assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, options)), commandsWithOptions.map(() => 'denied'));
+			}
+		});
+
+		test('preserves persisted legacy package manager overrides', () => {
+			const rules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
+			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
+
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), exactCommands.map(() => 'approved'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), commandsWithOptions.map(() => 'denied'));
+
+			const nullOverrides = {
+				...rules,
+				'npm ci': null,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
+			};
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), exactCommands.map(() => 'noMatch'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), commandsWithOptions.map(() => 'denied'));
+		});
+
 		// Unknown commands get noMatch
 		test('returns noMatch for unknown commands', () => {
 			assert.strictEqual(approver.shouldAutoApprove('my-custom-script'), 'noMatch');

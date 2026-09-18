@@ -6012,6 +6012,26 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('enterprise policy prevents Assisted permissions and global bypass on the first turn', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+				rootValues: {
+					[AgentHostAutoApprovePolicyRestrictedConfigKey]: true,
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				enabledExperimentalMode: mockSession.experimentalModeUpdates.includes(true),
+			}, {
+				permissionModes: ['manual'],
+				enabledExperimentalMode: false,
+			});
+		});
+
 		test('does not send when the SDK rejects experimental mode for Approve When Safe', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -6553,7 +6573,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
 		});
 
-		test('revokes elevated permission modes when policy changes', async () => {
+		test('revokes and restores elevated permission modes when policy changes', async () => {
 			const results: PermissionMode[][] = [];
 			for (const autoApprove of ['assisted', 'autoApprove']) {
 				const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
@@ -6565,12 +6585,15 @@ suite('CopilotAgentSession', () => {
 
 				fireRootConfigChange();
 				await timeout(0);
+				setRootValue(AgentHostAutoApprovePolicyRestrictedConfigKey, false);
+				fireRootConfigChange();
+				await timeout(0);
 				results.push([...mockSession.permissionModeSetCalls]);
 			}
 
 			assert.deepStrictEqual(results, [
-				['assisted', 'manual'],
-				['allow-all', 'manual'],
+				['assisted', 'manual', 'assisted'],
+				['allow-all', 'manual', 'allow-all'],
 			]);
 		});
 
