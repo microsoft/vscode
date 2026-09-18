@@ -1945,7 +1945,7 @@ class CallHierarchyAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		const items = await this._provider.prepareCallHierarchy(doc, pos, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return undefined;
 		}
 
@@ -2025,7 +2025,7 @@ class TypeHierarchyAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		const items = await this._provider.prepareTypeHierarchy(doc, pos, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return undefined;
 		}
 
