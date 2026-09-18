@@ -125,19 +125,35 @@ suite('CodexAccountService', () => {
 		});
 	});
 
-	test('opens generated ChatGPT authentication URLs without validation prompts', async () => {
+	test('opens expected authentication URLs without validation prompts', async () => {
 		let call: { resource: string; options: OpenOptions | undefined } | undefined;
 		await openCodexAuthUrl({
 			open: async (resource, options) => {
 				call = { resource: resource.toString(), options };
 				return true;
 			}
-		}, 'https://auth.openai.com/authorize?token=secret');
+		}, 'https://auth.openai.com/oauth/authorize?token=secret');
 
 		assert.deepStrictEqual(call, {
-			resource: 'https://auth.openai.com/authorize?token=secret',
+			resource: 'https://auth.openai.com/oauth/authorize?token=secret',
 			options: { openExternal: true, skipValidation: true },
 		});
+	});
+
+	test('rejects unexpected authentication URLs', async () => {
+		let openCalls = 0;
+		const opener = {
+			open: async () => {
+				openCalls++;
+				return true;
+			}
+		};
+		const opened = await Promise.all([
+			openCodexAuthUrl(opener, 'https://example.com/login'),
+			openCodexAuthUrl(opener, 'custom-protocol:/login'),
+		]);
+
+		assert.deepStrictEqual({ opened, openCalls }, { opened: [false, false], openCalls: 0 });
 	});
 
 	test('reads profile-image bytes through the Agent Host resource connection', async () => {
