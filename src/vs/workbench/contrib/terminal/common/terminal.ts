@@ -156,6 +156,7 @@ export interface ITerminalConfiguration {
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;
 	fontFamily: string;
+	fontRendering: 'inherit' | 'crisp';
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
