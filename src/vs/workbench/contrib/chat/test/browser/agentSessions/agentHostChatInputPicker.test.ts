@@ -19,7 +19,7 @@ import { IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../..
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -53,7 +53,7 @@ import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPicker
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
-import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItems, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerPermissions, renderModePickerTrigger, shouldCombineModeAndPermissions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
@@ -95,10 +95,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	}
 
 	function setup(combined = true, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] })) {
-		const configuration = new TestConfigurationService({
+		const configuration = new class extends TestConfigurationService {
+			policyRestricted = false;
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const result = super.inspect<T>(key);
+				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+			}
+		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
 			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-			[ChatConfiguration.AssistedPermissionsEnabled]: true,
+			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const config: ResolveSessionConfigResult = {
@@ -575,6 +581,64 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		]);
 	});
 
+	for (const combined of [false, true]) {
+		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
+			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
+			config.values.autoApprove = 'default';
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
+				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+			const beforeSelection = [...dispatches];
+			await actionWidget.select('Assisted permissions');
+
+			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
+				levels: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined },
+					{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+					{ label: 'Allow all', disabled: false, badge: undefined },
+				],
+				beforeSelection: [],
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }],
+			});
+		});
+
+		test(`preserves enterprise approval restrictions (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, actionWidget, dispatches } = setup(combined);
+			configuration.policyRestricted = true;
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
+				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+			await actionWidget.select('Assisted permissions');
+
+			assert.deepStrictEqual({ levels, dispatches }, {
+				levels: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined },
+					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
+					{ label: 'Allow all', disabled: true, badge: undefined },
+				],
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+			});
+		});
+
+		test(`closes on enterprise approval policy changes (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, actionWidget } = setup(combined);
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			configuration.policyRestricted = true;
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.GlobalAutoApprove,
+				affectedKeys: new Set([ChatConfiguration.GlobalAutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: { keys: [ChatConfiguration.GlobalAutoApprove], overrides: [] },
+			});
+
+			assert.strictEqual(actionWidget.isVisible, false);
+		});
+	}
+
 	test('stacked rows retain the permission axis, sandbox toggle, and settings gear', async () => {
 		const { modePicker, modeContainer, actionWidget, dispatches, settingsRequests } = setup();
 		const trigger = modeContainer.querySelector<HTMLElement>('.agent-host-mode-button')!;
@@ -827,7 +891,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		assert.deepStrictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY.slice('@id:'.length).split(','), [
 			'chat.defaultConfiguration',
 			'chat.permissions.default',
-			'chat.assistedPermissions.enabled',
 			'chat.tools.global.autoApprove',
 			'chat.tools.edits.autoApprove',
 			'chat.tools.urls.autoApprove',
@@ -1197,7 +1260,7 @@ suite('AgentHostChatInputPicker - list options', () => {
 			codexApprovals: getConfigPickerListOptions(CodexSessionConfigKey.PermissionsPreset),
 		}, {
 			mode: { minWidth: 260 },
-			approvals: { minWidth: 255 },
+			approvals: { minWidth: 300 },
 			claudePermissions: undefined,
 			codexApprovals: {
 				className: 'codex-approvals-picker',
@@ -1269,18 +1332,6 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 		});
 
 		suite('AgentHostChatInputPicker - approval controls', () => {
-
-			test('shows Assisted permissions only when the setting is enabled', () => {
-				assert.deepStrictEqual({
-					enabled: isPermissionLevelVisible(ChatPermissionLevel.Assisted, true),
-					disabled: isPermissionLevelVisible(ChatPermissionLevel.Assisted, false),
-					bypass: isPermissionLevelVisible(ChatPermissionLevel.AutoApprove, false),
-				}, {
-					enabled: true,
-					disabled: false,
-					bypass: true,
-				});
-			});
 
 			test('enterprise policy restricts and normalizes Approve When Safe and Allow All equally', () => {
 				assert.deepStrictEqual({

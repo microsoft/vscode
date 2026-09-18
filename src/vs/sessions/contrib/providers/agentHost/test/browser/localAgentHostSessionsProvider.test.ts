@@ -3986,20 +3986,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
-		const config = createPolicyRestrictedConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+	for (const approvals of ['assisted', 'allowAll']) {
+		test(`createNewSession clamps seeded ${approvals} to default when policy disables global auto-approve`, async () => {
+			const config = createPolicyRestrictedConfigurationService();
+			await config.setUserConfiguration('chat.defaultConfiguration', { approvals });
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
-		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
-		}, {
-			seededImmediately: 'default',
-			forwardedToAgentHost: 'default',
+			assert.deepStrictEqual({
+				seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			}, {
+				seededImmediately: 'default',
+				forwardedToAgentHost: 'default',
+			});
 		});
-	});
+	}
 
 	for (const useWorktree of [true, false]) {
 		test(`remembered isolation bypasses useWorktree=${useWorktree} across workspaces`, async () => {
@@ -4649,23 +4651,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('setSessionConfigValue clamps autoApprove to default when policy disables global auto-approve', async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const config = createPolicyRestrictedConfigurationService();
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+	for (const level of ['assisted', 'autoApprove', 'autopilot']) {
+		test(`setSessionConfigValue clamps ${level} to default when policy disables global auto-approve`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const config = createPolicyRestrictedConfigurationService();
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await timeout(0);
 
-		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'autopilot');
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level);
 
-		assert.deepStrictEqual({
-			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
-		}, {
-			remembered: { [SessionConfigKey.AutoApprove]: 'default' },
-			forwardedToAgentHost: 'default',
+			assert.deepStrictEqual({
+				remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			}, {
+				remembered: { [SessionConfigKey.AutoApprove]: 'default' },
+				forwardedToAgentHost: 'default',
+			});
 		});
-	});
+	}
 
 	test('branch selection stays on the current workspace and the next workspace resolves its own branch', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
@@ -8165,6 +8169,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
 			{ id: 'a8', type: SessionArtifactType.PullRequest, label: 'Discovered', isArtifact: false, link: 'https://github.com/owner/repo/pull/42', isGitHub: true },
+			{ id: 'a9', type: SessionArtifactType.PullRequest, label: 'Unrelated reference', isArtifact: false, link: 'https://github.com/owner/repo/pull/70', isGitHub: true },
 		]);
 		agentHost.setSessionState('pr-artifacts', 'copilotcli', {
 			provider: 'copilotcli', title: 'Artifact Session', status: ProtocolSessionStatus.Idle,
@@ -8177,15 +8182,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
 		assert.deepStrictEqual({
 			activePullRequest: gitHubInfo?.pullRequest?.number,
-			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
-			issues: gitHubInfo?.issues?.map(issue => [issue.number, issue.title]),
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => [pullRequest.number, pullRequest.recordedReferenceId, pullRequest.createdByThisSession]),
+			issues: gitHubInfo?.issues?.map(issue => [issue.number, issue.title, issue.recordedReferenceId]),
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
-			activePullRequest: 41,
-			pullRequests: [41, 50, 42],
-			// Only issues the session produced are polled; a referenced one stays a reference.
-			issues: [[7, 'Preserve promoted issue titles']],
+			activePullRequest: 42,
+			// The independently-associated URL makes its recorded row session-owned,
+			// while the unrelated recorded reference cannot become the active PR.
+			pullRequests: [[70, 'a9', false], [42, 'a8', true], [41, 'a3', true], [60, 'a2', false], [50, 'a1', true]],
+			issues: [[8, 'Referenced issue', 'a7'], [7, 'Preserve promoted issue titles', 'a4']],
 			artifacts: [
+				['a9', false],
 				['a8', false],
 				['a7', false],
 				['a6', true],
@@ -8218,6 +8225,56 @@ suite('LocalAgentHostSessionsProvider', () => {
 			removed: [{ session: AgentSession.uri('copilotcli', 'remove-artifact').toString(), artifactId: 'artifact' }],
 		});
 	});
+
+	test('leaves an independently discovered pull request non-removable and visible after its recorded duplicate is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) });
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-reappear', { summary: 'Reappear Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Reappear Session');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId);
+
+		const recordedAndDiscovered = withSessionArtifacts(withSessionGitHubState(undefined, {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
+		}), [
+			{ id: 'recorded-41', type: SessionArtifactType.PullRequest, label: 'Recorded', isArtifact: false, link: 'https://github.com/owner/repo/pull/41', isGitHub: true },
+		]);
+		agentHost.setSessionState('pr-reappear', 'copilotcli', {
+			provider: 'copilotcli', title: 'Reappear Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			_meta: recordedAndDiscovered,
+		});
+		const beforeRemoval = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
+
+		// Simulate the host persisting the removal of the recorded entry: its
+		// artifact record is gone, but the git-discovered URL is unaffected.
+		const afterRemoval = withSessionGitHubState(undefined, {
+			owner: 'owner', repo: 'repo', pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
+		});
+		agentHost.setSessionState('pr-reappear', 'copilotcli', {
+			provider: 'copilotcli', title: 'Reappear Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			_meta: afterRemoval,
+		});
+		const afterRemovalInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
+
+		assert.deepStrictEqual({
+			beforeRemoval: beforeRemoval?.pullRequests?.map(pr => [pr.number, pr.recordedReferenceId]),
+			afterRemoval: afterRemovalInfo?.pullRequests?.map(pr => [pr.number, pr.recordedReferenceId]),
+		}, {
+			beforeRemoval: [[41, 'recorded-41']],
+			// The discovered association reappears without a recorded id, so it stays non-removable.
+			afterRemoval: [[41, undefined]],
+		});
+	}));
 
 	test('preserves recorded artifacts as GitHub repository metadata hydrates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {

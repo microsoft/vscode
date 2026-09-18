@@ -91,6 +91,7 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	PersistentProgress = 'chat.experimental.persistentProgress',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -117,7 +118,6 @@ export enum ChatConfiguration {
 	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
 	ExperimentalModePermissionsPicker = 'chat.experimentalModePermissionsPicker',
 	DefaultConfiguration = 'chat.defaultConfiguration',
@@ -238,6 +238,15 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum ChatProgressAnimation {
+	Off = 'off',
+	Weave = 'weave',
+	Draw = 'draw',
+	Orbit = 'orbit',
+	Accordion = 'accordion',
+	Dial = 'dial',
 }
 
 export enum CollapsedToolsDisplayMode {

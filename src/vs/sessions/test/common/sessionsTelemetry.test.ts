@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mock } from '../../../base/test/common/mock.js';
+import { constObservable } from '../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
+import { ISession } from '../../services/sessions/common/session.js';
 
 suite('sessionsTelemetry helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,6 +58,20 @@ suite('sessionsTelemetry helpers', () => {
 			'4f42482f1374bb5f11b7f1c0abbc96954bddd505',
 			'51f47747e460010ae1c437b9a269e980137d96ec',
 		]);
+	});
+
+	test('counts only non-archived sessions shown in the primary Sessions list', () => {
+		const createSession = (isArchived: boolean, isAutomation?: boolean): ISession => upcastPartial<ISession>({
+			isArchived: constObservable(isArchived),
+			isAutomation: isAutomation === undefined ? undefined : constObservable(isAutomation),
+		});
+
+		assert.strictEqual(getNonArchivedSessionListCount([
+			createSession(false),
+			createSession(false, false),
+			createSession(true),
+			createSession(false, true),
+		]), 2);
 	});
 
 	test('logs the compact Sessions list preference', () => {

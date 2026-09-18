@@ -70,7 +70,7 @@ function parseResourceAttributes(raw: string | undefined): Record<string, string
  * For gRPC: returns origin (scheme://host:port).
  * For HTTP: returns full href.
  */
-function parseOtlpEndpoint(raw: string | undefined, protocol: 'grpc' | 'http'): string | undefined {
+export function parseOtlpEndpoint(raw: string | undefined, protocol: 'grpc' | 'http'): string | undefined {
 	if (!raw) {
 		return undefined;
 	}
