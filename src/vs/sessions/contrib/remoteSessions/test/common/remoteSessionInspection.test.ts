@@ -140,4 +140,20 @@ suite('RemoteSessionInspection', () => {
 			truncated: length > maxRemoteSessionResponseLength,
 		})));
 	});
+
+	test('stops assembling markdown as soon as truncation is known', () => {
+		const snapshot = remoteSessionSnapshot(chat({
+			turns: [turn({
+				responseParts: [
+					{ kind: ResponsePartKind.Markdown, id: 'a', content: 'a'.repeat(maxRemoteSessionResponseLength) },
+					{ kind: ResponsePartKind.Reasoning, id: 'r', content: 'private' },
+					{ kind: ResponsePartKind.Markdown, id: 'b', content: 'b'.repeat(1024) },
+					{ kind: ResponsePartKind.Markdown, id: 'c', get content(): string { throw new Error('Unneeded markdown was read'); } },
+				],
+			})],
+		}));
+		assert.deepStrictEqual({
+			response: snapshot.latestTurn?.response, truncated: snapshot.latestTurn?.truncated,
+		}, { response: 'a'.repeat(maxRemoteSessionResponseLength), truncated: true });
+	});
 });

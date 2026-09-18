@@ -52,7 +52,15 @@ export function remoteSessionSnapshot(chat: ChatState): IRemoteSessionSnapshot {
 	const turnStatus = !completed ? 'running'
 		: completed.state === TurnState.Error ? 'failed'
 			: completed.state === TurnState.Cancelled ? 'cancelled' : 'completed';
-	const response = turn?.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join('') ?? '';
+	let response = '';
+	for (const part of turn?.responseParts ?? []) {
+		if (part.kind === ResponsePartKind.Markdown) {
+			response += part.content.slice(0, maxRemoteSessionResponseLength + 1 - response.length);
+			if (response.length > maxRemoteSessionResponseLength) {
+				break;
+			}
+		}
+	}
 	const errorPart = getErrorResponsePart(turn);
 	const errorMessage = errorPart?.error.message ?? '';
 	const queuedMessages = chat.queuedMessages?.length ?? 0;

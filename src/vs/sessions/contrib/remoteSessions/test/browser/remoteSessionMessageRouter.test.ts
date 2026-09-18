@@ -14,6 +14,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -79,6 +80,7 @@ class TestConnection extends mock<IAgentHostService>() {
 	readonly subscriptions: { [K in StateComponents]?: (resource: URI) => IAgentSubscription<ComponentToState[K]> };
 	connected = true;
 	acknowledge = true;
+	readonly blockedChannels = new Set<string>();
 	afterAcknowledged: (() => void) | undefined;
 	rejectionReason: string | undefined;
 	references = 0;
@@ -126,7 +128,7 @@ class TestConnection extends mock<IAgentHostService>() {
 		}
 		this.dispatched.push({ channel, action });
 		void this.didDispatch.complete();
-		if (!this.acknowledge) {
+		if (!this.acknowledge || this.blockedChannels.has(channel)) {
 			return;
 		}
 		const subscription = this.chatStates.get(channel)!;
@@ -275,6 +277,47 @@ suite('RemoteSessionMessageRouter', () => {
 				host: { id: 'agenthost-second', label: 'agenthost-second' },
 			},
 			link: URI.parse(buildOpenSessionLinkUri(sessions[1].resource, 'original-chat')).toString(),
+		});
+	});
+
+	for (const differentHost of [false, true]) {
+		test(`a stalled destination does not block an unrelated chat: differentHost=${differentHost}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { router, first, sessions } = setup();
+			first.blockedChannels.add(buildDefaultChatUri(backendSession));
+			const cancellation = store.add(new CancellationTokenSource());
+			let stalledSettled = false;
+			const stalled = router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Stalled' }, 'stalled', cancellation.token);
+			const rejected = assert.rejects(stalled, /delivery was not confirmed/).finally(() => { stalledSettled = true; });
+			await first.didDispatch.p;
+			try {
+				const destination = differentHost ? sessions[2].resource : sessions[1].chats.get()[1].resource;
+				const result = await router.send(sessions[0].resource, { session: destination.toString(), message: 'Independent' }, 'independent', CancellationToken.None);
+				assert.deepStrictEqual({ stalledSettled, target: result.chat }, { stalledSettled: false, target: destination.toString() });
+			} finally {
+				cancellation.cancel();
+				await rejected;
+			}
+		}));
+	}
+
+	test('URI and open-link aliases share one destination queue', async () => {
+		const { router, first, sessions } = setup();
+		first.acknowledge = false;
+		const cancellation = store.add(new CancellationTokenSource());
+		const firstSend = router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'First' }, 'first', cancellation.token);
+		const rejected = assert.rejects(firstSend, /delivery was not confirmed/);
+		await first.didDispatch.p;
+		const second = router.send(sessions[0].resource, {
+			session: buildOpenSessionLinkUri(sessions[1].resource), message: 'Second',
+		}, 'second', CancellationToken.None);
+		await router.prepareTarget(sessions[0].resource, sessions[1].resource.toString(), CancellationToken.None);
+		const before = first.dispatched.map(entry => entry.action.message.text);
+		first.acknowledge = true;
+		cancellation.cancel();
+		await rejected;
+		await second;
+		assert.deepStrictEqual({ before, after: first.dispatched.map(entry => entry.action.message.text) }, {
+			before: ['First'], after: ['First', 'Second'],
 		});
 	});
 
@@ -615,9 +658,24 @@ suite('RemoteSessionMessageRouter', () => {
 			permissions: description.includes('target chat\'s existing permissions'),
 			noResponse: description.includes('never a response'),
 			uncertain: description.includes('Do not retry uncertain delivery'),
-		}, { exactOrigin: true, savedOrigin: true, fifo: true, permissions: true, noResponse: true, uncertain: true });
+			agentHostSource: description.includes('Requires an Agent Host originating chat'),
+		}, { exactOrigin: true, savedOrigin: true, fifo: true, permissions: true, noResponse: true, uncertain: true, agentHostSource: true });
 	});
 
+	test('messaging rejects unsupported sources before confirmation without requiring a visible chat widget', async () => {
+		const { tool, first, sessions } = setup();
+		const source = URI.parse('vscode-chat-session:/extension-chat');
+		const parameters = { session: sessions[1].resource.toString(), message: 'Hello' };
+		await assert.rejects(tool.prepareToolInvocation({
+			toolCallId: 'prepare', chatSessionResource: source, parameters,
+		}, CancellationToken.None), /originating chat on an Agent Host/);
+		await assert.rejects(tool.invoke({
+			callId: 'send', toolId: tool.getToolData().id, parameters, context: { sessionResource: source },
+		}, async () => 0, { report() { } }, CancellationToken.None), /originating chat on an Agent Host/);
+		assert.deepStrictEqual({
+			dispatched: first.dispatched, needsVisibleWidget: tool.getToolData().when?.keys().includes(ChatContextKeys.chatIsAgentHostSession.key),
+		}, { dispatched: [], needsVisibleWidget: false });
+	});
 	test('tool guidance requires delegated task reports and avoids reply loops', () => {
 		const { tool } = setup();
 		const description = tool.getToolData().modelDescription;

@@ -26,7 +26,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionType, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, remoteSessionHostRejections } from '../common/remoteSessions.js';
-import { resolveRemoteSessionSource } from './remoteSessionSource.js';
+import { assertRemoteSessionSource, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 
 interface IRemoteSessionCandidate {
@@ -203,6 +203,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 		}
 		const candidates = await this.candidates(options, token);
 		this.checkEnabled();
+		assertRemoteSessionSource(source, this.sessionsService, this.connectionsService);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -235,6 +236,7 @@ export class RemoteSessionService implements IRemoteSessionService {
 				metadata,
 				onSessionCreated: async session => {
 					background = await this.backgroundChats.acquire(session.mainChat.get().resource, token);
+					assertRemoteSessionSource(source, this.sessionsService, this.connectionsService);
 				},
 				...(options.workspace ? {
 					isolationMode: options.workspace.isolation === 'folder' ? 'workspace' : 'worktree',

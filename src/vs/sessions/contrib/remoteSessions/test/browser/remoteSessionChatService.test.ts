@@ -5,13 +5,15 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSession, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatModel, IChatPendingRequest } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -25,10 +27,30 @@ suite('RemoteSessionChatService', () => {
 		const pendingChanged = store.add(new Emitter<void>());
 		const disposed = store.add(new Emitter<void>());
 		const connectionsChanged = store.add(new Emitter<void>());
+		const resolutionChanged = store.add(new Emitter<void>());
+		store.add(connectionsChanged.event(() => resolutionChanged.fire()));
 		const active = observableValue('active', false);
 		const waitingForApproval = observableValue('waitingForApproval', false);
 		const queued: IChatPendingRequest[] = [];
-		const state = { references: 0, claims: 0, connected: true, available: true, prepare: async () => { } };
+		const connection = new class extends mock<IAgentConnection>() {
+			override clientId = 'window-client';
+		}();
+		const resolution: IAgentHostSessionResolution = {
+			connection,
+			connectionAuthority: 'host',
+			backendSession: URI.parse('copilotcli:/session'),
+		};
+		const state = {
+			references: 0,
+			claims: 0,
+			loads: 0,
+			connected: true,
+			available: true,
+			resolution,
+			load: async () => { },
+			getSession: async () => { },
+			prepare: async () => { },
+		};
 		const model = upcastPartial<IChatModel>({
 			requestInProgress: derived(reader => active.read(reader) && !waitingForApproval.read(reader)),
 			hasActiveRequest: active,
@@ -39,6 +61,8 @@ suite('RemoteSessionChatService', () => {
 		const service = store.add(new RemoteSessionChatService(
 			new class extends mock<IChatService>() {
 				override async acquireOrLoadSession(): Promise<IChatModelReference | undefined> {
+					state.loads++;
+					await state.load();
 					if (!state.available) {
 						return undefined;
 					}
@@ -48,6 +72,7 @@ suite('RemoteSessionChatService', () => {
 			}(),
 			new class extends mock<IChatSessionsService>() {
 				override async getOrCreateChatSession(): Promise<IChatSession> {
+					await state.getSession();
 					return upcastPartial<IChatSession>({
 						prepareForClientTools: async () => {
 							state.claims++;
@@ -58,12 +83,20 @@ suite('RemoteSessionChatService', () => {
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly onDidChangeConnections = connectionsChanged.event;
+				override readonly onDidChangeSessionResolution = resolutionChanged.event;
 				override resolveSessionResource(): IAgentHostSessionResolution | undefined {
-					return state.connected ? upcastPartial<IAgentHostSessionResolution>({}) : undefined;
+					return state.connected ? state.resolution : undefined;
 				}
 			}(),
 		));
-		return { service, active, waitingForApproval, queued, pendingChanged, disposed, connectionsChanged, state };
+		return { service, active, waitingForApproval, queued, pendingChanged, disposed, connectionsChanged, resolutionChanged, connection, state };
+	}
+
+	function replaceConnection(state: ReturnType<typeof setup>['state']): void {
+		state.resolution = {
+			...state.resolution,
+			connection: upcastPartial<IAgentConnection>({ clientId: state.resolution.connection.clientId }),
+		};
 	}
 
 	test('keeps the initial background chat alive while a tool is awaiting approval', async () => {
@@ -161,6 +194,110 @@ suite('RemoteSessionChatService', () => {
 		state.prepare = async () => { throw new Error('Preparation failed'); };
 		await assert.rejects(service.acquire(resource, CancellationToken.None, true), /Preparation failed/);
 		assert.strictEqual(state.references, 0);
+	});
+
+	test('disposes a model acquired after service shutdown', async () => {
+		const { service, state } = setup();
+		const gate = new DeferredPromise<void>();
+		state.load = () => gate.p;
+		const operation = assert.rejects(service.acquire(resource, CancellationToken.None, true), CancellationError);
+		service.dispose();
+		await gate.complete();
+		await operation;
+		assert.deepStrictEqual({ loads: state.loads, references: state.references, claims: state.claims }, { loads: 1, references: 0, claims: 0 });
+	});
+
+	test('cancellation while loading releases the acquired model without claiming client tools', async () => {
+		const { service, state } = setup();
+		const cancellation = store.add(new CancellationTokenSource());
+		const gate = new DeferredPromise<void>();
+		state.load = () => gate.p;
+		const operation = assert.rejects(service.acquire(resource, cancellation.token, true), CancellationError);
+		cancellation.cancel();
+		await gate.complete();
+		await operation;
+		assert.deepStrictEqual({ references: state.references, claims: state.claims }, { references: 0, claims: 0 });
+	});
+
+	test('does not load a chat while its host is disconnected', async () => {
+		const { service, state } = setup();
+		state.connected = false;
+		await assert.rejects(service.acquire(resource, CancellationToken.None, true), /no longer connected/);
+		assert.deepStrictEqual({ loads: state.loads, references: state.references, claims: state.claims }, { loads: 0, references: 0, claims: 0 });
+	});
+
+	for (const phase of ['load', 'getSession', 'prepare'] as const) {
+		for (const notify of [true, false]) {
+			test(`rejects a replacement connection during ${phase} ${notify ? 'with' : 'without'} a resolution event`, async () => {
+				const { service, state, resolutionChanged } = setup();
+				const started = new DeferredPromise<void>();
+				const gate = new DeferredPromise<void>();
+				state[phase] = async () => {
+					await started.complete();
+					await gate.p;
+				};
+				const operation = assert.rejects(service.acquire(resource, CancellationToken.None, true), CancellationError);
+				await started.p;
+				replaceConnection(state);
+				if (notify) {
+					resolutionChanged.fire();
+				}
+				const retainedAfterReplacement = state.references;
+				await gate.complete();
+				await operation;
+				assert.deepStrictEqual({ retainedAfterReplacement, references: state.references, claims: state.claims }, {
+					retainedAfterReplacement: notify || phase === 'load' ? 0 : 1,
+					references: 0,
+					claims: phase === 'prepare' ? 1 : 0,
+				});
+			});
+		}
+	}
+
+	for (const identity of ['connection', 'authority', 'backend session', 'client identity'] as const) {
+		test(`releases a retained chat when its ${identity} changes`, async () => {
+			const { service, state, active, waitingForApproval, connection, resolutionChanged } = setup();
+			const reference = await service.acquire(resource, CancellationToken.None, true);
+			active.set(true, undefined);
+			waitingForApproval.set(true, undefined);
+			reference.releaseWhenIdle();
+			switch (identity) {
+				case 'connection':
+					replaceConnection(state);
+					break;
+				case 'authority':
+					state.resolution = { ...state.resolution, connectionAuthority: 'replacement-host' };
+					break;
+				case 'backend session':
+					state.resolution = { ...state.resolution, backendSession: URI.parse('copilot:/session') };
+					break;
+				case 'client identity':
+					connection.clientId = 'replacement-client';
+					break;
+			}
+			resolutionChanged.fire();
+			const retainedAfterReplacement = state.references;
+			reference.dispose();
+			assert.deepStrictEqual({ retainedAfterReplacement, references: state.references, claims: state.claims }, {
+				retainedAfterReplacement: 0, references: 0, claims: 1,
+			});
+		});
+	}
+
+	test('unrelated connection and resolution events preserve the retained approval-aware chat', async () => {
+		const { service, state, active, waitingForApproval, connectionsChanged, resolutionChanged } = setup();
+		const reference = await service.acquire(resource, CancellationToken.None, true);
+		active.set(true, undefined);
+		waitingForApproval.set(true, undefined);
+		reference.releaseWhenIdle();
+		state.resolution = { ...state.resolution, backendSession: URI.parse('copilotcli:/session') };
+		connectionsChanged.fire();
+		resolutionChanged.fire();
+		const retainedAfterEvents = state.references;
+		active.set(false, undefined);
+		assert.deepStrictEqual({ retainedAfterEvents, references: state.references, claims: state.claims }, {
+			retainedAfterEvents: 1, references: 0, claims: 1,
+		});
 	});
 
 	test('cancelled queued work releases its retained chat', async () => {

@@ -12,6 +12,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IRemoteSessionService, parseCreateRemoteSessionOptions } from '../common/remoteSessions.js';
+import { assertRemoteSessionCaller } from './remoteSessionSource.js';
 
 const remoteSessionToolsWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true));
 
@@ -63,7 +64,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 			toolReferenceName: 'create_remote_session',
 			displayName: localize('remoteSessions.create.displayName', "Create Remote Session"),
 			userDescription: localize('remoteSessions.create.description', "Delegate work to a matching remote agent host"),
-			modelDescription: 'Create a session and start a prompt on a connected remote agent host. Use this for work that should run remotely, optionally requiring a particular execution platform or minimum hardware capacity; use create_session for work on the current host. Selects a matching host with the fewest running sessions and pending creations, without pickers. Omitted workspace creates a workspace-less session, independent of the origin; omitted model uses the target default. A supplied workspace must already exist and be trusted on the target; worktree isolation creates a new branch from the specified target branch or the target default. No repository is cloned, no source files are copied, and no branch or worktree is inherited from the origin. Include an explicit request to send results or blockers back using send_remote_message with session "origin" in the task prompt, unless instructed otherwise. The child\'s normal final answer is not forwarded. Replies arrive as new turns or queue behind active work while the coordinating Agents window remains connected. Returns once the initial prompt is accepted, not when work finishes. Creation follows normal tool approval. After dispatch, continue independent work or end your turn to wait for incoming replies. Do not retry an uncertain creation. Do not sleep or poll for completion.',
+			modelDescription: 'Create a session and start a prompt on a connected remote agent host. Use this for work that should run remotely, optionally requiring a particular execution platform or minimum hardware capacity; use create_session for work on the current host. Requires an Agent Host originating chat; other chat providers are not supported. Selects a matching host with the fewest running sessions and pending creations, without pickers. Omitted workspace creates a workspace-less session, independent of the origin; omitted model uses the target default. A supplied workspace must already exist and be trusted on the target; worktree isolation creates a new branch from the specified target branch or the target default. No repository is cloned, no source files are copied, and no branch or worktree is inherited from the origin. Include an explicit request to send results or blockers back using send_remote_message with session "origin" in the task prompt, unless instructed otherwise. The child\'s normal final answer is not forwarded. Replies arrive as new turns or queue behind active work while the coordinating Agents window remains connected. Returns once the initial prompt is accepted, not when work finishes. Creation follows normal tool approval. After dispatch, continue independent work or end your turn to wait for incoming replies. Do not retry an uncertain creation. Do not sleep or poll for completion.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.remote,
 			when: remoteSessionToolsWhen,
@@ -115,6 +116,10 @@ export class CreateRemoteSessionTool implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const options = parseCreateRemoteSessionOptions(context.parameters);
+		if (!context.chatSessionResource) {
+			throw new Error(localize('remoteSessions.create.missingContext', "Remote session creation requires an originating session."));
+		}
+		assertRemoteSessionCaller(context.chatSessionResource);
 		const message = new MarkdownString().appendText(localize(
 			'remoteSessions.create.confirmation',
 			"Start this task on {0}? The host is selected from your connected remote agent hosts using the requested resources and current workload. The new session can send messages back to this chat.",
@@ -149,6 +154,7 @@ export class CreateRemoteSessionTool implements IToolImpl {
 		if (!source) {
 			throw new Error('create_remote_session requires an originating session.');
 		}
+		assertRemoteSessionCaller(source);
 		const created = await this.remoteSessionsService.createSession(options, source, invocation.callId, token);
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(created, undefined, 2) }],

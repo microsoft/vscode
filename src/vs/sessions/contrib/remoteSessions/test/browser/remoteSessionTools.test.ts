@@ -76,7 +76,8 @@ suite('RemoteSessionTools', () => {
 			replies: description.includes('send_remote_message with session "origin"'),
 			noBlindRetry: description.includes('Do not retry an uncertain creation'),
 			connectedWindow: description.includes('Agents window remains connected'),
-		}, { noWorkspace: true, noInheritance: true, noClone: true, replies: true, noBlindRetry: true, connectedWindow: true });
+			agentHostSource: description.includes('Requires an Agent Host originating chat'),
+		}, { noWorkspace: true, noInheritance: true, noClone: true, replies: true, noBlindRetry: true, connectedWindow: true, agentHostSource: true });
 	});
 
 	test('creation waits for exact chat context when invoked in the background', () => {
@@ -146,6 +147,20 @@ suite('RemoteSessionTools', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	test('unsupported source chats fail before confirmation or creation without widget-scoped gating', async () => {
+		const { create, calls } = setup();
+		const context = URI.parse('vscode-chat-session:/extension-chat');
+		const parameters = { prompt: 'Run tests' };
+		await assert.rejects(create.prepareToolInvocation({
+			toolCallId: 'prepare', chatSessionResource: context, parameters,
+		}, CancellationToken.None), /originating chat on an Agent Host/);
+		await assert.rejects(create.invoke({
+			callId: 'create', toolId: create.getToolData().id, parameters, context: { sessionResource: context },
+		}, async () => 0, progress, CancellationToken.None), /originating chat on an Agent Host/);
+		assert.deepStrictEqual({
+			calls, needsVisibleWidget: create.getToolData().when?.keys().includes(ChatContextKeys.chatIsAgentHostSession.key),
+		}, { calls: [], needsVisibleWidget: false });
+	});
 	test('host listing is structured and has no creation side effects', async () => {
 		const { list, calls } = setup();
 		const response = await list.invoke({

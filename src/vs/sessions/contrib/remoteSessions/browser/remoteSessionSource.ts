@@ -17,6 +17,7 @@ import { IRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin }
 import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, parseChatUri, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -30,6 +31,12 @@ export interface IRemoteSessionChat {
 export interface IRemoteSessionSource extends IRemoteSessionChat {
 	readonly depth: number;
 	readonly origin: IRemoteSessionOrigin | undefined;
+}
+
+export function assertRemoteSessionCaller(resource: URI): void {
+	if (!isAgentHostSessionResource(resource)) {
+		throw new Error(localize('remoteMessage.unsupportedSource', "Remote delegation requires an originating chat on an Agent Host. Other chat providers are not supported."));
+	}
 }
 
 export function resolveRemoteSessionReference(reference: string, connectionsService: IAgentHostConnectionsService): { resource: URI; identity: IAgentHostSessionIdentity } {
@@ -67,6 +74,16 @@ export function resolveRemoteSessionChat(resource: URI, sessionsService: ISessio
 	return { session, chat, host, clientId: host.connection.clientId };
 }
 
+export function assertRemoteSessionSource(source: IRemoteSessionChat, sessionsService: ISessionsManagementService, connectionsService: IAgentHostConnectionsService): void {
+	const current = resolveRemoteSessionChat(source.chat.resource, sessionsService, connectionsService);
+	if (current.host.connection !== source.host.connection || current.clientId !== source.clientId
+		|| current.host.connectionAuthority !== source.host.connectionAuthority
+		|| !isEqual(current.host.backendSession, source.host.backendSession)
+		|| !isEqual(current.chat.resource, source.chat.resource)) {
+		throw new Error(localize('remoteMessage.sourceChanged', "The originating chat or agent host connection changed."));
+	}
+}
+
 /** Resolves the caller's exact chat and persisted cumulative depth without retaining a subscription. */
 export async function resolveRemoteSessionSource(
 	sourceResource: URI,
@@ -77,6 +94,7 @@ export async function resolveRemoteSessionSource(
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
+	assertRemoteSessionCaller(sourceResource);
 	const source = resolveRemoteSessionChat(sourceResource, sessionsService, connectionsService);
 	const store = new DisposableStore();
 	let failure: Error | undefined;
@@ -86,15 +104,7 @@ export async function resolveRemoteSessionSource(
 			failure = new Error(localize('remoteMessage.sourceTimeout', "Timed out reading the originating session's state."));
 			cancellation.cancel();
 		}, 10_000));
-		const checkSource = () => {
-			const current = resolveRemoteSessionChat(sourceResource, sessionsService, connectionsService);
-			if (current.host.connection !== source.host.connection || current.clientId !== source.clientId
-				|| current.host.connectionAuthority !== source.host.connectionAuthority
-				|| !isEqual(current.host.backendSession, source.host.backendSession)
-				|| !isEqual(current.chat.resource, source.chat.resource)) {
-				throw new Error(localize('remoteMessage.sourceChanged', "The originating chat or agent host connection changed."));
-			}
-		};
+		const checkSource = () => assertRemoteSessionSource(source, sessionsService, connectionsService);
 		store.add(connectionsService.onDidChangeConnections(() => {
 			try {
 				checkSource();

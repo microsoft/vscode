@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -65,7 +65,7 @@ export function parseSendRemoteMessageOptions(value: unknown): ISendRemoteMessag
 /** Routes approved messages without opening a chat or changing its execution configuration. */
 export class RemoteSessionMessageRouter {
 	private readonly requests = new Map<string, { readonly input: string; readonly result: Promise<ISendRemoteMessageResult> }>();
-	private readonly sends = new Sequencer();
+	private readonly sends = new SequencerByKey<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
@@ -94,9 +94,14 @@ export class RemoteSessionMessageRouter {
 		if (this.requests.size >= maxRemoteMessages) {
 			throw new Error(localize('remoteMessage.limit', "Remote message limit reached ({0} requests per window).", maxRemoteMessages));
 		}
-		const result = this.sends.queue(() => this.doSend(source, options, token));
+		const result = this.queueSend(source, options, token);
 		this.requests.set(key, { input, result });
 		return result;
+	}
+
+	private async queueSend(sourceResource: URI, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
+		const { source, target } = await this.resolve(sourceResource, options.session, token);
+		return this.sends.queue(getComparisonKey(target.chat), () => this.doSend(source, target, options, token));
 	}
 
 	private checkEnabled(): void {
@@ -165,8 +170,7 @@ export class RemoteSessionMessageRouter {
 		};
 	}
 
-	private async doSend(sourceResource: URI, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
-		const { source, target } = await this.resolve(sourceResource, options.session, token);
+	private async doSend(source: IResolvedRemoteChat, target: IResolvedRemoteChat, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
 		const store = new DisposableStore();
 		let dispatched = false;
 		let rejected = false;

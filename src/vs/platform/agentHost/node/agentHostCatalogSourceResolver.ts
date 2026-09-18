@@ -5,6 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -80,6 +81,7 @@ const sessionMetadata = {
 	isArchived: parsedSessionMetadataKey(AH_META_IS_ARCHIVED_DB_KEY, value => value === 'true'),
 	isDone: parsedSessionMetadataKey(AH_META_IS_DONE_DB_KEY, value => value === 'true'),
 	creationReference: parsedSessionMetadataKey(AH_META_CREATED_BY_SESSION_DB_KEY, parseSessionCreationReference),
+	remoteOrigin: parsedSessionMetadataKey(REMOTE_SESSION_ORIGIN_METADATA_KEY, parseRemoteSessionOrigin),
 	workspaceless: parsedSessionMetadataKey(AH_META_WORKSPACELESS_DB_KEY, value => value === 'true'),
 	ehcliAdopted: parsedSessionMetadataKey(AH_META_EHCLI_ADOPTED_DB_KEY, value => value === 'true'),
 	multiRoot: parsedSessionMetadataKey(SESSION_META_MULTI_ROOT_KEY, parseSessionMultiRootMetadata),
@@ -148,6 +150,10 @@ export class AgentHostCatalogSourceResolver {
 		const creationReference = preferPersistedMetadata
 			? (sessionMetadata.creationReference.has(metadata) ? persistedCreationReference : readSessionCreationReference(state.meta))
 			: readSessionCreationReference(state.meta) ?? persistedCreationReference;
+		const persistedRemoteOrigin = sessionMetadata.remoteOrigin.read(metadata);
+		const remoteOrigin = preferPersistedMetadata
+			? (sessionMetadata.remoteOrigin.has(metadata) ? persistedRemoteOrigin : readRemoteSessionOrigin({ _meta: state.meta }))
+			: readRemoteSessionOrigin({ _meta: state.meta }) ?? persistedRemoteOrigin;
 		const persistedGitHub = sessionMetadata.gitHub.read(metadata);
 		const github = preferPersistedMetadata
 			? (sessionMetadata.gitHub.has(metadata) ? persistedGitHub : readSessionGitHubState(state.meta))
@@ -187,6 +193,7 @@ export class AgentHostCatalogSourceResolver {
 			...(sourceControl ? { [SESSION_META_SOURCE_CONTROL_KEY]: sourceControl } : undefined),
 			...(artifacts.length > 0 ? { [SESSION_META_ARTIFACTS_KEY]: [...artifacts] } : undefined),
 			...(creationReference ? { [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference } : undefined),
+			...(remoteOrigin ? { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: remoteOrigin } : undefined),
 			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
@@ -238,6 +245,9 @@ export class AgentHostCatalogSourceResolver {
 		};
 		if (creationReference || metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_CREATED_BY_SESSION_DB_KEY] = creationReference ? JSON.stringify(creationReference) : '';
+		}
+		if (remoteOrigin) {
+			legacyMetadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
 		}
 		if (workspaceless || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_WORKSPACELESS_DB_KEY] = workspaceless ? 'true' : 'false';

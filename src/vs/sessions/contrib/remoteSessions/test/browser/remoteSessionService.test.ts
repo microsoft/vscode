@@ -106,12 +106,15 @@ suite('RemoteSessionService', () => {
 		const sourceMetadata = upcastPartial<IAgentSessionMetadata>({ session: URI.parse('copilot:/source') });
 		const state = {
 			beforeCommit: async () => { },
+			beforeStat: async () => { },
+			beforeAcquire: async () => { },
 			transformSession: (session: ISession) => session,
 			sourceMetadata,
 			trusted: true,
 			isDirectory: true,
 			inspectionError: undefined as Error | undefined,
 			sourceConnected: true,
+			sourceClientId: 'test-client',
 		};
 		const management = new class extends mock<ISessionsManagementService>() {
 			override getSession(resource: URI): ISession | undefined {
@@ -158,7 +161,7 @@ suite('RemoteSessionService', () => {
 			}
 		}();
 		const connection = new class extends mock<IAgentConnection>() {
-			override readonly clientId = 'test-client';
+			override get clientId() { return state.sourceClientId; }
 			override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: { agents: [] } });
 			private readonly subscriptions: { [K in StateComponents]?: () => IAgentSubscription<ComponentToState[K]> } = {
 				[StateComponents.Session]: () => upcastPartial<IAgentSubscription<SessionState>>({
@@ -186,6 +189,7 @@ suite('RemoteSessionService', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const files = new class extends mock<IFileService>() {
 			override async stat(resource: URI): Promise<IFileStatWithMetadata> {
+				await state.beforeStat();
 				if (state.inspectionError) {
 					throw state.inspectionError;
 				}
@@ -200,6 +204,7 @@ suite('RemoteSessionService', () => {
 			management, connections, configuration, files, trust, new NullLogService(),
 			new class extends mock<IRemoteSessionChatService>() {
 				override async acquire(resource: URI) {
+					await state.beforeAcquire();
 					backgroundEvents.push(`acquire:${resource.toString()}`);
 					return {
 						dispose: () => backgroundEvents.push('dispose'),
@@ -499,6 +504,33 @@ suite('RemoteSessionService', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
+	for (const replaced of [false, true]) {
+		test(`revalidates the source after asynchronous candidate discovery: replacement=${replaced}`, async () => {
+			const { create, calls, state } = setup([new RemoteProvider('host')]);
+			const inspecting = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			state.beforeStat = async () => { await inspecting.complete(); await release.p; };
+			const request = create({ workspace: { uri: 'file:///repo' } });
+			await inspecting.p;
+			if (replaced) {
+				state.sourceClientId = 'replacement-client';
+			} else {
+				state.sourceConnected = false;
+			}
+			await release.complete();
+			await assert.rejects(request, /not registered and connected|connection changed/);
+			assert.deepStrictEqual(calls, []);
+		});
+	}
+
+	test('revalidates the source after preparing the child, before sending its prompt', async () => {
+		const { create, state, backgroundEvents } = setup([new RemoteProvider('host')]);
+		let committed = false;
+		state.beforeAcquire = async () => { state.sourceConnected = false; };
+		state.beforeCommit = async () => { committed = true; };
+		await assert.rejects(create(), /not registered and connected/);
+		assert.deepStrictEqual({ committed, released: backgroundEvents.at(-1) }, { committed: false, released: 'dispose' });
+	});
 	test('disabled remote hosts and AI features prevent invocation', async () => {
 		const { create, configuration, calls } = setup([new RemoteProvider('host')]);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
