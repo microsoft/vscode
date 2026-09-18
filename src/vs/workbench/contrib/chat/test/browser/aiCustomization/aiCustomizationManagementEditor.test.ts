@@ -1603,7 +1603,13 @@ suite('aiCustomizationManagementEditor', () => {
 				categoryLabel: 'MCP Servers',
 				scopeLabel: 'vscode',
 				storage: PromptsStorage.local,
-				items: [{ label: 'server', sourceLabel: '/workspace/.vscode/mcp.json', targetLabel: '/workspace/.mcp.json', operation: 'server' }],
+				items: [{
+					label: 'server',
+					sourceLabel: '/workspace/.vscode/mcp.json',
+					targetLabel: '/workspace/.mcp.json',
+					operation: 'server',
+					migrationKey: 'mcp:["mcp.config.ws0.server","server","file:///workspace/.vscode/mcp.json","file:///workspace/.mcp.json"]',
+				}],
 			}],
 		});
 		editor.editorPreviewDisposables.dispose();
@@ -1745,6 +1751,47 @@ suite('aiCustomizationManagementEditor', () => {
 			currentWorkspace: [], profile: [], reopenedWorkspace: [['server']],
 		});
 		reopened.editorPreviewDisposables.dispose();
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('removes current and legacy migration activity when its source becomes a candidate again', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+		const context = editor.getMigrationActivityContext(PromptsStorage.local);
+		const revertedPrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'review.prompt.md',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const legacyPrompt: MigratableConfiguration = {
+			...revertedPrompt,
+			uri: URI.file('/workspace/.github/prompts/legacy.prompt.md'),
+			name: 'legacy.prompt.md',
+		};
+		editor.recordMigrationActivity(category, context, [{
+			label: 'review.prompt.md',
+			sourceLabel: '/workspace/.github/prompts/review.prompt.md',
+			targetLabel: '/workspace/.github/skills/review/SKILL.md',
+			operation: 'converted',
+			migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
+		}, {
+			label: 'legacy.prompt.md',
+			sourceLabel: '/workspace/.github/prompts/legacy.prompt.md',
+			targetLabel: '/workspace/.github/skills/legacy/SKILL.md',
+			operation: 'converted',
+		}]);
+
+		editor.setCustomizationsToMigrate(new Map([[category.id, [revertedPrompt, legacyPrompt]]]), new Map());
+
+		assert.deepStrictEqual(editor.getMigrationActivityState(PromptsStorage.local), {
+			activity: [],
+			skipped: false,
+			started: true,
+		});
 		editor.editorPreviewDisposables.dispose();
 	});
 
