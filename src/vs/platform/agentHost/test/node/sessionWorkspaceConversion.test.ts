@@ -82,8 +82,8 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		return this.worktree;
 	}
 
-	override sessionWorktreeProject(_sessionId: string): { uri: URI; displayName: string } {
-		return { uri: this.repository, displayName: 'project' };
+	override sessionWorktreeInfo(_sessionId: string) {
+		return { project: { uri: this.repository, displayName: 'project' }, workingDirectory: this.worktree, branchName: 'feature' };
 	}
 
 	override async prepareSessionDeletion(_sessionUri: URI, _sessionId: string): Promise<ISessionWorktree> {

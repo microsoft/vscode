@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import type { AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -15,7 +16,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { getGithubRepoIdFromFetchUrl, GithubRepoId, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
-import { derivePullRequestState, PullRequestSearchItem } from '../../../platform/github/common/githubAPI';
+import { derivePullRequestState, PullRequestSearchItem, PullRequestState } from '../../../platform/github/common/githubAPI';
 import { CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
 import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../conversation/common/languageModelAccess';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -156,7 +157,26 @@ export function normalizeInitialSessionOptions(initialOptions: unknown, logServi
 	return [];
 }
 
-export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diffRefs: CloudSessionData['diffRefs']): { readonly owner: string; readonly name: string; readonly host?: string; readonly branch?: string } | undefined {
+type CloudSessionItemMetadata = NonNullable<CloudSessionData['repo']> & {
+	readonly branch?: string;
+	readonly baseBranch?: string;
+	readonly pullRequestUrl?: string;
+	readonly pullRequestState?: PullRequestState;
+	readonly linkedIssues?: NonNullable<PullRequestSearchItem['closingIssuesReferences']>['nodes'];
+};
+
+export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diffRefs: CloudSessionData['diffRefs'], pullRequest?: PullRequestSearchItem): CloudSessionItemMetadata | undefined {
+	if (pullRequest) {
+		return {
+			owner: pullRequest.repository.owner.login,
+			name: pullRequest.repository.name,
+			branch: pullRequest.headRefName,
+			baseBranch: pullRequest.baseRefName,
+			pullRequestUrl: pullRequest.url,
+			pullRequestState: derivePullRequestState(pullRequest),
+			...(pullRequest.closingIssuesReferences?.nodes.length ? { linkedIssues: pullRequest.closingIssuesReferences.nodes } : {}),
+		};
+	}
 	if (!repo) {
 		return undefined;
 	}
@@ -166,6 +186,35 @@ export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diff
 		...(repo.host ? { host: repo.host } : {}),
 		...(diffRefs?.headRef ? { branch: diffRefs.headRef } : {}),
 	};
+}
+
+export function filterCloudSessions(
+	sessions: readonly CloudSessionData[],
+	visibility: ConfigKey.CloudSessionVisibilityValue,
+	logService: ILogService,
+	now: number = Date.now(),
+): { readonly sessions: readonly CloudSessionData[]; readonly expiresAt: number } {
+	if (visibility === 'all') {
+		return { sessions, expiresAt: Infinity };
+	}
+
+	const days = { '24hours': 1, '7days': 7, '30days': 30, '90days': 90 }[visibility];
+	const maxAge = days * 24 * 60 * 60 * 1000;
+	let expiresAt = Infinity;
+	const visibleSessions = sessions.filter(session => {
+		const lastActivity = Date.parse(session.updatedAt ?? session.completedAt ?? session.createdAt);
+		if (!Number.isFinite(lastActivity)) {
+			logService.warn(`Cannot determine the last activity of cloud task ${session.taskId}; keeping it visible.`);
+			return true;
+		}
+		const expiry = lastActivity + maxAge;
+		if (expiry < now) {
+			return false;
+		}
+		expiresAt = Math.min(expiresAt, expiry);
+		return true;
+	});
+	return { sessions: visibleSessions, expiresAt };
 }
 
 /**
@@ -228,6 +277,29 @@ const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPull
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
+
+type RepositoryQuickPickItem = vscode.QuickPickItem & {
+	readonly repository?: string;
+	readonly cloneUrl?: string;
+};
+
+export function getRepositoryQuickPickItems(
+	repositories: readonly vscode.ChatSessionProviderOptionItem[],
+	value: string,
+	allowRepositoryUrl: boolean,
+): RepositoryQuickPickItem[] {
+	const repositoryUrl = value.trim();
+	const canCloneUrl = allowRepositoryUrl
+		&& (/^(?:https?|ssh|git):\/\/\S+$/i.test(repositoryUrl) || /^[^@\s]+@[^:\s]+:\S+$/.test(repositoryUrl));
+	return [
+		...(canCloneUrl ? [{
+			label: l10n.t('Clone from URL'),
+			description: repositoryUrl,
+			cloneUrl: repositoryUrl,
+		}] : []),
+		...repositories.map(repo => ({ label: repo.name, repository: repo.name })),
+	];
+}
 
 export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullRequest'): { readonly repoId: string; readonly url: string; readonly label: string } | undefined {
 	const match = /^https:\/\/(?:www\.)?github\.com\/(?<owner>[^/?#]+)\/(?<repository>[^/?#]+)\/(?<resource>issues|pull)\/(?<number>[1-9]\d*)\/?(?:[?#].*)?$/i.exec(value.trim());
@@ -387,6 +459,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	});
 	private cachedSessionsSize: number = 0;
 	private cachedSessionItems: vscode.ChatSessionItem[] | undefined;
+	private cachedSessionItemsExpiresAt = Infinity;
+	private readonly cachedSessionItemsExpiryScheduler = this._register(new RunOnceScheduler(() => {
+		if (Date.now() > this.cachedSessionItemsExpiresAt) {
+			this.refresh();
+		} else {
+			this.scheduleCachedSessionItemsExpiry();
+		}
+	}, 0));
+	private sessionItemsRequestGeneration = 0;
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
 	private readonly _createPullRequestInFlightTaskIds = new Set<string>();
@@ -449,6 +530,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		@IOTelService private readonly _otelService: IOTelService,
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 		@ICAPIClientService capiClientService: ICAPIClientService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -457,6 +539,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService, instrumentation);
 
 		this.registerCommands();
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ConfigKey.CloudSessionVisibility.fullyQualifiedId)) {
+				this.refresh();
+			}
+		}));
 
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
 		this._register(this._domainService.onDidChangeDomains(e => {
@@ -482,7 +570,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				let intervalMs: number;
 				let hasHistoricalSessions: boolean;
 				try {
-					const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
+					const { sessions: sessionList } = await this.fetchSessionList(repoIds);
 					hasHistoricalSessions = sessionList.length > 0;
 					intervalMs = this.getRefreshIntervalTime(hasHistoricalSessions);
 				} catch (e) {
@@ -495,8 +583,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				telemetryObj.hasHistoricalSessions = hasHistoricalSessions;
 				const schedulerCallback = async () => {
 					try {
-						const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
-						if (this.cachedSessionsSize !== sessionList.length) {
+						const { sessions: sessionList } = await this.fetchSessionList(repoIds);
+						if (this.cachedSessionsSize !== sessionList.length || Date.now() > this.cachedSessionItemsExpiresAt) {
 							this.refresh();
 						}
 					} catch (e) {
@@ -603,10 +691,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this._register(vscode.commands.registerCommand('github.copilot.chat.openPullRequestReroute', openPullRequestReroute));
 
 		// Command for browsing repositories in the repository picker
-		const openRepositoryCommand = async (sessionItemResource?: vscode.Uri): Promise<string | undefined> => {
-			const quickPick = vscode.window.createQuickPick();
+		const openRepositoryCommand = async (
+			sessionItemResource?: vscode.Uri,
+			options?: { readonly allowRepositoryUrl?: boolean },
+		): Promise<string | undefined> => {
+			const quickPick = vscode.window.createQuickPick<RepositoryQuickPickItem>();
 			const quickPickDisposables = new DisposableStore();
-			quickPick.placeholder = l10n.t('Search for a repository...');
+			quickPick.placeholder = options?.allowRepositoryUrl
+				? l10n.t('Search for a repository or paste a repository URL...')
+				: l10n.t('Search for a repository...');
 			quickPick.matchOnDescription = true;
 			quickPick.matchOnDetail = true;
 			quickPick.busy = true;
@@ -615,7 +708,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			// Load initial repositories
 			try {
 				const repos = await this.fetchAllRepositoriesFromGitHub();
-				quickPick.items = repos.map(repo => ({ label: repo.name }));
+				quickPick.items = getRepositoryQuickPickItems(repos, '', options?.allowRepositoryUrl === true);
 			} catch (error) {
 				this.logService.error(`Error fetching initial repositories: ${error}`);
 			} finally {
@@ -642,7 +735,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						quickPick.busy = true;
 						try {
 							const searchResults = await this.fetchAllRepositoriesFromGitHub(value);
-							quickPick.items = searchResults.map(repo => ({ label: repo.name }));
+							quickPick.items = getRepositoryQuickPickItems(searchResults, value, options?.allowRepositoryUrl === true);
 						} finally {
 							quickPick.busy = false;
 						}
@@ -651,19 +744,19 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 				quickPickDisposables.add(quickPick.onDidAccept(() => {
 					const selected = quickPick.selectedItems[0];
-					if (selected && sessionItemResource) {
-						this.sessionRepositoryMap.set(sessionItemResource, selected.label);
+					if (selected?.repository && sessionItemResource) {
+						this.sessionRepositoryMap.set(sessionItemResource, selected.repository);
 						// Save user-selected repo so it appears in the recent repos list
-						this.saveUserSelectedRepository(selected.label);
+						this.saveUserSelectedRepository(selected.repository);
 						this._onDidChangeChatSessionOptions.fire({
 							resource: sessionItemResource,
 							updates: [{
 								optionId: REPOSITORIES_OPTION_GROUP_ID,
-								value: { id: selected.label, name: selected.label, icon: new vscode.ThemeIcon('repo') }
+								value: { id: selected.repository, name: selected.repository, icon: new vscode.ThemeIcon('repo') }
 							}]
 						});
 					}
-					doResolve(selected?.label);
+					doResolve(selected?.cloneUrl ?? selected?.repository);
 					quickPick.hide();
 				}));
 
@@ -825,11 +918,25 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	public refresh(): void {
+		this.cachedSessionItemsExpiryScheduler.cancel();
+		this.sessionItemsRequestGeneration++;
 		this.cachedSessionItems = undefined;
+		this.cachedSessionItemsExpiresAt = Infinity;
 		this.chatSessionItemsPromise = undefined;
 		// Note: _ccaEnabledCache and _optionsCache are TTL-based and NOT cleared on refresh.
 		// Use clearOptionsCaches() to force-clear them (e.g. on auth change).
 		this._onDidChangeChatSessionItems.fire();
+	}
+
+	private scheduleCachedSessionItemsExpiry(): void {
+		this.cachedSessionItemsExpiryScheduler.cancel();
+		if (this._store.isDisposed || !Number.isFinite(this.cachedSessionItemsExpiresAt)) {
+			return;
+		}
+
+		// The cutoff is inclusive, and setTimeout delays cannot exceed ~24.8 days.
+		const delay = Math.max(0, this.cachedSessionItemsExpiresAt - Date.now() + 1);
+		this.cachedSessionItemsExpiryScheduler.schedule(Math.min(delay, 2 ** 31 - 1));
 	}
 
 	/**
@@ -1294,16 +1401,22 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}
 
+	private async fetchSessionList(repoIds: GithubRepoId[] | undefined) {
+		const sessions = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
+		return filterCloudSessions(sessions, this._configurationService.getConfig(ConfigKey.CloudSessionVisibility), this.logService);
+	}
+
 	async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
 		// Return cached items if available
-		if (this.cachedSessionItems) {
+		if (this.cachedSessionItems && Date.now() <= this.cachedSessionItemsExpiresAt) {
 			return this.cachedSessionItems;
 		}
 
 		if (this.chatSessionItemsPromise) {
 			return this.chatSessionItemsPromise;
 		}
-		this.chatSessionItemsPromise = (async () => {
+		const generation = ++this.sessionItemsRequestGeneration;
+		this.chatSessionItemsPromise = (async (): Promise<vscode.ChatSessionItem[]> => {
 			const repoIds = await getRepoId(this._gitService);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: repoIds=${JSON.stringify(repoIds?.map(r => ({ org: r.org, repo: r.repo, host: r.host })))}, isAgentSessionsWorkspace=${vscode.workspace.isAgentSessionsWorkspace}`);
 			// Make sure if it's not a github repo we don't show any sessions
@@ -1312,11 +1425,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
 				return [];
 			}
-			const sessionList = await this._backend.fetchSessionList(repoIds, vscode.workspace.isAgentSessionsWorkspace);
+			const { sessions: sessionList, expiresAt } = await this.fetchSessionList(repoIds);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
-			this.cachedSessionsSize = sessionList.length;
-
-
 			const validateISOTimestamp = (date: string | undefined): number | undefined => {
 				try {
 					if (!date) {
@@ -1352,16 +1462,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					: entry.diffRefs
 						? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs)
 						: undefined;
-				const metadata = pr
-					? {
-						name: pr.repository?.name,
-						owner: pr.repository?.owner?.login,
-						branch: pr.headRefName,
-						baseBranch: pr.baseRefName,
-						pullRequestUrl: pr.url,
-						pullRequestState: derivePullRequestState(pr),
-					}
-					: getCloudSessionItemMetadata(entry.repo, entry.diffRefs);
+				const metadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr);
 
 				return {
 					...getCloudSessionResources(entry.taskId, pr?.number),
@@ -1384,15 +1485,23 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}));
 			const filteredSessions = sessionItems.filter((item): item is vscode.ChatSessionItem => item !== undefined);
 
+			if (this.sessionItemsRequestGeneration !== generation) {
+				return this.provideChatSessionItems(token);
+			}
 			vscode.commands.executeCommand('setContext', 'github.copilot.chat.cloudSessionsEmpty', filteredSessions.length === 0);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: returning ${filteredSessions.length} sessions (${sessionItems.length - filteredSessions.length} filtered out)`);
 
 			// Cache the results
+			this.cachedSessionsSize = sessionList.length;
 			this.cachedSessionItems = filteredSessions;
+			this.cachedSessionItemsExpiresAt = expiresAt;
+			this.scheduleCachedSessionItemsExpiry();
 
 			return filteredSessions;
 		})().finally(() => {
-			this.chatSessionItemsPromise = undefined;
+			if (this.sessionItemsRequestGeneration === generation) {
+				this.chatSessionItemsPromise = undefined;
+			}
 		});
 		return this.chatSessionItemsPromise;
 	}

@@ -11,13 +11,13 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, combineAutomationCatalogueStates, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, combineAutomationCatalogueStates, IAutomationProviderDescriptor, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAutomation, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationService } from './automationService.js';
 
 interface IAutomationStoreEntry {
-	readonly providerId: string | undefined;
+	readonly provider: IAutomationProviderDescriptor | undefined;
 	readonly store: ISessionsProviderAutomations;
 }
 
@@ -41,6 +41,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
+	readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
 
 	constructor(
 		initialProvidersSettled: IObservable<boolean>,
@@ -58,6 +59,12 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 				states.push('loading');
 			}
 			return combineAutomationCatalogueStates(states);
+		});
+		this.unavailableProviders = derived(this, reader => {
+			this.providersChanged.read(reader);
+			return this.getProviderStores()
+				.filter(entry => entry.store.catalogueState.read(reader) === 'unavailable')
+				.flatMap(entry => entry.provider === undefined ? [] : [entry.provider]);
 		});
 		this.automations = derived(this, reader => {
 			this.providersChanged.read(reader);
@@ -185,7 +192,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		for (let index = 0; index < results.length; index++) {
 			const result = results[index];
 			if (result.status === 'rejected') {
-				const providerId = stores[index].providerId ?? 'legacy';
+				const providerId = stores[index].provider?.id ?? 'legacy';
 				this.logService.error(`[ProviderAutomationService] Failed to recover stale Automation runs for '${providerId}'.`, result.reason);
 			}
 		}
@@ -215,11 +222,11 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	private getProviderStores(): IAutomationStoreEntry[] {
 		return this.sessionsProvidersService.getProviders()
 			.filter(provider => provider.automations)
-			.map(provider => ({ providerId: provider.id, store: provider.automations! }));
+			.map(provider => ({ provider: { id: provider.id, label: provider.label }, store: provider.automations! }));
 	}
 
 	private getStores(): IAutomationStoreEntry[] {
-		return [...this.getProviderStores(), { providerId: undefined, store: this.legacyStore }];
+		return [...this.getProviderStores(), { provider: undefined, store: this.legacyStore }];
 	}
 
 	private getCreationStore(options: ICreateAutomationOptions): ISessionsProviderAutomations {
@@ -389,7 +396,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 					this.recoveredStores.add(entry.store);
 				}
 			} catch (error) {
-				const providerId = entry.providerId ?? 'legacy';
+				const providerId = entry.provider?.id ?? 'legacy';
 				this.logService.error(`[ProviderAutomationService] Failed to recover stale Automation runs for '${providerId}'.`, error);
 			}
 		}

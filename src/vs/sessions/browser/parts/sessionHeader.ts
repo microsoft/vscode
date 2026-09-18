@@ -14,7 +14,7 @@ import { autorun, IReader } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
+import { getChatCapabilities, getUntitledSessionTitle, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -26,10 +26,12 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 
 /**
- * The session header shown at the top of a session view. It surfaces the session
- * identity and session toolbar.
+ * The session header shown at the top of a session view. It surfaces the active
+ * chat title and session toolbar.
  *
  * It is intentionally decoupled from the {@link ChatCompositeBar} (the chat tab
  * strip) so the two surfaces evolve independently. The hosting view tells the
@@ -48,6 +50,7 @@ export class SessionHeader extends Disposable {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private _renameInput: HTMLInputElement | undefined;
 	private _session: IActiveSession | undefined;
+	private _activeChat: IChat | undefined;
 	private _sessionIsCreated = false;
 	private _requestedVisible = true;
 
@@ -85,6 +88,7 @@ export class SessionHeader extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -129,6 +133,7 @@ export class SessionHeader extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		// Report height changes so the host can re-layout.
@@ -222,6 +227,7 @@ export class SessionHeader extends Disposable {
 		// Cancel any in-flight rename when switching sessions.
 		this._cancelTitleEditing();
 		this._session = session;
+		this._activeChat = undefined;
 		this._toolbar.context = session;
 		this._statusIcon.reset();
 
@@ -266,10 +272,13 @@ export class SessionHeader extends Disposable {
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		// Session title — quick chats use "New Chat" as the untitled fallback.
-		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
-		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
-		this._titleEl.classList.toggle('editable', this._isTitleEditable());
+		const activeChat = session.activeChat.read(reader);
+		if (this._activeChat?.resource.toString() !== activeChat.resource.toString()) {
+			this._cancelTitleEditing();
+			this._activeChat = activeChat;
+		}
+		this._titleTextEl.textContent = activeChat.title.read(reader) || getUntitledSessionTitle(true);
+		this._titleEl.classList.toggle('editable', this._isTitleEditable(reader));
 		this._onDidChangeHeight.fire();
 	}
 
@@ -287,18 +296,19 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * The title is editable when the backing provider declares it supports
-	 * renaming the session (`capabilities.supportsRename`). This is the same
-	 * signal that gates the `Rename...` context menu action in the sessions list.
+	 * The title is editable when the active chat supports renaming.
 	 */
-	private _isTitleEditable(): boolean {
-		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
+	private _isTitleEditable(reader?: IReader): boolean {
+		return !!this._session
+			&& !!this._activeChat
+			&& this._activeChat.status.read(reader) !== SessionStatus.Untitled
+			&& getChatCapabilities(this._activeChat, this._session, reader).canRename;
 	}
 
 	/**
-	 * Starts an inline rename of the session title. Returns `false` when the
+	 * Starts an inline rename of the active chat title. Returns `false` when the
 	 * header cannot host it — the header is hidden (e.g. while the single-group
-	 * chat tabs row replaces it) or the session cannot be renamed — so callers
+	 * chat tabs row replaces it) or the active chat cannot be renamed — so callers
 	 * can fall back to another rename affordance.
 	 */
 	startTitleEditing(): boolean {
@@ -315,28 +325,29 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * Replace the rendered title text with an `<input>` containing the current
+	 * Replace the rendered title text with an `<input>` containing the active chat
 	 * title (pre-selected). Enter commits via {@link ISessionsManagementService.renameChat},
 	 * Escape or blur cancels.
 	 */
 	private _startTitleEditing(): void {
 		const session = this._session;
-		if (!session || this._renameInput) {
+		const activeChat = this._activeChat;
+		if (!session || !activeChat || this._renameInput) {
 			return;
 		}
 
-		const initialTitle = session.title.get();
+		const initialTitle = activeChat.title.get();
 		// When the stored title is empty the header shows a localized fallback.
 		// Reflect that as a placeholder rather than seeding the input with it, so
 		// the user neither sees a blank field nor accidentally commits the fallback.
-		const fallbackTitle = getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
+		const fallbackTitle = getUntitledSessionTitle(true);
 
 		const input = document.createElement('input');
 		input.type = 'text';
 		input.className = 'chat-composite-bar-session-title-input';
 		input.value = initialTitle;
 		input.placeholder = fallbackTitle;
-		input.setAttribute('aria-label', localize('renameSession.aria', "Rename session"));
+		input.setAttribute('aria-label', localize('renameChat.aria', "Rename chat"));
 		input.spellcheck = false;
 
 		this._titleTextEl.style.display = 'none';
@@ -360,7 +371,7 @@ export class SessionHeader extends Disposable {
 			this._endTitleEditing();
 			if (commit && newTitle && newTitle !== initialTitle) {
 				this._sessionsManagementService
-					.renameSession(session, newTitle)
+					.renameChat(session, activeChat.resource, newTitle)
 					.catch(onUnexpectedError);
 			}
 		};
@@ -431,6 +442,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -442,6 +454,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		this._setVisible(false);

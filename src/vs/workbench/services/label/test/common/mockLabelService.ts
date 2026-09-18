@@ -6,23 +6,23 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, normalize } from '../../../../../base/common/path.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
-import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
+import { extUri, IExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
+import { ResourceLabelTemplate } from '../../common/resourceLabelTemplate.js';
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
 }
-
-const homeTemplateParameterRegex = /^\$\{(?<name>[a-zA-Z_][\w]*)\}$/;
 
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
 	private formatters: (ResourceLabelFormatter | ResourceLabelTemplateFormatter)[] = [];
 	private readonly _onDidChangeFormatters = new Emitter<IFormatterChangeEvent>();
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+
+	constructor(private readonly uriExt: IExtUri = extUri) { }
 
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		return this.registerFormatter(formatter);
@@ -81,39 +81,16 @@ export class MockLabelService implements ILabelService {
 			}
 			let candidate: { readonly home: URI; readonly formatting: ResourceLabelFormatting } | undefined;
 			if (isTemplateFormatter(formatter)) {
-				if (formatter.home.scheme !== resource.scheme ||
-					(formatter.home.authority && formatter.home.authority.toLowerCase() !== resource.authority.toLowerCase())) {
-					continue;
-				}
-				const homePath = formatter.home.path.length > 1 ? formatter.home.path.replace(/\/+$/, '') : formatter.home.path;
-				const parameterNames = new Set<string>();
-				const matcherPattern = homePath.split('/').map(segment => {
-					const parameterMatch = homeTemplateParameterRegex.exec(segment);
-					if (parameterMatch?.groups?.name) {
-						const parameterName = parameterMatch.groups.name;
-						if (parameterNames.has(parameterName)) {
-							throw new Error(`Duplicate resource label home template parameter: ${parameterName}`);
-						}
-						parameterNames.add(parameterName);
-						return `(?<${parameterName}>(?!\\.{1,2}(?:/|$))[^/]+)`;
-					}
-					if (segment.includes('${')) {
-						throw new Error(`Resource label home template parameters must occupy an entire path segment: ${segment}`);
-					}
-					return escapeRegExpCharacters(segment);
-				}).join('/');
-				const isRootHome = homePath === '' || homePath === '/';
-				const templateMatch = new RegExp(`^${matcherPattern}${isRootHome ? '' : '(?=/|$)'}`).exec(resource.path);
+				const templateMatch = new ResourceLabelTemplate(formatter.home).match(resource, this.uriExt);
 				if (!templateMatch) {
 					continue;
 				}
-				const home = resource.with({ path: templateMatch[0], query: null, fragment: null });
-				const formatting = formatter.formatting({ resource, home, parameters: new Map(Object.entries(templateMatch.groups ?? {})) });
+				const formatting = formatter.formatting({ resource, home: templateMatch.home, parameters: templateMatch.parameters });
 				if (formatting) {
-					candidate = { home, formatting };
+					candidate = { home: templateMatch.home, formatting };
 				}
 			} else if (formatter.scheme === resource.scheme && (!formatter.authority || formatter.authority === resource.authority) &&
-				isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				this.uriExt.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
 				candidate = {
 					home: resource.with({ path: formatter.home, query: null, fragment: null }),
 					formatting: formatter.formatting,

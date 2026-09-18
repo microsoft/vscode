@@ -78,9 +78,12 @@ if (hasLocalConfigOverrides) {
 	fs.writeFileSync(telemetryConfigForExtraction, JSON.stringify(resolvedTelemetryConfigEntries, null, '\t'));
 }
 
+// The extractor's TypeScript program can exceed the default heap limit on CI agents.
+const extractorNodeOptions = '--max-old-space-size=4096';
+
 try {
-	cp.execSync(`node "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
-	cp.execSync(`node "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node ${extractorNodeOptions} "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node ${extractorNodeOptions} "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
 	console.error(`Telemetry extraction failed: ${message}`);

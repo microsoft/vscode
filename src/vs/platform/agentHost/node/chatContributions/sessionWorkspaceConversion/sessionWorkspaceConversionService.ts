@@ -401,14 +401,14 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			throw new Error('The isolated worktree could not be created.');
 		}
 		this._worktreeIsolation.takePendingAnnouncement(AgentSession.id(session));
-		const project = this._worktreeIsolation.sessionWorktreeProject(AgentSession.id(session));
-		if (!project) {
+		const worktreeInfo = this._worktreeIsolation.sessionWorktreeInfo(AgentSession.id(session));
+		if (!worktreeInfo) {
 			const cleanupError = await this._removeWorktree(session);
 			throw new Error(cleanupError
 				? `The isolated worktree project could not be resolved, and cleanup failed: ${toErrorMessage(cleanupError)}`
 				: 'The isolated worktree project could not be resolved.');
 		}
-		return { workingDirectory, configValues, isolationConfig, isolated: true, project };
+		return { workingDirectory, configValues, isolationConfig, isolated: true, project: worktreeInfo.project };
 	}
 
 	private async _removeWorktree(session: URI): Promise<unknown | undefined> {

@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -34,7 +36,7 @@ import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workben
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -62,9 +64,10 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, RENAME_SESSION_LIST_CHAT_ACTION_ID, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
+import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -97,6 +100,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
+		const composerService = accessor.get(INewSessionComposerService);
 
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
@@ -195,6 +199,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		disposables.add(toDisposable(() => pickerVisibleContext.reset()));
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
+			composerService.notifyUserNavigation();
 			if (!selected.session) {
 				sessionsService.openNewSession();
 				sessionsPartService.focusSession(sessionsService.activeSession.get());
@@ -635,6 +640,13 @@ registerAction2(class RenameChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, context?: IChatRenameContext): Promise<void> {
+		if (!context) {
+			const sessionsList = getSessionsList(accessor);
+			const focusedChat = sessionsList?.getFocusedChatItem();
+			if (focusedChat && sessionsList?.beginRenameChat(focusedChat)) {
+				return;
+			}
+		}
 		const target = getChatRenameContext(accessor, context);
 		if (target) {
 			await renameChatWithQuickInput(accessor, target);
@@ -645,7 +657,7 @@ registerAction2(class RenameChatAction extends Action2 {
 registerAction2(class RenameSessionListChatAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.list.renameChat',
+			id: RENAME_SESSION_LIST_CHAT_ACTION_ID,
 			title: localize2('renameChat', "Rename..."),
 			f1: false,
 			menu: {
@@ -738,10 +750,15 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 			}, {
+				id: Menus.SessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+			}, {
 				id: Menus.SessionItemContextMenu,
 				group: '1_newChat',
 				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 			}],
 		});
 	}
@@ -1514,6 +1531,52 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		}
 		const enabled = await this.assignmentService.getTreatment<boolean>(NewSessionActionViewItemContribution.NEW_SESSION_TITLEBAR_TREATMENT);
 		this.titleBarEnabledContext.set(enabled ?? this.productService.quality === 'insider');
+	}
+}
+
+/**
+ * Resolves the experiment that selects the primary action shown on session rows.
+ */
+export class SessionListActionsExperimentContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.sessionListActionsExperiment';
+	private static readonly PROMOTE_NEW_CHAT_ACTION_TREATMENT = 'sessions.promoteNewChatAction';
+
+	private readonly promoteNewChatActionContext: IContextKey<boolean>;
+	private readonly treatmentCancellation = this._register(new MutableDisposable());
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+		this.promoteNewChatActionContext = SessionsListPromoteNewChatActionContext.bindTo(contextKeyService);
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateTreatment()));
+		this.updateTreatment();
+	}
+
+	private updateTreatment(): void {
+		const cancellation = new CancellationTokenSource();
+		this.treatmentCancellation.value = toDisposable(() => {
+			cancellation.cancel();
+			cancellation.dispose();
+		});
+		void this.resolveTreatment(cancellation.token);
+	}
+
+	private async resolveTreatment(token: CancellationToken): Promise<void> {
+		let enabled = false;
+		try {
+			enabled = await raceCancellationError(this.assignmentService.getTreatment<boolean>(SessionListActionsExperimentContribution.PROMOTE_NEW_CHAT_ACTION_TREATMENT), token) ?? false;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+			this.logService.warn('[SessionListActionsExperimentContribution] Failed to resolve the promoted New Chat action treatment; using the default session row action.', error);
+		}
+		this.promoteNewChatActionContext.set(enabled);
 	}
 }
 

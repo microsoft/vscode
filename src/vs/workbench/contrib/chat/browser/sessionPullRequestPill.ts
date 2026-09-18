@@ -28,10 +28,20 @@ export function createSessionPullRequestPillData(
 ) {
 	const filteredSections = derived(reader => {
 		const allSections = sections.read(reader);
-		return visibility.showAll.read(reader) ? allSections : allSections.map(section => ({
+		const visibleSections = visibility.showAll.read(reader) ? allSections : allSections.map(section => ({
 			...section,
 			entries: section.entries.filter(entry => visibility.isVisible(entry.pullRequestState, reader)),
 		})).filter(section => section.entries.length > 0);
+		if (getChatPillEntries(visibleSections).length <= 1) {
+			return visibleSections;
+		}
+		return visibleSections.map(section => ({
+			...section,
+			entries: section.entries.map(entry => entry.promotedAction ? {
+				...entry,
+				toolbarActions: [...entry.toolbarActions ?? [], entry.promotedAction],
+			} : entry),
+		}));
 	});
 	return {
 		sections: filteredSections,
@@ -58,6 +68,10 @@ export function createSessionPullRequestPillData(
 					run: () => visibility.setShowAll(false),
 				}),
 			];
+		},
+		getContextMenuPrimaryActions: () => {
+			const entries = filteredSections.get().flatMap(section => section.entries);
+			return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
 		},
 	} satisfies IStandardChatInputPillSections;
 }

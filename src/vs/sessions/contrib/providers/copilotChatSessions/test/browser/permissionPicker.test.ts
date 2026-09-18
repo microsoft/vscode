@@ -94,6 +94,7 @@ suite('Copilot PermissionPicker', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
+		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let allowBypass: boolean | undefined;
 		const managedSettingsChanged = store.add(new Emitter<void>());
 		const managedSettingsService: IManagedSettingsService = {
@@ -128,9 +129,11 @@ suite('Copilot PermissionPicker', () => {
 			{
 				getPermissionLevelMeta: (_level, meta) => meta,
 				setPermissionLevel: () => { },
-				sandboxTogglePresentation: 'standalone',
 				isSandboxToggleApplicable: () => true,
+				getSandboxToggleProvider: () => 'copilotcli',
 				getSandboxToggleSettingId: () => sandboxSettingId,
+				sandboxEnabled,
+				setSandboxEnabled: enabled => writes.push({ session: 'test-session', enabled }),
 				managedSandboxEnforced,
 			},
 			actionWidgetService,
@@ -150,24 +153,29 @@ suite('Copilot PermissionPicker', () => {
 				for (const configured of [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On]) {
 					await configurationService.setUserConfiguration(sandboxSettingId, configured);
 					const toggle = picker['_getSandboxStandaloneToggle']()!;
+					const initiallyChecked = toggle.checked;
 					writes.length = 0;
 					toggle.onChange(false);
 					toggle.onChange(true);
 					const disabled = managed && bypass !== true;
 					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
-						checked: managed || configured === AgentSandboxEnabledValue.On,
+						checked: true,
 						disabled,
 						title: managed
 							? disabled ? 'Sandboxing is required by your organization' : 'Sandboxing is enabled by your organization, but you may disable it'
-							: 'Run terminal commands inside a sandbox that restricts file system and network access',
-						writes: disabled ? [] : [
-							{ key: sandboxSettingId, value: AgentSandboxEnabledValue.Off },
-							{ key: sandboxSettingId, value: AgentSandboxEnabledValue.On },
-						],
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
+						writes: disabled ? [] : (initiallyChecked ? [false, true] : [true]).map(enabled => ({ session: 'test-session', enabled })),
 					});
 				}
 			}
 		}
+
+		sandboxEnabled.set(false, undefined);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.checked, false);
+		sandboxEnabled.set(true, undefined);
+		await configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.Off);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.checked, true);
+		sandboxEnabled.set(undefined, undefined);
 
 		const toggle = picker['_getSandboxStandaloneToggle']()!;
 		allowBypass = false;
@@ -180,6 +188,8 @@ suite('Copilot PermissionPicker', () => {
 		picker['_triggerElement'] = document.createElement('div');
 		allowBypass = false;
 		picker.showPicker();
+		picker['_sandboxDefaultChanged'].trigger(undefined);
+		picker['_sandboxDefaultChanged'].trigger(undefined);
 		allowBypass = true;
 		managedSettingsChanged.fire();
 		managedSettingsChanged.fire();
@@ -193,9 +203,8 @@ suite('Copilot PermissionPicker', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
-			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 			{ disabled: false, rowDisabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it', hasHover: false },
-			{ disabled: false, rowDisabled: false, title: 'Run terminal commands inside a sandbox that restricts file system and network access', hasHover: false },
+			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.', hasHover: false },
 			{ disabled: false, rowDisabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it', hasHover: false },
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 		]);
@@ -225,16 +234,22 @@ suite('Copilot PermissionPicker', () => {
 		]);
 	});
 
-	test('uses a shield icon for the visible sandboxed state', () => {
+	test('updates the shield icon when sandbox configuration finishes resolving', () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.On);
+		const isResolving = observableValue('isResolving', true);
+		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
+		let sandboxApplicable = false;
 		const delegate: IPermissionPickerDelegate = {
 			getPermissionLevelMeta: (_level, meta) => ({ ...meta, label: 'Manual permissions', icon: Codicon.key }),
 			setPermissionLevel: () => { },
-			sandboxTogglePresentation: 'standalone',
-			isSandboxToggleApplicable: () => true,
+			setSandboxEnabled: () => { },
+			isResolving,
+			sandboxEnabled,
+			isSandboxToggleApplicable: () => sandboxApplicable,
+			getSandboxToggleProvider: () => 'copilotcli',
 			getSandboxToggleSettingId: () => sandboxSettingId,
 		};
 		const picker = store.add(new PermissionPicker(
@@ -255,16 +270,32 @@ suite('Copilot PermissionPicker', () => {
 		const trigger = container.querySelector<HTMLElement>('a.action-label');
 		assert.ok(trigger);
 
+		const initiallySandboxed = !!trigger.querySelector('.sessions-chat-sandbox-icon');
+		sandboxApplicable = true;
+		isResolving.set(false, undefined);
+
 		assert.deepStrictEqual({
+			initiallySandboxed,
 			visibleLabel: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
 			permissionIcon: trigger.querySelector('.codicon-key')?.className,
 			sandboxIcon: trigger.querySelector('.sessions-chat-sandbox-icon')?.className,
 			triggerAriaLabel: trigger.ariaLabel,
 		}, {
+			initiallySandboxed: false,
 			visibleLabel: 'Manual permissions',
 			permissionIcon: 'codicon codicon-key',
 			sandboxIcon: 'codicon codicon-shield sessions-chat-sandbox-icon',
 			triggerAriaLabel: 'Pick Permission Level, Manual permissions (sandboxed)',
+		});
+		sandboxEnabled.set(false, undefined);
+		assert.deepStrictEqual({
+			sandboxIcon: trigger.querySelector('.sessions-chat-sandbox-icon'),
+			visibleLabel: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			triggerAriaLabel: trigger.ariaLabel,
+		}, {
+			sandboxIcon: null,
+			visibleLabel: 'Manual permissions',
+			triggerAriaLabel: 'Pick Permission Level, Manual permissions',
 		});
 	});
 });

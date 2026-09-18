@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -69,6 +69,7 @@ suite('VisibleSessions', () => {
 		};
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
+			() => [],
 			() => [],
 			onSlotReplaced,
 			uriIdentity,
@@ -761,6 +762,30 @@ suite('VisibleSessions', () => {
 			});
 		});
 
+		test('publishes replacement focus intent atomically with the active session', () => {
+			const model = createModel();
+			const draft = stubSession('draft');
+			const replacement = stubSession('replacement');
+			const other = stubSession('other');
+			model.setActive(draft);
+			const states: { active: string | undefined; preserveFocus: boolean }[] = [];
+			disposables.add(autorun(reader => {
+				states.push({
+					active: model.activeSession.read(reader)?.sessionId,
+					preserveFocus: model.activePreserveFocus.read(reader),
+				});
+			}));
+
+			model.updateSession(draft, replacement, true);
+			model.setActive(other);
+
+			assert.deepStrictEqual(states, [
+				{ active: 'draft', preserveFocus: false },
+				{ active: 'replacement', preserveFocus: true },
+				{ active: 'other', preserveFocus: false },
+			]);
+		});
+
 		test('replaces the wrapper even when the session id is unchanged', () => {
 			const model = createModel();
 			const A = stubSession('A');
@@ -1192,10 +1217,10 @@ suite('VisibleSession - visibleChatTabs', () => {
 		};
 	}
 
-	function createSession(chats: IChat[]) {
+	function createSession(chats: IChat[], initialShownRelatedChatUris?: Iterable<string>) {
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: constObservable(chats), mainChat: constObservable(chats[0]) };
-		return disposables.add(new VisibleSession(session, chats[0]));
+		return disposables.add(new VisibleSession(session, chats[0], undefined, initialShownRelatedChatUris));
 	}
 
 	test('keeps provider order and hides tool-origin (subagent) chats by default', () => {
@@ -1227,6 +1252,17 @@ suite('VisibleSession - visibleChatTabs', () => {
 			afterOpen: ['main', 'tool'],
 			afterClose: ['main'],
 		});
+	});
+
+	test('restores an explicitly opened subagent tab', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+
+		const visible = createSession(chats, [chats[1].resource.toString()]);
+
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'tool']);
 	});
 
 	test('a closed subagent tab is not added to the reopenable closed chats', () => {
@@ -1413,6 +1449,7 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		};
 		return disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
+			() => [],
 			() => [],
 			() => { },
 			uriIdentity,

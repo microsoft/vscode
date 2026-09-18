@@ -98,7 +98,7 @@ suite('ModelPickerHover', () => {
 		});
 	});
 
-	test('auto names its navigation option the routing profile, other models keep the schema title', () => {
+	test('auto names its navigation option Optimize for, other models keep the schema title', () => {
 		const results = ['auto', 'gpt-5'].map(id => {
 			const model = createModel(id, id);
 			model.metadata = {
@@ -107,8 +107,8 @@ suite('ModelPickerHover', () => {
 					properties: {
 						navigationOption: {
 							type: 'string',
-							title: 'Optimize for',
-							enum: ['eco', 'max'],
+							title: id === 'auto' ? undefined : 'Thinking Effort',
+							enum: ['efficiency', 'intelligence'],
 							group: 'navigation',
 						},
 						contextSize: {
@@ -128,8 +128,8 @@ suite('ModelPickerHover', () => {
 		});
 
 		assert.deepStrictEqual(results, [
-			['Routing Profile', 'Context Size'],
 			['Optimize for', 'Context Size'],
+			['Thinking Effort', 'Context Size'],
 		]);
 	});
 });

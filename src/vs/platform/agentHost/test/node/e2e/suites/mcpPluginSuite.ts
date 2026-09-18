@@ -234,6 +234,10 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			if (!content.includes(`${hookType}:`)) {
 				throw new Error(`${hookType} hook has not recorded input`);
 			}
+			const invocationCount = content.split('\n').filter(line => line.startsWith(`${hookType}:`)).length;
+			if (invocationCount !== 1) {
+				throw new Error(`${hookType} hook ran ${invocationCount} times`);
+			}
 			return content;
 		}, 100, 100);
 	}
@@ -318,7 +322,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 	const modelBackedEnabled = config.provider === 'copilotcli';
 	if (modelBackedEnabled) {
-		// Copilot plugin hooks do not execute on Windows, although the same plugin's skill and MCP server work.
+		// The SDK-owned runtime does not invoke hook callbacks on Windows.
 		const pluginHookTest = context.isWindows ? test.skip : test;
 
 		// The skill executes when named explicitly, but the completions command currently returns no item for it.

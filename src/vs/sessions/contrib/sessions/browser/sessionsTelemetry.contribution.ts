@@ -24,7 +24,7 @@ import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
@@ -192,7 +192,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	// -- event handlers --------------------------------------------------------
 
 	private _logRequestSent(e: ISendRequestSentEvent): void {
-		const { session, chat, isNewSession, isNewChat, options } = e;
+		const { session, chat, isNewSession, isNewChat, newSessionConfig, options } = e;
 
 		if (isNewChat) {
 			const wasTracked = this._lifecycleTracker.isTracked(session.sessionId);
@@ -209,9 +209,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 		const allSessions = this._sessionsManagementService.getSessions();
 		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
+		const nonArchivedSessionListCount = getNonArchivedSessionListCount(allSessions);
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.
 		const workspace = session.workspace.get();
+		const isolationKind = isNewSession ? newSessionConfig?.isolation : undefined;
 		const requestCounters = isNewSession
 			? this._lifecycleTracker.incrementAndGetUserRequestCounters(session)
 			: this._lifecycleTracker.getUserRequestCounters(session);
@@ -219,6 +221,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			isNewSession,
 			isNewChat,
 			visibleSessionsCount,
+			nonArchivedSessionListCount,
 			...this._getRequestFields(options),
 			...this._getSessionFields(session),
 			...this._getChatFields(chat),
@@ -228,7 +231,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		void this._getOrFetchWorkspaceFileCount(session.sessionId, workspace).then(workspaceFileCount => {
 			this._telemetryService.publicLog2<SessionRequestSentEvent, SessionRequestSentClassification>('agents/requestSent', {
 				...sync,
-				...this._getWorkspaceFields(workspace, workspaceFileCount),
+				...this._getWorkspaceFields(workspace, workspaceFileCount, isolationKind),
 				...this._getWorkspaceTopologyFields(workspace),
 			});
 		});
@@ -622,19 +625,19 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		};
 	}
 
-	private _getWorkspaceFields(workspace: ISessionWorkspace | undefined, workspaceFileCount: number): WorkspaceFields {
+	private _getWorkspaceFields(workspace: ISessionWorkspace | undefined, workspaceFileCount: number, isolationKind?: SessionIsolationKind): WorkspaceFields {
+		isolationKind ??= workspace?.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined) ? 'worktree' : 'folder';
 		if (!workspace) {
 			return {
-				isolationKind: 'folder',
+				isolationKind,
 				workspaceHash: '',
 				hasGitRepository: false,
 				isVirtualWorkspace: false,
 				workspaceFileCount,
 			};
 		}
-		const hasWorktree = workspace.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined);
 		return {
-			isolationKind: hasWorktree ? 'worktree' : 'folder',
+			isolationKind,
 			workspaceHash: hash(workspace.uri.toString()).toString(16),
 			hasGitRepository: workspace.folders.some(folder => folder.gitRepository !== undefined),
 			isVirtualWorkspace: workspace.uri.scheme !== Schemas.file,
@@ -869,6 +872,7 @@ type SessionRequestSentEvent = {
 	isNewSession: boolean;
 	isNewChat: boolean;
 	visibleSessionsCount: number;
+	nonArchivedSessionListCount: number;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -935,13 +939,14 @@ type SessionRequestSentClassification = {
 	isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request starts a brand-new session, false when it is a new or continued chat in an existing session.' };
 	isNewChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request is the first message in a newly created chat, including the first chat in a new session; false for a follow-up message in an existing chat.' };
 	visibleSessionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many sessions are currently visible in the sessions grid.' };
+	nonArchivedSessionListCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-archived, non-automation sessions currently in the Sessions list.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category: default-copilot, local-agent-host, remote-agent-host, or other.' };
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type identifier provided by the sessions provider.' };
 	chatCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chats currently in the session.' };
 	isExternal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the session was discovered in an application other than the current host (an external session).' };
 	chatModeKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Built-in chat mode kind (e.g., ask, agent, edit); empty when no mode is selected.' };
-	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode used by the session (worktree or folder).' };
+	isolationKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode (worktree or folder), using the selected mode for new sessions when available and workspace state otherwise.' };
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
