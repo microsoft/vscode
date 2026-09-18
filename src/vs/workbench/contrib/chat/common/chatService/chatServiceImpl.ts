@@ -40,7 +40,7 @@ import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -1182,7 +1182,7 @@ export class ChatService extends Disposable implements IChatService {
 		await this._sendRequestAsync(model, model.sessionResource, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions, preservedRequest, preserveRequestId ? request.id : undefined).responseCompletePromise;
 	}
 
-	private queuePendingRequest(model: ChatModel, sessionResource: URI, request: string, options: IChatSendRequestOptions): ChatSendResultQueued {
+	private queuePendingRequest(model: ChatModel, sessionResource: URI, request: string, options: IChatSendRequestOptions, transferredMode?: IChatModelInputState['mode']): ChatSendResultQueued {
 		const location = options.location ?? model.initialLocation;
 		const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
 		const requestModel = new ChatRequestModel({
@@ -1201,6 +1201,9 @@ export class ChatService extends Disposable implements IChatService {
 			terminalExecutionId: options.terminalExecutionId,
 		});
 
+		if (transferredMode) {
+			model.inputModel.setState({ mode: transferredMode });
+		}
 		const deferred = new DeferredPromise<ChatSendResult>();
 		this._queuedRequestDeferreds.set(requestModel.id, deferred);
 
@@ -1224,7 +1227,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let newSessionResource: URI | undefined;
-		let transferredMode: { readonly id: string; readonly kind: ChatModeKind | undefined } | undefined;
+		let transferredMode: IChatModelInputState['mode'] | undefined;
 		const submittedModeKind = options?.modeInfo?.kind;
 		const submittedModeId = options?.modeInfo?.isBuiltin ? submittedModeKind : options?.modeInfo?.modeInstructions?.uri?.toString();
 		const submittedMode = submittedModeId && submittedModeKind ? { id: submittedModeId, kind: submittedModeKind } : undefined;
@@ -1275,10 +1278,7 @@ export class ChatService extends Disposable implements IChatService {
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
 
 		if (options?.queue) {
-			const queued = this.queuePendingRequest(model, sessionResource, request, options);
-			if (transferredMode) {
-				model.inputModel.setState({ mode: transferredMode });
-			}
+			const queued = this.queuePendingRequest(model, sessionResource, request, options, transferredMode);
 			if (!options.pauseQueue) {
 				this.processPendingRequests(sessionResource);
 			}
