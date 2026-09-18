@@ -68,6 +68,7 @@ import { ISessionChatItem, RENAME_SESSION_LIST_CHAT_ACTION_ID, SessionChatItemCa
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -1683,6 +1684,52 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 		SessionIsArchivedContext.negate(),
 		SessionHasSideChatsContext,
 	),
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	submenu: Menus.SessionChatTabs,
+	title: localize2('chatCompositeBar.showChatTabs', "Show Chat Tabs"),
+	group: 'secondary/3_tabs',
+	order: 10,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+});
+
+registerAction2(class ShowMultipleChatTabsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.action.showMultipleChatTabs',
+			title: localize2('showMultipleChatTabs', "Multiple"),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple),
+			menu: {
+				id: Menus.SessionChatTabs,
+				group: '1_presentation',
+				order: 10,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IConfigurationService).updateValue(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
+	}
+});
+
+registerAction2(class ShowSingleChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.action.showSingleChat',
+			title: localize2('showSingleChat', "Single"),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Single),
+			menu: {
+				id: Menus.SessionChatTabs,
+				group: '1_presentation',
+				order: 20,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IConfigurationService).updateValue(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+	}
 });
 
 registerAction2(class TogglePinSessionAction extends Action2 {

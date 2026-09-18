@@ -266,6 +266,71 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('npm audit'), 'approved');
 		});
 
+		test('requires approval for package manager install options', () => {
+			const exactCommands = [
+				'npm ci',
+				'npm ci   ',
+				'yarn install --frozen-lockfile',
+				'yarn  install  --frozen-lockfile   ',
+				'pnpm install --frozen-lockfile',
+				'pnpm  install  --frozen-lockfile   ',
+			];
+			const commandsWithOptions = [
+				'npm ci --prefix /outside/project',
+				'npm ci --workspace other',
+				'npm ci -w other',
+				'npm ci --workspaces',
+				'npm ci --script-shell=/tmp/payload',
+				'yarn install --frozen-lockfile --cwd /outside/project',
+				'yarn install --frozen-lockfile --modules-folder /outside/modules',
+				'yarn install --frozen-lockfile --focus',
+				'yarn install --frozen-lockfile --no-lockfile',
+				'pnpm install --frozen-lockfile -C /outside/project',
+				'pnpm install --frozen-lockfile --dir /outside/project',
+				'pnpm install --frozen-lockfile --filter other',
+				'pnpm install --frozen-lockfile --workspace-root',
+				'pnpm install --frozen-lockfile --no-frozen-lockfile',
+			];
+			const forwardedRules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+
+			for (const options of [undefined, { autoApproveRules: forwardedRules }]) {
+				assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, options)), exactCommands.map(() => 'approved'));
+				assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, options)), commandsWithOptions.map(() => 'denied'));
+			}
+		});
+
+		test('preserves persisted legacy package manager overrides', () => {
+			const rules = {
+				'npm ci': true,
+				'/^npm\\s+ci\\s+\\S/': false,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
+			};
+			const exactCommands = ['npm ci', 'yarn install --frozen-lockfile', 'pnpm install --frozen-lockfile'];
+			const commandsWithOptions = ['npm ci --prefix other', 'yarn install --frozen-lockfile --cwd other', 'pnpm install --frozen-lockfile --dir other'];
+
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), exactCommands.map(() => 'approved'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: rules })), commandsWithOptions.map(() => 'denied'));
+
+			const nullOverrides = {
+				...rules,
+				'npm ci': null,
+				'/^yarn\\s+install\\s+--frozen-lockfile\\b/': null,
+				'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': null,
+			};
+			assert.deepStrictEqual(exactCommands.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), exactCommands.map(() => 'noMatch'));
+			assert.deepStrictEqual(commandsWithOptions.map(command => approver.shouldAutoApprove(command, { autoApproveRules: nullOverrides })), commandsWithOptions.map(() => 'denied'));
+		});
+
 		// Unknown commands get noMatch
 		test('returns noMatch for unknown commands', () => {
 			assert.strictEqual(approver.shouldAutoApprove('my-custom-script'), 'noMatch');
@@ -513,6 +578,41 @@ suite('CommandAutoApprover', () => {
 			seen.length = 0;
 			assert.strictEqual(approver.shouldAutoApprove('echo hi > /dev/null 2>&1', opts), 'approved');
 			assert.deepStrictEqual(seen, []);
+		});
+
+		test('requires confirmation for redirect pathname globs', () => {
+			const allowAllDestinations = { isWriteDestApproved: () => true };
+			const powershell = { language: 'powershell', isWriteDestApproved: () => true } as const;
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('echo hi > *.txt', allowAllDestinations),
+				approver.shouldAutoApprove('echo hi > ?ut.txt', allowAllDestinations),
+				approver.shouldAutoApprove('echo hi > .[e]nv', allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > '*.txt'`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > "?.txt"`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > '[x].txt'`, allowAllDestinations),
+				approver.shouldAutoApprove(`echo hi > "packag"[e]".json"`, allowAllDestinations),
+				approver.shouldAutoApprove(`Write-Host hi >'.[m]cp.json'`, powershell),
+				approver.shouldAutoApprove(`Write-Host hi >".[c]odex/hooks.json"`, powershell),
+			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch']);
+		});
+
+		test('preserves quote stripping for non-glob redirect destinations', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return false;
+				},
+			};
+			const results = [
+				approver.shouldAutoApprove('echo hi > "/outside/"report".txt"', opts),
+				approver.shouldAutoApprove(`echo hi >> '/outside/'report'.txt'`, opts),
+				approver.shouldAutoApprove(`Write-Host hi > '/outside/report''s.txt'`, { ...opts, language: 'powershell' }),
+			];
+			assert.deepStrictEqual({ results, destinations }, {
+				results: ['noMatch', 'noMatch', 'noMatch'],
+				destinations: ['/outside/"report".txt', `/outside/'report'.txt`, `/outside/report''s.txt`],
+			});
 		});
 	});
 

@@ -39,7 +39,7 @@ export interface IAgentServerToolHost {
 	readonly definitions: readonly IAgentServerToolDefinition[];
 	/** Server tools eligible for the given session, honoring ephemeral eligibility. */
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[];
-	/** Names of every server tool across the contributed groups. */
+	/** Routable server-tool names, including materialized tools retained by sessions after root settings change. */
 	readonly toolNames: readonly string[];
 	/** Advertises all server tools on the session's `serverTools`. */
 	advertise(sessionUri: URI): void;

@@ -548,6 +548,42 @@
 	white-space: nowrap;
 }
 
+.mobile-picker-sheet-label-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.mobile-picker-sheet-label-row > .mobile-picker-sheet-label {
+	flex: 1;
+	min-width: 0;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.mobile-picker-sheet-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size160);
+	margin-left: auto;
+	padding: 0 var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: normal;
+	white-space: nowrap;
+}
+
+.mobile-picker-sheet-item.checked .mobile-picker-sheet-badge {
+	color: inherit;
+}
+
 .mobile-picker-sheet-description {
 	font-size: 12px;
 	line-height: 1.2;
