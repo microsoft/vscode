@@ -206,6 +206,7 @@ export interface IAgentHostProviderSendBlockedEvent {
 	turnId: string;
 	sendKind: AgentHostProviderSendKind;
 	prepareBlockedMs: number;
+	prepareMcpReconcileMs: number;
 	sendBlockedMs: number;
 	outcome: AgentHostProviderSendOutcome;
 	isFirstSendOfSession: boolean;
@@ -233,6 +234,7 @@ export interface IAgentHostProviderSendBlockedReport {
 	readonly turnId: string;
 	readonly sendKind: AgentHostProviderSendKind;
 	readonly prepareBlockedMs: number;
+	readonly prepareMcpReconcileMs: number;
 	readonly sendBlockedMs: number;
 	readonly outcome: AgentHostProviderSendOutcome;
 	readonly isFirstSendOfSession: boolean;
@@ -244,7 +246,8 @@ export type IAgentHostProviderSendBlockedClassification = {
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn this dispatch belongs to, so the phases can be joined to the turn and first-response timings.' };
 	sendKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this dispatched a user or agent message, or resumed a turn with a zero-message continuation.' };
-	prepareBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent preparing the turn before the provider call, including the MCP inventory refresh that can wait on server discovery.' };
+	prepareBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent preparing the turn before the provider call, including the MCP enablement reconcile.' };
+	prepareMcpReconcileMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds of the MCP enablement reconcile within turn preparation. It awaits an inventory refresh whose latency tracks MCP server discovery, so it can dominate preparation.' };
 	sendBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the provider call itself blocked before returning, excluding turn preparation. Zero when preparation failed and the provider was never called.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the dispatch succeeded, was cancelled, or failed, and for a failure which phase it failed in.' };
 	isFirstSendOfSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this was the first dispatch on a newly created provider session, where startup costs are paid.' };
@@ -1094,6 +1097,7 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			sendKind: report.sendKind,
 			prepareBlockedMs: report.prepareBlockedMs,
+			prepareMcpReconcileMs: report.prepareMcpReconcileMs,
 			sendBlockedMs: report.sendBlockedMs,
 			outcome: report.outcome,
 			isFirstSendOfSession: report.isFirstSendOfSession,

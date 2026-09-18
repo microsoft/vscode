@@ -680,11 +680,12 @@ function providerSendBlockedEvents(telemetryService: CapturingTelemetryService):
 	return telemetryService.events
 		.filter(event => event.eventName === 'agentHost.providerSendBlocked')
 		.map(event => {
-			const { sendBlockedMs, prepareBlockedMs, slowestMcpServerMs, agentSessionId, ...rest } = event.data as Record<string, unknown>;
+			const { sendBlockedMs, prepareBlockedMs, prepareMcpReconcileMs, slowestMcpServerMs, agentSessionId, ...rest } = event.data as Record<string, unknown>;
 			return {
 				...rest,
 				hasBlockedMs: typeof sendBlockedMs === 'number',
 				hasPrepareMs: typeof prepareBlockedMs === 'number',
+				hasMcpReconcileMs: typeof prepareMcpReconcileMs === 'number',
 				hasSlowestMcpServerMs: typeof slowestMcpServerMs === 'number',
 			};
 		});
@@ -3223,12 +3224,12 @@ suite('CopilotAgentSession', () => {
 			{
 				provider: 'copilot', turnId: 'turn-1', sendKind: 'message', outcome: 'success', isFirstSendOfSession: true,
 				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
-				hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
+				hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false,
 			},
 			{
 				provider: 'copilot', turnId: 'turn-2', sendKind: 'message', outcome: 'success', isFirstSendOfSession: false,
 				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
-				hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
+				hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false,
 			},
 		]);
 	});
@@ -3255,8 +3256,8 @@ suite('CopilotAgentSession', () => {
 			const { mcpServerCount, mcpReadyCount, mcpFailedCount, mcpUnresolvedCount, mcpStoppedCount, ...rest } = event as Record<string, unknown>;
 			return rest;
 		}), [
-			{ provider: 'copilot', turnId: 'turn-send-failed', sendKind: 'message', outcome: 'sendFailed', isFirstSendOfSession: true, hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false },
-			{ provider: 'copilot', turnId: 'turn-prepare-failed', sendKind: 'message', outcome: 'prepareFailed', isFirstSendOfSession: false, hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false },
+			{ provider: 'copilot', turnId: 'turn-send-failed', sendKind: 'message', outcome: 'sendFailed', isFirstSendOfSession: true, hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false },
+			{ provider: 'copilot', turnId: 'turn-prepare-failed', sendKind: 'message', outcome: 'prepareFailed', isFirstSendOfSession: false, hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false },
 		]);
 	});
 
@@ -3269,7 +3270,7 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [{
 			provider: 'copilot', turnId: 'turn-resumed', sendKind: 'resume', outcome: 'success', isFirstSendOfSession: true,
 			mcpServerCount: 0, mcpReadyCount: 0, mcpFailedCount: 0, mcpUnresolvedCount: 0, mcpStoppedCount: 0,
-			hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
+			hasBlockedMs: true, hasPrepareMs: true, hasMcpReconcileMs: true, hasSlowestMcpServerMs: false,
 		}]);
 	});
 
@@ -3294,6 +3295,34 @@ suite('CopilotAgentSession', () => {
 		assert.ok(
 			event.prepareBlockedMs >= 30 && event.sendBlockedMs < 30,
 			`preparation delay must not be attributed to the send: ${JSON.stringify(event)}`,
+		);
+	});
+
+	test('a slow MCP inventory refresh is attributed to the reconcile step within preparation', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+			telemetryService,
+			configureMockSession: m => {
+				m.mcpListResult = { servers: [{ name: 'slow-server', status: 'connected' }] };
+			},
+		});
+		// Give the reconcile a desired-enablement entry, so it does not early-return
+		// before reaching the inventory refresh.
+		setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+		fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+
+		// `rpc.mcp.list()` latency tracks MCP server discovery, so it is the step
+		// that can dominate preparation. It must be attributable on its own rather
+		// than hidden inside the preparation total.
+		const listed = mockSession.rpc.mcp.list.bind(mockSession.rpc.mcp);
+		mockSession.rpc.mcp.list = async () => { await timeout(40); return listed(); };
+
+		await session.send('hello', undefined, 'turn-slow-reconcile');
+
+		const event = singleProviderSendBlockedEvent(telemetryService);
+		assert.ok(
+			event.prepareMcpReconcileMs <= event.prepareBlockedMs && event.sendBlockedMs < 30,
+			`reconcile must be a bounded part of preparation and not the send: ${JSON.stringify(event)}`,
 		);
 	});
 

@@ -3070,13 +3070,14 @@ export class CopilotAgentSession extends Disposable {
 		// one try so a failure in either phase still reports where it happened.
 		const phaseWatch = StopWatch.create(false);
 		let prepareBlockedMs = 0;
+		let mcpReconcileMs = 0;
 		let sendBlockedMs = 0;
 		let outcome: AgentHostProviderSendOutcome = 'prepareFailed';
 		const isFirstSendOfSession = this._pendingFirstSend;
 		this._pendingFirstSend = false;
 		let sendingTurn: CopilotTurn | undefined;
 		try {
-			await this._prepareSdkTurn(mode);
+			mcpReconcileMs = await this._prepareSdkTurn(mode);
 			prepareBlockedMs = Math.round(phaseWatch.elapsed());
 			outcome = 'sendFailed';
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
@@ -3103,7 +3104,7 @@ export class CopilotAgentSession extends Disposable {
 			throw error;
 		} finally {
 			sendBlockedMs = Math.round(phaseWatch.elapsed()) - prepareBlockedMs;
-			this._reportSendPhases('message', prepareBlockedMs, sendBlockedMs, outcome, isFirstSendOfSession);
+			this._reportSendPhases('message', prepareBlockedMs, mcpReconcileMs, sendBlockedMs, outcome, isFirstSendOfSession);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -3115,7 +3116,7 @@ export class CopilotAgentSession extends Disposable {
 	 * reporting would replace the error being rethrown, turning a real provider
 	 * failure into a telemetry failure.
 	 */
-	private _reportSendPhases(sendKind: AgentHostProviderSendKind, prepareBlockedMs: number, sendBlockedMs: number, outcome: AgentHostProviderSendOutcome, isFirstSendOfSession: boolean): void {
+	private _reportSendPhases(sendKind: AgentHostProviderSendKind, prepareBlockedMs: number, mcpReconcileMs: number, sendBlockedMs: number, outcome: AgentHostProviderSendOutcome, isFirstSendOfSession: boolean): void {
 		try {
 			const mcp = this._mcpReadiness.snapshot();
 			this._telemetryReporter.providerSendBlocked({
@@ -3124,12 +3125,13 @@ export class CopilotAgentSession extends Disposable {
 				turnId: this._turnId,
 				sendKind,
 				prepareBlockedMs,
+				prepareMcpReconcileMs: mcpReconcileMs,
 				sendBlockedMs,
 				outcome,
 				isFirstSendOfSession,
 				mcp,
 			});
-			this._logService.info(`[Copilot:${this.sessionId}] ${sendKind} phases: prepare=${prepareBlockedMs}ms, send=${sendBlockedMs}ms, outcome=${outcome} (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
+			this._logService.info(`[Copilot:${this.sessionId}] ${sendKind} phases: prepare=${prepareBlockedMs}ms (mcpReconcile=${mcpReconcileMs}ms), send=${sendBlockedMs}ms, outcome=${outcome} (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
 		} catch (err) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`);
 		}
@@ -3149,11 +3151,12 @@ export class CopilotAgentSession extends Disposable {
 		// inventory cost as a message send and is reported on the same event.
 		const phaseWatch = StopWatch.create(false);
 		let prepareBlockedMs = 0;
+		let mcpReconcileMs = 0;
 		let outcome: AgentHostProviderSendOutcome = 'prepareFailed';
 		const isFirstSendOfSession = this._pendingFirstSend;
 		this._pendingFirstSend = false;
 		try {
-			await this._prepareSdkTurn(mode);
+			mcpReconcileMs = await this._prepareSdkTurn(mode);
 			prepareBlockedMs = Math.round(phaseWatch.elapsed());
 			outcome = 'sendFailed';
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
@@ -3174,7 +3177,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			throw error;
 		} finally {
-			this._reportSendPhases('resume', prepareBlockedMs, Math.round(phaseWatch.elapsed()) - prepareBlockedMs, outcome, isFirstSendOfSession);
+			this._reportSendPhases('resume', prepareBlockedMs, mcpReconcileMs, Math.round(phaseWatch.elapsed()) - prepareBlockedMs, outcome, isFirstSendOfSession);
 		}
 	}
 
@@ -3269,12 +3272,20 @@ export class CopilotAgentSession extends Disposable {
 	 * permission mode, sandbox, shell init script, and MCP enablement.
 	 * Permission and sandbox failures prevent the turn from starting.
 	 */
-	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
+	/**
+	 * Runs the pre-dispatch RPCs and returns how long the MCP enablement
+	 * reconcile took. That step awaits an inventory refresh whose latency
+	 * tracks MCP server discovery, so it is reported separately: it can
+	 * dominate the whole preparation phase.
+	 */
+	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<number> {
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._syncShellInitScript();
+		const reconcileWatch = StopWatch.create(false);
 		await this._reconcileMcpServerEnablement();
+		return Math.round(reconcileWatch.elapsed());
 	}
 
 	/**
