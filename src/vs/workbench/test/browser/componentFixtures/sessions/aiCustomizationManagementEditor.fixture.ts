@@ -42,6 +42,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -881,6 +882,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// Also enable customization migration so migration affordances render in
 			// screenshot fixtures that depend on agent-host harnesses.
 			reg.defineInstance(IConfigurationService, configurationService);
+			reg.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+				override getOpenAriaHint(): string | null {
+					return null;
+				}
+			}());
 			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());

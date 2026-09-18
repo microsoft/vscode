@@ -2282,6 +2282,7 @@ export class PluginListWidget extends Disposable {
 				id: `remote:${item.itemKey ?? item.uri.toString()}`,
 				name: formatDisplayName(item.name),
 				description: item.description,
+				keywords: item.badge ? [item.badge] : undefined,
 				state: item.enabled === false ? 'available' as const : 'inUse' as const,
 				open: () => this.revealRemotePlugin(item),
 			})),

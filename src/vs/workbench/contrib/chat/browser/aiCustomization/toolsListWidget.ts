@@ -814,17 +814,23 @@ export class ToolsListWidget extends Disposable {
 				continue;
 			}
 			const toolSetName = toolSet.description ?? toolSet.referenceName;
-			const setMatches = !normalizedQuery || !!matchesContiguousSubString(normalizedQuery, toolSetName);
+			const setMatches = !normalizedQuery
+				|| !!matchesContiguousSubString(normalizedQuery, toolSetName)
+				|| !!matchesContiguousSubString(normalizedQuery, toolSet.referenceName);
 			for (const tool of toolSet.getTools()) {
 				const toolName = tool.displayName ?? tool.id;
-				if (!setMatches && !matchesContiguousSubString(normalizedQuery, toolName)) {
+				const toolDescription = tool.userDescription ?? tool.modelDescription;
+				if (!setMatches
+					&& !matchesContiguousSubString(normalizedQuery, toolName)
+					&& !matchesContiguousSubString(normalizedQuery, tool.id)
+					&& !matchesContiguousSubString(normalizedQuery, toolDescription)) {
 					continue;
 				}
 				const enabled = isToolEnabledInSet(state, toolSet.id, tool.id);
 				items.push({
 					id: `${toolSet.id}:${tool.id}`,
 					name: toolName,
-					description: tool.userDescription ?? tool.modelDescription,
+					description: toolDescription,
 					state: enabled ? 'inUse' : 'available',
 					keywords: [toolSetName, toolSet.referenceName],
 					open: () => this.revealTool(toolSet.id, tool.id),

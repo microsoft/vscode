@@ -955,6 +955,12 @@ class ActiveSessionMcpServerMatcher {
 		return undefined;
 	}
 
+	release(server: AgentHostMcpServer | undefined): void {
+		if (server) {
+			this.matchedIds.delete(server.id);
+		}
+	}
+
 	unmatched(query: string): AgentHostMcpServer[] {
 		return this.servers.filter(server => !this.matchedIds.has(server.id) && matchesActiveSessionServerQuery(server, query));
 	}
@@ -2559,10 +2565,10 @@ export class McpListWidget extends Disposable {
 		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
 		const items: IAICustomizationOverviewSourceItem[] = [];
 		const normalizedQuery = query.toLowerCase().trim();
-		const appendInstalledEntry = (id: string, entry: IMcpInstalledEntry, description?: string) => {
+		const appendInstalledEntry = (id: string, entry: IMcpInstalledEntry, description?: string): boolean => {
 			const name = getMcpEntryLabel(entry);
 			if (!name.toLowerCase().includes(normalizedQuery) && !description?.toLowerCase().includes(normalizedQuery)) {
-				return;
+				return false;
 			}
 			const enabled = this.isInstalledEntryEnabled(entry);
 			const blockedByPlugin = getMcpDisabledReason(entry)?.source === 'plugin';
@@ -2578,12 +2584,15 @@ export class McpListWidget extends Disposable {
 					run: () => this.setInstalledEntryEnabled(entry, !enabled),
 				},
 			});
+			return true;
 		};
 
 		for (const server of this.mcpWorkbenchService.local) {
 			const activeSessionServer = activeSessionMatcher.take(getWorkbenchServerMatchKeys(server));
 			const localServer = localServerMatcher.find(getWorkbenchServerMatchKeys(server));
-			appendInstalledEntry(`workbench:${server.id}`, { type: 'server-item', server, activeSessionServer, localServer }, server.description);
+			if (!appendInstalledEntry(`workbench:${server.id}`, { type: 'server-item', server, activeSessionServer, localServer }, server.description)) {
+				activeSessionMatcher.release(activeSessionServer);
+			}
 		}
 
 		const localIds = new Set(this.mcpWorkbenchService.local.map(server => server.id));
@@ -2594,7 +2603,9 @@ export class McpListWidget extends Disposable {
 			}
 			const activeSessionServer = activeSessionMatcher.take(getRuntimeServerMatchKeys(server));
 			const entry = createBuiltinEntry(server, activeSessionServer);
-			appendInstalledEntry(`runtime:${server.collection.id}:${server.definition.id}`, entry, entry.description);
+			if (!appendInstalledEntry(`runtime:${server.collection.id}:${server.definition.id}`, entry, entry.description)) {
+				activeSessionMatcher.release(activeSessionServer);
+			}
 		}
 
 		for (const entry of createBuiltinActiveSessionMcpEntries(activeSessionMatcher.unmatched(normalizedQuery))) {
@@ -2611,9 +2622,21 @@ export class McpListWidget extends Disposable {
 				return { items: [] };
 			}
 			const installedKeys = new Set<string>();
-			for (const server of this.mcpWorkbenchService.local) {
-				for (const key of getWorkbenchServerMatchKeys(server)) {
-					installedKeys.add(key.toLowerCase());
+			for (const presentation of this.installedEntries) {
+				const entry = presentation.entry;
+				if (entry.type === 'server-item') {
+					for (const key of getWorkbenchServerMatchKeys(entry.server)) {
+						installedKeys.add(key.toLowerCase());
+					}
+				} else if (entry.type === 'builtin-item') {
+					installedKeys.add(entry.label.toLowerCase());
+					if (entry.localServer) {
+						for (const key of getRuntimeServerMatchKeys(entry.localServer)) {
+							installedKeys.add(key.toLowerCase());
+						}
+					}
+				} else {
+					installedKeys.add(entry.server.name.toLowerCase());
 				}
 			}
 			for (const server of pager.firstPage.items) {

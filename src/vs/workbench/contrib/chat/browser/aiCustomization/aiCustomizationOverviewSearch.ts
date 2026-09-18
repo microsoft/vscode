@@ -23,6 +23,7 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
+import { setVirtualizedRowActionsTabbable } from './customizationCardList.js';
 
 const $ = DOM.$;
 const SEARCH_RESULT_HEIGHT = 48;
@@ -146,6 +147,8 @@ class OverviewSearchGroupRenderer implements IListRenderer<ISearchGroupEntry, IS
 
 class OverviewSearchResultRenderer implements IListRenderer<ISearchResultEntry, ISearchResultTemplate> {
 	readonly templateId = 'result';
+	private readonly templates = new Set<ISearchResultTemplate>();
+	private focusedIndex = -1;
 
 	constructor(
 		private readonly hoverService: IHoverService,
@@ -164,10 +167,12 @@ class OverviewSearchResultRenderer implements IListRenderer<ISearchResultEntry, 
 		const description = new HighlightedLabel(descriptionContainer);
 		const action = DOM.append(container, $('button.overview-search-result-action')) as HTMLButtonElement;
 		action.type = 'button';
-		return { container, icon, name, type, description, action, elementDisposables: new DisposableStore() };
+		const template = { container, icon, name, type, description, action, elementDisposables: new DisposableStore() };
+		this.templates.add(template);
+		return template;
 	}
 
-	renderElement(element: ISearchResultEntry, _index: number, templateData: ISearchResultTemplate): void {
+	renderElement(element: ISearchResultEntry, index: number, templateData: ISearchResultTemplate): void {
 		templateData.elementDisposables.clear();
 		templateData.icon.className = 'overview-search-result-icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.item.sectionIcon));
@@ -192,15 +197,24 @@ class OverviewSearchResultRenderer implements IListRenderer<ISearchResultEntry, 
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.action, 'mouseup', event => DOM.EventHelper.stop(event, true)));
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.action, 'dblclick', event => DOM.EventHelper.stop(event, true)));
 		}
+		setVirtualizedRowActionsTabbable(templateData.container, index === this.focusedIndex);
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, {
 			content: element.item.description ? `${element.item.name}\n${element.item.description}` : element.item.name,
 		}));
 	}
 
 	disposeTemplate(templateData: ISearchResultTemplate): void {
+		this.templates.delete(templateData);
 		templateData.name.dispose();
 		templateData.description.dispose();
 		templateData.elementDisposables.dispose();
+	}
+
+	setFocusedIndex(index: number): void {
+		this.focusedIndex = index;
+		for (const template of this.templates) {
+			setVirtualizedRowActionsTabbable(template.container, template.container.closest('.monaco-list-row')?.classList.contains('focused') ?? false);
+		}
 	}
 }
 
@@ -219,6 +233,8 @@ export class AICustomizationOverviewSearch extends Disposable {
 	private searchSequence = 0;
 	private readonly searchCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private pendingSearch = Promise.resolve();
+	private currentEntries: readonly SearchEntry[] = [];
+	private currentWarning: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -253,6 +269,10 @@ export class AICustomizationOverviewSearch extends Disposable {
 		this.warningText.style.display = 'none';
 		this.listContainer = DOM.append(this.resultsContainer, $('.overview-search-list'));
 
+		const resultRenderer = new OverviewSearchResultRenderer(hoverService, () => {
+			this.refresh();
+			this.searchInput.focus();
+		});
 		this.list = this._register(instantiationService.createInstance(
 			WorkbenchList<SearchEntry>,
 			'AICustomizationOverviewSearch',
@@ -260,10 +280,7 @@ export class AICustomizationOverviewSearch extends Disposable {
 			new OverviewSearchDelegate(),
 			[
 				new OverviewSearchGroupRenderer(),
-				new OverviewSearchResultRenderer(hoverService, () => {
-					this.refresh();
-					this.searchInput.focus();
-				}),
+				resultRenderer,
 			],
 			{
 				multipleSelectionSupport: false,
@@ -290,6 +307,7 @@ export class AICustomizationOverviewSearch extends Disposable {
 				this.callbacks.open(event.element.item);
 			}
 		}));
+		this._register(this.list.onDidChangeFocus(event => resultRenderer.setFocusedIndex(event.indexes[0] ?? -1)));
 
 		this._register(this.searchInput.onDidChange(() => {
 			const sequence = ++this.searchSequence;
@@ -297,12 +315,19 @@ export class AICustomizationOverviewSearch extends Disposable {
 			this.callbacks.setActive(active);
 			this.resultsContainer.style.display = active ? '' : 'none';
 			if (!active) {
-				this.searchCts.clear();
+				this.cancelCurrentSearch();
+				this.currentEntries = [];
+				this.currentWarning = undefined;
 				this.list.splice(0, this.list.length, []);
 				return;
 			}
 			const query = this.searchInput.value.trim();
-			this.pendingSearch = this.searchDelayer.trigger(() => this.runSearch(query, sequence));
+			this.pendingSearch = this.searchDelayer.trigger(() => {
+				if (sequence !== this.searchSequence || query !== this.searchInput.value.trim()) {
+					return;
+				}
+				return this.runSearch(query, sequence);
+			});
 		}));
 		this._register(DOM.addDisposableListener(this.searchInput.inputElement, 'keydown', event => {
 			if (event.key === 'ArrowDown' && this.list.length > 0) {
@@ -324,7 +349,7 @@ export class AICustomizationOverviewSearch extends Disposable {
 			}
 		}));
 
-		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AICustomizationOverviewSearch.results', () => this.layoutList()));
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AICustomizationOverviewSearch.results', () => this.layoutList(), DOM.getWindow(this.resultsContainer)));
 		this._register(resizeObserver.observe(this.resultsContainer));
 	}
 
@@ -335,6 +360,35 @@ export class AICustomizationOverviewSearch extends Disposable {
 
 	focus(): void {
 		this.searchInput.focus();
+	}
+
+	getAccessibilityContent(): string | undefined {
+		const query = this.searchInput.value.trim();
+		if (!query) {
+			return undefined;
+		}
+		const lines = [localize('customizationSearchAccessibleQuery', "Search results for {0}", query)];
+		if (this.currentWarning) {
+			lines.push(this.currentWarning);
+		}
+		for (const entry of this.currentEntries) {
+			if (entry.type === 'group') {
+				lines.push('', localize('customizationSearchAccessibleGroup', "{0}, {1} results", entry.label, entry.count));
+			} else {
+				lines.push(localize(
+					'customizationSearchAccessibleResult',
+					"{0}, {1}, {2}{3}",
+					entry.item.name,
+					entry.item.sectionLabel,
+					entry.item.state === 'inUse' ? localize('inUse', "In use") : localize('available', "Available"),
+					entry.item.description ? localize('customizationSearchAccessibleDescription', ", {0}", entry.item.description) : '',
+				));
+			}
+		}
+		if (this.currentEntries.length === 0) {
+			lines.push(localize('noCustomizationSearchResultsStatus', "No customization search results."));
+		}
+		return lines.join('\n');
 	}
 
 	refresh(): void {
@@ -348,6 +402,7 @@ export class AICustomizationOverviewSearch extends Disposable {
 
 	private async runSearch(query: string, sequence: number): Promise<void> {
 		this.showMessage(localize('searchingCustomizations', "Searching customizations..."));
+		this.cancelCurrentSearch();
 		const cts = new CancellationTokenSource();
 		this.searchCts.value = cts;
 		try {
@@ -372,11 +427,20 @@ export class AICustomizationOverviewSearch extends Disposable {
 		this.appendGroup(entries, 'in-use', localize('inUseGroup', "In use"), results.filter(result => result.item.state === 'inUse'));
 		this.appendGroup(entries, 'available', localize('availableGroup', "Available"), results.filter(result => result.item.state === 'available'));
 
+		this.currentEntries = entries;
+		this.currentWarning = result.warning;
+		this.warningText.style.display = result.warning ? '' : 'none';
+		this.warningText.textContent = result.warning ?? '';
+
 		if (entries.length === 0) {
 			this.list.splice(0, this.list.length, []);
-			this.resultsContainer.style.display = 'none';
+			this.resultsContainer.style.display = result.warning ? '' : 'none';
+			this.emptyContainer.style.display = 'none';
+			this.listContainer.style.display = 'none';
 			this.callbacks.setActive(false);
-			status(localize('noCustomizationSearchResultsStatus', "No customization search results."));
+			status(result.warning
+				? localize('noCustomizationSearchResultsWithWarningStatus', "No customization search results. {0}", result.warning)
+				: localize('noCustomizationSearchResultsStatus', "No customization search results."));
 			return;
 		}
 
@@ -384,8 +448,6 @@ export class AICustomizationOverviewSearch extends Disposable {
 		this.resultsContainer.style.display = '';
 		this.emptyContainer.style.display = 'none';
 		this.listContainer.style.display = '';
-		this.warningText.style.display = result.warning ? '' : 'none';
-		this.warningText.textContent = result.warning ?? '';
 		this.list.splice(0, this.list.length, entries);
 		this.layoutList();
 		status(localize('customizationSearchResultsStatus', "{0} customization search results.", results.length));
@@ -399,6 +461,8 @@ export class AICustomizationOverviewSearch extends Disposable {
 	}
 
 	private showMessage(message: string): void {
+		this.currentEntries = [];
+		this.currentWarning = undefined;
 		this.list.splice(0, this.list.length, []);
 		this.listContainer.style.display = 'none';
 		this.warningText.style.display = 'none';
@@ -410,6 +474,16 @@ export class AICustomizationOverviewSearch extends Disposable {
 		if (this.resultsContainer.style.display === 'none' || this.listContainer.style.display === 'none') {
 			return;
 		}
-		this.list.layout(this.resultsContainer.clientHeight, this.resultsContainer.clientWidth);
+		this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);
+	}
+
+	private cancelCurrentSearch(): void {
+		this.searchCts.value?.dispose(true);
+		this.searchCts.clear();
+	}
+
+	override dispose(): void {
+		this.cancelCurrentSearch();
+		super.dispose();
 	}
 }

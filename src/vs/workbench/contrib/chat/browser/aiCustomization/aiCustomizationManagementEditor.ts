@@ -1147,6 +1147,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 					await this.listWidget.setSection(section);
 					await this.revealCustomizationByUri(item.uri);
 				},
+				action: item.isBuiltin && item.promptType === PromptsType.skill ? {
+					label: item.disabled ? localize('enableSkillOverviewAction', "Enable") : localize('disableSkillOverviewAction', "Disable"),
+					ariaLabel: item.disabled ? localize('enableSkillOverviewActionAria', "Enable {0}", item.name) : localize('disableSkillOverviewActionAria', "Disable {0}", item.name),
+					run: () => {
+						const disabled = this.promptsService.getDisabledPromptFiles(item.promptType);
+						if (item.disabled) {
+							disabled.delete(item.uri);
+						} else {
+							disabled.add(item.uri);
+						}
+						this.promptsService.setDisabledPromptFiles(item.promptType, disabled);
+					},
+				} : undefined,
 			}));
 			this.appendOverviewSearchItems(items, section, sourceItems);
 		}
@@ -3701,6 +3714,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	public async setOverviewSearchQuery(query: string): Promise<void> {
 		this.showWelcomePage();
 		await this.welcomePage?.setSearchQuery(query);
+	}
+
+	public getOverviewSearchAccessibilityContent(): string | undefined {
+		return this.welcomePage?.getSearchAccessibilityContent();
 	}
 
 	/**

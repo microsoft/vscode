@@ -56,6 +56,7 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	/** Called when the welcome page becomes visible after navigation — clears any transient state. */
 	reset?(): void;
 	setSearchQuery?(query: string): Promise<void>;
+	getSearchAccessibilityContent?(): string | undefined;
 }
 
 /**
@@ -111,5 +112,9 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	async setSearchQuery(query: string): Promise<void> {
 		await this.implementation.setSearchQuery?.(query);
+	}
+
+	getSearchAccessibilityContent(): string | undefined {
+		return this.implementation.getSearchAccessibilityContent?.();
 	}
 }

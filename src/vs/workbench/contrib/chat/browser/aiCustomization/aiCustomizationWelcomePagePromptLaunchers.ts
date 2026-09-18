@@ -283,6 +283,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		this.overviewSearch?.refresh();
 	}
 
+	getSearchAccessibilityContent(): string | undefined {
+		return this.overviewSearch?.getAccessibilityContent();
+	}
+
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
 		if (!this.cardsContainer) {
 			return;
