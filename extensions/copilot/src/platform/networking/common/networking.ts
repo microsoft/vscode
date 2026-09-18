@@ -262,8 +262,12 @@ export type IChatRequestTelemetryProperties = {
 	associatedRequestId?: string;
 	retryAfterError?: string;
 	retryAfterErrorGitHubRequestId?: string;
+	/** CAPI service request id (X-Copilot-Service-Request-Id) of the attempt that failed and triggered this retry. */
+	retryAfterErrorCopilotServiceRequestId?: string;
 	connectivityTestError?: string;
 	connectivityTestErrorGitHubRequestId?: string;
+	/** CAPI service request id (X-Copilot-Service-Request-Id) of the connectivity test request. */
+	connectivityTestErrorCopilotServiceRequestId?: string;
 	retryAfterFilterCategory?: string;
 	/** A subtype for categorizing the request with a messageSource- eg subagent */
 	subType?: string;
@@ -348,7 +352,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly warningText?: Record<string, string>;
 	/** Category-keyed info banners for the model picker. Unlike {@link warningText} these never signal a problem. */
 	readonly infoText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**

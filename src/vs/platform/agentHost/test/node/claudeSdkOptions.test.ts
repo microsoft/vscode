@@ -316,6 +316,31 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		});
 	});
 
+	test('PreToolUse projects a host runtime restriction', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			onPreToolUse: (toolName, toolInput) => ({
+				continue: false,
+				stopReason: `${toolName}:${JSON.stringify(toolInput)}`,
+			}),
+		}, proxyTransport, () => { });
+		const hook = opts.hooks?.PreToolUse?.[0].hooks[0];
+		const result = await hook?.({
+			hook_event_name: 'PreToolUse',
+			tool_name: 'Bash',
+			tool_input: { command: 'gh pr merge' },
+			tool_use_id: 'tool-1',
+			session_id: 's1',
+			transcript_path: '/tmp/transcript',
+			cwd: '/tmp/x',
+		}, undefined, { signal: new AbortController().signal });
+
+		assert.deepStrictEqual(result, {
+			continue: false,
+			stopReason: 'Bash:{"command":"gh pr merge"}',
+		});
+	});
+
 	test('proxy transport sets ANTHROPIC_BASE_URL + per-session ANTHROPIC_AUTH_TOKEN', async () => {
 		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
 		const env = (opts.settings as { env?: Record<string, string> }).env ?? {};

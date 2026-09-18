@@ -24,6 +24,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -38,6 +39,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		this.activeProjectRoot = derived(reader => {
 			const folders = workspaceFolders.read(reader);
 			return folders[0]?.uri;
+		});
+		this.activeProjectLabel = derived(reader => {
+			const folders = workspaceFolders.read(reader);
+			return folders[0]?.name;
 		});
 	}
 

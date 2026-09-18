@@ -34,6 +34,28 @@ export function getPriceCategoryLabel(priceCategory: string | undefined): string
 	}
 }
 
+export function isHighCostCategory(priceCategory: string | undefined): boolean {
+	return priceCategory === 'high' || priceCategory === 'very_high';
+}
+
+export function getCategoryLabel(category: string | undefined): string | undefined {
+	switch (category) {
+		case undefined:
+		case '':
+			return undefined;
+		case 'lightweight':
+			return localize('chat.category.lightweight', "Lightweight");
+		case 'versatile':
+			return localize('chat.category.versatile', "Versatile");
+		case 'powerful':
+			return localize('chat.category.powerful', "Powerful");
+		default:
+			return typeof category === 'string'
+				? category.charAt(0).toUpperCase() + category.slice(1)
+				: undefined;
+	}
+}
+
 export const enum ModelPickerUnavailableReason {
 	Restricted = 'restricted',
 	SetupRequired = 'setupRequired',

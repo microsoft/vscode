@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -15,6 +15,10 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IMenu, IMenuService, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
+import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
@@ -73,6 +77,26 @@ class TestSessionsService extends mock<ISessionsService>() {
 	}
 }
 
+class TestEditorGroupsService extends mock<IEditorGroupsService>() {
+	private readonly _onDidChangeEditorPartOptions = new Emitter<IEditorPartOptionsChangeEvent>();
+	override readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
+	private _partOptions: IEditorPartOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+
+	override get partOptions(): IEditorPartOptions {
+		return this._partOptions;
+	}
+
+	setTabHeight(tabHeight: IEditorPartOptions['tabHeight']): void {
+		const oldPartOptions = this._partOptions;
+		this._partOptions = { ...oldPartOptions, tabHeight };
+		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions: this._partOptions });
+	}
+
+	dispose(): void {
+		this._onDidChangeEditorPartOptions.dispose();
+	}
+}
+
 function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed): IChat {
 	const resource = URI.parse(`test-chat://${id}`);
 	return new class extends mock<IChat>() {
@@ -109,7 +133,9 @@ interface IChatCompositeBarHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly commandService: TestCommandService;
 	readonly sessionsService: TestSessionsService;
+	readonly editorGroupsService: TestEditorGroupsService;
 	readonly bar: ChatCompositeBar;
+	readonly container: HTMLElement;
 	readonly session: IActiveSession;
 	readonly tabs: readonly HTMLElement[];
 	readonly chats: ISettableObservable<readonly IChat[]>;
@@ -123,6 +149,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const sessionsService = new TestSessionsService();
+	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat');
 	const secondaryChat = createChat('secondary', 'Secondary Chat');
 	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
@@ -133,7 +160,18 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const showSessionActions = observableValue('test.showSessionActions', true);
 
 	instantiationService.stub(ICommandService, commandService);
+	const closeAction = instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close Chat' }, undefined, undefined, undefined, undefined);
+	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+		override createMenu(): IMenu {
+			return {
+				onDidChange: Event.None,
+				dispose: () => { },
+				getActions: () => [['navigation', [closeAction]]],
+			};
+		}
+	});
 	instantiationService.stub(ISessionsService, sessionsService);
+	instantiationService.stub(IEditorGroupsService, editorGroupsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
@@ -158,7 +196,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, bar, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -174,21 +212,96 @@ suite('Sessions - ChatCompositeBar', () => {
 				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
 				ariaLabel: tab.getAttribute('aria-label'),
+				tabIndex: tab.tabIndex,
+				actionTabIndex: tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label')?.tabIndex,
 			})),
 			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed' },
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0, actionTabIndex: undefined },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
 			],
 			hasMetadataRow: false,
 		});
+	});
+
+	test('arrow, Home, and End keys move focus and activate chat tabs', () => {
+		const { bar, container, sessionsService, tabs } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const dispatchKey = (target: HTMLElement, key: string, keyCode: number) => {
+				const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true, cancelable: true });
+				const keyUp = new KeyboardEvent(EventType.KEY_UP, { key, keyCode, bubbles: true, cancelable: true });
+				target.dispatchEvent(keyDown);
+				target.dispatchEvent(keyUp);
+				return { keyDown, keyUp };
+			};
+
+			tabs[0].focus();
+			const rightArrow = dispatchKey(tabs[0], 'ArrowRight', 39);
+			const leftArrow = dispatchKey(tabs[1], 'ArrowLeft', 37);
+			const end = dispatchKey(tabs[0], 'End', 35);
+			const home = dispatchKey(tabs[1], 'Home', 36);
+			const startBoundaryArrow = dispatchKey(tabs[0], 'ArrowLeft', 37);
+
+			assert.deepStrictEqual({
+				openedChats: sessionsService.openedChats.map(resource => resource.toString()),
+				focusedTab: bar.element.contains(mainWindow.document.activeElement) ? mainWindow.document.activeElement?.getAttribute('data-chat-resource') : undefined,
+				defaultPrevented: [rightArrow, leftArrow, end, home, startBoundaryArrow].map(events => [events.keyDown.defaultPrevented, events.keyUp.defaultPrevented]),
+			}, {
+				openedChats: ['test-chat://secondary', 'test-chat://main', 'test-chat://secondary', 'test-chat://main'],
+				focusedTab: 'test-chat://main',
+				defaultPrevented: [[true, true], [true, true], [true, true], [true, true], [true, false]],
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('does not render New Chat in the tab bar', () => {
 		const { bar } = createHarness(disposables);
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
+	});
+
+	test('matches the default and compact editor tab strip heights', () => {
+		const { bar, container, editorGroupsService } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const tabsRow = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row');
+			const tabs = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs');
+			const defaultHeight = {
+				barHeight: mainWindow.getComputedStyle(bar.element).height,
+				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
+				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
+			};
+
+			editorGroupsService.setTabHeight('compact');
+			const compactHeight = {
+				barHeight: mainWindow.getComputedStyle(bar.element).height,
+				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
+				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
+				hasCompactClass: bar.element.classList.contains('compact-height'),
+			};
+
+			assert.deepStrictEqual({ defaultHeight, compactHeight }, {
+				defaultHeight: {
+					barHeight: '32px',
+					tabsRowHeight: '32px',
+					tabsHeight: '32px',
+				},
+				compactHeight: {
+					barHeight: '28px',
+					tabsRowHeight: '28px',
+					tabsHeight: '28px',
+					hasCompactClass: true,
+				},
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('updates active, visibility, and session action state without rebuilding tabs', () => {
@@ -211,6 +324,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		assert.deepStrictEqual({
 			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
 			ariaSelected: tabsAfterActiveChange.map(tab => tab.getAttribute('aria-selected')),
+			tabIndices: tabsAfterActiveChange.map(tab => tab.tabIndex),
+			actionTabIndices: tabsAfterActiveChange.map(tab => tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label')?.tabIndex),
 			tabsPreserved: tabsAfterVisible.map((tab, index) => tab === tabs[index]),
 			tabsPreservedWhileHidden: tabsAfterHidden.map((tab, index) => tab === tabs[index]),
 			tabsPreservedWithActionsHidden: tabsAfterActionsHidden.map((tab, index) => tab === tabs[index]),
@@ -220,6 +335,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, {
 			activeTab: secondaryResource,
 			ariaSelected: ['false', 'true'],
+			tabIndices: [-1, 0],
+			actionTabIndices: [undefined, 0],
 			tabsPreserved: [true, true],
 			tabsPreservedWhileHidden: [true, true],
 			tabsPreservedWithActionsHidden: [true, true],
@@ -236,8 +353,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		const observedHeights: number[] = [];
 		disposables.add(bar.onDidChangeHeight(() => observedHeights.push(bar.height)));
 
-		resizeObserver.fire(35);
-		resizeObserver.fire(35);
+		resizeObserver.fire(32);
+		resizeObserver.fire(32);
 		resizeObserver.fire(0);
 
 		assert.deepStrictEqual({
@@ -246,7 +363,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			observedBox: resizeObserver.observedBox,
 		}, {
 			height: 0,
-			observedHeights: [35, 0],
+			observedHeights: [32, 0],
 			observedBox: 'border-box',
 		});
 	});

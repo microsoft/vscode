@@ -10,7 +10,7 @@ exchanges:
     response:
       content:
         - type: text
-          text: I'll make that call.
+          text: I'll call it as instructed.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__delete_session
@@ -26,7 +26,7 @@ exchanges:
         - role: assistant
           content:
             - type: text
-              text: I'll make that call.
+              text: I'll call it as instructed.
             - type: tool_use
               name: mcp__host__delete_session
               input:

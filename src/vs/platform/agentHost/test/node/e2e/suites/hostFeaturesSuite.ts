@@ -11,10 +11,12 @@ import { join } from '../../../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
+import { deriveGitHubEndpoints, gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { ActionType } from '../../../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, ToolCallConfirmationReason, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
@@ -138,6 +140,26 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			completionTriggerCharacters: ['@', '#', '/'],
 			terminalCommandPrefix: '!',
 		});
+	});
+
+	conformanceTest(context, 'configuring a GitHub Enterprise host asks the client to re-authenticate', async function () {
+		const enterpriseUri = 'https://enterprise.example.com';
+		await createSession('enterprise-auth-required');
+		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		context.client.clearReceived();
+		try {
+			const required = context.client.waitForNotification(notification => notification.method === 'auth/required');
+			await setRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: enterpriseUri });
+			const notification = await required;
+
+			assert.deepStrictEqual(notification.params as AuthRequiredParams, {
+				channel: ROOT_STATE_URI,
+				resource: gitHubCopilotResource(deriveGitHubEndpoints(enterpriseUri)),
+				reason: AuthRequiredReason.Required,
+			});
+		} finally {
+			await setRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: '' });
+		}
 	});
 
 	conformanceTest(context, 'workspace file completions are filtered, attached, and cached', async function () {

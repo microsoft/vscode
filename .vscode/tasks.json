@@ -396,7 +396,8 @@
 				"Run Dev Agents"
 			],
 			"dependsOrder": "sequence",
-			"problemMatcher": []
+			"problemMatcher": [],
+			"inAgents": true
 		},
 		{
 			"label": "Run and Compile Code - OSS",
