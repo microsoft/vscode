@@ -65,6 +65,7 @@ suite('Session Artifact Removal', () => {
 	function addConcurrentReference({ stateManager, session, artifactAccessor }: Awaited<ReturnType<typeof createFixture>>): Promise<string> {
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
+			useCompactPrompts: artifactAccessor.useCompactPrompts,
 			persist: artifactAccessor.persist,
 		});
 		return Promise.resolve(group.execute(stateManager, { sessionUri: session.toString(), chatUri: buildDefaultChatUri(session), turnId: 'turn' }, ArtifactServerToolName.AddArtifactOrReference, {

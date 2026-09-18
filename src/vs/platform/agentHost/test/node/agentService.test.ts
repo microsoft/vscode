@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -1344,8 +1344,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		for (const removeArtifacts of [false, true]) {
-			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} persist centrally and list after restart without local database reads`, async () => {
+		for (const [removeArtifacts, useCompactPrompts] of [[false, false], [false, true], [true, false], [true, true]]) {
+			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} with ${useCompactPrompts ? 'compact' : 'original'} prompts persist centrally and list after restart without local database reads`, async () => {
 				class ArtifactAgent extends MockAgent {
 					serverToolHost: IAgentServerToolHost | undefined;
 					setServerToolHost(host: IAgentServerToolHost): void {
@@ -1374,8 +1374,12 @@ suite('AgentService (node dispatcher)', () => {
 				const svc = createService();
 				const agent = disposables.add(new ArtifactAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
-				getConfigurationService(svc).updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+				getConfigurationService(svc).updateRootConfig({
+					[AgentHostArtifactToolsConfigKey]: true,
+					[AgentHostArtifactToolsCompactPromptsConfigKey]: useCompactPrompts,
+				});
 				const session = await svc.createSession({ provider: 'copilot' });
+				const addDefinition = agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference);
 				const items = [
 					{ type: 'website', label: 'Result', link: 'https://example.com/result', isArtifact: true },
 					{ type: 'website', label: 'Reference', link: 'https://example.com/reference', isArtifact: false },
@@ -1398,12 +1402,14 @@ suite('AgentService (node dispatcher)', () => {
 				const [listed] = await restarted.listSessions();
 
 				assert.deepStrictEqual({
+					repeatedClassification: JSON.stringify(addDefinition?.inputSchema).includes('attempt to fix, change, or unblock'),
 					items: artifacts.map(({ id, ...item }) => item),
 					legacy: JSON.parse(legacy!),
 					central: readSessionArtifacts(central?._meta),
 					restarted: readSessionArtifacts(listed._meta),
 					databaseOpens,
 				}, {
+					repeatedClassification: !useCompactPrompts,
 					items,
 					legacy: expectedArtifacts,
 					central: expectedArtifacts,
