@@ -9,7 +9,6 @@ import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } f
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { parse as parseUrl } from 'url';
 import { xhr, XHRResponse, getErrorStatusDescription, Headers } from 'request-light';
 
 import TelemetryReporter from '@vscode/extension-telemetry';
@@ -159,21 +158,6 @@ async function getSchemaRequestService(context: ExtensionContext, log: LogOutput
 
 	return {
 		getContent: async (uri: string) => {
-			// request-light's legacy parser must preserve the destination approved by the common client.
-			const approvedUrl = new URL(uri);
-			const transportUrl = parseUrl(uri);
-			const hostname = approvedUrl.hostname.startsWith('[') ? approvedUrl.hostname.slice(1, -1) : approvedUrl.hostname;
-			const defaultPort = approvedUrl.protocol === 'https:' ? 443 : 80;
-			// Native requests also replace port zero with the protocol's default port.
-			const transportPort = Number(transportUrl.port) || defaultPort;
-			if ((approvedUrl.protocol !== 'http:' && approvedUrl.protocol !== 'https:')
-				|| transportUrl.protocol !== approvedUrl.protocol
-				|| transportUrl.hostname !== hostname
-				|| transportPort !== Number(approvedUrl.port || defaultPort)
-				|| transportUrl.path !== approvedUrl.pathname + approvedUrl.search) {
-				throw new Error(l10n.t('Unable to download schema from {0} because the HTTP transport interprets the URL differently.', uri));
-			}
-
 			if (cache && /^https?:\/\/(json|www)\.schemastore\.org\//.test(uri)) {
 				const content = await cache.getSchemaIfUpdatedSince(uri, retryTimeoutInHours);
 				if (content) {

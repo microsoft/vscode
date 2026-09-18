@@ -82,7 +82,7 @@ export async function createMatcher() {
 	return (value: string, domains: Record<string, boolean>) => matchesUrlPattern(Uri.parse(value), domains);
 }
 
-export async function createSchemaClient(transport: 'browser' | 'node', options: RequestOptions, dependencies: Record<string, object> = {}) {
+export async function createSchemaClient(transport: 'browser' | 'node', options: RequestOptions) {
 	const Uri = await getUri();
 	const requests: RequestRecord[] = [];
 	const checked: { url: string; allowed: boolean }[] = [];
@@ -179,7 +179,6 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 			}
 		},
 		path,
-		url: { parse },
 		'request-light': {
 			xhr: async ({ url }: { url: string }) => {
 				const destination = parse(url);
@@ -188,7 +187,6 @@ export async function createSchemaClient(transport: 'browser' | 'node', options:
 			}
 		}
 	};
-	Object.assign(mocks, dependencies);
 	const globals = {
 		process: { env: {} },
 		setTimeout: () => { throw new Error('Unexpected timer'); },
