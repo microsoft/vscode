@@ -1509,7 +1509,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor): IServerToolGroup {
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
-	const sentMessageCountsBySourceChat = new Map<ProtocolURI, { readonly turnId: string | undefined; readonly count: number }>();
+	const sentMessageCountsBySourceChat = new Map<ProtocolURI, { readonly turnId: string | undefined; count: number }>();
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
@@ -1573,14 +1573,22 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
-					const previousCount = sentMessageCountsBySourceChat.get(currentChannel);
-					const sentMessageCount = previousCount && previousCount.turnId === context.turnId ? previousCount.count : 0;
-					if (sentMessageCount >= maxSentMessages) {
+					let sentMessages = sentMessageCountsBySourceChat.get(currentChannel);
+					if (!sentMessages || sentMessages.turnId !== context.turnId) {
+						sentMessages = { turnId: context.turnId, count: 0 };
+						sentMessageCountsBySourceChat.set(currentChannel, sentMessages);
+					}
+					if (sentMessages.count >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in one turn.`);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
-					sentMessageCountsBySourceChat.set(currentChannel, { turnId: context.turnId, count: sentMessageCount + 1 });
-					return result;
+					// Reserve before awaiting and keep this turn's record for any refund.
+					sentMessages.count++;
+					try {
+						return await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
+					} catch (error) {
+						sentMessages.count--;
+						throw error;
+					}
 				}
 				case SessionServerToolName.GetSessionContext:
 					return applyGetSessionContextTool(accessor, rawArgs);
