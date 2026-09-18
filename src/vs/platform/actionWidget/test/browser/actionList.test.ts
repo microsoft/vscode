@@ -387,6 +387,36 @@ suite('ActionListWidget', () => {
 		});
 	}
 
+	test('keyboard activation on an opted-in submenu row focuses its filter without selecting it', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				submenuActions: [toAction({ id: 'child', label: 'Child', run: () => { } })],
+				openSubmenuOnClick: true,
+				submenuOptions: { showFilter: true, focusFilterOnOpen: true },
+			}],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+
+		widget.acceptSelected();
+
+		const row = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(candidate => candidate.querySelector<HTMLElement>('.title')?.textContent === 'remote')!;
+		const filter = widget.domNode.querySelector<HTMLInputElement>('.action-list-submenu-panel .action-list-filter-input')!;
+		assert.deepStrictEqual({
+			selected,
+			expanded: row.getAttribute('aria-expanded'),
+			filterFocused: document.activeElement === filter,
+		}, {
+			selected: [],
+			expanded: 'true',
+			filterFocused: true,
+		});
+	});
+
 	for (const activation of ['mousemove', 'mousedown'] as const) {
 		test(`stops mapping mouse moves after ${activation} enables hover`, () => {
 			const widget = createActionListWidget(disposables, {
@@ -1429,7 +1459,7 @@ suite('ActionListWidget', () => {
 				...action('remote'),
 				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
 				submenuActions: [
-					toAction({ id: 'alpha', label: 'A long remote host label', run: () => { } }),
+					toAction({ id: 'alpha', label: 'A long remote host label', tooltip: 'Remote host description', run: () => { } }),
 					toAction({ id: 'beta', label: 'Beta', run: () => { } }),
 				],
 				submenuOptions: {
@@ -1462,7 +1492,7 @@ suite('ActionListWidget', () => {
 		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
 		const bubbledKeys: string[] = [];
 		disposables.add(addDisposableListener(widget.domNode, 'keydown', event => bubbledKeys.push(event.key)));
-		const longLabelTooltip = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+		const descriptionTooltip = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
 			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'A long remote host label')?.title;
 		[
 			{ key: 'r' },
@@ -1489,7 +1519,7 @@ suite('ActionListWidget', () => {
 			},
 			bubbledKeys,
 			listWidth: panel.querySelector<HTMLElement>('.actionList')?.style.width,
-			longLabelTooltip,
+			descriptionTooltip,
 			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => row.querySelector<HTMLElement>('.title')?.textContent),
 		};
 		dismissibleWidget.focus();
@@ -1517,7 +1547,7 @@ suite('ActionListWidget', () => {
 			bubbledKeys: ['P', 'F1', 'Process'],
 			dismissal: { focusedOnOpen: true, hiddenFromFilter: 1, hiddenFromList: 2 },
 			listWidth: '180px',
-			longLabelTooltip: 'A long remote host label',
+			descriptionTooltip: 'Remote host description',
 			rows: ['Beta'],
 		});
 	});
@@ -1589,7 +1619,7 @@ suite('ActionListWidget', () => {
 		}, { footer: 'Remote footer', listHeight: '0px' });
 	});
 
-	test('a filtered submenu near the viewport bottom shifts enough to show one row', () => withWindowInnerHeight(300, () => {
+	test('a filtered submenu near the viewport bottom shifts enough to show all rows', () => withWindowInnerHeight(300, () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
 				...action('remote'),
@@ -1625,15 +1655,13 @@ suite('ActionListWidget', () => {
 		const listHeight = parseFloat(submenuList.style.height);
 		const viewportHeight = parseFloat(viewport.style.height);
 		assert.deepStrictEqual({
-			hasVisibleRow: listHeight > 0,
-			topFitsOuterChromeFilterAndRow: top === 300 - 260 - 10 - 30 - listHeight - 8,
-			minimumPanelBottom: 260 + top + 10 + 30 + listHeight,
-			viewportContainsFilterAndRow: viewportHeight === 30 + listHeight,
+			listHeight,
+			panelFitsViewport: 260 + top + 10 + 30 + listHeight <= 300 - 8,
+			viewportHeight,
 		}, {
-			hasVisibleRow: true,
-			topFitsOuterChromeFilterAndRow: true,
-			minimumPanelBottom: 292,
-			viewportContainsFilterAndRow: true,
+			listHeight: 240,
+			panelFitsViewport: true,
+			viewportHeight: 270,
 		});
 	}));
 

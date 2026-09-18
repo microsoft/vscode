@@ -528,7 +528,7 @@ export interface IAgentHostAdapterOptions {
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
-	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
+	/** Optional URI mapping for host-side file resources (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: AgentHostUriMapper;
 	/**
 	 * GitHub service used to resolve the pull request that targets the
@@ -1036,7 +1036,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return partitionSessionArtifacts(meta).entries.map(entry => entry.artifact);
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(entry => entry.artifact);
 		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({

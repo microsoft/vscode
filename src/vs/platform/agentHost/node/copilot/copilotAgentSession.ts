@@ -2375,7 +2375,7 @@ export class CopilotAgentSession extends Disposable {
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: 'never' as const,
+			defer: def.deferLoading && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
 			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
 				try {
 					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);

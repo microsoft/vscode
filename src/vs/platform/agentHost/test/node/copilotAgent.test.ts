@@ -7443,59 +7443,30 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema offers the Auto routing profile only to the Auto model, and only while the gate is on', async () => {
+	test('configSchema offers the Auto routing profile by default only to the Auto model', async () => {
 		const models: ITestCopilotModelInfo[] = [
 			{ id: 'auto', name: 'Auto' },
 			{ id: 'claude-sonnet', name: 'Claude Sonnet' },
 		];
-		const configSchemasFor = async (autoModeTiers: boolean) => {
-			const { agent } = createTestAgentContext(disposables, {
-				copilotClient: new TestCopilotClient([], models),
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: autoModeTiers },
-			});
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				const published = await waitForState(agent.models, published => published.length === models.length);
-				return published.map(model => model.configSchema?.properties.tier);
-			} finally {
-				await disposeAgent(agent);
-			}
-		};
-
-		const [auto, concrete] = await configSchemasFor(true);
-		assert.deepStrictEqual({
-			auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
-			concrete,
-			gateOff: await configSchemasFor(false),
-		}, {
-			// The enum carries the runtime's wire values, not the retired names.
-			auto: {
-				enum: ['efficiency', 'balance', 'intelligence'],
-				default: 'balance',
-				enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
-			},
-			concrete: undefined,
-			gateOff: [undefined, undefined],
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], models),
 		});
-	});
-
-	test('re-publishes the Auto routing profile picker when the gate flips', async () => {
-		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			await waitForState(agent.models, models => models.length === 1);
+			const published = await waitForState(agent.models, published => published.length === models.length);
+			const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
 
-			// The picker is built while the model list is enumerated, so a flip has to re-enumerate.
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
-			const enabled = await waitForState(agent.models, models => models[0]?.configSchema?.properties.tier !== undefined);
-			configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
-			const disabled = await waitForState(agent.models, models => models[0]?.configSchema === undefined);
-
-			assert.deepStrictEqual(
-				[enabled[0].configSchema?.properties.tier?.default, disabled[0].configSchema],
-				['balance', undefined]
-			);
+			assert.deepStrictEqual({
+				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels },
+				concrete,
+			}, {
+				auto: {
+					enum: ['efficiency', 'balance', 'intelligence'],
+					default: 'balance',
+					enumLabels: ['Efficiency', 'Balance', 'Intelligence'],
+				},
+				concrete: undefined,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -12562,7 +12533,6 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12614,9 +12584,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('changeModel applies Auto preferences, overrides, and resets only to the targeted chat', async () => {
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
-			});
+			const { agent, configurationService } = createTestAgentContext(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'auto-tier-peer');
 				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
@@ -12636,11 +12604,10 @@ suite('CopilotAgent', () => {
 				];
 
 				await agent.chats.changeModel(chatA, selections[0], exactChatContext(session, chatA));
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false, [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
 				await agent.chats.changeModel(chatA, selections[1], exactChatContext(session, chatA));
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: '' });
 				await agent.chats.changeModel(chatA, selections[2], exactChatContext(session, chatA));
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
 				await agent.chats.changeModel(chatA, selections[3], exactChatContext(session, chatA));
 				await agent.chats.changeModel(chatA, selections[4], exactChatContext(session, chatA));
 
@@ -12666,7 +12633,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('does not apply a provisional Auto routing preference when the gate turns off before the first send', async () => {
+		test('applies a provisional Auto routing preference on the first send without opting in', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			const capiCalls: SessionConfig['capi'][] = [];
@@ -12674,10 +12641,9 @@ suite('CopilotAgent', () => {
 				capiCalls.push(config.capi);
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
-			const { agent, configurationService } = createTestAgentContext(disposables, {
+			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12690,13 +12656,12 @@ suite('CopilotAgent', () => {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
 				});
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
 				assert.deepStrictEqual({ model: JSON.parse(stored ?? 'null'), capiCalls }, {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
-					capiCalls: [undefined],
+					capiCalls: [{ autoTier: 'intelligence' }],
 				});
 			} finally {
 				await disposeAgent(agent);

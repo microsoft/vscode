@@ -25,14 +25,17 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { SessionServerToolName } from '../../../common/serverToolNames.js';
+import { ArtifactServerToolName, SessionServerToolName } from '../../../common/serverToolNames.js';
+import { readSessionArtifacts } from '../../../common/sessionArtifacts.js';
+import { AgentServerToolHost } from '../../../node/shared/agentServerToolHost.js';
+import { createArtifactServerToolGroup } from '../../../node/shared/artifactServerTools.js';
 import { sessionServerToolDefinitions } from '../../../node/shared/sessionServerTools.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
@@ -72,7 +75,7 @@ interface ITestWireRequest {
 		readonly beforeTurnId?: string;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
-		readonly dynamicTools?: readonly { readonly name: string }[];
+		readonly dynamicTools?: readonly { readonly name: string; readonly deferLoading?: boolean }[];
 	};
 }
 
@@ -3231,6 +3234,76 @@ suite('CodexAgent exact chat routing', () => {
 		}, {
 			retained: ['plugin-eager'],
 			removed: ['plugin-eager'],
+		});
+	});
+
+	test('keeps artifact tools eager when native search support is unknown and executes dynamic tool calls', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionUri = AgentSession.uri('codex', 'artifact-tools');
+		const chat = URI.parse(buildDefaultChatUri(sessionUri));
+		const folder = URI.file('/repo/artifact-tools');
+		stateManager.createSession({
+			resource: sessionUri.toString(),
+			provider: 'codex',
+			title: 'Artifacts',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let enabled = true;
+		agent.setServerToolHost(new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
+			isEnabled: () => enabled,
+			useCompactPrompts: () => false,
+			persist: () => { },
+		})]));
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		await createSessionBackedChat(agent, chat, { configurationResource: sessionUri, resource: chat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'artifact-thread', cwd: folder.fsPath } } });
+		await agent['_sessions'].get('artifact-tools')!.materializePromise;
+
+		let requestId = 9000;
+		const call = async (tool: string, args: object = {}) => {
+			const response = readNextMessage(peer.outbound);
+			peer.push({
+				id: ++requestId,
+				method: 'item/tool/call',
+				params: { threadId: 'artifact-thread', turnId: 'turn', callId: `call-${requestId}`, namespace: null, tool, arguments: args },
+			});
+			return (await response).result;
+		};
+		const added = await call(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' }],
+		});
+		const id = readSessionArtifacts(stateManager.getSessionState(sessionUri.toString())?._meta)[0].id;
+		const listed = await call(ArtifactServerToolName.ListArtifactsAndReferences);
+		const removed = await call(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+		enabled = false;
+		const disabled = await call(ArtifactServerToolName.ListArtifactsAndReferences);
+
+		assert.deepStrictEqual({
+			deferrals: start.params.dynamicTools?.map(({ name, deferLoading }) => ({ name, deferLoading })),
+			added,
+			listed,
+			removed,
+			disabledSuccess: disabled?.success,
+			remaining: readSessionArtifacts(stateManager.getSessionState(sessionUri.toString())?._meta),
+		}, {
+			deferrals: [
+				{ name: ArtifactServerToolName.AddArtifactOrReference, deferLoading: undefined },
+				{ name: ArtifactServerToolName.RemoveArtifactOrReference, deferLoading: undefined },
+				{ name: ArtifactServerToolName.ListArtifactsAndReferences, deferLoading: undefined },
+			],
+			added: { contentItems: [{ type: 'inputText', text: `Added artifact: ${id}` }], success: true },
+			listed: { contentItems: [{ type: 'inputText', text: `${id} (file, artifact) Report — file:///repo/report.md` }], success: true },
+			removed: { contentItems: [{ type: 'inputText', text: `Removed artifact: ${id}` }], success: true },
+			disabledSuccess: false,
+			remaining: [],
 		});
 	});
 

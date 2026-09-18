@@ -113,6 +113,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// token counts, so fall back to the workbench's own catalogue entry for the same
 				// model. See `_catalogueEntryFor`.
 				const known = this._catalogueEntryFor(m, modelGroup);
+				const maxOutputTokens = m.maxOutputTokens ?? known?.maxOutputTokens ?? 0;
+				// BYOK models can advertise only a total window; the workbench expects separate input/output limits.
+				const maxInputTokens = m.maxPromptTokens
+					?? (m.maxContextWindow !== undefined ? Math.max(0, m.maxContextWindow - maxOutputTokens) : undefined)
+					?? known?.maxInputTokens ?? 0;
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -124,8 +129,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
-						maxInputTokens: m.maxPromptTokens ?? known?.maxInputTokens ?? 0,
-						maxOutputTokens: m.maxOutputTokens ?? known?.maxOutputTokens ?? 0,
+						maxInputTokens,
+						maxOutputTokens,
 						isDefaultForLocation: {},
 						isUserSelectable: true,
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,

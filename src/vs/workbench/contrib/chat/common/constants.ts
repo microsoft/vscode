@@ -56,7 +56,7 @@ export enum ChatConfiguration {
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
-	AutoDeleteArchivedMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays',
+	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -91,6 +91,7 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	PersistentProgress = 'chat.experimental.persistentProgress',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -131,6 +132,7 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
+	AgentHostDebugLogsDefaultExportLocation = 'chat.agentHost.debugLogs.defaultExportLocation',
 	EditorPreferCopilotHarness = 'chat.editor.preferCopilotHarness',
 	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
@@ -237,6 +239,15 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum ChatProgressAnimation {
+	Off = 'off',
+	Weave = 'weave',
+	Draw = 'draw',
+	Orbit = 'orbit',
+	Accordion = 'accordion',
+	Dial = 'dial',
 }
 
 export enum CollapsedToolsDisplayMode {

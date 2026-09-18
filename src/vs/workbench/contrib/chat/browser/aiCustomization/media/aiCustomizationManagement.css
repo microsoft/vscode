@@ -1167,7 +1167,7 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	justify-content: space-between;
 	gap: var(--vscode-spacing-size120);
-	margin-bottom: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
 	padding: 0;
 	background: transparent;
 }
@@ -1478,7 +1478,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .tools-inventory-section {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size100);
+	gap: var(--vscode-spacing-size120);
 }
 
 .ai-customization-management-editor .tools-inventory-section-header {
@@ -2667,9 +2667,9 @@ per-word capitalization does not survive translation. */
 	display: block;
 }
 
-.plugin-list-widget .plugin-card-grid.plugin-inventory-list .plugin-list-item,
-.plugin-list-widget .plugin-card-grid.plugin-inventory-list .ai-customization-list-item,
-.plugin-list-widget .plugin-card-grid.plugin-inventory-list .mcp-server-item {
+.ai-customization-management-editor .plugin-list-widget .plugin-card-grid.plugin-inventory-list .plugin-list-item,
+.ai-customization-management-editor .plugin-list-widget .plugin-card-grid.plugin-inventory-list .ai-customization-list-item,
+.ai-customization-management-editor .plugin-list-widget .plugin-card-grid.plugin-inventory-list .mcp-server-item {
 	border-radius: 0;
 }
 
@@ -2957,7 +2957,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .distributed-section-layout .plugin-card-section-header {
-	margin-bottom: var(--vscode-spacing-size20);
+	margin-bottom: var(--vscode-spacing-size120);
 }
 
 .plugin-list-widget .plugin-card-scroll-content {

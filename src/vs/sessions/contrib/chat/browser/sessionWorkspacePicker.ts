@@ -797,12 +797,11 @@ export class WorkspacePicker extends Disposable {
 
 	protected _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
 		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces() && this._directPickerAttachesContext !== true;
-		const hasRemoteSubmenu = isConsolidatedWorkspacePicker && this._directPickerGroup === undefined;
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: hasRemoteSubmenu, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { className: 'sessions-new-chat-picker-list', submenuPointerIntent: hasRemoteSubmenu, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { className: 'sessions-new-chat-picker-list', reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -1829,7 +1828,6 @@ export class WorkspacePicker extends Disposable {
 					filterAsCombobox: true,
 					focusFilterOnOpen: true,
 					minWidth: 180,
-					maxWidth: 180,
 					hideDefaultKeybindingTooltip: true,
 				},
 			});

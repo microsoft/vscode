@@ -14,6 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -831,7 +833,9 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
-			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			const configurationService = new TestConfigurationService();
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(configurationService)));
 			const mainContainer = mainWindow.document.createElement('div');
 			mainContainer.classList.toggle('phone-layout', phoneLayout);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
@@ -865,8 +869,9 @@ suite('Sessions rename', () => {
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
-				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, or Tunnel folder contains a Dev Container configuration'),
+				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration'),
 				hasRemoteDevContainerPrerequisite: content.includes('first connect to a host that supports Dev Container sessions'),
+				hasWslDevContainerPrerequisite: content.includes('Docker must be available in the WSL distribution'),
 				hasDevContainerModeSwitch: content.includes('Choose Use Local or Use Remote Host to switch back'),
 				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
@@ -888,6 +893,7 @@ suite('Sessions rename', () => {
 				hasPermanentDelete: true,
 				hasDevContainerAvailability: true,
 				hasRemoteDevContainerPrerequisite: true,
+				hasWslDevContainerPrerequisite: true,
 				hasDevContainerModeSwitch: true,
 				hasDevContainerExecution: true,
 				hasNoBackgroundOption: true,
