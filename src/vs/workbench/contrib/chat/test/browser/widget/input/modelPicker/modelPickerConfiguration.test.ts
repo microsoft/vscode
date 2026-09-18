@@ -6,13 +6,17 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
-import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
 import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
+
+type TestActionListDelegate = Omit<IActionListDelegate<IActionWidgetDropdownAction>, 'onSelect'> & {
+	onSelect(action: IActionWidgetDropdownAction): Promise<void>;
+};
 
 /**
  * Builds a model whose schema advertises a Thinking Effort and a Context Size
@@ -101,14 +105,20 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 		setModelConfiguration: async (_modelId, values) => { Object.assign(configuration, values); },
 		getModelConfigurationActions: () => [],
 	};
+	const calls = {
+		hide: 0,
+		focusItemById: 0,
+		updateItems: 0,
+	};
 	let shownItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
+	let shownDelegate: TestActionListDelegate | undefined;
 	let shownOptions: IActionListOptions | undefined;
 	const actionWidgetService = {
 		show: (
 			_id: string,
 			_supportsPreview: boolean,
 			items: IActionListItem<IActionWidgetDropdownAction>[],
-			_delegate: unknown,
+			delegate: IActionListDelegate<IActionWidgetDropdownAction>,
 			_anchor: unknown,
 			_container: unknown,
 			_actions: unknown,
@@ -116,10 +126,18 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 			options: IActionListOptions,
 		) => {
 			shownItems = items;
+			shownDelegate = delegate as TestActionListDelegate;
 			shownOptions = options;
 		},
-		focusItemById: () => { },
-		updateItems: () => { },
+		hide: () => {
+			calls.hide++;
+		},
+		focusItemById: () => {
+			calls.focusItemById++;
+		},
+		updateItems: () => {
+			calls.updateItems++;
+		},
 	} as unknown as IActionWidgetService;
 	const controller = new ModelPickerConfiguration({
 		getSelectedModel: () => model,
@@ -135,17 +153,22 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 	controller.show(button);
 
 	return {
-		label: button.textContent,
-		ariaLabel: button.ariaLabel,
-		listOptions: {
-			reserveSubmenuSpace: shownOptions?.reserveSubmenuSpace,
+		view: {
+			label: button.textContent,
+			ariaLabel: button.ariaLabel,
+			listOptions: {
+				reserveSubmenuSpace: shownOptions?.reserveSubmenuSpace,
+			},
+			sections: shownItems.map(item => item.kind === ActionListItemKind.Action ? {
+				className: item.className,
+				label: item.label,
+				checked: item.item!.checked,
+				ariaDescription: item.ariaDescription,
+			} : { kind: item.kind, label: item.label }),
 		},
-		sections: shownItems.map(item => item.kind === ActionListItemKind.Action ? {
-			className: item.className,
-			label: item.label,
-			checked: item.item!.checked,
-			ariaDescription: item.ariaDescription,
-		} : { kind: item.kind, label: item.label }),
+		shownItems,
+		shownDelegate,
+		calls,
 	};
 }
 
@@ -154,7 +177,7 @@ suite('ModelPickerConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('renders the combined label and builds accessible option sections', () => {
-		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }), {
+		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }).view, {
 			label: 'Medium 64K',
 			ariaLabel: 'Thinking Effort: Medium, Context Size: 64K',
 			listOptions: {
@@ -176,7 +199,7 @@ suite('ModelPickerConfiguration', () => {
 	// to be stringified straight into the label as "undefined 272K". The group is
 	// dropped from the label instead, while its options stay selectable.
 	test('omits an unresolved group from the label rather than rendering "undefined"', () => {
-		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true })), {
+		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true })).view, {
 			label: '32K',
 			ariaLabel: 'Context Size: 32K',
 			listOptions: {
@@ -197,8 +220,8 @@ suite('ModelPickerConfiguration', () => {
 	// With nothing to summarize the button falls back to a generic label so the
 	// configuration stays reachable — it must not read "undefined undefined".
 	test('falls back to a generic label when no group resolves a value', () => {
-		const rendered = render(createModel({ omitEffortDefault: true, omitContextDefault: true }));
-		assert.deepStrictEqual({ label: rendered.label, ariaLabel: rendered.ariaLabel }, {
+		const renderedView = render(createModel({ omitEffortDefault: true, omitContextDefault: true })).view;
+		assert.deepStrictEqual({ label: renderedView.label, ariaLabel: renderedView.ariaLabel }, {
 			label: 'Configure',
 			ariaLabel: 'Configure',
 		});
@@ -207,7 +230,7 @@ suite('ModelPickerConfiguration', () => {
 	// The navigation group is generic: Copilot's Auto model uses it for the
 	// routing tier rather than thinking effort, and names it through `title`.
 	test('names the navigation group after the schema title when one is given', () => {
-		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
+		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }).view, {
 			label: 'Intelligence',
 			ariaLabel: 'Optimize for: Intelligence',
 			listOptions: {
@@ -221,4 +244,44 @@ suite('ModelPickerConfiguration', () => {
 			],
 		});
 	});
+
+	test('hides picker upon selection with one configuration section', async () => {
+		const result = render(createTierModel());
+
+		const action = result.shownItems.find(item => item.kind === ActionListItemKind.Action)?.item;
+
+		assert.ok(action);
+		assert.ok(result.shownDelegate);
+
+		const selection = result.shownDelegate.onSelect(action);
+
+		// Hiding must happen synchronously to cancel pending hover UI.
+		assert.strictEqual(result.calls.hide, 1);
+
+		await selection;
+
+		assert.strictEqual(result.calls.hide, 1);
+		assert.strictEqual(result.calls.focusItemById, 0);
+		assert.strictEqual(result.calls.updateItems, 0);
+	});
+
+	test('hides picker upon selection with multiple configuration sections', async () => {
+		const result = render(createModel());
+
+		const action = result.shownItems.find(item => item.kind === ActionListItemKind.Action)?.item;
+
+		assert.ok(action);
+		assert.ok(result.shownDelegate);
+
+		const selection = result.shownDelegate.onSelect(action);
+
+		assert.strictEqual(result.calls.hide, 1);
+
+		await selection;
+
+		assert.strictEqual(result.calls.hide, 1);
+		assert.strictEqual(result.calls.focusItemById, 0);
+		assert.strictEqual(result.calls.updateItems, 0);
+	});
+
 });
