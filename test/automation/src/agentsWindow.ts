@@ -120,8 +120,7 @@ export class AgentsWindow {
 
 	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await this.quickaccess.runCommand('workbench.action.sessions.connectViaSSH', { keepOpen: true });
-		await this.fillQuickInput('Connect via SSH', `${options.username}@${options.host}:${options.port}`);
+		await this.fillQuickInputAfterCommand('workbench.action.sessions.connectViaSSH', 'Connect via SSH', `${options.username}@${options.host}:${options.port}`, 120_000);
 		const authPicker = page.locator('.quick-input-widget:visible').filter({
 			has: page.locator('.quick-input-title', { hasText: 'Authentication Method' }),
 		});
@@ -148,10 +147,9 @@ export class AgentsWindow {
 
 	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await this.quickaccess.runCommand('workbench.action.sessions.connectViaWSL', { keepOpen: true });
 		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
 		const folderPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: `Select Folder on ${distro}` }) });
-		await distroPicker.or(folderPicker).first().waitFor({ timeout: 120_000 });
+		await this.waitForQuickInputAfterCommand('workbench.action.sessions.connectViaWSL', () => distroPicker.or(folderPicker).first(), 120_000);
 		if (await distroPicker.isVisible()) {
 			await distroPicker.locator('.quick-input-list .monaco-list-row').filter({
 				has: page.getByText(distro, { exact: true }),
@@ -166,6 +164,40 @@ export class AgentsWindow {
 		const input = widget.locator('.quick-input-box input');
 		await input.fill(value, { timeout: 30_000 });
 		await input.press('Enter');
+	}
+
+	private async fillQuickInputAfterCommand(commandId: string, title: string, value: string, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const page = this.code.driver.currentPage;
+			const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				const input = widget.locator('.quick-input-box input');
+				await input.fill(value, { timeout: timeoutMs });
+				await input.press('Enter');
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input "${title}" after running ${commandId}`);
+	}
+
+	private async waitForQuickInputAfterCommand(commandId: string, getWidget: () => { waitFor: (options: { timeout: number }) => Promise<unknown> }, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const widget = getWidget();
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
 	}
 
 	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
