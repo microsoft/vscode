@@ -940,6 +940,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.renderCustomizationMigrationPage = () => renders.push(editor.customizationMigrationLoading);
 		editor.setCustomizationsToMigrate = candidates => {
 			applied.push([...candidates.values()].flat());
+			editor.customizationsByMigrationCategory = candidates;
 			editor.renderCustomizationMigrationPage();
 		};
 		editor.customizationMigrationService.computeMigration = async (session, type, token = CancellationToken.None) => {
@@ -955,7 +956,7 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, renders, applied };
 	}
 
-	test('coalesces migration invalidations into one computation and loading transition', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('coalesces migration invalidations and retains settled content during background refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		let computations = 0;
 		const { editor, renders, applied } = createMigrationRefreshEditor(async () => {
 			computations++;
@@ -970,7 +971,7 @@ suite('aiCustomizationManagementEditor', () => {
 		await editor.refreshCustomizationMigrationInfo();
 		assert.deepStrictEqual({ firstBurst, computations, renders, applied }, {
 			firstBurst: { computations: 1, renders: [true, false], applied: [[]] },
-			computations: 2, renders: [true, false, true, false], applied: [[], []],
+			computations: 2, renders: [true, false, false], applied: [[], []],
 		});
 	}));
 

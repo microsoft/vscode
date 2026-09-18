@@ -1500,16 +1500,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const activeSessionResource = this.harnessService.activeSessionResource.get();
 		const projectRoot = this.workspaceService.activeProjectRoot.get();
 		const selectionContextKey = `${activeHarnessId}\n${activeSessionResource.toString()}\n${projectRoot ? getComparisonKey(projectRoot) : ''}`;
-		if (selectionContextKey !== this.migrationSelectionContextKey) {
+		const selectionContextChanged = selectionContextKey !== this.migrationSelectionContextKey;
+		if (selectionContextChanged) {
 			this.migrationSelectionContextKey = selectionContextKey;
 			this.knownMcpServerMigrationItems.clear();
 			this.selectedMcpServerMigrationItems.clear();
 			this.selectedCustomizationMigrationTargets.clear();
 			this.explicitlySelectedCustomizationMigrationTargets.clear();
 		}
-		this.customizationMigrationLoading = true;
+		const showLoadingState = selectionContextChanged
+			|| this.customizationsByMigrationCategory.size === 0
+			|| this.customizationMigrationLoadError !== undefined;
+		this.customizationMigrationLoading = showLoadingState;
 		this.customizationMigrationLoadError = undefined;
-		this.renderCustomizationMigrationPage();
+		if (showLoadingState) {
+			this.renderCustomizationMigrationPage();
+		}
 
 		if (!isAgentHostTarget(activeHarnessId)) {
 			this.customizationMigrationLoading = false;
