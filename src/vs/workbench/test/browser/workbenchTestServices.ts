@@ -2014,6 +2014,7 @@ export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtens
 export class TestWorkbenchExtensionManagementService implements IWorkbenchExtensionManagementService {
 	_serviceBrand: undefined;
 	onInstallExtension = Event.None;
+	onInstallExtensionProgress = Event.None;
 	onDidInstallExtensions = Event.None;
 	onUninstallExtension = Event.None;
 	onDidUninstallExtension = Event.None;
