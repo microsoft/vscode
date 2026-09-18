@@ -126,6 +126,33 @@ suite('Osc633Parser', () => {
 				type: Osc633EventType.Property,
 				key: 'Cwd',
 				value: '/home/user',
+				nonce: undefined,
+			}],
+		});
+	});
+
+	test('Property (P) Cwd with nonce', () => {
+		const result = parser.parse(osc633('P;Cwd=/home/user;my-nonce'));
+		assert.deepStrictEqual(result, {
+			cleanedData: '',
+			events: [{
+				type: Osc633EventType.Property,
+				key: 'Cwd',
+				value: '/home/user',
+				nonce: 'my-nonce',
+			}],
+		});
+	});
+
+	test('Property (P) preserves escaped semicolons before nonce', () => {
+		const result = parser.parse(osc633('P;Cwd=/home/a\\x3bb;my-nonce'));
+		assert.deepStrictEqual(result, {
+			cleanedData: '',
+			events: [{
+				type: Osc633EventType.Property,
+				key: 'Cwd',
+				value: '/home/a;b',
+				nonce: 'my-nonce',
 			}],
 		});
 	});

@@ -165,7 +165,7 @@ class TestTerminalDataHandler {
 				break;
 			}
 			case Osc633EventType.Property: {
-				if (event.key === 'Cwd') {
+				if (event.key === 'Cwd' && (event.nonce === undefined || event.nonce === this.tracker.nonce)) {
 					this.cwd = event.value;
 					this.dispatched.push({
 						type: ActionType.TerminalCwdChanged,
@@ -732,6 +732,17 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.ok(cwdAction);
 		assert.strictEqual(cwdAction.cwd, '/new/working/dir');
 		assert.strictEqual(handler.cwd, '/new/working/dir');
+	});
+
+	test('CWD property strips and validates the shell integration nonce', () => {
+		const handler = createHandler('my-secret-nonce');
+
+		handler.handlePtyData(osc633('P;Cwd=/trusted/working/dir;my-secret-nonce'));
+		handler.handlePtyData(osc633('P;Cwd=/ignored/working/dir;other-nonce'));
+
+		const cwdActions = handler.dispatched.filter(a => a.type === ActionType.TerminalCwdChanged);
+		assert.deepStrictEqual(cwdActions.map(action => action.cwd), ['/trusted/working/dir']);
+		assert.strictEqual(handler.cwd, '/trusted/working/dir');
 	});
 
 	test('OSC 633 sequences are stripped from cleaned output', () => {

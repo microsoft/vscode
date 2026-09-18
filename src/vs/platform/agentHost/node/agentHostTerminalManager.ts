@@ -768,7 +768,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			}
 
 			case Osc633EventType.Property: {
-				if (event.key === 'Cwd') {
+				if (event.key === 'Cwd' && (event.nonce === undefined || event.nonce === tracker.nonce)) {
 					managed.cwd = event.value;
 					this._stateManager.dispatchServerAction(managed.uri, {
 						type: ActionType.TerminalCwdChanged,
