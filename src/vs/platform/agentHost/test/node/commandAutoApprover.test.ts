@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawnSync } from 'child_process';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CommandAutoApprover, type ICommandApprovalEvaluation } from '../../node/commandAutoApprover.js';
@@ -583,31 +585,83 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('Write-Host pre\'literal\'\'>text\'post>../../outside.txt', options),
 				approver.shouldAutoApprove('Write-Host escaped`>text', options),
 				approver.shouldAutoApprove('Write-Host payload>$null', options),
-			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'approved', 'approved']);
-			assert.deepStrictEqual(seen, ['../../outside.txt', '../../outside.txt', '../../outside.txt', '../../outside.txt']);
+			], ['approved', 'noMatch', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved', 'approved']);
+			assert.deepStrictEqual(seen, ['../../outside.txt']);
 		});
 
-		test('detects every PowerShell redirect in a generic token', () => {
+		test('classifies only generic tokens that begin with a PowerShell redirect', () => {
 			const seen: string[] = [];
 			const options = {
 				...pwsh,
 				isWriteDestApproved: (dest: string) => {
 					seen.push(dest);
-					return dest === '/workspace/inside';
+					return false;
 				},
 			};
 
-			const commands = [
-				'Write-Host hi>/workspace/inside>/outside',
-				...['2', '3', '4', '5', '6', '*'].map(stream => `Write-Host hi>'../../outside.txt'${stream}>$null`),
-				'Write-Host hi>>\'../../outside.txt\'2>$null',
-			];
-			assert.deepStrictEqual(commands.map(command => approver.shouldAutoApprove(command, options)), commands.map(() => 'noMatch'));
-			assert.deepStrictEqual(seen, [
-				'/workspace/inside',
-				'/outside',
-				...commands.slice(1).map(() => '../../outside.txt'),
+			const redirects = ['1', '2', '3', '4', '5', '6', '*'].map(stream => `Write-Host hi ${stream}>../../outside.txt`);
+			assert.deepStrictEqual([
+				...redirects.map(command => approver.shouldAutoApprove(command, options)),
+				approver.shouldAutoApprove('Write-Host hi 2>>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host hi 2>&1', options),
+				approver.shouldAutoApprove('Write-Host hi2>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host hi 2`>../../outside.txt', options),
+				approver.shouldAutoApprove('Write-Host \'2>../../outside.txt\'', options),
+			], [
+				...redirects.map(() => 'noMatch'),
+				'noMatch',
+				'approved',
+				'approved',
+				'approved',
+				'approved',
 			]);
+			assert.deepStrictEqual(seen, [
+				...redirects.map(() => '../../outside.txt'),
+				'../../outside.txt',
+			]);
+		});
+
+		(isWindows ? test : test.skip)('matches native PowerShell redirection AST boundaries', () => {
+			const commands = [
+				'Write-Host hi>outside.txt',
+				'Write-Host hi >outside.txt',
+				'Write-Host \"hi>outside.txt\"',
+				'Write-Host escaped`>outside.txt',
+				'Write-Host hi 2>outside.txt',
+				'Write-Host hi 2`>outside.txt',
+			];
+			const script = [
+				'$commands = [Console]::In.ReadToEnd() | ConvertFrom-Json',
+				'$result = @($commands | ForEach-Object {',
+				'$tokens = $null',
+				'$errors = $null',
+				'$ast = [System.Management.Automation.Language.Parser]::ParseInput($_, [ref]$tokens, [ref]$errors)',
+				'[pscustomobject]@{ RedirectCount = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.RedirectionAst] }, $true)).Count; ErrorCount = @($errors).Count }',
+				'})',
+				'$result | ConvertTo-Json -Compress',
+			].join('; ');
+			const expected = [
+				{ RedirectCount: 0, ErrorCount: 0 },
+				{ RedirectCount: 1, ErrorCount: 0 },
+				{ RedirectCount: 0, ErrorCount: 0 },
+				{ RedirectCount: 0, ErrorCount: 0 },
+				{ RedirectCount: 1, ErrorCount: 0 },
+				{ RedirectCount: 0, ErrorCount: 0 },
+			];
+			const testedExecutables: string[] = [];
+			for (const executable of ['powershell.exe', 'pwsh.exe']) {
+				const child = spawnSync(executable, ['-NoProfile', '-NonInteractive', '-Command', script], {
+					encoding: 'utf8',
+					input: JSON.stringify(commands),
+				});
+				if (child.error?.code === 'ENOENT') {
+					continue;
+				}
+				assert.strictEqual(child.status, 0, child.stderr);
+				assert.deepStrictEqual(JSON.parse(child.stdout), expected);
+				testedExecutables.push(executable);
+			}
+			assert.ok(testedExecutables.length > 0);
 		});
 
 		// The grammar parses `--flag=value` as an assignment expression that

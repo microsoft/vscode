@@ -109,34 +109,7 @@ function maskPwshFlagEquals(commandLine: string): string {
 }
 
 function getPwshGenericTokenRedirects(token: string): string[] {
-	const redirectStarts: number[] = [];
-	let inSingleQuote = false;
-	let inDoubleQuote = false;
-	for (let i = 0; i < token.length; i++) {
-		const char = token[i];
-		if (char === '`' && !inSingleQuote) {
-			i++;
-			continue;
-		}
-		if (char === '\'' && !inDoubleQuote) {
-			if (inSingleQuote && token[i + 1] === '\'') {
-				i++;
-				continue;
-			}
-			inSingleQuote = !inSingleQuote;
-			continue;
-		}
-		if (char === '"' && !inSingleQuote) {
-			inDoubleQuote = !inDoubleQuote;
-			continue;
-		}
-		if (char === '>' && !inSingleQuote && !inDoubleQuote) {
-			if (token[i - 1] !== '>') {
-				redirectStarts.push(i > 0 && /[1-6*]/.test(token[i - 1]) ? i - 1 : i);
-			}
-		}
-	}
-	return redirectStarts.map((start, index) => token.slice(start, redirectStarts[index + 1]));
+	return /^(?:[1-6*])?>>?/.test(token) ? [token] : [];
 }
 
 /**
