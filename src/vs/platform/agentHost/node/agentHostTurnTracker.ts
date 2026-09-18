@@ -90,6 +90,7 @@ interface ITurnTiming {
 	timeToFirstEditMs: number | undefined;
 	timeToFirstEditClassifierVersion: number | undefined;
 	firstProgressMs: number | undefined;
+	firstSubstantiveProgressMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
 	/** Elapsed time of each completed pre-send stage, in milliseconds. */
 	readonly sendStageDurationsMs: Map<AgentHostTurnSendStage, number>;
@@ -230,6 +231,7 @@ export class AgentHostTurnTracker extends Disposable {
 			timeToFirstEditMs: undefined,
 			timeToFirstEditClassifierVersion: undefined,
 			firstProgressMs: undefined,
+			firstSubstantiveProgressMs: undefined,
 			currentStage: 'validation',
 			sendStageDurationsMs: new Map(),
 			openSendStage: undefined,
@@ -275,6 +277,25 @@ export class AgentHostTurnTracker extends Disposable {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (timing && timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = timing.stopWatch.elapsed();
+		}
+	}
+
+	/**
+	 * Records progress that advances the user's request, as opposed to host
+	 * bookkeeping the agent was told to do first (naming the chat). Substantive
+	 * progress is also progress, so this marks both — keeping the invariant that
+	 * `firstSubstantiveProgressMs >= firstProgressMs` whenever both are set.
+	 *
+	 * The two are reported separately because a turn whose first visible act is
+	 * bookkeeping looks fast by the plain measure while the user is still
+	 * waiting. Comparing a run against another harness needs the substantive
+	 * value; comparing against "something appeared on screen" needs the plain one.
+	 */
+	markFirstSubstantiveProgress(session: string, turnId: string): void {
+		this.markFirstProgress(session, turnId);
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing && timing.firstSubstantiveProgressMs === undefined) {
+			timing.firstSubstantiveProgressMs = timing.stopWatch.elapsed();
 		}
 	}
 
@@ -561,6 +582,7 @@ export class AgentHostTurnTracker extends Disposable {
 			hostProcessAgeMs: timing.rootTiming?.hostProcessAgeMs,
 			titleGenerationStrategy: timing.rootTiming?.titleGenerationStrategy,
 			timeToFirstProgress: timing.firstProgressMs,
+			timeToFirstSubstantiveProgress: timing.firstSubstantiveProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
 			sendStageDurationsMs: timing.sendStageDurationsMs,

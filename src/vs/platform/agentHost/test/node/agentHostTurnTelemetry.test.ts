@@ -1161,6 +1161,69 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.timeToFirstProgress, undefined);
 	});
 
+	test('a leading rename_chat call counts as progress but not as substantive progress', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		// Separate the two marks in time so a substantive value that wrongly
+		// came from the rename call would be indistinguishable from zero delay.
+		await timeout(5);
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'working on it' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		const progress = data.timeToFirstProgress as number;
+		const substantive = data.timeToFirstSubstantiveProgress as number;
+		assert.deepStrictEqual({
+			bothReported: typeof progress === 'number' && typeof substantive === 'number',
+			substantiveIsLater: substantive > progress,
+		}, {
+			bothReported: true,
+			substantiveIsLater: true,
+		});
+	});
+
+	test('substantive progress matches first progress when the turn opens with real output', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.strictEqual(data.timeToFirstSubstantiveProgress, data.timeToFirstProgress);
+	});
+
+	test('a turn that only ever renames the chat reports no substantive progress', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
 	test('attributes host pre-send time to each bounded stage up to provider dispatch', async () => {
 		setupSession();
 		startTurn('turn-1');

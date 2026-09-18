@@ -19,6 +19,7 @@ import { IAgentHostChangesetService } from '../common/agentHostChangesetService.
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { SessionServerToolName } from '../common/serverToolNames.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -845,7 +846,17 @@ export class AgentSideEffects extends Disposable {
 			|| action.type === ActionType.ChatResponsePart
 			|| action.type === ActionType.ChatToolCallStart
 			|| action.type === ActionType.ChatReasoning) {
-			this._turnTracker.markFirstProgress(sessionKey, turnId);
+			// Renaming the chat is host bookkeeping, not work on the user's
+			// request — and the host itself asks for it first via an injected
+			// instruction. Letting it satisfy the substantive measure would make
+			// a turn look fast while the user is still waiting for real output.
+			const isBookkeeping = action.type === ActionType.ChatToolCallStart
+				&& action.toolName === SessionServerToolName.RenameChat;
+			if (isBookkeeping) {
+				this._turnTracker.markFirstProgress(sessionKey, turnId);
+			} else {
+				this._turnTracker.markFirstSubstantiveProgress(sessionKey, turnId);
+			}
 		}
 
 		if (action.type === ActionType.ChatToolCallStart) {
