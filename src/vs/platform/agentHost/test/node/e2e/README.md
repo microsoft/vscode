@@ -330,7 +330,7 @@ The model catalog is the same trade. The CLI inlines the whole `/models` list in
 
 Every model is selected explicitly. Sending no selection is deliberately not pinned: the CLI would then pick from the stub catalog by its own ranking, so the baseline would record a property of this suite's fixture rather than the product, and would move whenever a higher-ranked model was added to or removed from `capiStubs.ts`.
 
-The prompt is the CLI's product, not the host's — it is compiled into the `@github/copilot` native binary and only becomes observable when the CLI serializes it onto the wire. These tests therefore read it from a **replayed** turn, which is deterministic and tokenless. They deliberately do not snapshot while recording: a recording run reaches live CAPI for the model catalog and experiment assignment, and either can move the prompt for reasons unrelated to this repository.
+The prompt is the runtime's product, not the host's — it is compiled into the SDK-owned native binary and only becomes observable when the runtime serializes it onto the wire. These tests therefore read it from a **replayed** turn, which is deterministic and tokenless. They deliberately do not snapshot while recording: a recording run reaches live CAPI for the model catalog and experiment assignment, and either can move the prompt for reasons unrelated to this repository.
 
 Accept a new baseline with the same flag the AHP snapshots use, then review the diff:
 

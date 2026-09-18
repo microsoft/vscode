@@ -1746,6 +1746,27 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('launches the runtime owned by the Copilot SDK platform package', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
+		try {
+			await agent.listChatsToMigrate();
+			const connection = getCreatedClientOptions(agent).at(-1)?.connection;
+			const runtimePath = connection?.kind === 'stdio' ? connection.path?.replaceAll('\\', '/') : undefined;
+			assert.deepStrictEqual({
+				kind: connection?.kind,
+				sdkRuntime: runtimePath?.includes('/node_modules/@github/copilot-sdk-'),
+				runtimeExecutable: runtimePath?.endsWith(process.platform === 'win32' ? '/copilot-runtime.exe' : '/copilot-runtime'),
+			}, {
+				kind: 'stdio',
+				sdkRuntime: true,
+				runtimeExecutable: true,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('promotes the forwarded secondary assignment context to a telemetry-wide property', async () => {
 		const client = new TestCopilotClient([]);
 		const telemetryService = new RecordingTelemetryService();
@@ -4326,7 +4347,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([sdkSession('test-session-1', previous.fsPath)]);
 			const resumedConfigs: Array<{
 				workingDirectory: string | undefined;
-				skillDirectories: readonly string[] | undefined;
+				skillDirectoryNames: readonly string[] | undefined;
 				instructionDirectories: readonly string[] | undefined;
 				mcpServerNames: readonly string[];
 				hasClientTool: boolean;
@@ -4334,7 +4355,7 @@ suite('CopilotAgent', () => {
 			client.resumeSession = async (_sessionId, options) => {
 				resumedConfigs.push({
 					workingDirectory: options?.workingDirectory,
-					skillDirectories: options?.skillDirectories,
+					skillDirectoryNames: options?.skillDirectories?.map(directory => basename(directory)),
 					instructionDirectories: options?.instructionDirectories,
 					mcpServerNames: Object.keys(options?.mcpServers ?? {}),
 					hasClientTool: options?.tools?.some(tool => tool.name === 'workspace_client_tool') ?? false,
@@ -4374,7 +4395,7 @@ suite('CopilotAgent', () => {
 				}, {
 					resumedConfigs: [{
 						workingDirectory: next.fsPath,
-						skillDirectories: [],
+						skillDirectoryNames: ['customize-cloud-agent', 'github-pr-media'],
 						instructionDirectories: [],
 						mcpServerNames: ['workspace-server'],
 						hasClientTool: true,
@@ -12525,6 +12546,42 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('changeModel rejects a model outside the populated catalog', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'invalid-model-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				await assert.rejects(
+					agent.chats.changeModel(chat, { id: 'missing-model' }, exactChatContext(result.session, chat, result.session)),
+					/Model 'missing-model' is not available\./,
+				);
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual({
+					modelCalls: sdkSession.setModelCalls,
+					storedModel: JSON.parse(stored ?? 'null'),
+				}, {
+					modelCalls: [],
+					storedModel: { id: 'model-a' },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('changeModel forwards and persists Auto routing preferences and resets', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
@@ -14620,7 +14677,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{
 					workingDirectory: capturedConfig.workingDirectory,
-					skillDirectories: capturedConfig.skillDirectories,
+					skillDirectoryNames: capturedConfig.skillDirectories?.map(directory => basename(directory)),
 					instructionDirectories: capturedConfig.instructionDirectories,
 					agentDiscoveryProjectPaths: client.agentDiscoveryRequests.at(-1)?.projectPaths,
 					instructionDiscoveryProjectPaths: client.instructionDiscoveryRequests.at(-1)?.projectPaths,
@@ -14628,7 +14685,7 @@ suite('CopilotAgent', () => {
 				},
 				{
 					workingDirectory: worktree.fsPath,
-					skillDirectories: [],
+					skillDirectoryNames: ['customize-cloud-agent', 'github-pr-media'],
 					instructionDirectories: [],
 					agentDiscoveryProjectPaths: [worktree.fsPath],
 					instructionDiscoveryProjectPaths: [worktree.fsPath],

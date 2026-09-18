@@ -4,7 +4,6 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.84-9",
     "@github/copilot-sdk": "1.0.14",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -78,5 +77,6 @@
     "cpu-features": false,
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
-  }
+  },
+  "copilotRuntimeVersion": "1.0.85"
 }
