@@ -495,6 +495,14 @@ suite('RunInTerminalTool', () => {
 		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
 	});
 
+	test('leaves risk assessment input undefined when zsh comment semantics are unknown', async () => {
+		runInTerminalTool.setBackendOs(OperatingSystem.Macintosh);
+		runInTerminalTool.setCopilotShell('/bin/zsh');
+		const prepared = await executeToolTest({ command: 'echo safe # ; rm -rf src' });
+		ok(prepared?.toolSpecificData?.kind === 'terminal');
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
+	});
+
 	test('continues preparing an interactive command when comment parsing fails', async () => {
 		const parser = runInTerminalTool.treeSitterCommandParser;
 		const original = parser.getCommandForRiskAssessment;
