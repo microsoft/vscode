@@ -1171,17 +1171,17 @@ export interface IAgentChatAdoptionResult {
 	readonly reason?: AgentChatAdoptionReason;
 }
 
-/**
- * Implemented by each agent backend (e.g. Copilot SDK).
- * The {@link IAgentService} dispatches to the appropriate agent based on
- * the agent id.
- */
 /** Identifies the client that submitted a pending message. */
 export interface IAgentPendingMessageSender {
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
+/**
+ * Implemented by each agent backend (e.g. Copilot SDK).
+ * The {@link IAgentService} dispatches to the appropriate agent based on
+ * the agent id.
+ */
 export interface IAgent {
 	// ---- Identity and catalog -----------------------------------------------
 
