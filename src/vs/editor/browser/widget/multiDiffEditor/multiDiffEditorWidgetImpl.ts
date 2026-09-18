@@ -334,18 +334,34 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
 		this._pendingScrollState = scrollState;
+		this._hasAppliedPendingScrollState = false;
+		this._lastPendingScrollDimensions = undefined;
 		this._applyPendingScrollState();
 	}
 
 	/**
-	 * Applies a restored scroll offset once the scrollable dimensions can
-	 * accommodate it; retries on subsequent dimension updates until it sticks (so
-	 * a fresh/reloaded widget whose content height is not yet known does not clamp
-	 * the offset to 0). Consumed once it lands.
+	 * Retries a restored scroll offset as dimensions change until it lands.
+	 * Navigation away from the clamped offset with unchanged dimensions cancels restoration.
 	 */
 	private _applyPendingScrollState(): void {
 		const pending = this._pendingScrollState;
 		if (!pending) {
+			return;
+		}
+		const dimensions = this._scrollView.scrollDimensions.get();
+		const current = this._scrollView.getScrollPosition();
+		const expectedTop = pending.top === undefined ? current.scrollTop : Math.min(Math.max(0, pending.top), Math.max(0, dimensions.scrollHeight - dimensions.height));
+		const expectedLeft = pending.left === undefined ? current.scrollLeft : Math.min(Math.max(0, pending.left), Math.max(0, dimensions.scrollWidth - dimensions.width));
+		const previousDimensions = this._lastPendingScrollDimensions;
+		const dimensionsChanged = !previousDimensions
+			|| previousDimensions.width !== dimensions.width
+			|| previousDimensions.height !== dimensions.height
+			|| previousDimensions.scrollWidth !== dimensions.scrollWidth
+			|| previousDimensions.scrollHeight !== dimensions.scrollHeight;
+		if (this._hasAppliedPendingScrollState && !dimensionsChanged && (current.scrollTop !== expectedTop || current.scrollLeft !== expectedLeft)) {
+			this._pendingScrollState = undefined;
+			this._hasAppliedPendingScrollState = false;
+			this._lastPendingScrollDimensions = undefined;
 			return;
 		}
 		this._scrollView.setScrollPosition({ scrollLeft: pending.left, scrollTop: pending.top });
@@ -354,6 +370,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		const leftLanded = pending.left === undefined || applied.scrollLeft >= pending.left;
 		if (topLanded && leftLanded) {
 			this._pendingScrollState = undefined;
+			this._hasAppliedPendingScrollState = false;
+			this._lastPendingScrollDimensions = undefined;
+		} else {
+			this._hasAppliedPendingScrollState = true;
+			this._lastPendingScrollDimensions = dimensions;
 		}
 		this._logger.log('applied pending scroll state', {
 			requested: pending,
@@ -376,6 +397,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._lastDocStates = undefined;
 		this._lastActiveDiffItemKey = undefined;
 		this._pendingScrollState = undefined;
+		this._hasAppliedPendingScrollState = false;
+		this._lastPendingScrollDimensions = undefined;
 	}
 
 	/**
@@ -472,6 +495,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	/** A restored scroll offset waiting for the scrollable dimensions to be known. */
 	private _pendingScrollState: { top?: number; left?: number } | undefined;
+	private _hasAppliedPendingScrollState = false;
+	private _lastPendingScrollDimensions: { readonly width: number; readonly height: number; readonly scrollWidth: number; readonly scrollHeight: number } | undefined;
 
 	public setViewState(viewState: IMultiDiffEditorViewState, tx?: ITransaction): void {
 		if (this._logger.isEnabled) {

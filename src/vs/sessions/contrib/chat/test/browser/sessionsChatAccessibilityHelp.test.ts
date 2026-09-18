@@ -69,6 +69,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { keyboard: true, filterRecovery: true });
 	});
 
+	test('describes removing recorded artifacts and references after persistence', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
+			singleItemActions: content.includes('pill hover actions or context menu'),
+			persistence: content.includes('waits for persistence'),
+			oldAction: content.includes('Remove Pull Request Artifact'),
+			immediateRemoval: content.includes('Removal is immediate'),
+		}, {
+			recordedArtifactsAndReferences: true,
+			singleItemActions: true,
+			persistence: true,
+			oldAction: false,
+			immediateRemoval: false,
+		});
+	});
+
 	test('describes forking to the side and the keyboard-only alternative', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -104,9 +130,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	for (const { configuredValue, expectedConversation, expectedListAction } of [
-		{ configuredValue: undefined, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
-		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'tab row replaces the session header', expectedListAction: 'open a chat as a tab' },
-		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'without a tab row', expectedListAction: 'show a chat as the session view' },
+		{ configuredValue: undefined, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab' },
+		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view' },
 	]) {
 		test(`describes sessions list chat presentation when the setting is ${configuredValue ?? 'default'}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -122,9 +148,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 			assert.deepStrictEqual({
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
+				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
 			}, {
 				conversationDescription: true,
+				menuAvailability: true,
 				sessionListAction: true,
 			});
 		});

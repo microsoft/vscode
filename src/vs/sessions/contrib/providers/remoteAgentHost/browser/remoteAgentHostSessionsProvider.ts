@@ -144,6 +144,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly automations: ISessionsProviderAutomations;
+	readonly supportsQuickChats = true;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
@@ -422,10 +423,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
 
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
-
-	get supportsQuickChats(): boolean {
-		return this.hostGroup?.connectable !== false;
-	}
 
 	protected override supportsDevContainerWorkspace(workspaceUri: URI): boolean {
 		return workspaceUri.scheme === AGENT_HOST_SCHEME
@@ -743,13 +740,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	// -- Session-type sync ---------------------------------------------------
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
-		// In web (vscode.dev/agents) the workbench is already scoped to a
-		// single host via the host picker, so there's no need to disambiguate
-		// the session-type label with the host name.
-		if (this.isWebPlatform) {
-			return agentLabel;
-		}
-		return `${agentLabel} [${this.label}]`;
+		return agentLabel;
 	}
 
 	// -- Workspaces ----------------------------------------------------------

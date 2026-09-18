@@ -120,8 +120,7 @@ export class AgentsWindow {
 
 	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await this.quickaccess.runCommand('workbench.action.sessions.connectViaSSH', { keepOpen: true });
-		await this.fillQuickInput('Connect via SSH', `${options.username}@${options.host}:${options.port}`);
+		await this.fillQuickInputAfterCommand('workbench.action.sessions.connectViaSSH', 'Connect via SSH', `${options.username}@${options.host}:${options.port}`, 120_000);
 		const authPicker = page.locator('.quick-input-widget:visible').filter({
 			has: page.locator('.quick-input-title', { hasText: 'Authentication Method' }),
 		});
@@ -148,16 +147,41 @@ export class AgentsWindow {
 
 	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await this.quickaccess.runCommand('workbench.action.sessions.connectViaWSL', { keepOpen: true });
+		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
 		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
 		const folderPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: `Select Folder on ${distro}` }) });
-		await distroPicker.or(folderPicker).first().waitFor({ timeout: 120_000 });
+		await this.waitForQuickInputAfterCommand('workbench.action.sessions.connectViaWSL', () => distroPicker.or(folderPicker).first(), 120_000);
+		this.code.logger.log('[agentsWindow] WSL connection: command selected; distribution or folder picker opened');
 		if (await distroPicker.isVisible()) {
+			this.code.logger.log(`[agentsWindow] WSL connection: selecting distribution ${distro}`);
 			await distroPicker.locator('.quick-input-list .monaco-list-row').filter({
 				has: page.getByText(distro, { exact: true }),
 			}).click({ timeout: 30_000 });
 		}
+		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
 		await this.selectRemoteFolder(distro, workspacePath);
+		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
+	}
+
+	async getRemoteConnectionDiagnostics(): Promise<string> {
+		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
+			const activeElement = document.activeElement;
+			return {
+				windowFocused: document.hasFocus(),
+				activeElement: activeElement ? { tag: activeElement.tagName, id: activeElement.id, className: activeElement.getAttribute('class')?.slice(0, 500) } : undefined,
+				quickInputs: Array.from(document.querySelectorAll('.quick-input-widget')).filter(element => element.checkVisibility()).slice(0, 5).map(element => ({
+					title: element.querySelector('.quick-input-title')?.textContent?.slice(0, 500),
+					value: element.querySelector('input')?.value.slice(0, 500),
+					focusedRow: element.querySelector('.monaco-list-row.focused')?.textContent?.slice(0, 500),
+					rows: Array.from(element.querySelectorAll('.monaco-list-row')).slice(0, 10).map(row => row.textContent?.slice(0, 500)),
+				})),
+				notifications: Array.from(document.querySelectorAll('.notification-list-item')).slice(-10).map(element => ({
+					message: element.querySelector('.notification-list-item-message')?.textContent?.slice(0, 2000),
+					source: element.querySelector('.notification-list-item-source')?.textContent?.slice(0, 500),
+				})),
+				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
+			};
+		}));
 	}
 
 	private async fillQuickInput(title: string, value: string): Promise<void> {
@@ -166,6 +190,40 @@ export class AgentsWindow {
 		const input = widget.locator('.quick-input-box input');
 		await input.fill(value, { timeout: 30_000 });
 		await input.press('Enter');
+	}
+
+	private async fillQuickInputAfterCommand(commandId: string, title: string, value: string, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const page = this.code.driver.currentPage;
+			const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				const input = widget.locator('.quick-input-box input');
+				await input.fill(value, { timeout: timeoutMs });
+				await input.press('Enter');
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input "${title}" after running ${commandId}`);
+	}
+
+	private async waitForQuickInputAfterCommand(commandId: string, getWidget: () => { waitFor: (options: { timeout: number }) => Promise<unknown> }, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const widget = getWidget();
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
 	}
 
 	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
@@ -301,25 +359,55 @@ export class AgentsWindow {
 	 * The picker trigger is the `.action-label` inside
 	 * `.sessions-chat-session-type-picker`. Clicking it opens the action
 	 * widget popup; we then locate the matching `.monaco-list-row` by its
-	 * text content and click it. The dropdown is async-populated, so we
-	 * wait for at least the requested label to appear before committing.
+	 * text content and click it. When `options.providerLabel` is provided,
+	 * rows are scoped to that provider header when headers are present so
+	 * duplicate labels (for example two "Copilot" rows) pick the intended
+	 * provider. The dropdown is async-populated, so we wait for at least
+	 * the requested label to appear before committing.
 	 */
-	async selectSessionType(label: string): Promise<void> {
+	async selectSessionType(label: string, options?: { providerLabel?: string }): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
-		if (await this.isSessionTypeSelected(label)) {
+		if (!options?.providerLabel && await this.isSessionTypeSelected(label)) {
 			return;
 		}
 
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
+		const providerNeedle = options?.providerLabel?.trim().toLowerCase();
 		const isActionRow = (el: { className: string }) => el.className.includes('action');
 		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
 		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
 		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
 			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
 			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
+		};
+		type IPickerRow = { className: string; textContent: string; attributes: Record<string, string> };
+		const findMatchingActionIndex = (items: readonly IPickerRow[]): number => {
+			if (!providerNeedle) {
+				return items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
+			}
+
+			const hasAnyProviderHeaders = items.some(el => !isActionRow(el) && rowText(el).length > 0);
+			const providerHeaderIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === providerNeedle);
+			if (providerHeaderIndex >= 0) {
+				for (let i = providerHeaderIndex + 1; i < items.length; i++) {
+					const row = items[i];
+					if (!isActionRow(row)) {
+						if (rowText(row).length > 0) {
+							break;
+						}
+						continue;
+					}
+					if (isEnabledActionRow(row) && actionLabelMatches(row)) {
+						return i;
+					}
+				}
+				return -1;
+			}
+
+			return hasAnyProviderHeaders ? -1 : items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
 		};
 
 		// The picker click can silently do nothing if the active session
@@ -330,7 +418,7 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			if (await this.isSessionTypeSelected(label)) {
+			if (!providerNeedle && await this.isSessionTypeSelected(label)) {
 				return;
 			}
 
@@ -339,10 +427,7 @@ export class AgentsWindow {
 			while (Date.now() < deadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if ((items ?? []).some(item =>
-					(isEnabledActionRow(item) && actionLabelMatches(item)) ||
-					(!isActionRow(item) && rowText(item) === needle)
-				)) {
+				if (findMatchingActionIndex(items ?? []) >= 0 || (!providerNeedle && (items ?? []).some(item => !isActionRow(item) && rowText(item) === needle))) {
 					break outer;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -357,11 +442,11 @@ export class AgentsWindow {
 
 		// Prefer an enabled actionable row whose label matches exactly (e.g. a
 		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
+		let matchIndex = findMatchingActionIndex(items);
 		// Otherwise treat the label as a provider section header (e.g. "Local
 		// Agent Host"): headers are non-clickable rows rendered above their
 		// session types, so select the first actionable row beneath the header.
-		if (matchIndex < 0) {
+		if (matchIndex < 0 && !providerNeedle) {
 			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
 			if (headerIndex >= 0) {
 				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));

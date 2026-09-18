@@ -51,7 +51,7 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override readonly label: string;
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, { kind: 'connected' });
 	override readonly supportsQuickChats = true;
-	override readonly hostGroup = undefined;
+	override readonly hostGroup: IAgentHostSessionsProvider['hostGroup'] = undefined;
 	override sessionTypes: ISessionType[];
 	root: RootState;
 	rootAvailable = true;
@@ -498,6 +498,21 @@ suite('RemoteSessionService', () => {
 		const { create, calls } = setup([host]);
 		await assert.rejects(create(), /Update the agent host/);
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('session-dedicated hosts remain ineligible for delegation even when they support quick chats', async () => {
+		const dedicated = new class extends RemoteProvider {
+			override readonly hostGroup = { id: 'dedicated', label: 'Dedicated', connectable: false };
+		}('dedicated');
+		const available = new RemoteProvider('available', 2);
+		const { create, calls } = setup([dedicated, available]);
+		const result = await create();
+		await assert.rejects(create({ hostId: dedicated.id }, 'dedicated'), /dedicated to an existing session/);
+		assert.deepStrictEqual({
+			supportsQuickChats: dedicated.supportsQuickChats,
+			selectedHost: result.host.id,
+			requestedHosts: calls.map(call => call.options?.providerId),
+		}, { supportsQuickChats: true, selectedHost: available.id, requestedHosts: [available.id] });
 	});
 
 	for (const status of [RemoteAgentHostConnectionStatus.reconnecting, RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.disconnected]) {

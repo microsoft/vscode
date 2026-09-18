@@ -334,10 +334,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// User-facing display name for this agent. We always include the
-		// agent's own name so that a host exposing multiple agents (e.g.
-		// `copilot` + `openai` from the same machine) produces distinct
-		// labels instead of collapsing to a single `configuredName`.
 		const hostLabel = configuredName || address;
 		const agentLabel = agent.displayName?.trim() || agent.provider;
 		const displayName = `${agentLabel} [${hostLabel}]`;

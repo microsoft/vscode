@@ -9,7 +9,44 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { IMobileContentSheetOptions, showMobileContentSheet } from '../../browser/parts/mobile/mobilePickerSheet.js';
+import { IMobileContentSheetOptions, showMobileContentSheet, showMobilePickerSheet } from '../../browser/parts/mobile/mobilePickerSheet.js';
+
+suite('MobilePickerSheet', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const description of [undefined, 'Evaluates risk before running tools']) {
+		test(`renders and announces item badges${description ? ' with descriptions' : ''}`, async () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			const closed = showMobilePickerSheet(container, 'Permissions', [
+				{ id: 'manual', label: 'Manual permissions' },
+				{ id: 'assisted', label: 'Assisted permissions', badge: 'Experimental', description, checked: true },
+			]);
+			store.add(toDisposable(() => container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
+			const rows = container.querySelectorAll<HTMLButtonElement>('.mobile-picker-sheet-item');
+			const badge = rows[1].querySelector<HTMLElement>('.mobile-picker-sheet-badge')!;
+			const state = {
+				manualBadge: rows[0].querySelector('.mobile-picker-sheet-badge'),
+				badge: badge.textContent,
+				afterLabel: badge.previousElementSibling?.classList.contains('mobile-picker-sheet-label'),
+				badgeHidden: badge.ariaHidden,
+				ariaLabel: rows[1].ariaLabel,
+				checked: rows[1].getAttribute('aria-current'),
+			};
+			rows[1].click();
+
+			assert.deepStrictEqual({ ...state, selected: await closed }, {
+				manualBadge: null,
+				badge: 'Experimental',
+				afterLabel: true,
+				badgeHidden: 'true',
+				ariaLabel: description ? 'Assisted permissions, Experimental, Evaluates risk before running tools' : 'Assisted permissions, Experimental',
+				checked: 'true',
+				selected: 'assisted',
+			});
+		});
+	}
+});
 
 suite('MobileContentSheet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -61,6 +61,10 @@ export class ModelCallTurnCorrelation {
 		return turnId;
 	}
 
+	getRecordedTurnId(modelCallId: string): string | undefined {
+		return this._recordedTurnIdsByModelCallId.get(modelCallId);
+	}
+
 	markResponseForwarded(modelCallId: string): void {
 		this._turnIdsByModelCallId.delete(modelCallId);
 		this._forwardedModelCallIdsAwaitingCorrelation.set(modelCallId, true);

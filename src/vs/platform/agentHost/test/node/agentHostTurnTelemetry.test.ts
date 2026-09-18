@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -26,7 +27,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -328,6 +329,126 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.folderCount, 0);
 		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
 	});
+
+	test('logs and reports root-turn ordinals and process age captured at start, not completion', async () => {
+		const info = sinon.spy(logService, 'info');
+		setupSession();
+		startTurn('first');
+		await timeout(20);
+		const completionProcessAgeMs = Math.round(process.uptime() * 1000);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'first', duration: 1 });
+		startTurn('later');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'later', duration: 1 });
+		const records = info.getCalls()
+			.map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as { turnId: string; hostRootTurnOrdinal: number; hostProcessAgeMs: number; titleGenerationStrategy?: string })
+			.filter(record => record.titleGenerationStrategy === undefined);
+		assert.deepStrictEqual(records.map(record => ({
+			turn: record.turnId, ordinal: record.hostRootTurnOrdinal,
+			hasProcessAge: Number.isFinite(record.hostProcessAgeMs) && record.hostProcessAgeMs >= 0,
+		})), [
+			{ turn: 'first', ordinal: 1, hasProcessAge: true },
+			{ turn: 'later', ordinal: 2, hasProcessAge: true },
+		]);
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as { turnId: string; hostRootTurnOrdinal?: number; hostProcessAgeMs?: number };
+			return { turnId: data.turnId, hostRootTurnOrdinal: data.hostRootTurnOrdinal, hostProcessAgeMs: data.hostProcessAgeMs };
+		}), records.map(({ turnId, hostRootTurnOrdinal, hostProcessAgeMs }) => ({ turnId, hostRootTurnOrdinal, hostProcessAgeMs })));
+		assert.ok(records[0].hostProcessAgeMs < completionProcessAgeMs);
+	});
+
+	test('enriches the local root timing marker with the captured strategy without resampling start fields', () => {
+		const info = sinon.spy(logService, 'info');
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'turn', 'deferred');
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'turn', 'utility');
+		turnTracker.turnCompleted(defaultChatUri, 'turn', 'success');
+
+		const records = info.getCalls()
+			.map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as Record<string, unknown>);
+		assert.deepStrictEqual(records, [records[0], { ...records[0], titleGenerationStrategy: 'deferred' }]);
+	});
+
+	test('counts root starts across chats and clients without counting duplicate starts or child turns', () => {
+		const childSession = buildSubagentSessionUri(sessionUri, 'legacy-child').toString();
+		const turns = [
+			{ chat: defaultChatUri, turnId: 'first', client: 'window-one', ordinal: 1 },
+			{ chat: defaultChatUri, turnId: 'first', client: 'window-one', ordinal: 1 },
+			{ chat: buildSubagentChatUri(sessionKey, 'tool'), turnId: 'child-chat', client: 'window-one', ordinal: undefined },
+			{ chat: childSession, turnId: 'child-session', client: 'window-one', ordinal: undefined },
+			{ chat: buildDefaultChatUri(childSession), turnId: 'child-default', client: 'window-one', ordinal: undefined },
+			{ chat: defaultChatUri, turnId: 'parented', client: 'window-one', ordinal: undefined, parentTurnId: 'first' },
+			{ chat: buildChatUri(sessionKey, 'peer'), turnId: 'peer', client: 'window-two', ordinal: 2 },
+			{ chat: buildDefaultChatUri(AgentSession.uri('mock', 'other')), turnId: 'other-session', client: 'window-two', ordinal: 3 },
+		];
+		for (const turn of turns) {
+			turnTracker.turnStarted(agent, turn.chat, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId);
+			turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, 'deferred');
+		}
+		for (const turn of turns) {
+			turnTracker.turnCompleted(turn.chat, turn.turnId, 'success');
+		}
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as { turnId: string; hostRootTurnOrdinal?: number; hostProcessAgeMs?: number; titleGenerationStrategy?: string };
+			return { turnId: data.turnId, ordinal: data.hostRootTurnOrdinal, hasProcessAge: data.hostProcessAgeMs !== undefined, strategy: data.titleGenerationStrategy };
+		}), turns.slice(1).map(turn => ({
+			turnId: turn.turnId, ordinal: turn.ordinal, hasProcessAge: turn.ordinal !== undefined, strategy: turn.ordinal !== undefined ? 'deferred' : undefined,
+		})));
+	});
+
+	test('resumed root turns retain their first cohort and do not emit duplicate timing markers', async () => {
+		const info = sinon.spy(logService, 'info');
+		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'deferred');
+		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'error');
+		await timeout(20);
+		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'utility');
+		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'success');
+		turnTracker.turnStarted(agent, defaultChatUri, 'later', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(defaultChatUri, 'later', 'success');
+
+		const markers = info.getCalls().map(call => call.args[0])
+			.filter((message): message is string => typeof message === 'string' && message.startsWith('[AgentHostTurnTiming] '))
+			.map(message => JSON.parse(message.substring('[AgentHostTurnTiming] '.length)) as { turnId: string; hostProcessAgeMs: number });
+		assert.deepStrictEqual({
+			markers: markers.map(marker => marker.turnId),
+			completions: completedEvents().map(event => {
+				const data = event.data as { turnId: string; hostRootTurnOrdinal: number; hostProcessAgeMs: number; titleGenerationStrategy?: string };
+				return { turn: data.turnId, ordinal: data.hostRootTurnOrdinal, age: data.hostProcessAgeMs, strategy: data.titleGenerationStrategy };
+			}),
+		}, {
+			markers: ['resumed', 'resumed', 'later'],
+			completions: [
+				{ turn: 'resumed', ordinal: 1, age: markers[0].hostProcessAgeMs, strategy: 'deferred' },
+				{ turn: 'resumed', ordinal: 1, age: markers[0].hostProcessAgeMs, strategy: 'deferred' },
+				{ turn: 'later', ordinal: 2, age: markers[2].hostProcessAgeMs, strategy: undefined },
+			],
+		});
+	});
+
+	for (const cleanup of ['session', 'truncation'] as const) {
+		test(`clears completed root timing identities on ${cleanup}`, () => {
+			for (const turn of ['removed', 'kept']) {
+				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnCompleted(defaultChatUri, turn, 'error');
+			}
+			if (cleanup === 'session') {
+				turnTracker.clearSession(defaultChatUri);
+			} else {
+				turnTracker.clearTurnsExcept(defaultChatUri, new Set(['kept']));
+			}
+			for (const turn of ['removed', 'kept']) {
+				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnCompleted(defaultChatUri, turn, 'success');
+			}
+			assert.deepStrictEqual(completedEvents().map(event => (event.data as { hostRootTurnOrdinal: number }).hostRootTurnOrdinal),
+				cleanup === 'session' ? [1, 2, 3, 4] : [1, 2, 3, 2]);
+		});
+	}
 
 	test('attributes completed and failed turns to the initiating client identity', () => {
 		setupSession();

@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { Action } from '../../../../base/common/actions.js';
+import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
@@ -29,7 +29,7 @@ import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessi
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -76,6 +76,7 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	private _pendingWorkspaceCreation: Promise<IOpenNewSessionResult> | undefined;
 	private _createdSessionId: string | undefined;
 	private _preferredDevContainerFolderUri: URI | undefined;
 
@@ -166,6 +167,10 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
 			onUserSelection: () => newSessionComposerService.notifyUserWorkspaceSelection(),
+			whenSelectionAccepted: async () => {
+				const result = await this._pendingWorkspaceCreation;
+				return !!result?.session && this._session.get()?.sessionId === result.session.sessionId;
+			},
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,
@@ -713,10 +718,15 @@ export class NewChatWidget extends Disposable {
 		let changedWhilePending = false;
 		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
 		let result: IOpenNewSessionResult;
+		const creation = this._createSessionNow(folderUri, userPick, creationCts.token);
+		this._pendingWorkspaceCreation = creation;
 		try {
-			result = await this._createSessionNow(folderUri, userPick, creationCts.token);
+			result = await creation;
 		} finally {
 			pendingChange.dispose();
+			if (this._pendingWorkspaceCreation === creation) {
+				this._pendingWorkspaceCreation = undefined;
+			}
 		}
 		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
 		if (isCurrentCreation) {
@@ -831,11 +841,11 @@ export class NewChatWidget extends Disposable {
 		return this._isQuickChatComposer.get() ? undefined : this._workspacePicker.selectedFolderUri;
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(options?: ICreateNewSessionOptions): void {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this._workspacePicker.selectNoWorkspace();
-		this._openQuickChat();
+		this._openQuickChat(options);
 	}
 
 	private _openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
@@ -845,14 +855,38 @@ export class NewChatWidget extends Disposable {
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
 		const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.get();
 		if (isWeb
-			|| !this._useConsolidatedRemoteWorkspaces.get()
-			|| (!isWorkspacePickerQuickChat && !this.sessionsManagementService.isQuickChatTargetAvailable())) {
+			|| !this._useConsolidatedRemoteWorkspaces.get()) {
 			return undefined;
 		}
+		const providers = this.sessionsProvidersService.getProviders()
+			.filter(provider => isAgentHostProvider(provider)
+				&& !provider.hostGroup
+				&& provider.supportsQuickChats);
+		if (!isWorkspacePickerQuickChat
+			&& !this.sessionsManagementService.isQuickChatTargetAvailable()
+			&& providers.length === 0) {
+			return undefined;
+		}
+		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
+		const submenuActions = providers.length > 1
+			? providers.map(provider => {
+				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
+					? localize('newSessionWorkspacePicker.localQuickChat', "Local")
+					: provider.label;
+				const action = toAction({
+					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
+					label,
+					checked: provider.id === activeProviderId,
+					run: () => this.selectNoWorkspace({ providerId: provider.id }),
+				});
+				return Object.assign(action, { icon: provider.icon });
+			})
+			: undefined;
 		return {
 			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
 			isSelected: isWorkspacePickerQuickChat,
-			select: () => this.selectNoWorkspace(),
+			select: () => this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined),
+			submenuActions,
 		};
 	}
 

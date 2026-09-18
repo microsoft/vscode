@@ -248,7 +248,7 @@
 .ai-customization-management-editor .content-inner .welcome-page-host {
 	flex: 1 1 auto;
 	min-height: 0;
-	padding: 40px 40px 16px;
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-size160);
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);
 	border-radius: 6px;
@@ -948,6 +948,8 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .prompt-migration-content-container,
+.ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .tools-content-container {
 	padding-inline: var(--vscode-spacing-sizeNone);
 }
@@ -956,6 +958,14 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .section-title-header,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .section-title-header,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-marketplace-back-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .mcp-list-container,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget .plugin-card-scroll,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
 .ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
 .ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer,
@@ -973,7 +983,9 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable {
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable,
+.ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .plugin-card-scrollable,
+.ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-card-scrollable {
 	max-width: none;
 }
 
@@ -2477,7 +2489,7 @@ per-word capitalization does not survive translation. */
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px 6px 30px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
@@ -2496,10 +2508,6 @@ per-word capitalization does not survive translation. */
 .mcp-server-item.builtin {
 	cursor: default;
 	opacity: 0.85;
-}
-
-.mcp-server-item .mcp-server-icon {
-	display: none;
 }
 
 .mcp-server-item .mcp-server-details {
@@ -3790,5 +3798,4 @@ pane is first mounted. View switches inside the modal are not animated. */
 	inset: 0;
 	overflow: hidden;
 	box-sizing: border-box;
-	padding: 0 var(--vscode-spacing-size160) 0 0;
 }

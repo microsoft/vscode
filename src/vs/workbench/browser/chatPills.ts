@@ -60,6 +60,12 @@ export interface IChatPillEntry {
 	readonly resource?: URI;
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IAction[];
+	/**
+	 * Action shown on the entry's dropdown row alongside {@link toolbarActions},
+	 * which consumers may also promote onto the pill itself when this is its
+	 * only entry.
+	 */
+	readonly promotedAction?: IAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
@@ -71,6 +77,15 @@ export interface IChatPillEntry {
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
 	open(): void;
+}
+
+/** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
+export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IAction[] {
+	const actions = [...entry.toolbarActions ?? []];
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
+	}
+	return actions;
 }
 
 /** A titled group of entries, rendered as a dropdown section. */
