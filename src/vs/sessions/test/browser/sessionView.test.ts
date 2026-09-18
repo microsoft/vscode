@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -32,7 +32,10 @@ suite('Sessions - Session View', () => {
 
 		protected override doLayout(): void { }
 		override toJSON(): object { return {}; }
-		override focus(): void { }
+		override focus(): void {
+			this.element.tabIndex = -1;
+			this.element.focus();
+		}
 		override dispose(): void {
 			this.disposed = true;
 			super.dispose();
@@ -149,11 +152,17 @@ suite('Sessions - Session View', () => {
 		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];
 		const shownSessions: Array<IActiveSession | undefined> = [];
 		const contentContainer = document.createElement('div');
+		mainWindow.document.body.appendChild(contentContainer);
+		disposables.add(toDisposable(() => contentContainer.remove()));
 		const groupsElement = document.createElement('div');
 		const isCreated = observableValue<boolean>('isCreated', false);
+		const requestInProgress = observableValue('requestInProgress', false);
 		const session = new class extends mock<IActiveSession>() {
 			override readonly isCreated = isCreated;
+			override readonly isNewSessionRequestInProgress = requestInProgress;
+			override readonly mainChat = observableValue('mainChat', createTestActiveSession('draft').mainChat.get());
 		}();
+		const preparationViews: TestNewSessionView[] = [];
 		const standaloneView = disposables.add(disposableObservableValue<AbstractChatView | undefined>('standalone', undefined));
 		const openSessionDisposables = disposables.add(new DisposableStore());
 		const scopedInstantiationService = new class extends mock<IInstantiationService>() { }();
@@ -172,6 +181,11 @@ suite('Sessions - Session View', () => {
 			_floatingToolbar: { setSession: () => { } },
 			_contentContainer: contentContainer,
 			_chatViewFactory: {
+				createChatView: () => {
+					const created = new TestNewSessionView('chat');
+					preparationViews.push(created);
+					return created;
+				},
 				createNewChatView: (_isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService) => {
 					forwardedInstantiationServices.push(instantiationService);
 					const created = new TestNewSessionView();
@@ -190,11 +204,28 @@ suite('Sessions - Session View', () => {
 		const initialElement = contentContainer.firstElementChild;
 		view.openSession(session, {});
 		const draftElement = contentContainer.firstElementChild;
+		view.focus();
+		requestInProgress.set(true, undefined);
+		const duringPreparation = {
+			showsChat: contentContainer.firstElementChild === preparationViews[0].element,
+			composerDisposed: createdViews[0].disposed,
+			focused: mainWindow.document.activeElement === preparationViews[0].element,
+		};
+		requestInProgress.set(false, undefined);
+		const afterCancellation = {
+			restoredComposer: contentContainer.firstElementChild === initialElement,
+			progressDisposed: preparationViews[0].disposed,
+			focused: mainWindow.document.activeElement === initialElement,
+		};
+		requestInProgress.set(true, undefined);
 		isCreated.set(true, undefined);
 
 		assert.deepStrictEqual({
 			createdViewCount: createdViews.length,
 			preservedForDraft: draftElement === initialElement,
+			duringPreparation,
+			afterCancellation,
+			preparationViewsDisposed: preparationViews.every(view => view.disposed),
 			disposedAfterCreation: createdViews[0].disposed,
 			finalElement: contentContainer.firstElementChild,
 			shownSessions,
@@ -202,6 +233,9 @@ suite('Sessions - Session View', () => {
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
+			duringPreparation: { showsChat: true, composerDisposed: false, focused: true },
+			afterCancellation: { restoredComposer: true, progressDisposed: true, focused: true },
+			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
 			shownSessions: [undefined, undefined, session],

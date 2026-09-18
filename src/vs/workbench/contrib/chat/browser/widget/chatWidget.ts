@@ -7,7 +7,10 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -17,6 +20,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -48,6 +52,7 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -381,7 +386,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private container!: HTMLElement;
 	private _persistentContentHeight: number;
 	private _chatPetListPadding = 0;
-	private transcriptProgress: { readonly container: HTMLElement; readonly content: HTMLElement } | undefined;
+	private transcriptProgress: {
+		readonly container: HTMLElement;
+		readonly status: HTMLElement;
+		readonly content: HTMLElement;
+		readonly controls: HTMLElement;
+		readonly output: HTMLDetailsElement;
+		readonly outputSummary: HTMLElement;
+		readonly outputText: HTMLElement;
+		readonly scrollable: DomScrollableElement;
+		readonly cancelButton: Button;
+		readonly layout: () => void;
+		message?: string;
+		complete?: boolean;
+		onCancel?: () => void;
+	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private transcriptProgressActive = false;
 	private transcriptContext: HTMLElement | undefined;
@@ -1504,33 +1523,111 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean }): void {
+	/** Updates the phase message and optional caller-bounded plain-text output without resetting output interaction state. */
+	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly output?: string; readonly onCancel?: () => void }): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
-			container.setAttribute('role', 'status');
-			container.setAttribute('aria-live', 'polite');
-			const content = dom.append(container, $('.interactive-item-container'));
+			const status = dom.append(container, $('.interactive-item-container'));
+			status.setAttribute('role', 'status');
+			status.setAttribute('aria-live', 'polite');
+			const content = dom.append(status, $('div'));
 			content.setAttribute('aria-hidden', 'true');
-			this.transcriptProgress = { container, content };
+			const controls = dom.append(container, $('.interactive-item-container.chat-transcript-progress-controls'));
+			const output = dom.append(controls, $<HTMLDetailsElement>('details.chat-transcript-progress-output'));
+			const outputSummary = dom.append(output, $('summary'));
+			outputSummary.textContent = localize('chat.transcriptProgress.output', "Output");
+			const outputText = $('pre.chat-transcript-progress-output-text', { tabindex: 0, role: 'region', 'aria-label': localize('chat.transcriptProgress.outputLabel', "Progress output") });
+			const scrollable = this._register(new DomScrollableElement(outputText, {}));
+			dom.append(output, scrollable.getDomNode());
+			const layout = () => {
+				if (output.open && !output.hidden && !container.hidden) {
+					const position = scrollable.getScrollPosition();
+					scrollable.scanDomNode();
+					scrollable.setScrollPosition(position);
+				}
+			};
+			this._register(dom.addDisposableListener(output, 'toggle', layout));
+			this._register(dom.addDisposableListener(outputText, dom.EventType.SCROLL, () => {
+				if (output.open && !output.hidden && !container.hidden) {
+					scrollable.scanDomNode();
+				}
+			}));
+			this._register(dom.addDisposableListener(outputText, dom.EventType.KEY_DOWN, event => {
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				const { scrollTop } = scrollable.getScrollPosition();
+				let nextScrollTop: number;
+				switch (keyboardEvent.keyCode) {
+					case KeyCode.UpArrow: nextScrollTop = scrollTop - 20; break;
+					case KeyCode.DownArrow: nextScrollTop = scrollTop + 20; break;
+					case KeyCode.PageUp: nextScrollTop = scrollTop - outputText.clientHeight; break;
+					case KeyCode.PageDown: nextScrollTop = scrollTop + outputText.clientHeight; break;
+					case KeyCode.Home: nextScrollTop = 0; break;
+					case KeyCode.End: nextScrollTop = outputText.scrollHeight; break;
+					default: return;
+				}
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				scrollable.setScrollPosition({ scrollTop: nextScrollTop });
+			}));
+			const cancelButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true }));
+			cancelButton.label = localize('chat.transcriptProgress.cancel', "Cancel");
+			this._register(cancelButton.onDidClick(() => this.transcriptProgress?.onCancel?.()));
+			this.transcriptProgress = { container, status, content, controls, output, outputSummary, outputText, scrollable, cancelButton, layout };
 		}
-		this.transcriptProgressPart.clear();
-		dom.clearNode(this.transcriptProgress.content);
-		if (message) {
-			const store = new DisposableStore();
-			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
-			const progressPart = store.add(this.instantiationService.createInstance(ChatProgressSubPart, renderedMessage.element, Codicon.check, undefined));
-			progressPart.domNode.classList.toggle('shimmer-progress', options?.complete !== true);
-			progressPart.domNode.classList.toggle('show-checkmarks', options?.complete === true);
-			dom.append(this.transcriptProgress.content, progressPart.domNode);
-			this.transcriptProgressPart.value = store;
+		const progress = this.transcriptProgress;
+		if (message !== progress.message || options?.complete !== progress.complete) {
+			this.transcriptProgressPart.clear();
+			dom.clearNode(progress.content);
+			if (message) {
+				const store = new DisposableStore();
+				const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
+				const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
+				const progressPart = store.add(this.instantiationService.createInstance(ChatProgressSubPart, renderedMessage.element, Codicon.check, undefined));
+				progressPart.domNode.classList.toggle('shimmer-progress', options?.complete !== true);
+				progressPart.domNode.classList.toggle('show-checkmarks', options?.complete === true);
+				dom.append(progress.content, progressPart.domNode);
+				this.transcriptProgressPart.value = store;
+			}
+			progress.message = message;
+			progress.complete = options?.complete;
 		}
-		this.transcriptProgress.container.setAttribute('aria-label', ariaLabel ?? '');
-		this.transcriptProgress.container.hidden = message === undefined;
+		if (progress.status.getAttribute('aria-label') !== (ariaLabel ?? '')) {
+			progress.status.setAttribute('aria-label', ariaLabel ?? '');
+		}
+		progress.container.hidden = message === undefined;
+		progress.onCancel = message === undefined ? undefined : options?.onCancel;
+		progress.cancelButton.element.hidden = !progress.onCancel;
+		progress.output.hidden = message === undefined || !options?.output;
+		progress.controls.hidden = progress.output.hidden && !progress.onCancel;
+		const output = message === undefined ? '' : options?.output ?? '';
+		if (progress.outputText.textContent !== output) {
+			progress.outputText.textContent = output;
+		}
+		if (message === undefined) {
+			progress.output.open = false;
+			progress.scrollable.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+		}
+		progress.layout();
 		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 		this.updateChatViewVisibility();
+	}
+
+	focusTranscriptProgress(): boolean {
+		const progress = this.transcriptProgress;
+		if (!progress || progress.container.hidden) {
+			return false;
+		}
+		if (!progress.cancelButton.element.hidden) {
+			progress.cancelButton.focus();
+			return true;
+		}
+		if (!progress.output.hidden) {
+			progress.outputSummary.focus();
+			return true;
+		}
+		return false;
 	}
 
 	setTranscriptContext(context: IChatRequestTranscriptContextVariableEntry | undefined): void {
@@ -3879,6 +3976,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.scrollToEnd();
 		}
 		this.listContainer.style.height = `${contentHeight}px`;
+		this.transcriptProgress?.layout();
 
 		this._onDidChangeHeight.fire(height);
 	}
