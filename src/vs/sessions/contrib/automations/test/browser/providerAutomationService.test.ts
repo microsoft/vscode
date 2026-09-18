@@ -393,11 +393,11 @@ suite('ProviderAutomationService', () => {
 		});
 	});
 
-	test('an unavailable remote catalogue does not block local automation operations', async () => {
+	test('reports unavailable providers while keeping available provider operations usable', async () => {
 		const { service, providerStore, storage, automationStorage, addProvider } = createService();
 		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), automationStorage));
 		remote.setCatalogueState('unavailable');
-		addProvider(upcastPartial<ISessionsProvider>({ id: 'remote', order: 1, automations: remote }));
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'remote', label: 'Remote build host', order: 1, automations: remote }));
 
 		const created = await service.createAutomation({
 			name: 'Local review',
@@ -410,6 +410,7 @@ suite('ProviderAutomationService', () => {
 
 		assert.deepStrictEqual({
 			catalogueState: service.catalogueState.get(),
+			unavailableProviders: service.unavailableProviders.get(),
 			localNames: providerStore.automations.get().map(automation => automation.name),
 			remoteAutomations: remote.automations.get(),
 			canRun: service.canRunAutomation(created.id),
@@ -418,6 +419,7 @@ suite('ProviderAutomationService', () => {
 			activeRunId: providerStore.getActiveRunFor(created.id)?.id,
 		}, {
 			catalogueState: 'unavailable',
+			unavailableProviders: [{ id: 'remote', label: 'Remote build host' }],
 			localNames: ['Updated local review'],
 			remoteAutomations: [],
 			canRun: true,

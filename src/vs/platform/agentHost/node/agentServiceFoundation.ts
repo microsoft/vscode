@@ -48,6 +48,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
+		useCompactPrompts: () => this.value.artifactServerToolAccessor.useCompactPrompts(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 	};
 

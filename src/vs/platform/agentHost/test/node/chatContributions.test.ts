@@ -19,7 +19,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -49,7 +49,7 @@ import { SessionTitleContribution } from '../../node/chatContributions/sessionTi
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
-import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
+import { getArtifactToolsInstruction } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -689,10 +689,13 @@ class AfterSideChatHydrationContribution extends TestContribution {
 	}
 }
 
-function createConfigurationService(enableSendInstructions: boolean): IAgentConfigurationService {
+function createConfigurationService(enableSendInstructions: boolean, useCompactArtifactPrompts: boolean): IAgentConfigurationService {
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
 	agentConfigService.getRootValue = <D extends SchemaDefinition, K extends keyof D & string>(_schema: ISchema<D>, key: K): SchemaValue<D[K]> | undefined => {
+		if (key === AgentHostArtifactToolsCompactPromptsConfigKey) {
+			return useCompactArtifactPrompts as SchemaValue<D[K]>;
+		}
 		return enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey)
 			? true as SchemaValue<D[K]>
 			: undefined;
@@ -804,7 +807,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
@@ -836,7 +839,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		observed?.push('persistedTurnUsage');
 		return originalGetTurnUsages();
 	};
-	const agentConfigService = createConfigurationService(enableSendInstructions);
+	const agentConfigService = createConfigurationService(enableSendInstructions, useCompactArtifactPrompts);
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const services = new ServiceCollection(
 		[ILogService, logService],
@@ -1494,7 +1497,7 @@ suite('AgentHostChatContributions', () => {
 			if (instruction.includes('<rich_plan_markdown>')) {
 				return 'markdownPlanRichLinks';
 			}
-			if (instruction === ARTIFACT_TOOLS_INSTRUCTION) {
+			if (instruction === getArtifactToolsInstruction(false)) {
 				return 'artifactTools';
 			}
 			if (instruction.includes('<terminal_chat>')) {
@@ -1508,42 +1511,67 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
 	});
 
-	test('adds artifact guidance only to the first turn of a chat', async () => {
-		const contributions = createBuiltInContributions(disposables, undefined, true);
-		const defaultChat = buildDefaultChatUri(contributions.session);
-		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
-		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
-		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored']] as const) {
-			contributions.stateManager.addChat(contributions.session, chat, {
-				title,
-				origin: { kind: ChatOriginKind.User },
-			});
-		}
-		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat }, [hydrationTurn('restored-turn')]);
-		const hasArtifactInstruction = async (chat: string, turnId: string) => {
-			const result = await contributions.service.outgoingTurn({
-				session: contributions.session,
-				chat,
-				message: { text: turnId, origin: { kind: MessageKind.User } },
-				turnId,
-			});
-			return result.instructions?.includes(ARTIFACT_TOOLS_INSTRUCTION) ?? false;
-		};
+	for (const useCompactPrompts of [false, true]) {
+		test(`adds ${useCompactPrompts ? 'compact' : 'original'} artifact guidance only to the first turn of a chat`, async () => {
+			const contributions = createBuiltInContributions(disposables, undefined, true, undefined, useCompactPrompts);
+			const defaultChat = buildDefaultChatUri(contributions.session);
+			const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
+			const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
+			const emptyRestoredChat = buildChatUri(contributions.session, 'empty-restored-artifacts');
+			for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored'], [emptyRestoredChat, 'Empty']] as const) {
+				contributions.stateManager.addChat(contributions.session, chat, {
+					title,
+					origin: { kind: ChatOriginKind.User },
+				});
+			}
+			await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat }, [hydrationTurn('restored-turn')]);
+			await contributions.service.hydrateTurns({ session: contributions.session, chat: emptyRestoredChat }, []);
+			const artifactInstructions = [getArtifactToolsInstruction(false), getArtifactToolsInstruction(true)];
+			const getArtifactInstructions = async (chat: string, turnId: string) => {
+				const result = await contributions.service.outgoingTurn({
+					session: contributions.session,
+					chat,
+					message: { text: turnId, origin: { kind: MessageKind.User } },
+					turnId,
+				});
+				return result.instructions?.filter(instruction => artifactInstructions.includes(instruction)) ?? [];
+			};
+			const expected = [getArtifactToolsInstruction(useCompactPrompts)];
 
-		assert.deepStrictEqual({
-			firstDefault: await hasArtifactInstruction(defaultChat, 'default-1'),
-			secondDefault: await hasArtifactInstruction(defaultChat, 'default-2'),
-			firstPeer: await hasArtifactInstruction(peerChat, 'peer-1'),
-			secondPeer: await hasArtifactInstruction(peerChat, 'peer-2'),
-			restored: await hasArtifactInstruction(restoredChat, 'restored-2'),
-		}, {
-			firstDefault: true,
-			secondDefault: false,
-			firstPeer: true,
-			secondPeer: false,
-			restored: false,
+			assert.deepStrictEqual({
+				firstDefault: await getArtifactInstructions(defaultChat, 'default-1'),
+				secondDefault: await getArtifactInstructions(defaultChat, 'default-2'),
+				firstPeer: await getArtifactInstructions(peerChat, 'peer-1'),
+				secondPeer: await getArtifactInstructions(peerChat, 'peer-2'),
+				restored: await getArtifactInstructions(restoredChat, 'restored-2'),
+				firstEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-1'),
+				secondEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-2'),
+			}, {
+				firstDefault: expected,
+				secondDefault: [],
+				firstPeer: expected,
+				secondPeer: [],
+				restored: [],
+				firstEmptyRestored: expected,
+				secondEmptyRestored: [],
+			});
 		});
-	});
+
+		test(`does not mention unavailable artifact tools with ${useCompactPrompts ? 'compact' : 'original'} prompts`, async () => {
+			const contributions = createBuiltInContributions(disposables, undefined, false, undefined, useCompactPrompts);
+			const instructions = [];
+			for (const turnId of ['first', 'second']) {
+				const result = await contributions.service.outgoingTurn({
+					session: contributions.session,
+					chat: buildDefaultChatUri(contributions.session),
+					message: { text: turnId, origin: { kind: MessageKind.User } },
+					turnId,
+				});
+				instructions.push(result.instructions);
+			}
+			assert.deepStrictEqual(instructions, [undefined, undefined]);
+		});
+	}
 
 	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {
 		const titles = createSessionTitleContributions(disposables);

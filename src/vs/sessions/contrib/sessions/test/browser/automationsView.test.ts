@@ -43,7 +43,7 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationR
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -138,9 +138,11 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly catalogueStateValue = observableValue<AutomationCatalogueState>(this, 'loading');
+	private readonly unavailableProvidersValue = observableValue<readonly IAutomationProviderDescriptor[]>(this, []);
 	override readonly automations: IObservable<readonly IAutomationDescriptor[]> = this.automationValue;
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this.runValue;
 	override readonly catalogueState: IObservable<AutomationCatalogueState> = this.catalogueStateValue;
+	override readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]> = this.unavailableProvidersValue;
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
 	deleteRunCalls = 0;
@@ -166,6 +168,10 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 	setCatalogueState(value: AutomationCatalogueState): void {
 		this.catalogueStateValue.set(value, undefined);
+	}
+
+	setUnavailableProviders(value: readonly IAutomationProviderDescriptor[]): void {
+		this.unavailableProvidersValue.set(value, undefined);
 	}
 
 	override getAutomation(id: string): IAutomationDescriptor | undefined {
@@ -1358,8 +1364,10 @@ suite('AutomationsCardsWidget', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		const loadingMessage = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent;
+		automationService.setUnavailableProviders([{ id: 'remote-build-host', label: 'Remote build host' }]);
 		automationService.setCatalogueState('unavailable');
-		const unavailableMessage = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent;
+		const partialState = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state');
+		const unavailableMessage = partialState?.textContent;
 		automationService.setCatalogueState('error');
 
 		assert.deepStrictEqual({
@@ -1367,12 +1375,14 @@ suite('AutomationsCardsWidget', () => {
 			unavailableMessage,
 			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent,
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
+			appearsAfterCards: partialState?.previousElementSibling?.classList.contains('automations-cards-grid'),
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
 			loadingMessage: 'Loading additional automations...',
-			unavailableMessage: 'Some automations are unavailable.',
+			unavailableMessage: 'Automations from Remote build host are unavailable.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
+			appearsAfterCards: true,
 			templatesDisplay: '',
 		});
 	});
@@ -2825,11 +2835,11 @@ suite('AutomationsCardsWidget', () => {
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {
 		assert.deepStrictEqual({
 			loading: buildAutomationsAccessibleContent([], [], 'loading').split('\n').slice(0, 2),
-			unavailable: buildAutomationsAccessibleContent([], [], 'unavailable').split('\n').slice(0, 2),
+			unavailable: buildAutomationsAccessibleContent([], [], 'unavailable', undefined, [{ id: 'remote-build-host', label: 'Remote build host' }]).split('\n').slice(0, 2),
 			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 2),
 		}, {
 			loading: ['Automations', 'Loading automations.'],
-			unavailable: ['Automations', 'Some automations are unavailable. One or more providers are disconnected, disabled, or do not support automations.'],
+			unavailable: ['Automations', 'Automations from Remote build host are unavailable.'],
 			error: ['Automations', 'Unable to load automations.'],
 		});
 	});
@@ -2854,14 +2864,23 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('accessible view reports partial catalogue state with saved automations', () => {
+		const loadingContent = buildAutomationsAccessibleContent([automation()], [], 'loading');
+		const content = buildAutomationsAccessibleContent([automation()], [], 'unavailable', undefined, [{ id: 'remote-build-host', label: 'Remote build host' }]);
+		const errorContent = buildAutomationsAccessibleContent([automation()], [], 'error');
 		assert.deepStrictEqual({
-			loading: buildAutomationsAccessibleContent([automation()], [], 'loading').split('\n').slice(0, 2),
-			unavailable: buildAutomationsAccessibleContent([automation()], [], 'unavailable').split('\n').slice(0, 2),
-			error: buildAutomationsAccessibleContent([automation()], [], 'error').split('\n').slice(0, 2),
+			loadingIncluded: loadingContent.includes('Additional automations are loading.'),
+			loadingAfterAutomation: loadingContent.indexOf('Daily review, enabled') < loadingContent.indexOf('Additional automations are loading.'),
+			unavailableIncluded: content.includes('Automations from Remote build host are unavailable.'),
+			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('Automations from Remote build host are unavailable.'),
+			errorIncluded: errorContent.includes('Some automations could not be loaded.'),
+			errorAfterAutomation: errorContent.indexOf('Daily review, enabled') < errorContent.indexOf('Some automations could not be loaded.'),
 		}, {
-			loading: ['Automations', 'Additional automations are loading.'],
-			unavailable: ['Automations', 'Some automations are unavailable.'],
-			error: ['Automations', 'Some automations could not be loaded.'],
+			loadingIncluded: true,
+			loadingAfterAutomation: true,
+			unavailableIncluded: true,
+			unavailableAfterAutomation: true,
+			errorIncluded: true,
+			errorAfterAutomation: true,
 		});
 	});
 

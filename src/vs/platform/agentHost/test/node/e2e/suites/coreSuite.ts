@@ -756,7 +756,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			errorType: action.part.error.errorType,
 			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
-			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
+			errorType: config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,
 		});
 	});

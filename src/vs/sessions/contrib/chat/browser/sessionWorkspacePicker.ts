@@ -95,6 +95,7 @@ export interface IWorkspacePickerItem {
 
 export interface IWorkspacePickerOptions {
 	readonly onUserSelection?: () => void;
+	readonly whenSelectionAccepted?: () => Promise<boolean>;
 	readonly canSelectWorkspace?: (folderUri: URI, providerId: string | undefined) => Promise<boolean>;
 	readonly canRestoreWorkspace?: () => boolean;
 	readonly restoreFromSessions?: boolean;
@@ -618,6 +619,8 @@ export class WorkspacePicker extends Disposable {
 		// in vs/sessions/contrib/onboardingTours.
 		triggerDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker', {
 			open: () => this.showPicker(false, trigger, options?.group, options?.attachesContext),
+			hasSelection: () => !!this._selectedFolderUri,
+			onDidSelect: Event.map(Event.filter(this.onDidSelectWorkspace, uri => !!uri && this._selectionOrigin === WorkspaceSelectionOrigin.User), () => this.options.whenSelectionAccepted?.() ?? Promise.resolve(true)),
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));

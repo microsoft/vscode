@@ -2825,6 +2825,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (all.length === 0) {
 			return undefined;
 		}
+		// Codex does not expose the active model's tool-search capability.
+		// Deferring without it can hide tools entirely, so keep dynamic tools eager.
 		return all.map(t => ({
 			type: 'function' as const,
 			name: t.name,
