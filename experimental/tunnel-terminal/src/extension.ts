@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir, userInfo } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import * as vscode from 'vscode';
-import { TerminalBridge, type BridgeCloseReason, type BridgeConnection } from './bridge';
+import type { BridgeConnection } from './bridge';
 import { spawnPtyHost } from './ptyHostClient';
+import { RemoteRelay } from './remoteRelay';
+import { maxTerminalSessions, relayCommands, relayVersion, type RelayEndpoint, validateSessionId } from './relayProtocol';
+import { RemoteTerminalPool, TerminalApprovalGate } from './remoteTerminalPool';
 
 class BridgeController implements vscode.Disposable {
-	private bridge: TerminalBridge | undefined;
-	private connection: BridgeConnection | undefined;
+	private active: { bridgeId: string; pool: RemoteTerminalPool; connection?: BridgeConnection } | undefined;
+	private readonly approvalGate = new TerminalApprovalGate();
 	private starting = false;
 	private disposed = false;
 	private startCancellation: vscode.CancellationTokenSource | undefined;
@@ -18,8 +22,8 @@ class BridgeController implements vscode.Disposable {
 	constructor(private readonly output: vscode.LogOutputChannel) { }
 
 	async start(): Promise<void> {
-		if (this.starting || this.bridge) {
-			await vscode.window.showWarningMessage(vscode.l10n.t("A terminal bridge is already active or starting. Stop it before starting another."));
+		if (this.starting || this.active) {
+			await vscode.window.showWarningMessage(vscode.l10n.t("A terminal bridge is already active or starting. Reuse its connection URL for another shell."));
 			return;
 		}
 		if (!vscode.workspace.isTrusted || !vscode.env.remoteName || vscode.env.uiKind !== vscode.UIKind.Desktop) {
@@ -29,6 +33,17 @@ class BridgeController implements vscode.Disposable {
 		const cancellation = new vscode.CancellationTokenSource();
 		this.startCancellation = cancellation;
 		try {
+			try {
+				const version = await withTimeout(vscode.commands.executeCommand<number>(relayCommands.localVersion), 10_000);
+				if (version !== relayVersion) {
+					throw new Error(vscode.l10n.t("The local companion version is incompatible. Update both extensions."));
+				}
+			} catch (error) {
+				throw new Error(vscode.l10n.t("The local Tunnel Terminal companion is unavailable. Install its VSIX under Local - Installed in this remote-connected window, then reload the window. {0}", error instanceof Error ? error.message : String(error)));
+			}
+			if (cancellation.token.isCancellationRequested || this.disposed) {
+				return;
+			}
 			const folders = vscode.workspace.workspaceFolders;
 			const folder = folders && folders.length > 1
 				? await vscode.window.showWorkspaceFolderPick({ placeHolder: vscode.l10n.t("Choose the starting directory for the remote shell") })
@@ -46,7 +61,21 @@ class BridgeController implements vscode.Disposable {
 			if (shell === undefined || this.disposed || cancellation.token.isCancellationRequested) {
 				return;
 			}
-			const bridge = new TerminalBridge({
+			const bridgeId = randomUUID();
+			const pool = new RemoteTerminalPool({
+				approvalGate: this.approvalGate,
+				approve: async code => {
+					const allow = vscode.l10n.t("Allow");
+					const answer = await vscode.window.showWarningMessage(
+						vscode.l10n.t("Allow Remote Terminal Connection?"),
+						{
+							modal: true,
+							detail: vscode.l10n.t("Pairing code: {0}\n\nCompare this entire code with the code shown in your local terminal. Choose Allow only if they match and you started this connection. This grants shell access with your remote account's permissions.\n\nThe request expires after one minute.", code),
+						},
+						allow,
+					);
+					return answer === allow;
+				},
 				spawn: (cols, rows) => spawnPtyHost({
 					executable: shell.trim(),
 					args: [],
@@ -56,28 +85,39 @@ class BridgeController implements vscode.Disposable {
 					env: shellEnvironment(),
 				}),
 				onError: error => this.reportError(error),
-				onClose: reason => {
-					if (this.bridge === bridge) {
-						this.bridge = undefined;
-						this.connection = undefined;
-						this.reportClosed(reason);
+				onSessionClose: reason => {
+					if (!this.disposed) {
+						this.output.info(`Terminal session closed: ${reason}`);
 					}
 				},
 			});
-			this.bridge = bridge;
+			this.active = { bridgeId, pool };
 			try {
-				const connection = await bridge.start();
-				const resolved = await vscode.env.asExternalUri(vscode.Uri.parse(connection.url));
-				if (this.bridge !== bridge || this.disposed) {
+				const create = Promise.resolve(vscode.commands.executeCommand<RelayEndpoint>(relayCommands.localCreate, { version: relayVersion, bridgeId })).then(endpoint => {
+					if (this.active?.pool !== pool || this.disposed) {
+						this.stopLocalRelay(bridgeId);
+					}
+					return endpoint;
+				});
+				const resolved = await withTimeout(create, 15_000);
+				if (this.active?.pool !== pool || this.disposed) {
 					return;
 				}
-				if (resolved.scheme !== 'http' && resolved.scheme !== 'https') {
-					throw new Error(vscode.l10n.t("The remote provider did not return an HTTP connection URL."));
+				if (!resolved || resolved.version !== relayVersion || typeof resolved.url !== 'string') {
+					throw new Error(vscode.l10n.t("The local companion returned an incompatible response."));
 				}
-				this.connection = { url: resolved.toString(true), token: connection.token };
-				void this.showReady(bridge).catch(error => this.reportError(error));
+				const localUrl = new URL(resolved.url);
+				if (localUrl.protocol !== 'http:' || localUrl.hostname !== '127.0.0.1' || localUrl.pathname !== '/terminal' || localUrl.username || localUrl.password || localUrl.search || localUrl.hash) {
+					throw new Error(vscode.l10n.t("The local companion did not return a loopback terminal URL."));
+				}
+				this.active.connection = { url: resolved.url };
+				void this.showReady(bridgeId).catch(error => this.reportError(error));
 			} catch (error) {
-				bridge.dispose('error');
+				pool.dispose();
+				this.stopLocalRelay(bridgeId);
+				if (this.active?.pool === pool) {
+					this.active = undefined;
+				}
 				throw error;
 			}
 		} finally {
@@ -87,63 +127,107 @@ class BridgeController implements vscode.Disposable {
 		}
 	}
 
-	private async showReady(bridge: TerminalBridge): Promise<void> {
-		const copy = vscode.l10n.t("Copy Connection URL");
-		const action = await vscode.window.showInformationMessage(
-			vscode.l10n.t("Terminal bridge ready for one connection. It expires in five minutes. Run the local client, then use Copy Connection URL and Copy Connection Token from the Command Palette. Keep this VS Code window connected."),
-			copy,
-		);
-		if (action === copy && this.bridge === bridge) {
-			await this.copy('url');
+	getPool(bridgeId: string): RemoteTerminalPool {
+		validateSessionId(bridgeId);
+		if (bridgeId !== this.active?.bridgeId) {
+			throw new Error(vscode.l10n.t("The remote terminal bridge has expired. Run Start Bridge again."));
+		}
+		return this.active.pool;
+	}
+
+	getRelay(bridgeId: string, sessionId: string): RemoteRelay {
+		return this.getPool(bridgeId).getRelay(sessionId);
+	}
+
+	closeRelay(bridgeId: string, sessionId: string): void {
+		validateSessionId(bridgeId);
+		validateSessionId(sessionId);
+		if (bridgeId === this.active?.bridgeId) {
+			this.active.pool.close(sessionId);
 		}
 	}
 
-	async copy(part: keyof BridgeConnection): Promise<void> {
-		if (!this.connection) {
+	stopBridge(bridgeId: string): void {
+		validateSessionId(bridgeId);
+		if (bridgeId === this.active?.bridgeId) {
+			this.stop();
+		}
+	}
+
+	private stopLocalRelay(bridgeId: string): void {
+		void withTimeout(vscode.commands.executeCommand(relayCommands.localStop, bridgeId), 5_000).catch(error => {
+			if (!this.disposed) {
+				this.output.warn(vscode.l10n.t("Could not notify the local companion to stop: {0}", error instanceof Error ? error.message : String(error)));
+			}
+		});
+	}
+
+	private async showReady(bridgeId: string): Promise<void> {
+		const copy = vscode.l10n.t("Copy Connection URL");
+		const action = await vscode.window.showInformationMessage(
+			vscode.l10n.t("Terminal bridge ready. Reuse its URL for up to {0} independent shells. Approve each matching pairing code before connecting the next client. Stop Bridge closes all sessions. Keep this window connected.", maxTerminalSessions),
+			copy,
+		);
+		if (action === copy && this.active?.bridgeId === bridgeId) {
+			await this.copyUrl();
+		}
+	}
+
+	async copyUrl(): Promise<void> {
+		if (!this.active?.connection) {
 			await vscode.window.showWarningMessage(vscode.l10n.t("No terminal bridge is ready. Run Start Bridge first."));
 			return;
 		}
-		await vscode.env.clipboard.writeText(this.connection[part]);
-		await vscode.window.showInformationMessage(part === 'url'
-			? vscode.l10n.t("Connection URL copied. Paste it at the local client's URL prompt.")
-			: vscode.l10n.t("Connection token copied. Paste it at the local client's hidden token prompt. Treat it as a password."));
+		await vscode.env.clipboard.writeText(this.active.connection.url);
+		await vscode.window.showInformationMessage(vscode.l10n.t("Connection URL copied. Paste it at the local client's URL prompt, then compare the pairing codes before allowing the connection."));
 	}
 
 	stop(): void {
 		this.startCancellation?.cancel();
-		if (!this.bridge) {
+		const active = this.active;
+		if (!active) {
 			void vscode.window.showInformationMessage(this.starting
 				? vscode.l10n.t("Terminal bridge startup cancelled.")
 				: vscode.l10n.t("No terminal bridge is running."));
 			return;
 		}
-		this.bridge.dispose();
+		this.active = undefined;
+		active.pool.dispose();
+		this.stopLocalRelay(active.bridgeId);
+		if (!this.disposed) {
+			void vscode.window.showInformationMessage(vscode.l10n.t("Terminal bridge stopped. All of its shell sessions have been terminated."));
+		}
 	}
 
 	reportError(error: unknown): void {
+		if (this.disposed) {
+			return;
+		}
 		const message = error instanceof Error ? error.message : String(error);
 		this.output.error(message);
 		void vscode.window.showErrorMessage(vscode.l10n.t("Remote terminal bridge: {0}", message));
 	}
 
-	private reportClosed(reason: BridgeCloseReason): void {
-		this.output.info(`Bridge closed: ${reason}`);
-		if (this.disposed || reason === 'error') {
-			return;
-		}
-		const messages: Record<Exclude<BridgeCloseReason, 'error'>, string> = {
-			stopped: vscode.l10n.t("Terminal bridge stopped. Its shell has been terminated."),
-			expired: vscode.l10n.t("The unused terminal bridge expired. Run Start Bridge to create a new connection."),
-			disconnected: vscode.l10n.t("The terminal client disconnected. Its shell has been terminated. Run Start Bridge for a new session."),
-			exited: vscode.l10n.t("The remote shell exited and its terminal bridge closed."),
-		};
-		void vscode.window.showInformationMessage(messages[reason]);
-	}
-
 	dispose(): void {
 		this.disposed = true;
 		this.startCancellation?.cancel();
-		this.bridge?.dispose();
+		if (this.active) {
+			this.stop();
+		}
+	}
+}
+
+async function withTimeout<T>(operation: Thenable<T>, timeoutMs: number): Promise<T> {
+	let timer: NodeJS.Timeout | undefined;
+	try {
+		return await Promise.race([
+			operation,
+			new Promise<never>((_resolve, reject) => {
+				timer = setTimeout(() => reject(new Error(vscode.l10n.t("The VS Code relay request timed out."))), timeoutMs);
+			}),
+		]);
+	} finally {
+		clearTimeout(timer);
 	}
 }
 
@@ -165,10 +249,16 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(output);
 	const controller = new BridgeController(output);
 	context.subscriptions.push(controller);
+	context.subscriptions.push(
+		vscode.commands.registerCommand(relayCommands.remoteOpen, (bridgeId: string, sessionId: string) => controller.getPool(bridgeId).open(sessionId)),
+		vscode.commands.registerCommand(relayCommands.remoteRead, (bridgeId: string, sessionId: string) => controller.getRelay(bridgeId, sessionId).read()),
+		vscode.commands.registerCommand(relayCommands.remoteWrite, (bridgeId: string, sessionId: string, messages: string[]) => controller.getRelay(bridgeId, sessionId).write(messages)),
+		vscode.commands.registerCommand(relayCommands.remoteClose, (bridgeId: string, sessionId: string) => controller.closeRelay(bridgeId, sessionId)),
+		vscode.commands.registerCommand(relayCommands.remoteStop, (bridgeId: string) => controller.stopBridge(bridgeId)),
+	);
 	const commands: Record<string, () => void | Promise<void>> = {
 		start: () => controller.start(),
-		copyUrl: () => controller.copy('url'),
-		copyToken: () => controller.copy('token'),
+		copyUrl: () => controller.copyUrl(),
 		stop: () => controller.stop(),
 	};
 	for (const [name, run] of Object.entries(commands)) {

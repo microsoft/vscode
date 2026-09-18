@@ -11,14 +11,23 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { test } from 'node:test';
 import { TerminalBridge } from '../src/bridge';
 import { spawnPtyHost } from '../src/ptyHostClient';
+import { LocalRelay } from '../src/localRelay';
+import { RemoteRelay } from '../src/remoteRelay';
 
-test('standalone client connects from a real local terminal with Unicode, Ctrl+C, resize and remote exit code', async t => {
+test('standalone client crosses both companion relays with pairing, Unicode, Ctrl+C, resize and remote exit code', async t => {
 	const directory = await mkdtemp(join(tmpdir(), 'tunnel-terminal-client-'));
 	const clientPath = join(directory, 'client.cjs');
 	await copyFile(join(process.cwd(), 'dist', 'client.cjs'), clientPath);
-	t.after(async () => { await unlink(clientPath); await rmdir(directory); });
+	let stopClient: (() => Promise<void>) | undefined;
+	t.after(async () => {
+		await stopClient?.();
+		await unlink(clientPath);
+		await rmdir(directory);
+	});
 	const hostPath = join(process.cwd(), 'dist', 'ptyHost.cjs');
 	const errors: Error[] = [];
+	let pairingCode = '';
+	let approve: (value: boolean) => void = () => {};
 	const remoteProgram = `
 		process.stdin.setRawMode(true);
 		process.stdin.setEncoding('utf8');
@@ -31,6 +40,10 @@ test('standalone client connects from a real local terminal with Unicode, Ctrl+C
 		});
 	`;
 	const bridge = new TerminalBridge({
+		approve: code => {
+			pairingCode = code;
+			return new Promise<boolean>(resolve => { approve = resolve; });
+		},
 		spawn: (cols, rows) => spawnPtyHost({
 			executable: process.execPath, args: ['-e', remoteProgram], cols, rows,
 			cwd: process.cwd(), env: process.env,
@@ -39,7 +52,25 @@ test('standalone client connects from a real local terminal with Unicode, Ctrl+C
 		onClose: () => {},
 	});
 	t.after(() => bridge.dispose());
-	const connection = await bridge.start();
+	const remoteConnection = await bridge.start();
+	const remoteRelay = new RemoteRelay(remoteConnection.url, {
+		onError: error => errors.push(error),
+		onLeaseExpired: () => bridge.dispose('disconnected'),
+	});
+	t.after(() => remoteRelay.dispose());
+	const localRelay = new LocalRelay({
+		transport: {
+			open: async () => { await delay(5); await remoteRelay.open(); },
+			read: async () => structuredClone(await remoteRelay.read()),
+			write: async messages => { await delay(5); await remoteRelay.write(structuredClone(messages)); },
+			close: async () => remoteRelay.dispose(),
+		},
+		onError: error => errors.push(error),
+		onClose: () => {},
+	});
+	t.after(() => localRelay.dispose());
+	const connection = await localRelay.start();
+	assert.notEqual(connection.url, remoteConnection.url);
 	const localTerminal = spawnPtyHost({
 		executable: process.execPath, args: [clientPath, connection.url],
 		cols: 80, rows: 24, cwd: directory, env: process.env,
@@ -54,6 +85,10 @@ test('standalone client connects from a real local terminal with Unicode, Ctrl+C
 		const subscription = localTerminal.onExit(resolve);
 		t.after(() => subscription.dispose());
 	});
+	stopClient = async () => {
+		localTerminal.kill();
+		await exit;
+	};
 	const waitForOutput = async (pattern: RegExp) => {
 		for (let i = 0; i < 500; i++) {
 			if (pattern.test(output)) {
@@ -63,8 +98,10 @@ test('standalone client connects from a real local terminal with Unicode, Ctrl+C
 		}
 		assert.fail(`Missing expected terminal output ${pattern}. Errors: ${errors.map(error => error.message).join('; ')}`);
 	};
-	await waitForOutput(/token/i);
-	localTerminal.write(`${connection.token}\r`);
+	await waitForOutput(/Pairing code: [A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}/);
+	assert.ok(output.includes(pairingCode));
+	assert.ok(!output.includes('REMOTE_READY'));
+	approve(true);
 	await waitForOutput(/REMOTE_READY/);
 	localTerminal.write('\u03bb\u4e2d\r');
 	await waitForOutput(/REMOTE_INPUT:\u03bb\u4e2d/);
@@ -74,5 +111,5 @@ test('standalone client connects from a real local terminal with Unicode, Ctrl+C
 	await waitForOutput(/REMOTE_SIZE:101x31/);
 	localTerminal.write('quit\r');
 	const result = await exit;
-	assert.deepStrictEqual({ exitCode: result.exitCode, tokenLeaked: output.includes(connection.token), errors }, { exitCode: 13, tokenLeaked: false, errors: [] });
+	assert.deepStrictEqual({ exitCode: result.exitCode, errors }, { exitCode: 13, errors: [] });
 });

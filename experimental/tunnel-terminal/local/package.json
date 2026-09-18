@@ -1,0 +1,31 @@
+{
+	"name": "experimental-tunnel-terminal-local",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.0.3",
+	"publisher": "vscode-experiments",
+	"private": true,
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git",
+		"directory": "experimental/tunnel-terminal/local"
+	},
+	"engines": {
+		"vscode": "^1.95.0"
+	},
+	"extensionKind": ["ui"],
+	"categories": ["Other"],
+	"main": "./dist/localExtension.cjs",
+	"activationEvents": [
+		"onCommand:_experimentalTunnelTerminalLocal.version",
+		"onCommand:_experimentalTunnelTerminalLocal.create",
+		"onCommand:_experimentalTunnelTerminalLocal.stop"
+	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": false
+		},
+		"virtualWorkspaces": false
+	}
+}

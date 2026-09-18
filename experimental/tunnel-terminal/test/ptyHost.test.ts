@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { WebSocket } from 'ws';
 import { TerminalBridge, type BridgeCloseReason } from '../src/bridge';
 import { spawnPtyHost } from '../src/ptyHostClient';
-import { parseServerMessage, type ClientMessage } from '../src/protocol';
+import { parseServerMessage, protocolVersion, type ClientMessage } from '../src/protocol';
 
 const hostPath = join(process.cwd(), 'dist', 'ptyHost.cjs');
 
@@ -33,10 +33,11 @@ test('isolated native PTY sends output and exits without retaining its helper', 
 	assert.deepStrictEqual({ containsOutput: data.includes('NATIVE_PTY_OK'), exitCode: exit.exitCode, errors }, { containsOutput: true, exitCode: 7, errors: [] });
 });
 
-test('authenticated bridge drives a real shell with remote environment, resize and exit status', async t => {
+test('approved bridge drives a real shell with remote environment, resize and exit status', async t => {
 	const errors: Error[] = [];
 	const closed: BridgeCloseReason[] = [];
 	const bridge = new TerminalBridge({
+		approve: async () => true,
 		spawn: (cols, rows) => spawnPtyHost({
 			executable: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
 			args: process.platform === 'win32' ? ['/d', '/q'] : [],
@@ -47,7 +48,7 @@ test('authenticated bridge drives a real shell with remote environment, resize a
 	});
 	t.after(() => bridge.dispose());
 	const connection = await bridge.start();
-	const socket = new WebSocket(connection.url, { headers: { Authorization: `Bearer ${connection.token}` } });
+	const socket = new WebSocket(connection.url);
 	t.after(() => socket.terminate());
 	let output = '';
 	let exitCode: number | undefined;
@@ -75,7 +76,7 @@ test('authenticated bridge drives a real shell with remote environment, resize a
 		}
 	});
 	await once(socket, 'open');
-	send({ type: 'start', version: 1, cols: 80, rows: 24 });
+	send({ type: 'start', version: protocolVersion, cols: 80, rows: 24 });
 	await once(socket, 'close');
 	assert.deepStrictEqual({ containsOutput: output.includes('real-remote-value'), exitCode, errors }, { containsOutput: true, exitCode: 9, errors: [] });
 });
@@ -105,6 +106,7 @@ test('disconnect cleans up a running native shell and helper', async t => {
 test('missing shell produces an explicit failure from the native helper', async t => {
 	const errors: Error[] = [];
 	const bridge = new TerminalBridge({
+		approve: async () => true,
 		spawn: (cols, rows) => spawnPtyHost({
 			executable: join(process.cwd(), 'missing-terminal-executable'),
 			args: [], cols, rows, cwd: process.cwd(), env: process.env,
@@ -114,10 +116,30 @@ test('missing shell produces an explicit failure from the native helper', async 
 	});
 	t.after(() => bridge.dispose());
 	const connection = await bridge.start();
-	const socket = new WebSocket(connection.url, { headers: { Authorization: `Bearer ${connection.token}` } });
+	const socket = new WebSocket(connection.url);
 	t.after(() => socket.terminate());
 	await once(socket, 'open');
-	socket.send(JSON.stringify({ type: 'start', version: 1, cols: 80, rows: 24 } satisfies ClientMessage));
+	socket.send(JSON.stringify({ type: 'start', version: protocolVersion, cols: 80, rows: 24 } satisfies ClientMessage));
 	await once(socket, 'close');
 	assert.equal(errors.length, 1);
+});
+
+test('Windows PowerShell runs in a native terminal and preserves its exit status', { skip: process.platform !== 'win32' }, async t => {
+	const pty = spawnPtyHost({
+		executable: 'powershell.exe',
+		args: ['-NoLogo', '-NoProfile', '-Command', 'Write-Output ("POWERSHELL_TTY=" + (-not [Console]::IsInputRedirected)); exit 3'],
+		cols: 80, rows: 24, cwd: process.cwd(), env: process.env,
+	}, hostPath);
+	t.after(() => pty.kill());
+	let output = '';
+	const errors: Error[] = [];
+	const dataSubscription = pty.onData(data => { output += data; });
+	t.after(() => dataSubscription.dispose());
+	const errorSubscription = pty.onError?.(error => errors.push(error));
+	t.after(() => errorSubscription?.dispose());
+	const result = await new Promise<{ exitCode: number }>(resolve => {
+		const subscription = pty.onExit(resolve);
+		t.after(() => subscription.dispose());
+	});
+	assert.deepStrictEqual({ isTerminal: output.includes('POWERSHELL_TTY=True'), exitCode: result.exitCode, errors }, { isTerminal: true, exitCode: 3, errors: [] });
 });

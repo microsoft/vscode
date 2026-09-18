@@ -6,3 +6,5 @@ out/**
 tsconfig.json
 package-lock.json
 **/*.map
+**/*.pdb
+local/**

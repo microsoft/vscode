@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { build } from 'esbuild';
-import { readFile, readdir } from 'node:fs/promises';
+import { copyFile, readFile, readdir } from 'node:fs/promises';
 
 const license = await readFile('LICENSE.txt', 'utf8');
 const wsLicense = await readFile('node_modules/ws/LICENSE', 'utf8');
@@ -25,6 +25,15 @@ await build({
 	outdir: 'dist',
 	outExtension: { '.js': '.cjs' },
 });
+
+await build({
+	...options,
+	entryPoints: { localExtension: 'src/localExtension.ts' },
+	outdir: 'local/dist',
+	outExtension: { '.js': '.cjs' },
+});
+await copyFile('LICENSE.txt', 'local/LICENSE.txt');
+await copyFile('README.md', 'local/README.md');
 
 const tests = (await readdir('test')).filter(file => file.endsWith('.test.ts'));
 await build({

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { Socket } from 'node:net';
 import type { IPty } from 'node-pty';
@@ -17,20 +17,20 @@ export type BridgeCloseReason = 'stopped' | 'expired' | 'disconnected' | 'exited
 
 export interface BridgeOptions {
 	spawn(cols: number, rows: number): BridgePty;
+	approve(code: string): Promise<boolean>;
 	onError(error: Error): void;
 	onClose(reason: BridgeCloseReason): void;
 	idleTimeoutMs?: number;
 	startTimeoutMs?: number;
+	approvalTimeoutMs?: number;
 	heartbeatMs?: number;
 }
 
 export interface BridgeConnection {
 	url: string;
-	token: string;
 }
 
 export class TerminalBridge {
-	private readonly token = randomBytes(32).toString('hex');
 	private readonly server: Server;
 	private readonly webSockets: WebSocketServer;
 	private readonly sockets = new Set<Socket>();
@@ -43,6 +43,7 @@ export class TerminalBridge {
 	private closed = false;
 	private started = false;
 	private claimed = false;
+	private startRequested = false;
 	private outstandingChars = 0;
 	private paused = false;
 	private exiting = false;
@@ -64,12 +65,8 @@ export class TerminalBridge {
 			socket.once('close', () => this.sockets.delete(socket));
 		});
 		this.server.on('upgrade', (request, socket, head) => {
-			const authorization = Buffer.from(request.headers.authorization ?? '');
-			const expected = Buffer.from(`Bearer ${this.token}`);
-			if (request.headers.origin !== undefined
-				|| authorization.length !== expected.length
-				|| !timingSafeEqual(authorization, expected)) {
-				socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+			if (request.headers.origin !== undefined || request.headers.authorization !== undefined) {
+				socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
 				return;
 			}
 			if (request.url?.split('?')[0] !== '/terminal') {
@@ -125,7 +122,7 @@ export class TerminalBridge {
 			throw new Error('The terminal bridge did not obtain a local port.');
 		}
 		this.timer = setTimeout(() => this.dispose('expired'), this.options.idleTimeoutMs ?? 5 * 60_000);
-		return { url: `http://127.0.0.1:${address.port}/terminal`, token: this.token };
+		return { url: `http://127.0.0.1:${address.port}/terminal` };
 	}
 
 	private accept(socket: WebSocket): void {
@@ -150,24 +147,16 @@ export class TerminalBridge {
 				}
 				const message = parseClientMessage(data.toString());
 				if (message.type === 'start') {
-					if (this.pty || this.exiting) {
+					if (this.startRequested) {
 						throw new Error('The terminal has already been started.');
 					}
+					this.startRequested = true;
 					clearTimeout(this.timer);
-					this.pty = this.options.spawn(message.cols, message.rows);
-					if (this.pty.onError) {
-						this.subscriptions.push(this.pty.onError(error => this.fail(error)));
-					}
-					this.subscriptions.push(this.pty.onData(text => this.handleOutput(text)));
-					this.subscriptions.push(this.pty.onExit(event => {
-						if (!Number.isSafeInteger(event.exitCode) || event.exitCode < 0) {
-							this.fail(new Error(`The shell failed to start or exited abnormally (${event.exitCode}).`));
-							return;
-						}
-						this.exitCode = event.signal ? 128 + event.signal : event.exitCode;
-						this.finishOutput();
-					}));
-					this.send({ type: 'ready', version: protocolVersion });
+					const random = randomBytes(6).toString('hex').toUpperCase();
+					const code = [random.slice(0, 4), random.slice(4, 8), random.slice(8)].join('-');
+					this.send({ type: 'pairing', version: protocolVersion, code });
+					this.timer = setTimeout(() => this.fail(new Error('Connection approval timed out.'), 'Connection approval timed out. Dismiss the old dialog and reconnect to try again.'), this.options.approvalTimeoutMs ?? 60_000);
+					void this.approveAndStart(code, message.cols, message.rows).catch(error => this.fail(error instanceof Error ? error : new Error(String(error))));
 					return;
 				}
 				if (!this.pty || this.exiting) {
@@ -201,6 +190,32 @@ export class TerminalBridge {
 				this.fail(error instanceof Error ? error : new Error(String(error)));
 			}
 		});
+	}
+
+	private async approveAndStart(code: string, cols: number, rows: number): Promise<void> {
+		const approved = await this.options.approve(code);
+		if (this.closed) {
+			return;
+		}
+		if (!approved) {
+			this.fail(new Error('The connection request was not approved.'), 'The connection request was not approved in VS Code.');
+			return;
+		}
+		clearTimeout(this.timer);
+		this.pty = this.options.spawn(cols, rows);
+		if (this.pty.onError) {
+			this.subscriptions.push(this.pty.onError(error => this.fail(error)));
+		}
+		this.subscriptions.push(this.pty.onData(text => this.handleOutput(text)));
+		this.subscriptions.push(this.pty.onExit(event => {
+			if (!Number.isSafeInteger(event.exitCode) || event.exitCode < 0) {
+				this.fail(new Error(`The shell failed to start or exited abnormally (${event.exitCode}).`));
+				return;
+			}
+			this.exitCode = event.signal ? 128 + event.signal : event.exitCode;
+			this.finishOutput();
+		}));
+		this.send({ type: 'ready', version: protocolVersion });
 	}
 
 	private handleOutput(data: string): void {
@@ -248,14 +263,14 @@ export class TerminalBridge {
 		});
 	}
 
-	private fail(error: Error): void {
+	private fail(error: Error, clientMessage = 'The remote terminal bridge failed. Check the VS Code notification or output channel.'): void {
 		if (this.closed) {
 			return;
 		}
 		this.options.onError(error);
 		// Detailed process errors can contain host paths; only the remote extension logs those.
 		if (this.socket?.readyState === WebSocket.OPEN) {
-			this.socket.send(JSON.stringify({ type: 'error', message: 'The remote terminal bridge failed. Check the VS Code notification or output channel.' } satisfies ServerMessage));
+			this.socket.send(JSON.stringify({ type: 'error', message: clientMessage } satisfies ServerMessage));
 		}
 		this.dispose('error');
 	}

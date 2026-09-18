@@ -2,7 +2,7 @@
 	"name": "experimental-tunnel-terminal",
 	"displayName": "%displayName%",
 	"description": "%description%",
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"publisher": "vscode-experiments",
 	"private": true,
 	"license": "MIT",
@@ -37,11 +37,6 @@
 				"category": "%category%"
 			},
 			{
-				"command": "experimentalTunnelTerminal.copyToken",
-				"title": "%command.copyToken%",
-				"category": "%category%"
-			},
-			{
 				"command": "experimentalTunnelTerminal.stop",
 				"title": "%command.stop%",
 				"category": "%category%"
@@ -51,7 +46,6 @@
 			"commandPalette": [
 				{ "command": "experimentalTunnelTerminal.start", "when": "remoteName && !isWeb" },
 				{ "command": "experimentalTunnelTerminal.copyUrl", "when": "remoteName && !isWeb" },
-				{ "command": "experimentalTunnelTerminal.copyToken", "when": "remoteName && !isWeb" },
 				{ "command": "experimentalTunnelTerminal.stop", "when": "remoteName && !isWeb" }
 			]
 		}
@@ -60,7 +54,7 @@
 		"check": "tsc --noEmit",
 		"build": "node scripts/build.mjs",
 		"test": "npm run check && npm run build && node scripts/test.mjs",
-		"package": "npm run check && npm run build && vsce package",
+		"package": "npm run check && npm run build && node scripts/package.mjs",
 		"client": "node dist/client.cjs"
 	},
 	"dependencies": {

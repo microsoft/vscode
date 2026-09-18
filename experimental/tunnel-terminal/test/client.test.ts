@@ -11,10 +11,11 @@ import { Readable, Writable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test, TestContext } from 'node:test';
 import WebSocket, { WebSocketServer } from 'ws';
-import { main, normalizeTerminalUrl, readTerminalToken, runTerminalClient, TerminalInput, TerminalOutput } from '../src/client';
-import { ClientMessage, maxBufferedBytes, maxInputLength, maxMessageBytes, parseClientMessage, ServerMessage } from '../src/protocol';
+import { main, normalizeTerminalUrl, runTerminalClient, TerminalInput, TerminalOutput } from '../src/client';
+import { ClientMessage, maxBufferedBytes, maxInputLength, maxMessageBytes, parseClientMessage, protocolVersion, ServerMessage } from '../src/protocol';
 
-const token = '0123456789abcdef'.repeat(4);
+const pairingCode = '0123-4567-89AB';
+const pairingOutput = '\r\nPairing code: 0123-4567-89AB\r\nCompare this code with the code shown in VS Code. Click Allow only if both codes match.\r\nWaiting for approval in VS Code. Press Ctrl+C to cancel.\r\n';
 
 class TestInput extends Readable implements TerminalInput {
 	isTTY = true;
@@ -94,7 +95,7 @@ function send(socket: WebSocket, message: ServerMessage): void {
 	socket.send(JSON.stringify(message));
 }
 
-async function connect(t: TestContext, options: { ready?: boolean; timeoutMs?: number } = {}): Promise<{
+async function connect(t: TestContext, options: { pairing?: boolean; ready?: boolean; timeoutMs?: number; pairingTimeoutMs?: number } = {}): Promise<{
 	io: ReturnType<typeof terminal>;
 	socket: WebSocket;
 	messages: ClientMessage[];
@@ -109,14 +110,22 @@ async function connect(t: TestContext, options: { ready?: boolean; timeoutMs?: n
 			resolve(socket);
 		});
 	});
-	const result = runTerminalClient({ url, token, ...io, handshakeTimeoutMs: options.timeoutMs ?? 1000 });
+	const result = runTerminalClient({
+		url, ...io, handshakeTimeoutMs: options.timeoutMs ?? 1000,
+		pairingTimeoutMs: options.pairingTimeoutMs,
+	});
 	// Attach immediately so intentionally failing connections cannot become unhandled rejections.
 	void result.catch(() => { });
 	const socket = await connected;
 	await waitFor(() => messages.some(message => message.type === 'start'));
-	assert.equal(io.input.isRaw, false, 'Raw input must wait for the authenticated ready message');
+	assert.equal(io.input.isRaw, false, 'Raw input must wait for approval and the ready message');
+	if (options.pairing !== false) {
+		send(socket, { type: 'pairing', version: protocolVersion, code: pairingCode });
+		await waitFor(() => io.output.text.includes(pairingCode));
+		assert.equal(io.input.isRaw, false, 'Displaying the pairing code must not enable raw input');
+	}
 	if (options.ready !== false) {
-		send(socket, { type: 'ready', version: 1 });
+		send(socket, { type: 'ready', version: protocolVersion });
 		await waitFor(() => io.input.isRaw);
 	}
 	return { io, socket, messages, result };
@@ -151,38 +160,12 @@ test('rejects insecure remote URLs, unsupported schemes, credentials and fragmen
 	}
 });
 
-test('hidden token prompt supports paste, editing and bracketed paste across chunks', async () => {
-	const io = terminal();
-	const result = readTerminalToken(io.input, io.output, io.signals);
-	io.input.push(Buffer.from('x\x15\x1b[20'));
-	io.input.push(Buffer.from(`0~${token.slice(0, -1)}X\b${token.slice(-1)}\x1b[201~\r\n`));
-	assert.equal(await result, token);
-	assert.deepEqual({
-		output: io.output.text,
-		rawModes: io.input.rawModes,
-	}, {
-		output: 'Terminal token (hidden; paste, then Enter): \r\n',
-		rawModes: [true, false],
-	});
-	assertClean(io);
-});
-
-test('token prompt rejects invalid tokens without echoing their contents', async () => {
-	for (const invalid of ['secret', 'f'.repeat(65), 'g'.repeat(64)]) {
-		const io = terminal();
-		const result = readTerminalToken(io.input, io.output, io.signals);
-		io.input.push(Buffer.from(`${invalid}\r`));
-		await assert.rejects(result, /64 hexadecimal/);
-		assert.equal(io.output.text.includes(invalid), false);
-		assertClean(io);
-	}
-});
-
-test('token prompt restores console on Ctrl+C, Ctrl+D, signals and input failure', async () => {
+test('URL prompt cleans up on Ctrl+C, Ctrl+D, signals and input failure without enabling raw mode', async () => {
 	for (const reason of ['ctrlC', 'ctrlD', 'SIGINT', 'SIGTERM', 'SIGHUP', 'error', 'end']) {
 		const io = terminal();
-		const result = readTerminalToken(io.input, io.output, io.signals);
-		io.input.push(Buffer.from(token.slice(0, 30)));
+		const error = new TestOutput();
+		const result = main([], { ...io, error });
+		io.input.push(Buffer.from('https://example.test'));
 		if (reason === 'ctrlC' || reason === 'ctrlD') {
 			io.input.push(Buffer.from(reason === 'ctrlC' ? '\x03' : '\x04'));
 		} else if (reason === 'error') {
@@ -192,44 +175,37 @@ test('token prompt restores console on Ctrl+C, Ctrl+D, signals and input failure
 		} else {
 			io.signals.emit(reason);
 		}
-		await assert.rejects(result, /cancelled|interrupted|input/i);
+		assert.equal(await result, 1);
+		assert.match(error.text, /cancelled|interrupted|input/i);
+		assert.deepEqual(io.input.rawModes, []);
 		assertClean(io);
 	}
 });
 
-test('token prompt preserves an existing raw and flowing input mode', async () => {
-	const io = terminal();
-	io.input.setRawMode(true);
-	io.input.resume();
-	const result = readTerminalToken(io.input, io.output, io.signals);
-	io.input.push(Buffer.from(`${token}\r`));
-	assert.equal(await result, token);
-	assert.deepEqual({ raw: io.input.isRaw, flowing: io.input.readableFlowing }, { raw: true, flowing: true });
-	io.input.pause();
-});
-
-test('help needs no TTY, while interactive usage and token arguments are rejected', async () => {
+test('help needs no TTY, while noninteractive usage and extra arguments are rejected', async () => {
 	const io = terminal();
 	io.input.isTTY = false;
 	io.output.isTTY = false;
 	assert.equal(await main(['--help'], io), 0);
 	assert.match(io.output.text, /Usage: node client.cjs \[URL\]/);
+	assert.match(io.output.text, /Click Allow in VS Code only if both codes match/);
 	assert.deepEqual(io.input.rawModes, []);
 	const error = new TestOutput();
 	assert.equal(await main(['https://example.test'], { ...io, error }), 1);
 	assert.match(error.text, /interactive terminal/);
-	assert.equal(await main(['https://example.test', token], { ...io, error }), 1);
-	assert.equal(error.text.includes(token), false);
+	assert.equal(await main(['https://example.test', 'extra'], { ...io, error }), 1);
+	assert.match(error.text, /at most one terminal URL/);
 });
 
-test('main prompts for a URL and hidden token then preserves the remote exit code', async t => {
+test('main prompts for a URL without raw mode, displays the pairing code and preserves the remote exit code', async t => {
 	const { server, url } = await localServer(t);
 	const io = terminal();
 	const error = new TestOutput();
 	server.on('connection', socket => {
 		socket.on('message', data => {
 			if (parseClientMessage(data.toString()).type === 'start') {
-				send(socket, { type: 'ready', version: 1 });
+				send(socket, { type: 'pairing', version: protocolVersion, code: pairingCode });
+				send(socket, { type: 'ready', version: protocolVersion });
 				send(socket, { type: 'data', data: 'hello from remote\r\n' });
 				send(socket, { type: 'exit', exitCode: 9 });
 				socket.close(1000);
@@ -237,36 +213,27 @@ test('main prompts for a URL and hidden token then preserves the remote exit cod
 		});
 	});
 	const result = main([], { ...io, error });
-	io.input.push(Buffer.from(`${url}\r`));
-	await waitFor(() => io.output.text.includes('Terminal token (hidden'));
-	io.input.push(Buffer.from(`${token}\r`));
+	assert.deepEqual(io.input.rawModes, []);
+	io.input.push(Buffer.from(`\x1b[200~${url}\x1b[201~\r\n`));
 	assert.deepEqual({ code: await result, error: error.text, output: io.output.text }, {
-		code: 9, error: '', output: `Terminal URL: ${url}\r\nTerminal token (hidden; paste, then Enter): \r\nhello from remote\r\n`,
+		code: 9, error: '', output: `Terminal URL: \r\n${pairingOutput}hello from remote\r\n`,
 	});
+	assert.deepEqual(io.input.rawModes, [true, false]);
 	assertClean(io);
 });
 
-test('token prompt restores console on stdout failure and raw-mode initialization failure', async () => {
+test('URL prompt cleans up on stdout failure without changing raw mode', async () => {
 	const brokenOutput = terminal();
-	const outputResult = readTerminalToken(brokenOutput.input, brokenOutput.output, brokenOutput.signals);
+	const error = new TestOutput();
+	const outputResult = main([], { ...brokenOutput, error });
 	brokenOutput.output.destroy(new Error('stdout failed'));
-	await assert.rejects(outputResult, /write terminal output/);
+	assert.equal(await outputResult, 1);
+	assert.match(error.text, /write terminal output/);
+	assert.deepEqual(brokenOutput.input.rawModes, []);
 	assertClean(brokenOutput);
-	class FailingInput extends TestInput {
-		override setRawMode(mode: boolean): this {
-			super.setRawMode(mode);
-			if (mode) {
-				throw new Error('raw mode failed');
-			}
-			return this;
-		}
-	}
-	const brokenInput = { ...terminal(), input: new FailingInput() };
-	await assert.rejects(readTerminalToken(brokenInput.input, brokenInput.output, brokenInput.signals), /interactive terminal input/);
-	assertClean(brokenInput);
 });
 
-test('authenticates only in the upgrade header, starts immediately, and forwards Ctrl+C, Unicode, resize and ACKs', async t => {
+test('starts without credentials, waits for pairing approval, then forwards Ctrl+C, Unicode, resize and ACKs', async t => {
 	const { server, url } = await localServer(t);
 	const io = terminal();
 	const messages: ClientMessage[] = [];
@@ -282,15 +249,23 @@ test('authenticates only in the upgrade header, starts immediately, and forwards
 			resolve(socket);
 		});
 	});
-	const result = runTerminalClient({ url: `${url}?routing=a%2Fb`, token, ...io });
+	const result = runTerminalClient({ url: `${url}?routing=a%2Fb`, ...io });
 	const socket = await connected;
 	await waitFor(() => messages.length === 1);
 	assert.deepEqual({ headers, messages, raw: io.input.isRaw }, {
-		headers: { authorization: `Bearer ${token}`, url: '/terminal?routing=a%2Fb', extensions: undefined },
-		messages: [{ type: 'start', version: 1, cols: 100, rows: 30 }],
+		headers: { authorization: undefined, url: '/terminal?routing=a%2Fb', extensions: undefined },
+		messages: [{ type: 'start', version: protocolVersion, cols: 100, rows: 30 }],
 		raw: false,
 	});
-	send(socket, { type: 'ready', version: 1 });
+	send(socket, { type: 'pairing', version: protocolVersion, code: pairingCode });
+	await waitFor(() => io.output.text.includes(pairingCode));
+	assert.deepEqual({
+		raw: io.input.isRaw, inputListeners: io.input.listenerCount('data'), messages, output: io.output.text,
+	}, {
+		raw: false, inputListeners: 0,
+		messages: [{ type: 'start', version: protocolVersion, cols: 100, rows: 30 }], output: pairingOutput,
+	});
+	send(socket, { type: 'ready', version: protocolVersion });
 	await waitFor(() => io.input.isRaw);
 	io.input.push(Buffer.from('echo hello\r\x03'));
 	const emoji = Buffer.from('🙂');
@@ -314,11 +289,135 @@ test('authenticates only in the upgrade header, starts immediately, and forwards
 		input: [{ type: 'input', data: 'echo hello\r\x03' }, { type: 'input', data: '🙂' }, { type: 'input', data: '\x03' }],
 		resize: { type: 'resize', cols: 120, rows: 45 },
 		acks: [{ type: 'ack', chars: 'remote 🙂\r\n'.length }],
-		output: 'remote 🙂\r\n',
+		output: `${pairingOutput}remote 🙂\r\n`,
 	});
 	send(socket, { type: 'exit', exitCode: 7 });
 	socket.close(1000);
 	assert.equal(await result, 7);
+	assertClean(io);
+});
+
+test('ready before pairing is rejected without enabling raw input', async t => {
+	const { io, socket, result } = await connect(t, { pairing: false, ready: false });
+	send(socket, { type: 'ready', version: protocolVersion });
+	await assert.rejects(result, /unexpected state/);
+	assert.deepEqual({ rawModes: io.input.rawModes, output: io.output.text }, { rawModes: [], output: '' });
+	assertClean(io);
+});
+
+test('malformed pairing messages fail before displaying an untrusted code', async t => {
+	for (const message of [
+		{ type: 'pairing', version: 1, code: pairingCode },
+		{ type: 'pairing', version: protocolVersion },
+		{ type: 'pairing', version: protocolVersion, code: 'abcd-1234-5678' },
+		{ type: 'pairing', version: protocolVersion, code: '0123-4567-89AG' },
+		{ type: 'pairing', version: protocolVersion, code: '0123456789AB' },
+		{ type: 'pairing', version: protocolVersion, code: `${pairingCode}\x1b[2J` },
+		{ type: 'pairing', version: protocolVersion, code: 1234 },
+	]) {
+		const { io, socket, result } = await connect(t, { pairing: false, ready: false });
+		socket.send(JSON.stringify(message));
+		await assert.rejects(result, /invalid terminal message/);
+		assert.deepEqual({ output: io.output.text, rawModes: io.input.rawModes }, { output: '', rawModes: [] });
+		assertClean(io);
+	}
+});
+
+test('duplicate pairing is rejected while awaiting approval and after ready', async t => {
+	for (const ready of [false, true]) {
+		const { io, socket, result } = await connect(t, { ready });
+		send(socket, { type: 'pairing', version: protocolVersion, code: 'AAAA-BBBB-CCCC' });
+		await assert.rejects(result, /unexpected state/);
+		assert.equal(io.output.text, pairingOutput);
+		assertClean(io);
+	}
+});
+
+test('denied pairing is a failure and never enables raw input', async t => {
+	const { io, socket, result } = await connect(t, { ready: false });
+	send(socket, { type: 'error', message: 'Connection denied. Reconnect to try again.' });
+	socket.close(1000);
+	await assert.rejects(result, /Connection denied/);
+	assert.deepEqual({ output: io.output.text, rawModes: io.input.rawModes }, { output: pairingOutput, rawModes: [] });
+	assertClean(io);
+});
+
+test('pairing approval uses its longer deadline instead of the initial handshake deadline', async t => {
+	const { io, socket, result } = await connect(t, { ready: false, timeoutMs: 100 });
+	await delay(150);
+	assert.deepEqual({ state: socket.readyState, rawModes: io.input.rawModes }, { state: WebSocket.OPEN, rawModes: [] });
+	send(socket, { type: 'ready', version: protocolVersion });
+	send(socket, { type: 'exit', exitCode: 0 });
+	socket.close(1000);
+	assert.equal(await result, 0);
+	assertClean(io);
+});
+
+test('pairing timeout is configurable and directs the user to reconnect to the same URL', async t => {
+	const { io, result } = await connect(t, { ready: false, pairingTimeoutMs: 100 });
+	await assert.rejects(result, /Timed out waiting for approval in VS Code.*reconnect using the same URL/);
+	assert.deepEqual(io.input.rawModes, []);
+	assertClean(io);
+	for (const pairingTimeoutMs of [0, -1, Infinity, NaN]) {
+		await assert.rejects(runTerminalClient({ url: 'ws://localhost', ...terminal(), pairingTimeoutMs }), /pairing timeout must be positive/);
+	}
+});
+
+test('Ctrl+C cancels before pairing or while awaiting approval instead of sending remote input', async t => {
+	for (const pairing of [false, true]) {
+		const { io, messages, result } = await connect(t, { pairing, ready: false });
+		io.signals.emit('SIGINT');
+		await assert.rejects(result, /cancelled/);
+		assert.deepEqual({
+			rawModes: io.input.rawModes, messages,
+		}, {
+			rawModes: [], messages: [{ type: 'start', version: protocolVersion, cols: 100, rows: 30 }],
+		});
+		assertClean(io);
+	}
+});
+
+test('signals, input failure, stdout failure and disconnect clean up while awaiting approval', async t => {
+	for (const reason of ['SIGTERM', 'SIGHUP', 'input', 'output', 'disconnect']) {
+		const { io, socket, result } = await connect(t, { ready: false });
+		if (reason === 'input') {
+			io.input.emit('error', new Error('input failed'));
+		} else if (reason === 'output') {
+			io.output.destroy(new Error('stdout failed'));
+		} else if (reason === 'disconnect') {
+			socket.terminate();
+		} else {
+			io.signals.emit(reason);
+		}
+		await assert.rejects(result, /interrupted|terminal input|terminal output|closed unexpectedly/);
+		assert.deepEqual(io.input.rawModes, []);
+		assertClean(io);
+	}
+});
+
+test('pairing instructions are flushed before remote output and are never ACKed', async t => {
+	const { io, socket, messages, result } = await connect(t, { pairing: false, ready: false });
+	io.output.block = true;
+	send(socket, { type: 'pairing', version: protocolVersion, code: pairingCode });
+	await waitFor(() => io.output.pending.length === 1);
+	assert.deepEqual({ output: io.output.text, rawModes: io.input.rawModes }, { output: pairingOutput, rawModes: [] });
+	send(socket, { type: 'ready', version: protocolVersion });
+	send(socket, { type: 'data', data: 'remote output' });
+	await waitFor(() => io.input.isRaw);
+	assert.deepEqual({ output: io.output.text, acks: messages.filter(message => message.type === 'ack') }, { output: pairingOutput, acks: [] });
+	io.output.pending.shift()!();
+	await waitFor(() => io.output.pending.length === 1);
+	assert.deepEqual({
+		output: io.output.text, acks: messages.filter(message => message.type === 'ack'),
+	}, {
+		output: `${pairingOutput}remote output`, acks: [],
+	});
+	io.output.pending.shift()!();
+	await waitFor(() => messages.some(message => message.type === 'ack'));
+	assert.deepEqual(messages.filter(message => message.type === 'ack'), [{ type: 'ack', chars: 'remote output'.length }]);
+	send(socket, { type: 'exit', exitCode: 0 });
+	socket.close(1000);
+	assert.equal(await result, 0);
 	assertClean(io);
 });
 
@@ -356,20 +455,20 @@ test('ACK waits for stdout callback, and normal close waits for the final output
 	assert.deepEqual({ resolved, raw: io.input.isRaw }, { resolved: false, raw: true });
 	io.output.pending.shift()!();
 	assert.equal(await result, 0);
-	assert.equal(io.output.text, 'first 🙂last output');
+	assert.equal(io.output.text, `${pairingOutput}first 🙂last output`);
 	assertClean(io);
 });
 
-test('invalid authentication is a nonzero failure without entering raw mode', async t => {
+test('denied tunnel access is a failure without entering raw mode', async t => {
 	const { server, url } = await localServer(t);
 	server.options.verifyClient = (_info, done) => done(false, 401);
 	const io = terminal();
-	await assert.rejects(runTerminalClient({ url, token, ...io }), /authentication.*401/i);
+	await assert.rejects(runTerminalClient({ url, ...io }), /Tunnel access.*401/i);
 	assert.deepEqual(io.input.rawModes, []);
 	assertClean(io);
 });
 
-test('redirects are rejected rather than following them with the bearer token', async t => {
+test('redirects are rejected rather than followed', async t => {
 	let upgrades = 0;
 	const server = createServer();
 	server.on('upgrade', (_request, socket) => {
@@ -381,9 +480,24 @@ test('redirects are rejected rather than following them with the bearer token', 
 	await once(server, 'listening');
 	const io = terminal();
 	await assert.rejects(runTerminalClient({
-		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/terminal`, token, ...io,
-	}), /302.*redirects are not followed/i);
+		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/terminal`, ...io,
+	}), /302.*redirects are not followed.*local companion.*127\.0\.0\.1/i);
 	assert.equal(upgrades, 1);
+	assertClean(io);
+});
+
+test('capacity rejection asks the user to release a slot and reuse the URL', async t => {
+	const server = createServer();
+	server.on('upgrade', (_request, socket) => {
+		socket.end('HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
+	});
+	server.listen(0, '127.0.0.1');
+	t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+	await once(server, 'listening');
+	const address = server.address();
+	assert.ok(address && typeof address !== 'string');
+	const io = terminal();
+	await assert.rejects(runTerminalClient({ url: `http://127.0.0.1:${address.port}/terminal`, ...io }), /connection limit.*429.*Close a session.*same URL/);
 	assertClean(io);
 });
 
@@ -410,14 +524,15 @@ test('abrupt disconnect still flushes already received terminal output', async t
 	assert.equal(io.input.isRaw, true);
 	io.output.pending.shift()!();
 	await assert.rejects(result, /closed unexpectedly/);
-	assert.equal(io.output.text, 'received before disconnect');
+	assert.equal(io.output.text, `${pairingOutput}received before disconnect`);
 	assertClean(io);
 });
 
 test('malformed, binary and unexpected messages fail closed', async t => {
 	for (const message of [
 		'{', '[]', '{"type":"data","data":1}', '{"type":"exit","exitCode":-1}',
-		'{"type":"ready","version":1}', '{"type":"unsupported"}', Buffer.from('binary'),
+		'{"type":"ready","version":2}', '{"type":"ready","version":1}',
+		'{"type":"unsupported"}', Buffer.from('binary'),
 	]) {
 		const { io, socket, result } = await connect(t);
 		socket.send(message);
@@ -427,11 +542,15 @@ test('malformed, binary and unexpected messages fail closed', async t => {
 });
 
 test('data before ready and messages after exit are rejected', async t => {
-	const before = await connect(t, { ready: false });
-	send(before.socket, { type: 'data', data: 'too early' });
-	await assert.rejects(before.result, /unexpected state/);
-	assert.deepEqual({ output: before.io.output.text, rawModes: before.io.input.rawModes }, { output: '', rawModes: [] });
-	assertClean(before.io);
+	for (const pairing of [false, true]) {
+		const before = await connect(t, { pairing, ready: false });
+		send(before.socket, { type: 'data', data: 'too early' });
+		await assert.rejects(before.result, /unexpected state/);
+		assert.deepEqual({ output: before.io.output.text, rawModes: before.io.input.rawModes }, {
+			output: pairing ? pairingOutput : '', rawModes: [],
+		});
+		assertClean(before.io);
+	}
 	const after = await connect(t);
 	send(after.socket, { type: 'exit', exitCode: 0 });
 	send(after.socket, { type: 'data', data: 'too late' });
@@ -465,13 +584,13 @@ test('queued output is bounded even when stdout has not completed a write', asyn
 	await closed;
 	io.output.pending.shift()!();
 	await assert.rejects(result, /output buffer limit/);
-	assert.equal(io.output.text.length, text.length);
+	assert.equal(io.output.text.length, pairingOutput.length + text.length);
 	assertClean(io);
 });
 
-test('ready and exit-close deadlines fail and restore the console', async t => {
-	const before = await connect(t, { ready: false, timeoutMs: 100 });
-	await assert.rejects(before.result, /Timed out.*ready/);
+test('pairing-code and exit-close deadlines fail and restore the console', async t => {
+	const before = await connect(t, { pairing: false, ready: false, timeoutMs: 100 });
+	await assert.rejects(before.result, /Timed out.*pairing code/);
 	assertClean(before.io);
 	const after = await connect(t, { timeoutMs: 100 });
 	send(after.socket, { type: 'exit', exitCode: 0 });

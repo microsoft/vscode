@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const protocolVersion = 1;
+export const protocolVersion = 2;
 export const maxMessageBytes = 1024 * 1024;
 export const maxInputLength = 16 * 1024;
 export const maxBufferedBytes = 1024 * 1024;
@@ -11,13 +11,14 @@ export const outputHighWatermark = 64 * 1024;
 export const outputLowWatermark = 16 * 1024;
 
 export type ClientMessage =
-	| { type: 'start'; version: 1; cols: number; rows: number }
+	| { type: 'start'; version: 2; cols: number; rows: number }
 	| { type: 'input'; data: string }
 	| { type: 'resize'; cols: number; rows: number }
 	| { type: 'ack'; chars: number };
 
 export type ServerMessage =
-	| { type: 'ready'; version: 1 }
+	| { type: 'pairing'; version: 2; code: string }
+	| { type: 'ready'; version: 2 }
 	| { type: 'data'; data: string }
 	| { type: 'exit'; exitCode: number }
 	| { type: 'error'; message: string };
@@ -63,6 +64,11 @@ export function parseServerMessage(text: string): ServerMessage {
 	const value: unknown = JSON.parse(text);
 	if (isRecord(value)) {
 		switch (value.type) {
+			case 'pairing':
+				if (value.version === protocolVersion && typeof value.code === 'string' && /^[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}$/.test(value.code)) {
+					return { type: 'pairing', version: protocolVersion, code: value.code };
+				}
+				break;
 			case 'ready':
 				if (value.version === protocolVersion) {
 					return { type: 'ready', version: protocolVersion };

@@ -24,11 +24,11 @@ export interface TerminalOutput extends Writable {
 
 export interface TerminalClientOptions {
 	url: string | URL;
-	token: string;
 	input?: TerminalInput;
 	output?: TerminalOutput;
 	signals?: EventEmitter;
 	handshakeTimeoutMs?: number;
+	pairingTimeoutMs?: number;
 }
 
 export interface TerminalClientIO {
@@ -73,12 +73,6 @@ function requireTerminal(input: TerminalInput, output: TerminalOutput): void {
 	}
 }
 
-function validateToken(token: string): void {
-	if (!/^[a-fA-F0-9]{64}$/.test(token)) {
-		throw new Error('The terminal token must contain exactly 64 hexadecimal characters.');
-	}
-}
-
 function writeOutput(output: Writable, text: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		if (output.destroyed || output.writableEnded) {
@@ -107,16 +101,14 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : 'Terminal client failed.';
 }
 
-function readPrompt(input: TerminalInput, output: TerminalOutput, signals: EventEmitter, label: string, hidden: boolean): Promise<string> {
+function readTerminalUrl(input: TerminalInput, output: TerminalOutput, signals: EventEmitter): Promise<string> {
 	requireTerminal(input, output);
-	const wasRaw = input.isRaw ?? false;
 	const wasFlowing = input.readableFlowing === true;
 	const decoder = new StringDecoder('utf8');
 	return new Promise((resolve, reject) => {
 		let value = '';
 		let escape = '';
 		let finished = false;
-		let rawTouched = false;
 		let outputFailed = false;
 
 		const cleanup = (): void => {
@@ -128,9 +120,6 @@ function readPrompt(input: TerminalInput, output: TerminalOutput, signals: Event
 			signals.off('SIGINT', onInterrupt);
 			signals.off('SIGTERM', onTerminate);
 			signals.off('SIGHUP', onHangup);
-			if (rawTouched) {
-				input.setRawMode?.(wasRaw);
-			}
 			if (wasFlowing) {
 				input.resume();
 			} else {
@@ -175,19 +164,6 @@ function readPrompt(input: TerminalInput, output: TerminalOutput, signals: Event
 			outputFailed = true;
 			finish(new Error('Unable to write terminal output.'));
 		};
-		const echo = (text: string): void => {
-			if (!hidden) {
-				try {
-					output.write(text, error => {
-						if (error) {
-							onOutputError();
-						}
-					});
-				} catch {
-					onOutputError();
-				}
-			}
-		};
 		const onData = (chunk: Buffer | string): void => {
 			const text = typeof chunk === 'string' ? chunk : decoder.write(chunk);
 			for (const character of text) {
@@ -212,18 +188,15 @@ function readPrompt(input: TerminalInput, output: TerminalOutput, signals: Event
 				if (character === '\x7f' || character === '\b') {
 					if (value.length) {
 						value = value.slice(0, -1);
-						echo('\b \b');
 					}
 				} else if (character === '\x15') {
-					echo('\b \b'.repeat(value.length));
 					value = '';
 				} else if (character >= ' ' && character <= '~') {
 					value += character;
-					if (value.length > (hidden ? 1024 : 4096)) {
+					if (value.length > 4096) {
 						finish(new Error('Terminal prompt input is too long.'));
 						return;
 					}
-					echo(character);
 				} else {
 					finish(new Error('Invalid character in terminal prompt.'));
 					return;
@@ -239,20 +212,12 @@ function readPrompt(input: TerminalInput, output: TerminalOutput, signals: Event
 		signals.on('SIGTERM', onTerminate);
 		signals.on('SIGHUP', onHangup);
 		try {
-			rawTouched = true;
-			input.setRawMode?.(true);
-			void writeOutput(output, label).catch(onOutputError);
+			void writeOutput(output, 'Terminal URL: ').catch(onOutputError);
 			input.resume();
 		} catch {
 			finish(new Error('Unable to read interactive terminal input.'));
 		}
 	});
-}
-
-export async function readTerminalToken(input: TerminalInput, output: TerminalOutput, signals: EventEmitter = process): Promise<string> {
-	const token = await readPrompt(input, output, signals, 'Terminal token (hidden; paste, then Enter): ', true);
-	validateToken(token);
-	return token;
 }
 
 function messageText(data: RawData): string {
@@ -268,26 +233,28 @@ function messageText(data: RawData): string {
  */
 export async function runTerminalClient(options: TerminalClientOptions): Promise<number> {
 	const url = normalizeTerminalUrl(options.url.toString());
-	validateToken(options.token);
 	const input = options.input ?? process.stdin;
 	const output = options.output ?? process.stdout;
 	const signals = options.signals ?? process;
 	requireTerminal(input, output);
 	const timeoutMs = options.handshakeTimeoutMs ?? 10000;
+	const pairingTimeoutMs = options.pairingTimeoutMs ?? 65000;
 	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
 		throw new Error('The terminal handshake timeout must be positive.');
+	}
+	if (!Number.isFinite(pairingTimeoutMs) || pairingTimeoutMs <= 0) {
+		throw new Error('The terminal pairing timeout must be positive.');
 	}
 	const wasRaw = input.isRaw ?? false;
 	const wasFlowing = input.readableFlowing === true;
 	const socket = new WebSocket(url, {
-		headers: { Authorization: `Bearer ${options.token}` },
 		followRedirects: false,
 		perMessageDeflate: false,
 		maxPayload: maxMessageBytes,
 		handshakeTimeout: timeoutMs,
 	});
 	return new Promise((resolve, reject) => {
-		let state: 'connecting' | 'starting' | 'ready' | 'exiting' | 'finishing' = 'connecting';
+		let state: 'connecting' | 'starting' | 'pairing' | 'ready' | 'exiting' | 'finishing' = 'connecting';
 		let exitCode: number | undefined;
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let outputTail = Promise.resolve();
@@ -430,7 +397,7 @@ export async function runTerminalClient(options: TerminalClientOptions): Promise
 				return;
 			}
 			state = 'starting';
-			timer = setTimeout(() => finish(new Error('Timed out waiting for the remote terminal to become ready.')), timeoutMs);
+			timer = setTimeout(() => finish(new Error('Timed out waiting for the terminal pairing code.')), timeoutMs);
 			send({ type: 'start', version: protocolVersion, ...size() });
 		};
 		const onMessage = (data: RawData, isBinary: boolean): void => {
@@ -448,9 +415,16 @@ export async function runTerminalClient(options: TerminalClientOptions): Promise
 				finish(new Error('Received an invalid terminal message.'));
 				return;
 			}
-			if (message.type === 'error' && (state === 'starting' || state === 'ready')) {
+			if (message.type === 'error' && (state === 'starting' || state === 'pairing' || state === 'ready')) {
 				finish(new Error(`Remote terminal error: ${message.message}`));
-			} else if (message.type === 'ready' && state === 'starting') {
+			} else if (message.type === 'pairing' && state === 'starting') {
+				clearTimer();
+				state = 'pairing';
+				timer = setTimeout(() => finish(new Error('Timed out waiting for approval in VS Code. Dismiss the old dialog and reconnect using the same URL.')), pairingTimeoutMs);
+				const text = `\r\nPairing code: ${message.code}\r\nCompare this code with the code shown in VS Code. Click Allow only if both codes match.\r\nWaiting for approval in VS Code. Press Ctrl+C to cancel.\r\n`;
+				outputTail = outputTail.then(() => writeOutput(output, text));
+				void outputTail.catch(onOutputError);
+			} else if (message.type === 'ready' && state === 'pairing') {
 				clearTimer();
 				state = 'ready';
 				try {
@@ -489,7 +463,7 @@ export async function runTerminalClient(options: TerminalClientOptions): Promise
 				finish(new Error('Received a terminal message in an unexpected state.'));
 			}
 		};
-		const onSocketError = (): void => finish(new Error('Terminal connection failed. Check the URL, tunnel access, and token.'));
+		const onSocketError = (): void => finish(new Error('Terminal connection failed. Check the URL, tunnel access, and bridge status.'));
 		const onClose = (code: number): void => {
 			markSocketClosed();
 			if (state !== 'finishing') {
@@ -503,9 +477,11 @@ export async function runTerminalClient(options: TerminalClientOptions): Promise
 		const onUnexpectedResponse = (_request: import('node:http').ClientRequest, response: import('node:http').IncomingMessage): void => {
 			const status = response.statusCode ?? 0;
 			response.destroy();
-			finish(new Error(status === 401 || status === 403
-				? `Terminal authentication or tunnel access failed (HTTP ${status}).`
-				: `Terminal WebSocket upgrade rejected (HTTP ${status}); redirects are not followed.`));
+			finish(new Error(status === 409 || status === 429
+				? `The terminal bridge is at its connection limit (HTTP ${status}). Close a session and retry the same URL.`
+				: status === 401 || status === 403
+				? `Tunnel access failed (HTTP ${status}).`
+				: `Terminal WebSocket upgrade rejected (HTTP ${status}); redirects are not followed. Install the local companion and copy a fresh 127.0.0.1 connection URL from Start Bridge, not a Dev Tunnels web URL.`));
 		};
 		input.on('error', onInputError);
 		input.on('end', onInputEnd);
@@ -534,8 +510,8 @@ export async function main(args: readonly string[] = process.argv.slice(2), io: 
 				'Usage: node client.cjs [URL]',
 				'',
 				'Run in an interactive terminal. If omitted, the URL is prompted for.',
-				'Paste the 64-character terminal token at the hidden prompt, then press Enter.',
-				'The token is sent only in the Authorization header, never in the URL.',
+				'Compare the pairing code displayed here with the code shown in VS Code.',
+				'Click Allow in VS Code only if both codes match. Ctrl+C cancels while waiting.',
 				'HTTPS/WSS is required except for local loopback connections.',
 				'While connected, Ctrl+C is sent to the remote shell. Use exit to disconnect.',
 				'',
@@ -543,13 +519,12 @@ export async function main(args: readonly string[] = process.argv.slice(2), io: 
 			return 0;
 		}
 		if (args.length > 1 || args[0]?.startsWith('-')) {
-			throw new Error('Usage: node client.cjs [URL]. Tokens must be entered at the hidden prompt, not as arguments.');
+			throw new Error('Usage: node client.cjs [URL]. Provide at most one terminal URL.');
 		}
 		requireTerminal(input, output);
 		const signals = io.signals ?? process;
-		const url = normalizeTerminalUrl(args[0] ?? await readPrompt(input, output, signals, 'Terminal URL: ', false));
-		const token = await readTerminalToken(input, output, signals);
-		return await runTerminalClient({ url, token, input, output, signals });
+		const url = normalizeTerminalUrl(args[0] ?? await readTerminalUrl(input, output, signals));
+		return await runTerminalClient({ url, input, output, signals });
 	} catch (error) {
 		try {
 			const message = errorMessage(error).replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
