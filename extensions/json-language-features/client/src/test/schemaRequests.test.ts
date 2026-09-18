@@ -1,0 +1,191 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as assert from 'assert';
+import { suite, suiteSetup, test } from 'mocha';
+import { createMatcher, createSchemaClient, RequestOptions } from './schemaRequestTestUtils';
+
+const disguisedHost = 'https://attacker.example%5Cfake.trusted.example/schema.json';
+
+suite('JSON schema URL matching', () => {
+	let matches: Awaited<ReturnType<typeof createMatcher>>;
+	suiteSetup(async () => { matches = await createMatcher(); });
+
+	test('regression: a decoded backslash cannot grant a scoped wildcard domain allowance', () => {
+		assert.strictEqual(matches(disguisedHost, { 'https://*.trusted.example': true }), false);
+	});
+
+	test('regression: a decoded backslash cannot evade a scoped destination denial', () => {
+		assert.strictEqual(matches(disguisedHost, { 'https://attacker.example': false, '*': true }), false);
+	});
+
+	test('regression: a decoded backslash cannot grant implicit localhost trust', () => {
+		assert.strictEqual(matches('https://attacker.example%5Cfake.localhost/schema.json', {}), false);
+	});
+
+	test('regression: canonical paths cannot escape an allowed schema directory', () => {
+		assert.strictEqual(matches('https://api.trusted.example/schemas/../private/schema.json', { 'https://*.trusted.example/schemas/': true }), false);
+	});
+
+	test('regression: canonical paths retain a scoped denial before a broader allowance', () => {
+		assert.strictEqual(matches('https://api.trusted.example/schemas/../private/schema.json', {
+			'https://*.trusted.example/private/': false,
+			'https://*.trusted.example': true
+		}), false);
+	});
+
+	test('controls: ordinary domains, ports, paths, schemes and ordered denials', () => {
+		const domains = {
+			'https://*.trusted.example/private/': false,
+			'https://*.trusted.example/schemas/': true,
+			'https://api.trusted.example:8443/schemas/': true
+		};
+		assert.deepStrictEqual([
+			matches('https://trusted.example/schemas/schema.json', domains),
+			matches('https://api.trusted.example/schemas/schema.json', domains),
+			matches('https://api.trusted.example:8443/schemas/schema.json', domains),
+			matches('https://api.trusted.example:8444/schemas/schema.json', domains),
+			matches('http://api.trusted.example/schemas/schema.json', domains),
+			matches('https://api.trusted.example/schemas-other/schema.json', domains),
+			matches('https://api.trusted.example/private/schema.json', domains),
+			matches('https://api.trusted.example/schema.json', { 'https://*.trusted.example': false, '*': true }),
+			matches('https://api.trusted.example/schema.json', { '*': false }),
+			matches('https://api.trusted.example:443/schemas/schema.json', { 'https://api.trusted.example:443/schemas/': true }),
+			matches('file:///schemas/schema.json', { 'file:///schemas/': true })
+		], [true, true, true, false, false, false, false, false, false, true, true]);
+	});
+});
+
+for (const transport of ['browser', 'node'] as const) {
+	suite(`JSON schema ${transport} request dispatch`, () => {
+		async function withClient(options: RequestOptions, run: (client: Awaited<ReturnType<typeof createSchemaClient>>) => Promise<void>) {
+			const client = await createSchemaClient(transport, options);
+			try {
+				await run(client);
+			} finally {
+				await client.dispose();
+			}
+		}
+
+		test('regression: a suffix-only allowance dispatches zero requests', async () => {
+			await withClient({ trustedDomains: { 'https://*.trusted.example': true } }, async client => {
+				const result = await client.request(disguisedHost).then(() => undefined, error => error.code);
+				assert.deepStrictEqual({ error: result, requests: client.requests }, { error: 2, requests: [] });
+			});
+		});
+
+		test('regression: a scoped destination denial dispatches zero requests', async () => {
+			await withClient({ trustedDomains: { 'https://attacker.example': false, '*': true } }, async client => {
+				const result = await client.request(disguisedHost).then(() => undefined, error => error.code);
+				assert.deepStrictEqual({ error: result, requests: client.requests }, { error: 2, requests: [] });
+			});
+		});
+
+		test('regression: the checked and fetched canonical destinations are identical', async () => {
+			await withClient({ trustedDomains: { 'https://*.trusted.example/schemas/': true } }, async client => {
+				await client.request('https://api.trusted.example/schemas/../schemas/schema%20name.json');
+				const url = 'https://api.trusted.example/schemas/schema%20name.json';
+				assert.deepStrictEqual({
+					checked: client.checked,
+					requests: client.requests
+				}, {
+					checked: [{ url, allowed: true }],
+					requests: [{ url, host: 'api.trusted.example', path: '/schemas/schema%20name.json' }]
+				});
+			});
+		});
+
+		for (const association of ['configured', 'extension-contributed'] as const) {
+			test(`regression: ${association} schema allowances use the same canonical destination`, async () => {
+				const input = 'https://configured.example:443/schemas/../schemas/schema name.json';
+				const options: RequestOptions = association === 'configured'
+					? { trustedDomains: {}, schemas: [{ url: input }] }
+					: { trustedDomains: {}, extensionSchemas: [input] };
+				await withClient(options, async client => {
+					await client.request(input);
+					const url = 'https://configured.example/schemas/schema%20name.json';
+					assert.deepStrictEqual({
+						checked: client.checked,
+						requests: client.requests
+					}, {
+						checked: [{ url, allowed: false }],
+						requests: [{ url, host: 'configured.example', path: '/schemas/schema%20name.json' }]
+					});
+				});
+			});
+		}
+
+		test('controls: ordinary allowed schemas keep explicit ports and paths', async () => {
+			await withClient({ trustedDomains: { 'https://api.trusted.example:8443/schemas/': true } }, async client => {
+				const url = 'https://api.trusted.example:8443/schemas/schema.json';
+				const content = await client.request(url);
+				assert.deepStrictEqual({
+					content,
+					checked: client.checked,
+					requests: client.requests
+				}, {
+					content: '{"type":"object"}',
+					checked: [{ url, allowed: true }],
+					requests: [{ url, host: 'api.trusted.example:8443', path: '/schemas/schema.json' }]
+				});
+			});
+		});
+
+		test('controls: configured and extension-contributed schemas remain allowed', async () => {
+			const configured = 'https://configured.example/schema.json';
+			const contributed = 'https://contributed.example/schema.json';
+			await withClient({ trustedDomains: {}, schemas: [{ url: configured }], extensionSchemas: [contributed] }, async client => {
+				await client.request(configured);
+				await client.request(contributed);
+				assert.deepStrictEqual(client.requests.map(request => request.url), [configured, contributed]);
+			});
+		});
+
+		test('controls: ordinary scoped denials dispatch zero requests', async () => {
+			await withClient({ trustedDomains: { 'https://*.trusted.example/private/': false, '*': true } }, async client => {
+				const result = await client.request('https://api.trusted.example/private/schema.json').then(() => undefined, error => error.code);
+				assert.deepStrictEqual({ error: result, requests: client.requests }, { error: 2, requests: [] });
+			});
+		});
+
+		test('controls: disabled downloads dispatch zero requests before trust checks', async () => {
+			await withClient({ trustedDomains: { '*': true }, downloadEnabled: false }, async client => {
+				const result = await client.request(disguisedHost).then(() => undefined, error => error.code);
+				assert.deepStrictEqual({ error: result, checked: client.checked, requests: client.requests }, { error: 4, checked: [], requests: [] });
+			});
+		});
+
+		test('controls: untrusted workspaces dispatch zero requests before domain checks', async () => {
+			await withClient({ trustedDomains: { '*': true }, workspaceTrusted: false }, async client => {
+				const result = await client.request(disguisedHost).then(() => undefined, error => error.code);
+				assert.deepStrictEqual({ error: result, checked: client.checked, requests: client.requests }, { error: 1, checked: [], requests: [] });
+			});
+		});
+
+		test('controls: non-network resources retain their existing handlers', async () => {
+			await withClient({ trustedDomains: {}, downloadEnabled: false, workspaceTrusted: false }, async client => {
+				const document = 'file:///schemas/schema.json';
+				const resource = 'vscode://schemas/schema.json';
+				const contents = [await client.request(document), await client.request(resource)];
+				const untitledError = await client.request('untitled:Untitled-1').then(() => undefined, error => error.code);
+				assert.deepStrictEqual({
+					contents,
+					untitledError,
+					documents: client.documents,
+					files: client.files,
+					requests: client.requests,
+					checked: client.checked
+				}, {
+					contents: ['{"type":"object"}', '{"type":"object"}'],
+					untitledError: 7,
+					documents: [document],
+					files: [resource],
+					requests: [],
+					checked: []
+				});
+			});
+		});
+	});
+}
