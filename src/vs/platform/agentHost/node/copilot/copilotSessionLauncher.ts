@@ -993,7 +993,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			...(hydraFusionEnabled ? {
+				enableExperimentalMode: true,
+				featureFlags: {
+					HYDRAFUSION: true,
+					HYDRAFUSION_ROLLOUT: true,
+				},
+			} : {}),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless

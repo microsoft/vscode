@@ -5269,7 +5269,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			process.env,
 			omittedKeys,
 			this._isClaudeAdvisorEnabled(),
-			this._isHydraFusionEnabled(),
 			skillCharBudget,
 		);
 		if (proxy) {

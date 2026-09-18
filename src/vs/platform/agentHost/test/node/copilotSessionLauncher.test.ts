@@ -1503,7 +1503,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> {
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -1517,7 +1517,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> })._buildSessionConfig(plan, runtime, () => { });
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> })._buildSessionConfig(plan, runtime, () => { });
 	}
 
 	test('enables experimental mode only with HydraFusion opt-in', async () => {
@@ -1529,13 +1529,22 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual({
 			model: enabled.model,
 			enabledExperimentalMode: enabled.enableExperimentalMode,
+			enabledFeatureFlags: enabled.featureFlags,
 			disabledExperimentalMode: disabled.enableExperimentalMode,
+			disabledFeatureFlags: disabled.featureFlags,
 			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
+			defaultFeatureFlags: notOptedIn.featureFlags,
 		}, {
 			model: undefined,
 			enabledExperimentalMode: true,
+			enabledFeatureFlags: {
+				HYDRAFUSION: true,
+				HYDRAFUSION_ROLLOUT: true,
+			},
 			disabledExperimentalMode: undefined,
+			disabledFeatureFlags: undefined,
 			defaultExperimentalMode: undefined,
+			defaultFeatureFlags: undefined,
 		});
 	});
 

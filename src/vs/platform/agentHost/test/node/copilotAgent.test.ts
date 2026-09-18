@@ -5748,36 +5748,33 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual([
 				createCopilotCliEnvironment({})['SKILL_CHAR_BUDGET'],
 				createCopilotCliEnvironment({ SKILL_CHAR_BUDGET: '15000' })['SKILL_CHAR_BUDGET'],
-				createCopilotCliEnvironment({}, [], false, false, 30_000)['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({}, [], false, 30_000)['SKILL_CHAR_BUDGET'],
 			], ['15000', '15000', '30000']);
 		});
 
-		for (const enabled of [false, true]) {
-			test(`sets standalone HydraFusion flags to ${enabled} and preserves inherited environment`, () => {
-				const ambient = Object.freeze({
-					COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION,HYDRAFUSION_ROLLOUT,COMPUTER_USE',
-					HYDRAFUSION: String(!enabled),
-					HYDRAFUSION_ROLLOUT: String(!enabled),
-					COMPUTER_USE: 'true',
-					PATH: '/usr/bin',
-				});
-				const env = createCopilotCliEnvironment(ambient, [], false, enabled);
-
-				assert.deepStrictEqual({
-					hydraFusion: env['HYDRAFUSION'],
-					hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
-					featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
-					computerUse: env['COMPUTER_USE'],
-					path: env['PATH'],
-				}, {
-					hydraFusion: String(enabled),
-					hydraFusionRollout: String(enabled),
-					featureFlags: ambient.COPILOT_CLI_ENABLED_FEATURE_FLAGS,
-					computerUse: 'true',
-					path: '/usr/bin',
-				});
+		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
+			const env = createCopilotCliEnvironment({
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT',
+				HYDRAFUSION: 'true',
+				HYDRAFUSION_ROLLOUT: 'true',
+				COMPUTER_USE: 'true',
+				PATH: '/usr/bin',
 			});
-		}
+
+			assert.deepStrictEqual({
+				hydraFusion: env['HYDRAFUSION'],
+				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
+				featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
+				computerUse: env['COMPUTER_USE'],
+				path: env['PATH'],
+			}, {
+				hydraFusion: undefined,
+				hydraFusionRollout: undefined,
+				featureFlags: 'COMPUTER_USE',
+				computerUse: 'true',
+				path: '/usr/bin',
+			});
+		});
 
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
@@ -6381,7 +6378,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables Rubber Duck and disables Claude Advisor and HydraFusion by default', async () => {
+		test('enables Rubber Duck and disables Claude Advisor by default', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
@@ -6392,14 +6389,10 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					rubberDuck: env?.['RUBBER_DUCK_AGENT'],
 					advisor: env?.['ANTHROPIC_ADVISOR'],
-					hydraFusion: env?.['HYDRAFUSION'],
-					hydraFusionRollout: env?.['HYDRAFUSION_ROLLOUT'],
 					skillCharBudget: env?.['SKILL_CHAR_BUDGET'],
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
-					hydraFusion: 'false',
-					hydraFusionRollout: 'false',
 					skillCharBudget: '15000',
 				});
 			} finally {
@@ -6465,12 +6458,8 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
-					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
 				}, {
 					models: ['gpt-5', 'hydrafusion'],
-					hydraFusion: 'true',
-					hydraFusionRollout: 'true',
 				});
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
@@ -6478,13 +6467,9 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				assert.deepStrictEqual({
 					models: agent.models.get().map(model => model.id),
-					hydraFusion: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION'],
-					hydraFusionRollout: getCreatedClientOptions(agent).at(-1)?.env?.['HYDRAFUSION_ROLLOUT'],
 					stopCallCount: client.stopCallCount,
 				}, {
 					models: ['gpt-5'],
-					hydraFusion: 'false',
-					hydraFusionRollout: 'false',
 					stopCallCount: 1,
 				});
 			} finally {
