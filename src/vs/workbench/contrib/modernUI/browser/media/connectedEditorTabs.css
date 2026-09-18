@@ -378,11 +378,11 @@
 	content: none;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):not(.tab-actions-left):is(:last-child, .last-in-row, .connected-tab-right-edge) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):not(.tab-actions-left):is(:last-child, .last-in-row) {
 	--modern-ui-tab-action-padding: calc(var(--vscode-spacing-size280) + var(--modern-ui-connected-tab-shoulder-radius) + var(--modern-ui-connected-tab-shoulder-radius));
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-actions-left:is(:last-child, .last-in-row, .connected-tab-right-edge) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-actions-left:is(:last-child, .last-in-row) {
 	padding-right: calc(var(--vscode-spacing-size80) + var(--modern-ui-connected-tab-shoulder-radius)) !important;
 }
 
