@@ -322,6 +322,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const badge = document.createElement('span');
 		badge.className = 'action-item-badge';
+		badge.ariaHidden = 'true';
 		container.append(badge);
 
 		const description = document.createElement('span');
@@ -964,6 +965,9 @@ export class ActionListWidget<T> extends Disposable {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
+						if (element.badge) {
+							label = label + ', ' + stripNewlines(element.badge);
+						}
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
 						}

@@ -3986,20 +3986,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
-		const config = createPolicyRestrictedConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+	for (const approvals of ['assisted', 'allowAll']) {
+		test(`createNewSession clamps seeded ${approvals} to default when policy disables global auto-approve`, async () => {
+			const config = createPolicyRestrictedConfigurationService();
+			await config.setUserConfiguration('chat.defaultConfiguration', { approvals });
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
-		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
-		}, {
-			seededImmediately: 'default',
-			forwardedToAgentHost: 'default',
+			assert.deepStrictEqual({
+				seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			}, {
+				seededImmediately: 'default',
+				forwardedToAgentHost: 'default',
+			});
 		});
-	});
+	}
 
 	for (const useWorktree of [true, false]) {
 		test(`remembered isolation bypasses useWorktree=${useWorktree} across workspaces`, async () => {
@@ -4649,23 +4651,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('setSessionConfigValue clamps autoApprove to default when policy disables global auto-approve', async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const config = createPolicyRestrictedConfigurationService();
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+	for (const level of ['assisted', 'autoApprove', 'autopilot']) {
+		test(`setSessionConfigValue clamps ${level} to default when policy disables global auto-approve`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const config = createPolicyRestrictedConfigurationService();
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await timeout(0);
 
-		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'autopilot');
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level);
 
-		assert.deepStrictEqual({
-			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
-		}, {
-			remembered: { [SessionConfigKey.AutoApprove]: 'default' },
-			forwardedToAgentHost: 'default',
+			assert.deepStrictEqual({
+				remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+				forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			}, {
+				remembered: { [SessionConfigKey.AutoApprove]: 'default' },
+				forwardedToAgentHost: 'default',
+			});
 		});
-	});
+	}
 
 	test('branch selection stays on the current workspace and the next workspace resolves its own branch', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());

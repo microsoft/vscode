@@ -197,6 +197,47 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('includes badges in accessible labels and clears them when rows are reused', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('Assisted permissions'),
+				badge: 'Experimental',
+				detail: 'Evaluates risk before running tools',
+			}],
+			listOptions: { showFilter: false },
+		});
+		const readRow = () => {
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+			const badge = row.querySelector<HTMLElement>('.action-item-badge')!;
+			return {
+				label: row.ariaLabel,
+				badge: badge.textContent,
+				badgeHidden: badge.ariaHidden,
+				badgeVisible: badge.style.display !== 'none',
+				afterTitle: badge.previousElementSibling?.classList.contains('title'),
+			};
+		};
+		const initial = readRow();
+		widget.updateItems([action('Manual permissions')]);
+
+		assert.deepStrictEqual({ initial, updated: readRow() }, {
+			initial: {
+				label: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+				badge: 'Experimental',
+				badgeHidden: 'true',
+				badgeVisible: true,
+				afterTitle: true,
+			},
+			updated: {
+				label: 'Manual permissions',
+				badge: '',
+				badgeHidden: 'true',
+				badgeVisible: false,
+				afterTitle: true,
+			},
+		});
+	});
+
 	test('recycled action icons do not retain a previous fallback or theme color', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [action('fallback')],

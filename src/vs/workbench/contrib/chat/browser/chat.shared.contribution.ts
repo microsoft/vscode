@@ -725,15 +725,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Permissions."),
 			default: ChatPermissionLevel.Default,
 		},
-		[ChatConfiguration.AssistedPermissionsEnabled]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('chat.assistedPermissions.enabled', "Controls whether Assisted permissions is shown in Agent Host approval pickers."),
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			},
-		},
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: true,
@@ -2649,13 +2640,11 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 	},
 	{
 		key: 'chat.experimental.autoApprovals.enabled',
-		migrateFn: (value, accessor) => {
-			const pairs: ConfigurationKeyValuePairs = [['chat.experimental.autoApprovals.enabled', { value: undefined }]];
-			if (accessor(ChatConfiguration.AssistedPermissionsEnabled) === undefined) {
-				pairs.push([ChatConfiguration.AssistedPermissionsEnabled, { value }]);
-			}
-			return pairs;
-		}
+		migrateFn: () => ({ value: undefined })
+	},
+	{
+		key: 'chat.assistedPermissions.enabled',
+		migrateFn: () => ({ value: undefined })
 	},
 	{
 		key: 'chat.agentSessions.sessionCatalog.enabled',
