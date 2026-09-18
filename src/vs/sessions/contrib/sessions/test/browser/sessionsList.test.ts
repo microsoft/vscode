@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -16,6 +18,7 @@ import { autorun, constObservable, derived, IObservable, ISettableObservable, ob
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -40,13 +43,14 @@ import { AgentMergeSessionState } from '../../../../../platform/agentHost/common
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { NESTED_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -2045,20 +2049,24 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('dragging a grouped session out of its group', () => {
+	suite('session group membership drag and drop', () => {
 		const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
 
 		interface IDropHarness {
 			readonly container: HTMLElement;
+			readonly list: SessionsList;
+			readonly addedToGroup: string[];
 			/** Session ids passed to `removeFromGroup`, in call order. */
 			readonly removedFromGroup: string[];
 			readonly sortChanges: readonly ISortChangeRecord[];
 		}
 
-		function renderGroupedList(sessions: ISession[], memberships: Map<string, string>): IDropHarness {
+		function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, configuration = new TestConfigurationService({ [NESTED_SESSIONS_SETTING]: true })): IDropHarness {
 			const removedFromGroup: string[] = [];
+			const addedToGroup: string[] = [];
 			const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
 			const harness = createListHarness(disposables, sessions, instantiationService => {
+				instantiationService.stub(ISessionsListModelService, 'unpinSessions', () => { });
 				instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 					override readonly onDidChange = onDidChange.event;
 					override getGroups() { return [group]; }
@@ -2066,6 +2074,14 @@ suite('Sessions - SessionsList', () => {
 					override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
 					override getSessionIdsInGroup(groupId: string) {
 						return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
+					}
+					override addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string) {
+						const sessionIds = typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : [...sessionIdOrIds];
+						for (const sessionId of sessionIds) {
+							memberships.set(sessionId, groupId);
+							addedToGroup.push(sessionId);
+						}
+						onDidChange.fire({ groupsChanged: false, membershipChanged: new Set(sessionIds) });
 					}
 					override removeFromGroup(sessionId: string) {
 						if (!memberships.delete(sessionId)) {
@@ -2075,7 +2091,7 @@ suite('Sessions - SessionsList', () => {
 						onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
 					}
 				});
-			});
+			}, configuration);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
@@ -2083,7 +2099,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			return { container, removedFromGroup, sortChanges: harness.sortChanges };
+			return { container, list, addedToGroup, removedFromGroup, sortChanges: harness.sortChanges };
 		}
 
 		function sessionRow(container: HTMLElement, title: string): HTMLElement {
@@ -2119,6 +2135,99 @@ suite('Sessions - SessionsList', () => {
 			return highlighted;
 		}
 
+		function dropBefore(source: HTMLElement, target: HTMLElement, container: HTMLElement) {
+			const dataTransfer = new DataTransfer();
+			const clientY = target.getBoundingClientRect().top + 1;
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientY }));
+			const feedback = {
+				headers: highlightedHeaders(container),
+				before: target.classList.contains('drop-target-before'),
+			};
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientY }));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+			return feedback;
+		}
+
+		test('allows creator-linked positional group moves when nesting is disabled', () => {
+			const parent = { ...createTestSession('Parent').session, createdAt: new Date(2020, 0, 1) };
+			const target: ISession = {
+				...createTestSession('Target').session,
+				createdBySession: constObservable({ session: parent.resource }),
+			};
+			const { container, addedToGroup, sortChanges } = renderGroupedList(
+				[parent, target],
+				new Map([[target.sessionId, group.id]]),
+				new TestConfigurationService({ [NESTED_SESSIONS_SETTING]: false }),
+			);
+			const feedback = dropBefore(sessionRow(container, 'Parent'), sessionRow(container, 'Target'), container);
+
+			assert.deepStrictEqual({
+				positional: feedback.before,
+				addedToGroup,
+				reordered: sortChanges.length > 0,
+				parentLevel: sessionRow(container, 'Parent').getAttribute('aria-level'),
+				targetLevel: sessionRow(container, 'Target').getAttribute('aria-level'),
+			}, {
+				positional: true,
+				addedToGroup: [parent.sessionId],
+				reordered: true,
+				parentLevel: '2',
+				targetLevel: '2',
+			});
+		});
+
+		for (const relationship of ['unrelated', 'siblings', 'parent'] as const) {
+			test(`keeps ${relationship} creator-linked group moves non-positional`, () => {
+				const parent = createTestSession('Parent').session;
+				const target: ISession = {
+					...createTestSession('Target').session,
+					createdBySession: constObservable({ session: parent.resource }),
+				};
+				const dragged: ISession = relationship === 'parent' ? parent : {
+					...createTestSession('Dragged').session,
+					createdAt: new Date(2020, 0, 1),
+					createdBySession: constObservable(relationship === 'siblings' ? { session: parent.resource } : undefined),
+				};
+				const memberships = new Map([[target.sessionId, group.id]]);
+				if (relationship !== 'parent') {
+					memberships.set(parent.sessionId, group.id);
+				}
+				const sessions = relationship === 'parent' ? [parent, target] : [parent, target, dragged];
+				const { container, list, addedToGroup, sortChanges } = renderGroupedList(sessions, memberships);
+				list.setWorkspaceGroupCapped(false);
+				list.layout(1000, 400);
+				const feedback = dropBefore(sessionRow(container, dragged.title.get()), sessionRow(container, 'Target'), container);
+
+				assert.deepStrictEqual({
+					feedback,
+					addedToGroup,
+					reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+					targetLevel: sessionRow(container, 'Target').getAttribute('aria-level'),
+					draggedLevel: sessionRow(container, dragged.title.get()).getAttribute('aria-level'),
+				}, {
+					feedback: { headers: [group.name], before: false },
+					addedToGroup: [dragged.sessionId],
+					reordered: [],
+					targetLevel: '3',
+					draggedLevel: relationship === 'siblings' ? '3' : '2',
+				});
+			});
+		}
+
+		test('offers only workspace membership when ungrouping a root onto a nested session', () => {
+			const parent = createTestSession('Parent').session;
+			const target = { ...createTestSession('Target').session, createdBySession: constObservable({ session: parent.resource }) };
+			const dragged = createTestSession('Dragged').session;
+			const { container, list, removedFromGroup, sortChanges } = renderGroupedList([parent, target, dragged], new Map([[dragged.sessionId, group.id]]));
+			list.layout(1000, 400);
+			const feedback = dropBefore(sessionRow(container, 'Dragged'), sessionRow(container, 'Target'), container);
+
+			assert.deepStrictEqual({ feedback, removedFromGroup, reordered: sortChanges.length }, {
+				feedback: { headers: ['Workspace'], before: false }, removedFromGroup: ['Dragged'], reordered: 0,
+			});
+		});
+
 		test('drops onto its own workspace section header and leaves the group', () => {
 			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
 			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
@@ -2131,6 +2240,26 @@ suite('Sessions - SessionsList', () => {
 				highlighted: ['vscode'],
 				removedFromGroup: [grouped.sessionId],
 				reordered: 0,
+			});
+		});
+
+		test('ungroups a nested cross-repository child into its own workspace, not its creator workspace', () => {
+			const parent = createTestSession('Parent', { workspaceLabel: 'vscode' }).session;
+			const child = {
+				...createTestSession('Child', { workspaceLabel: 'extension' }).session,
+				createdBySession: constObservable({ session: parent.resource }),
+			};
+			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'extension' }).session;
+			const memberships = new Map([[parent.sessionId, group.id], [child.sessionId, group.id]]);
+			const { container, removedFromGroup, sortChanges } = renderGroupedList([parent, child, ordinary], memberships);
+
+			const highlighted = drag(sessionRow(container, 'Child'), sectionRow(container, 'extension'), container);
+
+			assert.deepStrictEqual({ highlighted, removedFromGroup, reordered: sortChanges.length, parentGroup: memberships.get(parent.sessionId) }, {
+				highlighted: ['extension'],
+				removedFromGroup: ['Child'],
+				reordered: 0,
+				parentGroup: group.id,
 			});
 		});
 
@@ -2494,6 +2623,607 @@ suite('Sessions - SessionsList', () => {
 		}
 	});
 
+	suite('child sessions', () => {
+
+		function childOf(session: ISession, parent: ISession): ISession {
+			return { ...session, createdBySession: constObservable({ session: URI.parse(parent.resource.toString()) }) };
+		}
+
+		function renderList(sessions: ISession[], options: Parameters<typeof createListHarness>[2] = {}, grouping = SessionsGrouping.Workspace, configuration = new TestConfigurationService({ [NESTED_SESSIONS_SETTING]: true })) {
+			const harness = createListHarness(disposables, sessions, options, configuration);
+			const container = harness.createContainer(400, 1000);
+			container.style.setProperty('--vscode-spacing-size120', '12px');
+			container.style.setProperty('--vscode-spacing-size240', '24px');
+			const opened: URI[] = [];
+			const createList = (container: HTMLElement) => {
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: session => opened.push(session),
+				}));
+				list.layout(1000, 400);
+				return list;
+			};
+			return { ...harness, configuration, container, list: createList(container), createList, opened };
+		}
+
+		function outline(container: HTMLElement) {
+			return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].flatMap(row => {
+				const label = row.querySelector('.session-title, .session-chat-title, .session-section-label');
+				return label ? [{ title: label.textContent, level: Number(row.getAttribute('aria-level')) }] : [];
+			});
+		}
+
+		function rowFor(container: HTMLElement, title: string): HTMLElement {
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.find(row => row.querySelector('.session-title')?.textContent === title);
+			assert.ok(row, `Missing session row: ${title}`);
+			return row;
+		}
+
+		function collapse(container: HTMLElement, title: string): void {
+			const twistie = rowFor(container, title).querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		}
+
+		async function setNesting(configuration: TestConfigurationService, enabled: boolean): Promise<void> {
+			await configuration.setUserConfiguration(NESTED_SESSIONS_SETTING, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectedKeys: new Set([NESTED_SESSIONS_SETTING]),
+				affectsConfiguration: key => key === NESTED_SESSIONS_SETTING,
+			}));
+		}
+
+		test('defaults to flat sessions and reacts to nesting changes without changing peer chats', async () => {
+			const base = createTestSession('Parent', { workspaceLabel: 'Repo A' }).session;
+			const peer = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://peer'),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			});
+			const parent = { ...base, createdAt: new Date(2025, 0, 2), chats: constObservable([base.mainChat.get(), peer]) };
+			const child = childOf({ ...createTestSession('Child', { workspaceLabel: 'Repo B' }).session, createdAt: new Date(2025, 0, 1) }, parent);
+			const { list, container, configuration } = renderList([parent, child], {}, SessionsGrouping.Workspace, new TestConfigurationService());
+			const snapshot = () => ({
+				outline: outline(container),
+				nested: list.getNestedSessions(parent).map(session => session.sessionId),
+				depth: rowFor(container, 'Child').querySelector<HTMLElement>('.session-item')?.style.getPropertyValue('--session-depth'),
+				creatorLabel: rowFor(container, 'Child').getAttribute('aria-label')?.includes('child session of Parent'),
+			});
+			const initial = snapshot();
+			await setNesting(configuration, true);
+			const enabled = snapshot();
+			await setNesting(configuration, false);
+			const disabled = snapshot();
+			await setNesting(configuration, true);
+			const restored = snapshot();
+			const flat = {
+				outline: [{ title: 'Repo A', level: 1 }, { title: 'Parent', level: 2 }, { title: 'Peer chat', level: 3 }, { title: 'Repo B', level: 1 }, { title: 'Child', level: 2 }],
+				nested: [],
+				depth: '0',
+				creatorLabel: false,
+			};
+			const nested = {
+				outline: [{ title: 'Repo A', level: 1 }, { title: 'Parent', level: 2 }, { title: 'Peer chat', level: 3 }, { title: 'Child', level: 3 }],
+				nested: ['Child'],
+				depth: '1',
+				creatorLabel: true,
+			};
+
+			assert.deepStrictEqual({ initial, enabled, disabled, restored }, {
+				initial: flat, enabled: nested, disabled: flat, restored: nested,
+			});
+		});
+
+		test('preserves a collapsed session branch while nesting is toggled off and on', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const { list, container, configuration } = renderList([parent, child]);
+			collapse(container, 'Parent');
+			await setNesting(configuration, false);
+			const disabled = list.getVisibleSessions().map(session => session.sessionId);
+			await setNesting(configuration, true);
+
+			assert.deepStrictEqual({
+				disabled,
+				restored: list.getVisibleSessions().map(session => session.sessionId),
+				nested: list.getNestedSessions(parent).map(session => session.sessionId),
+			}, { disabled: ['Parent', 'Child'], restored: ['Parent'], nested: ['Child'] });
+		});
+
+		test('places cross-repository descendants and peer chats under one root without duplicate workspace entries', () => {
+			const base = createTestSession('Parent', { workspaceLabel: 'Repo A' }).session;
+			const peer = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://peer'),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			});
+			const parent = { ...base, chats: constObservable([base.mainChat.get(), peer]) };
+			const child = childOf(createTestSession('Child', { workspaceLabel: 'Repo B' }).session, parent);
+			const grandchild = childOf(createTestSession('Grandchild', { workspaceLabel: 'Repo C' }).session, child);
+			const other = createTestSession('Other', { workspaceLabel: 'Repo D' }).session;
+			const { container, list } = renderList([grandchild, other, child, parent]);
+
+			assert.deepStrictEqual({
+				outline: outline(container),
+				sessions: list.getVisibleSessions().map(session => session.sessionId),
+				section: container.querySelector('.monaco-list-row')?.getAttribute('aria-label'),
+				chatIsLast: container.querySelector('.session-chat-item')?.classList.contains('last-chat'),
+				nested: list.getNestedSessions(parent).map(session => session.sessionId),
+			}, {
+				outline: [
+					{ title: 'Repo A', level: 1 },
+					{ title: 'Parent', level: 2 },
+					{ title: 'Peer chat', level: 3 },
+					{ title: 'Child', level: 3 },
+					{ title: 'Grandchild', level: 4 },
+					{ title: 'Repo D', level: 1 },
+					{ title: 'Other', level: 2 },
+				],
+				sessions: ['Parent', 'Child', 'Grandchild', 'Other'],
+				section: 'Repo A, 3',
+				chatIsLast: false,
+				nested: ['Child', 'Grandchild'],
+			});
+		});
+
+		test('groups by the root date rather than the newer child date', () => {
+			const parent = { ...createTestSession('Parent').session, createdAt: new Date(2020, 0, 1), updatedAt: constObservable(new Date(2020, 0, 1)) };
+			const child = childOf(createTestSession('Child').session, parent);
+			const { container } = renderList([child, parent], {}, SessionsGrouping.Date);
+
+			assert.deepStrictEqual(outline(container), [
+				{ title: 'Older', level: 1 },
+				{ title: 'Parent', level: 2 },
+				{ title: 'Child', level: 3 },
+			]);
+		});
+
+		test('keeps pins, quick chats, and different custom groups outside creator branches', () => {
+			const parent = createTestSession('Parent').session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const quick = childOf(createTestSession('Quick', { isQuickChat: true }).session, parent);
+			const groups: ISessionGroup[] = [{ id: 'a', name: 'Group A', createdAt: 1 }, { id: 'b', name: 'Group B', createdAt: 2 }];
+			const memberships = new Map([[parent.sessionId, 'a'], [child.sessionId, 'a']]);
+			const pinnedSessionIds = new Set<string>();
+			const { list, container } = renderList([parent, child, quick], { groups, memberships, pinnedSessionIds });
+			const levels = () => [parent, child, quick].map(session => {
+				list.reveal(session.resource);
+				return Number(rowFor(container, session.title.get()).getAttribute('aria-level'));
+			});
+			const sameGroup = levels();
+			memberships.set(child.sessionId, 'b');
+			list.update();
+			const differentGroups = levels();
+			memberships.set(child.sessionId, 'a');
+			pinnedSessionIds.add(child.sessionId);
+			list.update();
+			const pinnedChild = levels();
+			pinnedSessionIds.delete(child.sessionId);
+			pinnedSessionIds.add(parent.sessionId);
+			list.update();
+
+			assert.deepStrictEqual({ sameGroup, differentGroups, pinnedChild, pinnedParent: levels() }, {
+				sameGroup: [2, 3, 2],
+				differentGroups: [2, 2, 2],
+				pinnedChild: [2, 2, 2],
+				pinnedParent: [2, 2, 2],
+			});
+		});
+
+		test('promotes children when their parent is filtered, archived, or removed', async () => {
+			const parent = createTestSession('Parent', { workspaceLabel: 'Repo A' });
+			const child = childOf(createTestSession('Child', { workspaceLabel: 'Repo B', status: SessionStatus.InProgress }).session, parent.session);
+			const { list, container, managementService } = renderList([parent.session, child]);
+			const snapshot = () => outline(container).map(row => [row.title, row.level]);
+			list.setStatusExcluded(SessionStatus.Completed, true);
+			const filtered = snapshot();
+			list.setStatusExcluded(SessionStatus.Completed, false);
+			const restored = snapshot();
+			parent.isArchived.set(true, undefined);
+			await timeout(0);
+			const archived = snapshot();
+			parent.isArchived.set(false, undefined);
+			managementService.sessions = [child];
+			list.refresh();
+
+			assert.deepStrictEqual({ filtered, restored, archived, removed: snapshot() }, {
+				filtered: [['Repo B', 1], ['Child', 2]],
+				restored: [['Repo A', 1], ['Parent', 2], ['Child', 3]],
+				archived: [['Repo B', 1], ['Child', 2]],
+				removed: [['Repo B', 1], ['Child', 2]],
+			});
+		});
+
+		test('recovers from missing parents and late creator metadata', async () => {
+			const parent = createTestSession('Parent', { workspaceLabel: 'Repo A' }).session;
+			const reference = observableValue<ISessionCreationReference | undefined>('creator', { session: URI.parse('session://missing') });
+			const child = { ...createTestSession('Child', { workspaceLabel: 'Repo B' }).session, createdBySession: reference };
+			const { list, container, managementService } = renderList([child]);
+			const missing = outline(container);
+			managementService.sessions = [child, parent];
+			list.refresh();
+			reference.set({ session: parent.resource }, undefined);
+			await timeout(0);
+			const hydrated = outline(container);
+			reference.set(undefined, undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({ missing, hydrated, cleared: outline(container) }, {
+				missing: [{ title: 'Repo B', level: 1 }, { title: 'Child', level: 2 }],
+				hydrated: [{ title: 'Repo A', level: 1 }, { title: 'Parent', level: 2 }, { title: 'Child', level: 3 }],
+				cleared: [{ title: 'Repo A', level: 1 }, { title: 'Parent', level: 2 }, { title: 'Repo B', level: 1 }, { title: 'Child', level: 2 }],
+			});
+		});
+
+		test('updates session and chat indentation and guides when a child becomes a root', async () => {
+			const parent = createTestSession('Parent').session;
+			const base = createTestSession('Child').session;
+			const peer = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://peer'),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			});
+			const reference = observableValue<ISessionCreationReference | undefined>('creator', { session: parent.resource });
+			const child: ISession = {
+				...base,
+				createdBySession: reference,
+				chats: constObservable([base.mainChat.get(), peer]),
+			};
+			const { container } = renderList([parent, child]);
+			const guideDepths = (item: HTMLElement) => [...item.querySelectorAll<HTMLElement>('.session-hierarchy-guide')]
+				.map(guide => guide.style.getPropertyValue('--session-guide-depth'));
+			const indentation = () => {
+				const sessionItem = rowFor(container, 'Child').querySelector<HTMLElement>('.session-item');
+				const chatItem = container.querySelector<HTMLElement>('.session-chat-item');
+				assert.ok(sessionItem && chatItem);
+				return {
+					session: sessionItem.style.getPropertyValue('--session-depth'),
+					chat: chatItem.style.getPropertyValue('--session-depth'),
+					sessionGuides: guideDepths(sessionItem),
+					chatGuides: guideDepths(chatItem),
+				};
+			};
+			const nested = indentation();
+			reference.set(undefined, undefined);
+			await timeout(0);
+			const root = indentation();
+			reference.set({ session: parent.resource }, undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({ nested, root, restored: indentation() }, {
+				nested: { session: '1', chat: '2', sessionGuides: ['0'], chatGuides: ['1'] },
+				root: { session: '0', chat: '1', sessionGuides: [], chatGuides: ['0'] },
+				restored: { session: '1', chat: '2', sessionGuides: ['0'], chatGuides: ['1'] },
+			});
+		});
+
+		test('ignores equivalent creator references and coalesces changed session structures', async () => {
+			const parent = createTestSession('Parent').session;
+			const other = createTestSession('Other').session;
+			const references = Array.from({ length: 8 }, () => observableValue<ISessionCreationReference | undefined>('creator', { session: parent.resource }));
+			const children = references.map((createdBySession, index) => ({ ...createTestSession(`Child ${index}`).session, createdBySession }));
+			const { list, container } = renderList([parent, other, ...children]);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const updates = spy(list, 'update');
+			disposables.add(toDisposable(() => updates.restore()));
+
+			for (const reference of references) {
+				reference.set({ session: URI.parse(parent.resource.toString()), chat: URI.parse('test-chat://changed'), turnId: 'changed' }, undefined);
+			}
+			await timeout(0);
+			const equivalentUpdates = updates.callCount;
+
+			for (const reference of references) {
+				reference.set({ session: other.resource }, undefined);
+			}
+			const updatesBeforeFlush = updates.callCount;
+			await timeout(0);
+			const changedUpdates = updates.callCount;
+			const reparented = rowFor(container, 'Child 0').getAttribute('aria-label')?.includes('child session of Other');
+
+			updates.resetHistory();
+			for (const reference of references) {
+				reference.set({ session: parent.resource }, undefined);
+			}
+			list.refresh();
+			await timeout(0);
+
+			assert.deepStrictEqual({ equivalentUpdates, updatesBeforeFlush, changedUpdates, reparented, refreshUpdates: updates.callCount }, {
+				equivalentUpdates: 0,
+				updatesBeforeFlush: 0,
+				changedUpdates: 1,
+				reparented: true,
+				refreshUpdates: 1,
+			});
+		});
+
+		test('leaves every member of a malformed creator cycle reachable', () => {
+			const a = createTestSession('A').session;
+			const b = createTestSession('B').session;
+			const c = createTestSession('C').session;
+			const self = createTestSession('Self').session;
+			const leaf = childOf(createTestSession('Leaf').session, a);
+			const { list, container } = renderList([childOf(a, b), childOf(b, c), childOf(c, a), childOf(self, self), leaf]);
+
+			assert.deepStrictEqual({
+				sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+				levels: [a, b, c, self, leaf].map(session => Number(rowFor(container, session.title.get()).getAttribute('aria-level'))),
+			}, {
+				sessions: ['A', 'B', 'C', 'Leaf', 'Self'],
+				levels: [2, 2, 2, 2, 3],
+			});
+		});
+
+		test('persists nested collapse state, preserves it on updates, and reveals through ancestors', () => {
+			const parent = createTestSession('Parent').session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const grandchild = childOf(createTestSession('Grandchild').session, child);
+			const { list, container, createList, createContainer } = renderList([parent, child, grandchild]);
+			collapse(container, 'Child');
+			collapse(container, 'Parent');
+			list.update();
+			const afterUpdate = list.getVisibleSessions().map(session => session.sessionId);
+			const nestedAfterCollapse = list.getNestedSessions(parent).map(session => session.sessionId);
+			list.dispose();
+			const restored = createList(createContainer(400, 1000));
+			const afterRestore = restored.getVisibleSessions().map(session => session.sessionId);
+			const revealed = restored.reveal(grandchild.resource);
+			const afterReveal = restored.getVisibleSessions().map(session => session.sessionId);
+			restored.collapseAllSections();
+			restored.dispose();
+			const afterCollapseAll = createList(createContainer(400, 1000));
+
+			assert.deepStrictEqual({
+				afterUpdate, nestedAfterCollapse, afterRestore, revealed, afterReveal,
+				afterCollapseAll: afterCollapseAll.getVisibleSessions().map(session => session.sessionId),
+			}, {
+				afterUpdate: ['Parent'],
+				nestedAfterCollapse: ['Child', 'Grandchild'],
+				afterRestore: ['Parent'],
+				revealed: true,
+				afterReveal: ['Parent', 'Child', 'Grandchild'],
+				afterCollapseAll: [],
+			});
+		});
+
+		test('caps root branches without losing descendants and reveals a branch beyond the cap', () => {
+			const roots = Array.from({ length: 6 }, (_, index) => ({
+				...createTestSession(`Root ${index}`).session,
+				createdAt: new Date(Date.now() - index * 1000),
+			}));
+			const children = roots.map((root, index) => childOf(createTestSession(`Child ${index}`).session, root));
+			const { list, container } = renderList([...roots, ...children]);
+			const snapshot = () => ({
+				sessions: list.getVisibleSessions().map(session => session.sessionId),
+				more: container.querySelector('.session-show-more-label')?.textContent,
+			});
+			const before = snapshot();
+			const revealed = list.reveal(children[5].resource);
+
+			assert.deepStrictEqual({ before, revealed, after: snapshot() }, {
+				before: {
+					sessions: ['Root 0', 'Child 0', 'Root 1', 'Child 1', 'Root 2', 'Child 2', 'Root 3', 'Child 3', 'Root 4', 'Child 4'],
+					more: '+2 more',
+				},
+				revealed: true,
+				after: {
+					sessions: ['Root 0', 'Child 0', 'Root 1', 'Child 1', 'Root 2', 'Child 2', 'Root 3', 'Child 3', 'Root 4', 'Child 4', 'Root 5', 'Child 5'],
+					more: undefined,
+				},
+			});
+		});
+
+		test('revealing another capped branch keeps the active child visible', () => {
+			const roots = Array.from({ length: 7 }, (_, index) => ({
+				...createTestSession(`Root ${index}`).session,
+				createdAt: new Date(Date.now() - index * 1000),
+			}));
+			const children = roots.map((root, index) => childOf(createTestSession(`Child ${index}`).session, root));
+			const active = upcastPartial<IActiveSession>({ ...children[6], activeChat: children[6].mainChat, sticky: constObservable(false) });
+			const { list } = renderList([...roots, ...children], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(active);
+					override readonly visibleSessions = constObservable([active]);
+				});
+			});
+			list.reveal(children[5].resource);
+
+			assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId), [
+				'Root 0', 'Child 0', 'Root 1', 'Child 1', 'Root 2', 'Child 2', 'Root 3', 'Child 3',
+				'Root 4', 'Child 4', 'Root 5', 'Child 5', 'Root 6', 'Child 6',
+			]);
+		});
+
+		test('finds descendants beyond the root cap and retains their ancestors', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const roots = Array.from({ length: 6 }, (_, index) => ({
+				...createTestSession(`Root ${index}`).session,
+				createdAt: new Date(Date.now() - index * 1000),
+			}));
+			const child = childOf(createTestSession('Needle').session, roots[5]);
+			const { list, container, store } = renderList([...roots, child]);
+			list.openFind();
+			const input = container.querySelector<HTMLInputElement>('.monaco-findInput input');
+			assert.ok(input);
+			input.value = 'Needle';
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			const found = list.getVisibleSessions().map(session => session.sessionId);
+			list.closeFind();
+			await timeout(300);
+			const after = list.getVisibleSessions().map(session => session.sessionId);
+			store.dispose();
+
+			assert.deepStrictEqual({ found, after }, {
+				found: ['Root 5', 'Needle'],
+				after: ['Root 0', 'Root 1', 'Root 2', 'Root 3', 'Root 4'],
+			});
+		}));
+
+		test('find reveals matching descendants through collapsed branches without expanding unrelated branches', async () => {
+			const parent = createTestSession('Parent', { workspaceLabel: 'Repo A' }).session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const firstMatch = childOf(createTestSession('First needle').session, child);
+			const other = createTestSession('Other', { workspaceLabel: 'Repo B' }).session;
+			const secondMatch = childOf(createTestSession('Second needle').session, other);
+			const unrelated = createTestSession('Unrelated', { workspaceLabel: 'Repo C' }).session;
+			const unrelatedChild = childOf(createTestSession('Unrelated child').session, unrelated);
+			const { list, container, store } = renderList([parent, child, firstMatch, other, secondMatch, unrelated, unrelatedChild]);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const visibleSessions = () => list.getVisibleSessions().map(session => session.sessionId);
+			list.collapseAllSections();
+			list.openFind();
+			const emptyFind = visibleSessions();
+			const input = container.querySelector<HTMLInputElement>('.monaco-findInput input');
+			assert.ok(input);
+			const search = async (pattern: string) => {
+				input.value = pattern;
+				input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+				await timeout(0);
+				return visibleSessions();
+			};
+			const first = await search('First needle');
+			const second = await search('Second needle');
+			list.closeFind();
+			await timeout(300);
+			const after = visibleSessions();
+			store.dispose();
+
+			assert.deepStrictEqual({ emptyFind, first, second, after }, {
+				emptyFind: [],
+				first: ['Parent', 'Child', 'First needle'],
+				second: ['Other', 'Second needle'],
+				after: ['Parent', 'Child', 'First needle', 'Other', 'Second needle'],
+			});
+		});
+
+		test('reveals an activated descendant without reopening it on ordinary updates', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const grandchild = childOf(createTestSession('Grandchild').session, child);
+			const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+			const { list, container } = renderList([parent, child, grandchild], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = activeSession;
+					override readonly visibleSessions = constObservable([]);
+				});
+			});
+			collapse(container, 'Child');
+			collapse(container, 'Parent');
+			activeSession.set(upcastPartial<IActiveSession>({
+				...grandchild,
+				activeChat: grandchild.mainChat,
+				sticky: constObservable(false),
+			}), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const activated = list.getVisibleSessions().map(session => session.sessionId);
+			const selected = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+			collapse(container, 'Parent');
+			list.update();
+
+			assert.deepStrictEqual({ activated, selected, afterUpdate: list.getVisibleSessions().map(session => session.sessionId) }, {
+				activated: ['Parent', 'Child', 'Grandchild'],
+				selected: 'Grandchild',
+				afterUpdate: ['Parent'],
+			});
+		});
+
+		test('continues ancestor guides only past non-last branches', () => {
+			const parent = createTestSession('Parent').session;
+			const first = childOf({ ...createTestSession('First').session, createdAt: new Date(2025, 1, 2) }, parent);
+			const last = childOf({ ...createTestSession('Last').session, createdAt: new Date(2025, 1, 1) }, parent);
+			const firstLeaf = childOf(createTestSession('First leaf').session, first);
+			const lastLeaf = childOf(createTestSession('Last leaf').session, last);
+			const { list, container } = renderList([parent, first, last, firstLeaf, lastLeaf]);
+			list.reveal(firstLeaf.resource);
+			const snapshot = (session: ISession) => [...rowFor(container, session.title.get()).querySelectorAll<HTMLElement>('.session-hierarchy-guide')].map(guide => ({
+				depth: guide.style.getPropertyValue('--session-guide-depth'),
+				last: guide.classList.contains('last-child'),
+				visible: guide.classList.contains('visible'),
+			}));
+
+			assert.deepStrictEqual({ first: snapshot(firstLeaf), last: snapshot(lastLeaf) }, {
+				first: [{ depth: '0', last: false, visible: true }, { depth: '1', last: true, visible: true }],
+				last: [{ depth: '1', last: true, visible: false }],
+			});
+		});
+
+		test('shows nested repository context during activity without attributing it to the parent', () => {
+			const parent = createTestSession('Parent', { workspaceLabel: 'Repo A' }).session;
+			const child = childOf(createTestSession('Child', { workspaceLabel: 'Repo B', status: SessionStatus.InProgress }).session, parent);
+			const grandchild = childOf(createTestSession('Grandchild', { workspaceLabel: 'Repo C', status: SessionStatus.NeedsInput }).session, child);
+			const { container } = renderList([parent, child, grandchild]);
+			const rows = [parent, child, grandchild].map(session => {
+				const row = rowFor(container, session.title.get());
+				const item = row.querySelector<HTMLElement>('.session-item')!;
+				return {
+					workspace: item.querySelector('.session-details-row')?.textContent?.includes(session.workspace.get()!.label),
+					ariaWorkspace: row.getAttribute('aria-label')?.includes(session.workspace.get()!.label),
+					depth: item.style.getPropertyValue('--session-depth'),
+					padding: mainWindow.getComputedStyle(item).paddingLeft,
+					inProgress: item.classList.contains('in-progress'),
+					needsInput: item.classList.contains('needs-input'),
+				};
+			});
+
+			assert.deepStrictEqual(rows, [
+				{ workspace: false, ariaWorkspace: false, depth: '0', padding: '12px', inProgress: false, needsInput: false },
+				{ workspace: true, ariaWorkspace: true, depth: '1', padding: '36px', inProgress: true, needsInput: false },
+				{ workspace: true, ariaWorkspace: true, depth: '2', padding: '60px', inProgress: false, needsInput: true },
+			]);
+		});
+
+		test('opens and drags a child as its own full session', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const { container, opened, managementService } = renderList([parent, child]);
+			const row = rowFor(container, 'Child');
+			row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
+			const dataTransfer = new DataTransfer();
+			const event = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+			row.dispatchEvent(event);
+			const sessionPayload = JSON.parse(dataTransfer.getData(SessionsDataTransfers.SESSION));
+			row.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+
+			assert.deepStrictEqual({
+				opened: opened.map(resource => resource.toString()),
+				read: managementService.readSessions.map(session => session.sessionId),
+				sessionPayload,
+				chatPayload: getSessionChatDragData(event),
+			}, {
+				opened: [child.resource.toString()],
+				read: ['Child'],
+				sessionPayload: { sessionId: child.sessionId, resource: child.resource.toString() },
+				chatPayload: undefined,
+			});
+		});
+
+		test('keeps independent flat-list consumers flat', () => {
+			const parent = createTestSession('Parent').session;
+			const child = childOf(createTestSession('Child').session, parent);
+			const harness = createListHarness(disposables, [parent, child]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }));
+			list.setSessions([parent, child]);
+			list.layout(300, 400);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => ({
+				title: item.querySelector('.session-title')?.textContent,
+				depth: item.style.getPropertyValue('--session-depth'),
+			})), [{ title: 'Parent', depth: '0' }, { title: 'Child', depth: '0' }]);
+		});
+	});
+
 	suite('session chat rows', () => {
 
 		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed): IChat {
@@ -2557,7 +3287,7 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
-		test('updates nested chat rows when the session chat catalog changes', () => {
+		test('updates nested chat rows when the session chat catalog changes', async () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const chats = observableValue<readonly IChat[]>('session-chats', [main]);
@@ -2572,6 +3302,7 @@ suite('Sessions - SessionsList', () => {
 			const before = chatRowTitles(container);
 
 			chats.set([main, peer], undefined);
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				before,
@@ -3877,6 +4608,46 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('compact presentation', () => {
+
+		test('preserves nested-session indentation and repository hints in compact rows', () => {
+			const parent = createTestSession('Parent', { workspaceLabel: 'Repo A' }).session;
+			const child: ISession = {
+				...createTestSession('Child', { workspaceLabel: 'Repo B', status: SessionStatus.InProgress }).session,
+				createdBySession: constObservable({ session: parent.resource }),
+			};
+			const grandchild: ISession = {
+				...createTestSession('Grandchild', { workspaceLabel: 'Repo C', status: SessionStatus.NeedsInput }).session,
+				createdBySession: constObservable({ session: child.resource }),
+			};
+			const harness = createListHarness(disposables, [parent, child, grandchild], {}, new TestConfigurationService({
+				[NESTED_SESSIONS_SETTING]: true,
+			}));
+			const container = harness.createContainer();
+			for (const size of [6, 8, 12, 16, 24]) {
+				container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 400);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.session-item')].map(item => {
+				const guide = item.querySelector('.session-hierarchy-guide.direct');
+				return {
+					title: item.querySelector('.session-title')?.textContent,
+					padding: mainWindow.getComputedStyle(item).paddingLeft,
+					badge: item.querySelector('.session-compact-hover-description .session-badge')?.textContent,
+					connectorHeight: guide ? mainWindow.getComputedStyle(guide).height : undefined,
+				};
+			}), [
+				{ title: 'Parent', padding: '12px', badge: undefined, connectorHeight: undefined },
+				{ title: 'Child', padding: '36px', badge: 'Repo B', connectorHeight: '14px' },
+				{ title: 'Grandchild', padding: '60px', badge: 'Repo C', connectorHeight: '14px' },
+			]);
+		});
 
 		test('uses a title-only row with workspace context on hover and preserves the accessible label', () => {
 			const session = createTestSession('Implement compact view', {

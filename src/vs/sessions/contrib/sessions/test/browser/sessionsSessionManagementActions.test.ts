@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
@@ -31,7 +32,7 @@ import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction, MarkSessionAsDoneAction } from '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
@@ -141,9 +142,13 @@ suite('Sessions - Session management actions', () => {
 	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
+		const nestedSessions = new Map<ISession['sessionId'], readonly ISession[]>();
+		const confirmations: IConfirmation[] = [];
+		let confirmationResult: IConfirmationResult = { confirmed: true, checkboxChecked: false };
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
+			getNestedSessions: session => nestedSessions.get(session.sessionId) ?? [],
 		});
 		const sessionsView = upcastPartial<SessionsView>({ sessionsControl });
 		const getViewWithId = <T extends IView>(id: string): T | null => id === SessionsViewId ? sessionsView as unknown as T : null;
@@ -164,9 +169,127 @@ suite('Sessions - Session management actions', () => {
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
 			input: async () => 'Renamed',
 		}));
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				confirmations.push(confirmation);
+				return confirmationResult;
+			}
+		}());
 
-		return { instantiationService, managementService };
+		return {
+			instantiationService, managementService, nestedSessions, confirmations,
+			setConfirmation(result: IConfirmationResult) { confirmationResult = result; },
+		};
 	}
+
+	suite('archive scope confirmation', () => {
+		for (const { label, createAction, checkboxLabel, message } of [
+			{ label: 'Archive', createAction: () => new ArchiveSessionAction(), checkboxLabel: 'Also archive nested sessions', message: 'Archive \'Parent\'?' },
+			{ label: 'Mark as Done', createAction: () => new MarkSessionAsDoneAction(), checkboxLabel: 'Also mark nested sessions as done', message: 'Mark \'Parent\' as done?' },
+		]) {
+			for (const { name, confirmation, expected } of [
+				{ name: 'parent only', confirmation: { confirmed: true }, expected: ['Parent'] },
+				{ name: 'include nested sessions', confirmation: { confirmed: true, checkboxChecked: true }, expected: ['Parent', 'Child', 'Grandchild'] },
+				{ name: 'cancel', confirmation: { confirmed: false, checkboxChecked: true }, expected: [] },
+			]) {
+				test(`${label}: ${name}`, async () => {
+					const parent = createTestSession('Parent').session;
+					const child = createTestSession('Child', { workspaceLabel: 'Repo B' }).session;
+					const grandchild = createTestSession('Grandchild', { workspaceLabel: 'Repo C' }).session;
+					const harness = createActionHarness([parent], undefined);
+					harness.nestedSessions.set(parent.sessionId, [child, grandchild]);
+					harness.setConfirmation(confirmation);
+
+					const result = await harness.instantiationService.invokeFunction(accessor => createAction().run(accessor));
+
+					assert.deepStrictEqual({
+						confirmations: harness.confirmations,
+						archived: harness.managementService.archived.map(session => session.sessionId),
+						result,
+					}, {
+						confirmations: [{
+							message,
+							detail: 'Nested sessions: 2.\n\nIf you include nested sessions, they will also be hidden from the sessions list. Otherwise, they remain active. Session history is kept so sessions can be restored later. Associated worktrees may be removed.',
+							primaryButton: label,
+							checkbox: { label: checkboxLabel, checked: false },
+						}],
+						archived: expected,
+						result: confirmation.confirmed,
+					});
+				});
+			}
+		}
+
+		test('deduplicates selected sessions and overlapping descendant branches', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = createTestSession('Child').session;
+			const grandchild = createTestSession('Grandchild').session;
+			const harness = createActionHarness(undefined, undefined);
+			harness.nestedSessions.set(parent.sessionId, [child, grandchild]);
+			harness.nestedSessions.set(child.sessionId, [grandchild]);
+			harness.setConfirmation({ confirmed: true, checkboxChecked: true });
+
+			await harness.instantiationService.invokeFunction(accessor => new MarkSessionAsDoneAction().run(accessor, [parent, child, parent]));
+
+			assert.deepStrictEqual({
+				message: harness.confirmations[0]?.message,
+				detail: harness.confirmations[0]?.detail,
+				archived: harness.managementService.archived.map(session => session.sessionId),
+			}, {
+				message: 'Mark 2 sessions as done?',
+				detail: 'Nested sessions: 1.\n\nIf you include nested sessions, they will also be hidden from the sessions list. Otherwise, they remain active. Session history is kept so sessions can be restored later. Associated worktrees may be removed.',
+				archived: ['Parent', 'Child', 'Grandchild'],
+			});
+		});
+
+		test('does not prompt when there are no additional nested sessions', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = createTestSession('Child').session;
+			const archived = createTestSession('Already archived', { isArchived: true }).session;
+			const harness = createActionHarness([parent, child, archived], undefined);
+			harness.nestedSessions.set(parent.sessionId, [child, archived]);
+
+			await harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+
+			assert.deepStrictEqual({
+				confirmations: harness.confirmations,
+				archived: harness.managementService.archived.map(session => session.sessionId),
+			}, { confirmations: [], archived: ['Parent', 'Child'] });
+		});
+
+		test('keeps the confirmed descendant snapshot when archiving changes the hierarchy', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = createTestSession('Child').session;
+			const harness = createActionHarness([parent], undefined);
+			harness.nestedSessions.set(parent.sessionId, [child]);
+			harness.setConfirmation({ confirmed: true, checkboxChecked: true });
+			const archived: string[] = [];
+			harness.instantiationService.stub(ISessionsManagementService, 'archiveSession', async (session: ISession) => {
+				archived.push(session.sessionId);
+				harness.nestedSessions.clear();
+			});
+
+			await harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+
+			assert.deepStrictEqual(archived, ['Parent', 'Child']);
+		});
+
+		test('propagates archive errors instead of reporting a completed batch', async () => {
+			const parent = createTestSession('Parent').session;
+			const child = createTestSession('Child').session;
+			const harness = createActionHarness([parent], undefined);
+			harness.nestedSessions.set(parent.sessionId, [child]);
+			harness.setConfirmation({ confirmed: true, checkboxChecked: true });
+			const archived: string[] = [];
+			harness.instantiationService.stub(ISessionsManagementService, 'archiveSession', async (session: ISession) => {
+				archived.push(session.sessionId);
+				throw new Error('Archive failed');
+			});
+
+			await assert.rejects(harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor)), /Archive failed/);
+			assert.deepStrictEqual(archived, ['Parent']);
+		});
+	});
 
 	test('routes session and chat rename commands to their focused targets', async () => {
 		const listSession = createTestSession('List').session;

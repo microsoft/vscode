@@ -25,7 +25,7 @@ import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.j
 import './sessionDetailsAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
-import { USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
+import { NESTED_SESSIONS_SETTING, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -65,6 +65,14 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
+		[NESTED_SESSIONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('sessions.list.nestedSessions', "Controls whether independently managed, agent-created sessions are displayed beneath their creators in the sessions list. Peer chats within a session are unaffected."),
+		},
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],

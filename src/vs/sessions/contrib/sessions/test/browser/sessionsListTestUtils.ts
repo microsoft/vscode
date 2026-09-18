@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
@@ -190,9 +191,15 @@ export interface IListHarnessOptions {
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
 
-export function createListHarness(disposables: Pick<DisposableStore, 'add'>, sessions: ISession[], optionsOrConfigure: IListHarnessOptions | ConfigureListHarness = {}): IListHarness {
+export function createListHarness(disposables: Pick<DisposableStore, 'add'>, sessions: ISession[], optionsOrConfigure: IListHarnessOptions | ConfigureListHarness = {}, configurationService?: TestConfigurationService): IListHarness {
 	const store = disposables.add(new DisposableStore());
-	const instantiationService = workbenchInstantiationService(undefined, store);
+	if (configurationService !== undefined) {
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+	}
+	const instantiationService = workbenchInstantiationService(
+		configurationService === undefined ? undefined : { configurationService: () => configurationService },
+		store,
+	);
 	const managementService = new TestSessionsManagementService(sessions);
 	const commandService = new TestCommandService();
 	const configure = typeof optionsOrConfigure === 'function' ? optionsOrConfigure : undefined;
