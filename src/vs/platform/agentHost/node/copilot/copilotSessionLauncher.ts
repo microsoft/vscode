@@ -966,19 +966,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		] : undefined;
 		const disabledMcpServers = disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers, additionalDisabledMcpServers);
 		const mcpServers = plan.isEphemeral ? {} : { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(explicitMcpServers) };
+		const sortedUnique = (names: readonly string[]) => [...new Set(names)].sort();
+		// Logged at info: servers in `finalSessionConfig` are handed to the SDK at
+		// session creation and the provider holds the first send until they settle,
+		// while `pluginDiscovery` servers resolve lazily. That split is the first
+		// thing needed to explain a slow first turn, so it must not require trace.
+		this._logService.info(`[Copilot:${plan.sessionId}] MCP launch projection: ${JSON.stringify({
+			ephemeral: plan.isEphemeral === true,
+			pluginDiscovery: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'pluginDiscovery').map(server => server.name))),
+			sessionConfig: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'sessionConfig').map(server => server.name))),
+			rootConfig: Object.keys(plan.snapshot.mcpServers).sort(),
+			disabled: [...(disabledMcpServers.disabledMcpServers ?? [])].sort(),
+			finalSessionConfig: Object.keys(mcpServers).sort(),
+		})}`);
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
 			// serialize it when trace output is actually emitted.
 			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
-			const sortedUnique = (names: readonly string[]) => [...new Set(names)].sort();
-			this._logService.trace(`[Copilot:${plan.sessionId}] MCP launch projection: ${JSON.stringify({
-				ephemeral: plan.isEphemeral === true,
-				pluginDiscovery: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'pluginDiscovery').map(server => server.name))),
-				sessionConfig: sortedUnique(plugins.flatMap(plugin => plugin.mcpServers.filter(server => server.sdkRegistration === 'sessionConfig').map(server => server.name))),
-				rootConfig: Object.keys(plan.snapshot.mcpServers).sort(),
-				disabled: [...(disabledMcpServers.disabledMcpServers ?? [])].sort(),
-				finalSessionConfig: Object.keys(mcpServers).sort(),
-			})}`);
 		}
 		return {
 			...byok,

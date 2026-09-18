@@ -711,7 +711,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralMcpServers: createConfigs[1].mcpServers,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
-				mcpProjectionTraces: logService.traces.filter(message => message.includes('MCP launch projection:')).map(message => JSON.parse(message.slice(message.indexOf('{')))),
+				mcpProjectionLogs: logService.infos.filter(message => message.includes('MCP launch projection:')).map(message => JSON.parse(message.slice(message.indexOf('{')))),
 				sensitiveProjectionValues: [
 					'/sensitive/plugin-command',
 					'sensitive-plugin-env',
@@ -720,8 +720,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					pluginDir.fsPath,
 					syntheticPluginDir.fsPath,
 					testWorkingDirectory.fsPath,
-				].filter(value => logService.traces.some(message => message.includes('MCP launch projection:') && message.includes(value))
-					|| logService.infos.some(message => message.includes(value))),
+				].filter(value => logService.infos.some(message => message.includes(value))),
 				resumeLogs: logService.infos.filter(message => message.includes('SDK resumeSession '))
 					.map(message => message.replace(/attemptId=[\da-f-]+/g, 'attemptId=<id>').replace(/elapsedMs=\d+$/, 'elapsedMs=<ms>')),
 			}, {
@@ -764,7 +763,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralMcpServers: {},
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
 				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
-				mcpProjectionTraces: [
+				mcpProjectionLogs: [
 					{
 						ephemeral: false,
 						pluginDiscovery: ['native-plugin-server'],

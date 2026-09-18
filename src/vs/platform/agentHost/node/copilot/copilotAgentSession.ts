@@ -64,6 +64,7 @@ import { ActionType, isChatAction, type ChatAction, type SessionAction } from '.
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
+import { CopilotMcpReadinessTracker } from './copilotMcpReadiness.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
@@ -1189,6 +1190,15 @@ export class CopilotAgentSession extends Disposable {
 	 * `session.mcp_servers_loaded` event routinely carry the same snapshot.
 	 */
 	private readonly _lastLoggedMcpStatus = new Map<string, SdkMcpServerStatus>();
+
+	/**
+	 * Tracks MCP server startup timing for this session so a blocked provider
+	 * send can be attributed to the servers it waited on.
+	 */
+	private readonly _mcpReadiness = new CopilotMcpReadinessTracker();
+
+	/** Cleared after the first provider send, which is the one that pays session startup costs. */
+	private _pendingFirstSend = true;
 
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
@@ -3057,6 +3067,10 @@ export class CopilotAgentSession extends Disposable {
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 		const sendingTurn = this._currentTurn.value;
 		sendingTurn?.markProviderCallPending();
+		const isFirstSendOfSession = this._pendingFirstSend;
+		this._pendingFirstSend = false;
+		const sendWatch = StopWatch.create(false);
+		let sendFailed = false;
 		try {
 			await this._otelService.withTraceContext(traceContext, () => {
 				if (!this._environmentService.isBuilt && prompt === '$error') {
@@ -3069,8 +3083,33 @@ export class CopilotAgentSession extends Disposable {
 			});
 			sendingTurn?.markProviderCallResolved();
 		} catch (error) {
+			sendFailed = true;
 			sendingTurn?.markProviderCallRejected();
 			throw error;
+		} finally {
+			// Measured around `session.send()` alone: the provider holds this call
+			// until session startup (notably MCP server readiness) settles, and the
+			// user is already waiting with nothing on screen. It ends before the
+			// turn begins, so no turn telemetry covers it.
+			//
+			// Guarded because this runs in a `finally`: a throw from reporting here
+			// would replace the provider error the `catch` above is rethrowing,
+			// turning a real send failure into a telemetry failure.
+			try {
+				const sendBlockedMs = Math.round(sendWatch.elapsed());
+				const mcp = this._mcpReadiness.snapshot();
+				this._telemetryReporter.providerSendBlocked(
+					this.resourceUri.scheme,
+					this.resourceUri.toString(),
+					sendBlockedMs,
+					isFirstSendOfSession,
+					sendFailed,
+					mcp,
+				);
+				this._logService.info(`[Copilot:${this.sessionId}] session.send() blocked for ${sendBlockedMs}ms (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
+			} catch (err) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`);
+			}
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -6336,6 +6375,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		this._register(wrapper.onMcpServerStatusChanged(e => {
 			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
+			this._mcpReadiness.observe(e.data.serverName, e.data.status);
 			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
 			if (!server) {
 				this._mcpCustomizations.remove(e.data.serverName);
@@ -6392,6 +6432,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+		for (const server of servers) {
+			this._mcpReadiness.observe(server.name, server.status);
+		}
 		const sdkServers = servers
 			.map(s => this._toSdkMcpServer(s.name, s.status, s.error));
 		this._mcpCustomizations.applyAll(sdkServers);

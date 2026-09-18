@@ -197,6 +197,43 @@ export interface IAgentHostClientConnectionReport {
 	subscriptionCount?: number;
 }
 
+export interface IAgentHostProviderSendBlockedEvent {
+	provider: string;
+	agentSessionId: string;
+	sendBlockedMs: number;
+	isFirstSendOfSession: boolean;
+	sendFailed: boolean;
+	mcpServerCount: number;
+	mcpReadyCount: number;
+	mcpFailedCount: number;
+	mcpUnresolvedCount: number;
+	slowestMcpServerMs: number | undefined;
+}
+
+/** Provider-agnostic MCP startup context, satisfied structurally by each provider's tracker. */
+export interface IAgentHostMcpReadinessReport {
+	readonly serverCount: number;
+	readonly readyCount: number;
+	readonly failedCount: number;
+	readonly unresolvedCount: number;
+	readonly slowestServerMs: number | undefined;
+}
+
+export type IAgentHostProviderSendBlockedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
+	sendBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the provider send call blocked before returning. This precedes turn start, so it is not covered by turn timings.' };
+	isFirstSendOfSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this was the first send on a newly created provider session, where startup costs are paid.' };
+	sendFailed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the provider send call threw instead of returning normally.' };
+	mcpServerCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers observed for the session when the send returned.' };
+	mcpReadyCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had connected when the send returned.' };
+	mcpFailedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had failed when the send returned.' };
+	mcpUnresolvedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers still starting or awaiting authentication when the send returned.' };
+	slowestMcpServerMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed MCP server to the last one to settle; absent when none had settled.' };
+	owner: 'vijayupadya';
+	comment: 'Measures how long the provider send call blocks before a turn can start, with the MCP server startup context it overlaps.';
+};
+
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
@@ -1015,6 +1052,27 @@ export class AgentHostTelemetryReporter {
 			clientTransportCount: report.clientTransportCount,
 			connectionDurationMs: report.connectionDurationMs,
 			subscriptionCount: report.subscriptionCount,
+		});
+	}
+
+	/**
+	 * Reports how long a provider send call blocked before returning. This
+	 * window sits before turn start, so it is invisible to turn telemetry even
+	 * though the user is already waiting. MCP counts describe the server
+	 * startup this window overlaps, which is the usual reason it is long.
+	 */
+	providerSendBlocked(provider: string, session: string, sendBlockedMs: number, isFirstSendOfSession: boolean, sendFailed: boolean, mcp: IAgentHostMcpReadinessReport): void {
+		this._telemetryService.publicLog2<IAgentHostProviderSendBlockedEvent, IAgentHostProviderSendBlockedClassification>('agentHost.providerSendBlocked', {
+			provider,
+			agentSessionId: AgentSession.id(session),
+			sendBlockedMs,
+			isFirstSendOfSession,
+			sendFailed,
+			mcpServerCount: mcp.serverCount,
+			mcpReadyCount: mcp.readyCount,
+			mcpFailedCount: mcp.failedCount,
+			mcpUnresolvedCount: mcp.unresolvedCount,
+			slowestMcpServerMs: mcp.slowestServerMs,
 		});
 	}
 
