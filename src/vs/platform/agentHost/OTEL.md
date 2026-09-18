@@ -16,12 +16,15 @@ This is the architecture and integration reference for OTel in Agent Host sessio
 
 The renderer reports `agentHost.firstResponse` and writes a content-free
 `[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1
-contains `requestId`, `provider`, optional backend `sessionId` / `chatId`,
+contains `requestId`, `provider`, optional backend `agentSessionId` / `chatId`,
 `sessionTurnKind` (`first`, `later`, or `unknown`), `outcome` (`success`,
 `cancelled`, `error`, or `notDispatched`), `hasResponseText`, optional
-`firstResponseTextMs`, and `totalElapsedMs`. The log additionally includes
-`turnId`, identical to `requestId`, for AHP joins. Durations use a local monotonic
-clock starting at agent invocation, before trust/authentication/session preparation.
+`firstResponseTextMs`, and `totalElapsedMs`. The log additionally retains
+`sessionId`, identical to `agentSessionId`, for compatibility, and includes
+`turnId`, identical to `requestId`, for AHP joins. The telemetry property uses
+`agentSessionId` to avoid colliding with the common VS Code `sessionID` property.
+Durations use a local monotonic clock starting at agent invocation, before
+trust/authentication/session preparation.
 `invocationKind` is `newTurn`, `existingTurn`, `subagent`, or `unknown` before
 hydration. Exclude `existingTurn` and `subagent` records from first-response
 comparisons rather than treating them as successful turns without an answer.
