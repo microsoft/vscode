@@ -1725,6 +1725,10 @@ export class AgentSideEffects extends Disposable {
 		const chatUri = URI.parse(chat);
 
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
+		// Declared outside the `try` so a turn that fails before the provider is
+		// handed the prompt can discard the checkpoint it already started.
+		let checkpointCapture: Promise<void> | undefined;
+		let dispatchedToProvider = false;
 		try {
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'workingDirectory');
@@ -1740,12 +1744,12 @@ export class AgentSideEffects extends Disposable {
 			// is sent, so the snapshot continues to reflect the tree the agent
 			// starts from. A turn cancelled before it got here never captures at
 			// all — the snapshot is expensive and would only be discarded.
-			// Rejections are marked handled here because the early returns below
-			// can skip the await; the later `await` still surfaces them so a
-			// failed capture fails the turn exactly as it used to.
+			// Rejections are marked handled here because the paths below can skip
+			// the await; the later `await` still surfaces them so a failed
+			// capture fails the turn exactly as it used to.
 			const shouldCheckpoint = !this._stateManager.isEphemeralSession(sessionChannel)
 				&& !this._cancelledTurnIds.get(turnChannel)?.has(turnId);
-			const checkpointCapture = shouldCheckpoint
+			checkpointCapture = shouldCheckpoint
 				? this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories)
 				: undefined;
 			checkpointCapture?.catch(() => { /* surfaced by the await below */ });
@@ -1792,8 +1796,18 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
 			this._turnTracker.markSendDispatched(turnChannel, turnId);
+			// From here the provider owns the turn: a rejected `sendMessage` may
+			// still have started work, so the checkpoint must survive it.
+			dispatchedToProvider = true;
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
 		} catch (err) {
+			// The provider never saw the prompt, so the turn-start checkpoint
+			// describes work that will never happen. Drop it — otherwise the
+			// non-resumable error below runs the end-of-turn capture and the
+			// failed turn retains a checkpoint pair it never earned.
+			if (!dispatchedToProvider) {
+				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
+			}
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
 			this._logService.error(`[AgentSideEffects] ${failureStage} failed for session=${turnChannel}: code=${failure.errorCode}, message=${error.message}, type=${failure.errorName}`, err);
@@ -1823,8 +1837,16 @@ export class AgentSideEffects extends Disposable {
 
 	/**
 	 * Discards a turn-start checkpoint that was started concurrently with the
-	 * rest of the send path. The capture is settled first so the discard cannot
-	 * race it; a capture that failed left nothing to discard.
+	 * rest of the send path, for a turn that will never reach the provider.
+	 *
+	 * The capture is settled first so the discard observes a finished
+	 * checkpoint; a capture that failed left nothing to discard. The checkpoint
+	 * service sequences both operations on the session key, so a discard issued
+	 * elsewhere (the cancellation observer) already runs after this capture —
+	 * discarding here as well is idempotent, and keeps the send path
+	 * self-contained rather than relying on an invariant established by another
+	 * caller. It is the only cleanup on the failure path, where no such
+	 * cancellation discard exists.
 	 */
 	private async _discardPendingTurnStartCheckpoint(capture: Promise<void> | undefined, sessionChannel: ProtocolURI, chatUri: URI, turnId: string): Promise<void> {
 		if (!capture) {

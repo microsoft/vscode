@@ -526,12 +526,13 @@ export class AgentHostTurnTracker extends Disposable {
 		if (!timing) {
 			return false;
 		}
+		// Close the open stage first so its duration is sampled no later than
+		// `totalTime`. A turn can end mid-stage (a failed checkpoint, a cancel
+		// during model selection), and sampling the other way round lets a clock
+		// tick attribute stage time past the reported turn duration.
+		this._closeSendStage(timing);
 		// Capture terminal timing before collecting or reporting additional telemetry.
 		const totalTime = timing.stopWatch.elapsed();
-		// A turn can end mid-stage (a failed checkpoint, a cancel during model
-		// selection). Close the open stage so its partial cost is still
-		// attributed rather than silently dropped.
-		this._closeSendStage(timing);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
 		const usage = this._turnUsages.get(key);
 		let summaries: readonly IAgentTokenUsageSummary[] | undefined;

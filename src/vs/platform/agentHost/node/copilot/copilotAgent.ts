@@ -5101,11 +5101,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _validateModelSelection(model: ModelSelection): Promise<void> {
-		// A model already in the catalog is valid now, and a refresh landing
-		// later cannot retroactively invalidate this selection. Only an unknown
-		// model needs the in-flight refresh, which may be about to add it — so
-		// the common case no longer holds the turn behind a catalog round-trip.
-		if (this._models.get().some(candidate => candidate.id === model.id)) {
+		// A scheduled refresh is *invalidating*: it follows a token rotation or a
+		// client restart, so the published catalog belongs to the previous
+		// credential and may still list a model the new one cannot use. Only an
+		// ordinary in-flight refresh can be skipped — it re-enumerates the same
+		// credential, so a model the catalog already lists stays valid and the
+		// turn need not wait for it.
+		if (!this._scheduledModelRefresh && this._models.get().some(candidate => candidate.id === model.id)) {
 			return;
 		}
 		await (this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight);
