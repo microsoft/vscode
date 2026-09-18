@@ -3,18 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
- * Normalizes a URL by removing trailing slashes and query/fragment components.
- * @param url The URL to normalize.
- * @returns URI - The normalized URI object.
+ * Removes trailing slashes, queries and fragments, optionally resolving HTTP(S) paths.
  */
-function normalizeURL(url: string | URI): URI {
+function normalizeURL(url: string | URI, resolvePath = false): URI {
 	const uri = typeof url === 'string' ? URI.parse(url) : url;
+	let path = uri.path;
+	if (resolvePath && matchesSomeScheme(uri, Schemas.http, Schemas.https)) {
+		// Apply browser preprocessing without reparsing the authority or decoding percent escapes again.
+		const pathUrl = new URL(`${Schemas.http}://localhost`);
+		pathUrl.pathname = encodeURI(path.toWellFormed().replace(/[\t\n\r]/g, '').replace(/\\/g, '/'));
+		path = URI.parse(pathUrl.href).path;
+	}
+
 	return uri.with({
 		// Remove trailing slashes
-		path: uri.path.replace(/\/+$/, ''),
+		path: path.replace(/\/+$/, ''),
 		// Remove query and fragment
 		query: null,
 		fragment: null,
@@ -22,11 +29,8 @@ function normalizeURL(url: string | URI): URI {
 }
 
 /**
- * Checks if a given URL matches a glob URL pattern.
- * The glob URL pattern can contain wildcards (*) and subdomain matching (*.)
- * @param uri The URL to check.
- * @param globUrl The glob URL pattern to match against.
- * @returns boolean - True if the URL matches the glob URL pattern, false otherwise.
+ * Checks a URL against a glob with wildcards (*) and subdomain matching (*.).
+ * HTTP(S) paths must match both before and after browser-style dot-segment resolution.
  */
 export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean {
 	const normalizedUrl = normalizeURL(uri);
@@ -44,16 +48,24 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 		normalizedGlobUrl = normalizeURL(globUrl);
 	}
 
-	return (
-		doMemoUrlMatch(normalizedUrl.scheme, normalizedGlobUrl.scheme) &&
+	if (
+		!doMemoUrlMatch(normalizedUrl.scheme, normalizedGlobUrl.scheme) ||
 		// The authority is the only thing that should do port logic.
-		doMemoUrlMatch(normalizedUrl.authority, normalizedGlobUrl.authority, true) &&
-		(
-			//
-			normalizedGlobUrl.path === '/' ||
-			doMemoUrlMatch(normalizedUrl.path, normalizedGlobUrl.path)
-		)
-	);
+		!doMemoUrlMatch(normalizedUrl.authority, normalizedGlobUrl.authority, true)
+	) {
+		return false;
+	}
+
+	if (normalizedGlobUrl.path === '/') {
+		return true;
+	}
+
+	if (!doMemoUrlMatch(normalizedUrl.path, normalizedGlobUrl.path)) {
+		return false;
+	}
+
+	const resolvedPath = normalizeURL(normalizedUrl, true).path;
+	return resolvedPath === normalizedUrl.path || doMemoUrlMatch(resolvedPath, normalizedGlobUrl.path);
 }
 
 /**

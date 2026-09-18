@@ -33,6 +33,7 @@ interface ICapturedAction {
 class TestActionWidgetService extends mock<IActionWidgetService>() {
 	override readonly isVisible = false;
 	capturedActions: ICapturedAction[] = [];
+	capturedBadges: (string | undefined)[] = [];
 	capturedListOptions: IActionListOptions | undefined;
 	initialFocusItemId: string | undefined;
 
@@ -51,6 +52,7 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 	): void {
 		this.capturedListOptions = listOptions;
 		this.initialFocusItemId = listOptions?.initialFocusItemId;
+		this.capturedBadges = items.map(item => item.badge);
 		this.capturedActions = items.flatMap(item => {
 			const action = item.item as (IActionWidgetDropdownAction | undefined);
 			return action ? [{
@@ -73,6 +75,27 @@ class TestActionWidgetDropdownActionViewItem extends ActionWidgetDropdownActionV
 
 suite('ActionWidgetDropdown', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('passes badges through to the action list', () => {
+		const actionWidgetService = new TestActionWidgetService();
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{
+				label: 'Permissions',
+				actions: [
+					toAction({ id: 'manual', label: 'Manual permissions', run: () => { } }),
+					{ ...toAction({ id: 'assisted', label: 'Assisted permissions', run: () => { } }), badge: 'Experimental' },
+				],
+			},
+			actionWidgetService,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+
+		dropdown.show();
+
+		assert.deepStrictEqual(actionWidgetService.capturedBadges, [undefined, 'Experimental']);
+	});
 
 	test('applies motion defaults idempotently and preserves overrides', () => {
 		const customCloseAnimation: IActionListCloseAnimation = {

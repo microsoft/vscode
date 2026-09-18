@@ -264,10 +264,12 @@ suite('Remote Agent Host chat session contribution', () => {
 		);
 		assert.deepStrictEqual(registeredContribution && {
 			type: registeredContribution.type,
+			displayName: registeredContribution.displayName,
 			canDelegate: registeredContribution.canDelegate,
 			supportsDelegation: registeredContribution.supportsDelegation,
 		}, {
 			type: 'remote-test-host-copilot',
+			displayName: 'Copilot [Test Host]',
 			canDelegate: true,
 			supportsDelegation: false,
 		});
