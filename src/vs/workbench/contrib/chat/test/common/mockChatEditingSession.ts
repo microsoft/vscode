@@ -20,7 +20,7 @@ export class MockChatEditingSession extends mock<IChatEditingSession>() {
 	override readonly requestDisablement = constObservable<IChatRequestDisablement[]>([]);
 	override readonly entries;
 
-	constructor(private readonly diffs: readonly IEditSessionEntryDiff[]) {
+	constructor(private readonly diffs: readonly IEditSessionEntryDiff[], private readonly options: { readonly synchronousDiffs?: boolean } = {}) {
 		super();
 		this.entries = constObservable(diffs.map(diff => new class extends mock<IModifiedFileEntry>() {
 			override readonly modifiedURI = diff.modifiedURI;
@@ -39,10 +39,15 @@ export class MockChatEditingSession extends mock<IChatEditingSession>() {
 	}
 
 	override getEntryDiffBetweenStops(uri: URI) {
+		const diff = this.diffs.find(diff => isEqual(diff.modifiedURI, uri));
+		if (this.options.synchronousDiffs) {
+			// Finalized diffs are cached by the real session and handed out as constant observables.
+			return constObservable(diff);
+		}
 		const result = observableValue<IEditSessionEntryDiff | undefined>(this, undefined);
-		// The real editing session computes snapshot diffs asynchronously.
+		// The real editing session computes fresh snapshot diffs asynchronously.
 		queueMicrotask(() => {
-			result.set(this.diffs.find(diff => isEqual(diff.modifiedURI, uri)), undefined);
+			result.set(diff, undefined);
 		});
 		return result;
 	}

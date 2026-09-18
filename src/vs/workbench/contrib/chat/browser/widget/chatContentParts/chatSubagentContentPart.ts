@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -36,7 +36,8 @@ import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownContentPart.js';
 import { EditorPool } from './chatContentCodePools.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartDiffSource, IChatContentPartRenderContext } from './chatContentParts.js';
+import { aggregateChatEditDiffs } from './chatEditStatsButton.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
@@ -119,6 +120,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	private hasExpandedOnce: boolean = false;
 	private pendingPromptRender: boolean = false;
 	private pendingResultText: string | undefined;
+
+	// Edits made by the subagent's own markdown items, so response-level totals can include them.
+	private readonly diffDataByPartId = new Map<string, IChatContentPartDiffData>();
+	private readonly _diffData = observableValue<IChatContentPartDiffData>(this, { added: 0, removed: 0, resources: [] });
+	readonly diffData: IObservable<IChatContentPartDiffData> = this._diffData;
 
 	// Current tool message for collapsed title (persists even after tool completes)
 	private currentRunningToolMessage: string | undefined;
@@ -1365,15 +1371,28 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 */
 	public appendMarkdownItem(
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
-		_codeblocksPartId: string | undefined,
+		codeblocksPartId: string | undefined,
 		_markdown: IChatMarkdownContent,
 		_originalParent?: HTMLElement,
 		eagerDisposable?: IDisposable,
+		diffSource?: IChatContentPartDiffSource,
 	): void {
 		// Register any caller-owned disposable up-front so it is always cleaned up
 		// with this subagent part, even if the lazy item is never materialized.
 		if (eagerDisposable) {
 			this._register(eagerDisposable);
+		}
+
+		// Track edit-pill diffs, seeding from any value emitted before this subscription existed.
+		if (diffSource && codeblocksPartId) {
+			this.diffDataByPartId.set(codeblocksPartId, diffSource.diffData ?? { added: 0, removed: 0, resources: [] });
+			this._register(diffSource.onDidChangeDiff(data => {
+				this.diffDataByPartId.set(codeblocksPartId, data);
+				this._diffData.set(aggregateChatEditDiffs(this.diffDataByPartId.values()), undefined);
+			}));
+			if (diffSource.diffData) {
+				this._diffData.set(aggregateChatEditDiffs(this.diffDataByPartId.values()), undefined);
+			}
 		}
 
 		// If expanded or has been expanded once, render immediately

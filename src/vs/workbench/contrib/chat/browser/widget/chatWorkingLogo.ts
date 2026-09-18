@@ -127,6 +127,8 @@ export class ChatWorkingProgressLogo extends ChatWorkingLogo {
 	}
 }
 
+const warnedUnsupportedAnimations = new Set<string>();
+
 export function getConfiguredProgressAnimation(configurationService: IConfigurationService, logService: ILogService): ChatProgressAnimation {
 	const animation = configurationService.getValue<ChatProgressAnimation | undefined>(ChatConfiguration.PersistentProgress);
 	switch (animation) {
@@ -139,8 +141,15 @@ export function getConfiguredProgressAnimation(configurationService: IConfigurat
 		case ChatProgressAnimation.Accordion:
 		case ChatProgressAnimation.Dial:
 			return animation;
-		default:
-			logService.warn('ChatWorkingProgressLogo: unsupported progress animation, using Off', animation);
+		default: {
+			// Resolved on render hot paths, so an unknown value (e.g. from an experiment targeting a newer
+			// client) must not warn on every call.
+			const key = String(animation);
+			if (!warnedUnsupportedAnimations.has(key)) {
+				warnedUnsupportedAnimations.add(key);
+				logService.warn('ChatWorkingProgressLogo: unsupported progress animation, using Off', animation);
+			}
 			return ChatProgressAnimation.Off;
+		}
 	}
 }

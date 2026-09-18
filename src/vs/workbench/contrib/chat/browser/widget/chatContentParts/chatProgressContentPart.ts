@@ -80,9 +80,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.useShimmer = (!!isWorkingProgress || !context.suppressProgressShimmer)
 			&& (shimmer ?? (!icon || isLoadingIcon))
 			&& this.showSpinner;
+		// The persistent footer owns the in-progress signal, so rows without an explicit icon keep the
+		// check they show when shimmering instead of a spinner glyph that would compete with it.
+		const fallbackIcon = this.showSpinner && !this.persistentProgress ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
 		const progressIcon = this.useShimmer && !(isWorkingProgress && this.persistentProgress)
 			? Codicon.check
-			: (icon ?? (this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check));
+			: (icon ?? fallbackIcon);
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
@@ -411,11 +414,15 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return renderAsPlaintext(this.currentContent);
 	}
 
-	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive): void {
+	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce = false): void {
 		const resolvedContent = content ?? new MarkdownString().appendText(pickWorkingLabel(this.contextElement, this.workingConfigurationService));
 		if (this.workingLogo && content?.value === this.explicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === this.isActive) {
 			return;
 		}
+		// The retained footer swaps its text in place, so a new blocking state ("1 confirmation pending",
+		// "Authentication required") must be announced the way a freshly created row would be.
+		const shouldAnnounce = announce && !!this.workingLogo && !!content && content.value !== this.explicitContent?.value
+			&& this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates);
 		this.explicitContent = content;
 		this.isActive = isActive;
 		if (this.workingLogo) {
@@ -424,6 +431,9 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			this.setShimmerActive(isActive);
 		}
 		this.updateMessage(resolvedContent);
+		if (shouldAnnounce) {
+			alert(stripIcons(renderAsPlaintext(resolvedContent)));
+		}
 	}
 
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

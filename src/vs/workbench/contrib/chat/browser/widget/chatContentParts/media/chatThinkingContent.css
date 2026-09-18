@@ -24,7 +24,14 @@
 	display: none;
 }
 
-.chat-tool-call-with-icon {
+/* The gutter icon only has a home inside a persistent response; any other host (e.g. the tool
+	confirmation carousel in the input part) must not show it or reserve space for it. Specific
+	enough to beat the codicon display rule. */
+.chat-tool-invocation-part.chat-tool-call-with-icon > .chat-tool-call-icon {
+	display: none;
+}
+
+.interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon {
 	position: relative;
 	padding-left: var(--vscode-spacing-size240);
 }

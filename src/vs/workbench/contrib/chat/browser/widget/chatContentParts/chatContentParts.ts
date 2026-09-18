@@ -57,6 +57,16 @@ export interface IChatContentPartDiffData {
 	readonly resources: readonly IChatContentPartDiffResource[];
 }
 
+/**
+ * A content part whose edits contribute to aggregated statistics. Consumers read `diffData`
+ * when they attach, because the change event may already have fired during construction
+ * (for example when an editing session restores finalized diffs synchronously).
+ */
+export interface IChatContentPartDiffSource {
+	readonly onDidChangeDiff: Event<IChatContentPartDiffData>;
+	readonly diffData: IChatContentPartDiffData | undefined;
+}
+
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly readOnly?: boolean;

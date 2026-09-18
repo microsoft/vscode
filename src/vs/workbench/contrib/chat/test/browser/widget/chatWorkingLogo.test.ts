@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ChatWorkingLogo, ChatWorkingLogoMotion, ChatWorkingProgressLogo } from '../../../browser/widget/chatWorkingLogo.js';
+import { ChatWorkingLogo, ChatWorkingLogoMotion, ChatWorkingProgressLogo, getConfiguredProgressAnimation } from '../../../browser/widget/chatWorkingLogo.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../../common/constants.js';
 
 function sampleOutline(face: HTMLElement): readonly { x: number; y: number }[] {
@@ -142,6 +142,17 @@ suite('ChatWorkingLogo', () => {
 			static: true,
 			warnings: ['ChatWorkingProgressLogo: unsupported progress animation, using Off'],
 		});
+	});
+
+	test('unsupported animation settings warn once per value across render hot paths', async () => {
+		const { configuration } = createConfiguration();
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, 'pulse');
+		const warnings: string[] = [];
+		const logger = store.add(new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}());
+		const results = [1, 2, 3].map(() => getConfiguredProgressAnimation(configuration, logger));
+		assert.deepStrictEqual({ results, warnings: warnings.length }, { results: [ChatProgressAnimation.Off, ChatProgressAnimation.Off, ChatProgressAnimation.Off], warnings: 1 });
 	});
 
 	test('uses the same three Stable ribbon faces for every motion and tint', () => {
