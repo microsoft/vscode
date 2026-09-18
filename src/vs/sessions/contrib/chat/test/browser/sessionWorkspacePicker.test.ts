@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -91,6 +91,7 @@ function createMockProvider(id: string, opts?: {
 	canConnectOnDemand?: boolean;
 	connect?: () => Promise<void>;
 	onDidReportConnectProgress?: Event<{ readonly connectionKey: string; readonly message: string }>;
+	onDidChangeSessionTypes?: Event<void>;
 	remoteAddress?: string;
 	getSessions?: () => ISession[];
 	onDidChangeSessions?: Event<ISessionChangeEvent>;
@@ -106,7 +107,7 @@ function createMockProvider(id: string, opts?: {
 		icon: Codicon.remote,
 		order: 0,
 		sessionTypes: [],
-		onDidChangeSessionTypes: Event.None,
+		onDidChangeSessionTypes: opts?.onDidChangeSessionTypes ?? Event.None,
 		browseActions: opts?.browseActions ?? [],
 		resolveWorkspace: (uri: URI): ISessionWorkspace | undefined => {
 			if (!canResolve(uri)) {
@@ -330,7 +331,7 @@ function createTestPicker(
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
 
-	instantiationService.stub(IActionWidgetService, actionWidgetService ?? upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { } }));
+	instantiationService.stub(IActionWidgetService, actionWidgetService ?? upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { }, updateItems: () => { } }));
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(IUriIdentityService, { extUri });
@@ -555,6 +556,232 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Manage Provider agenthost-ssh', icon: Codicon.remote.id },
 				{ label: 'Manage Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
+		});
+	});
+
+	test('keeps the unified remote submenu open when a provider is removed', () => {
+		const firstProvider = createMockProvider('agenthost-remote-1', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+			remoteAddress: 'ssh:first',
+		});
+		const secondProvider = createMockProvider('agenthost-remote-2', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+			remoteAddress: 'ssh:second',
+		});
+		providersService.setProviders([firstProvider, secondProvider]);
+		let visible = false;
+		let showCount = 0;
+		let hideCount = 0;
+		const updates: Array<readonly IActionListItem<unknown>[]> = [];
+		const preserveOpenPanel: boolean[] = [];
+		const picker = createTestablePicker(
+			disposables,
+			providersService,
+			true,
+			{ restoreFromSessions: false },
+			undefined,
+			undefined,
+			true,
+			{
+				get isVisible() { return visible; },
+				show: () => {
+					visible = true;
+					showCount++;
+				},
+				hide: () => {
+					visible = false;
+					hideCount++;
+				},
+				updateItems: (items, _focusItemId, options) => {
+					updates.push(items);
+					preserveOpenPanel.push(options?.preserveHover === true);
+				},
+			},
+		);
+		picker.showPicker(false, document.createElement('button'));
+
+		providersService.setProviders([secondProvider]);
+
+		const remoteItem = updates[0]?.find(item => item.label === 'Remote');
+		const submenu = remoteItem?.submenuActions?.[0];
+		assert.deepStrictEqual({
+			showCount,
+			hideCount,
+			updateCount: updates.length,
+			preserveOpenPanel,
+			remoteActions: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
+		}, {
+			showCount: 1,
+			hideCount: 0,
+			updateCount: 1,
+			preserveOpenPanel: [true],
+			remoteActions: ['Manage Provider agenthost-remote-2'],
+		});
+	});
+
+	test('rebuilds tabbed picker topology when provider changes while open', () => {
+		class ReopeningPicker extends WorkspacePicker {
+			readonly showCalls: Array<{ force: boolean; anchor: HTMLElement | undefined; preferredGroup: string | undefined; attachesContext: boolean | undefined }> = [];
+
+			override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
+				this.showCalls.push({ force, anchor, preferredGroup, attachesContext });
+				super.showPicker(force, anchor, preferredGroup, attachesContext);
+			}
+		}
+
+		const localProvider = createMockProvider('local-1');
+		const remoteProvider = createMockProvider('agenthost-remote-1', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+			remoteAddress: 'ssh:host',
+		});
+		providersService.setProviders([localProvider, remoteProvider]);
+		let visible = false;
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			ReopeningPicker,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			upcastPartial<IActionWidgetService>({
+				get isVisible() { return visible; },
+				show: () => { visible = true; },
+				hide: () => { visible = false; },
+				updateItems: () => { },
+			}),
+		) as ReopeningPicker;
+		const trigger = document.createElement('button');
+		picker.showPicker(false, trigger, SESSION_WORKSPACE_GROUP_REMOTE);
+
+		providersService.setProviders([remoteProvider]);
+
+		assert.deepStrictEqual(picker.showCalls.map(call => ({
+			force: call.force,
+			sameAnchor: call.anchor === trigger,
+			preferredGroup: call.preferredGroup,
+			attachesContext: call.attachesContext,
+		})), [
+			{ force: false, sameAnchor: true, preferredGroup: SESSION_WORKSPACE_GROUP_REMOTE, attachesContext: undefined },
+			{ force: true, sameAnchor: true, preferredGroup: SESSION_WORKSPACE_GROUP_REMOTE, attachesContext: undefined },
+		]);
+	});
+
+	test('keeps the unified remote submenu open when session types change while open', () => {
+		const onDidChangeSessionTypes = disposables.add(new Emitter<void>());
+		const provider = createMockProvider('agenthost-remote-1', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+			remoteAddress: 'ssh:host',
+			onDidChangeSessionTypes: onDidChangeSessionTypes.event,
+		});
+		providersService.setProviders([provider]);
+		let visible = false;
+		let showCount = 0;
+		let hideCount = 0;
+		const updates: Array<readonly IActionListItem<unknown>[]> = [];
+		const preserveOpenPanel: boolean[] = [];
+		const picker = createTestablePicker(
+			disposables,
+			providersService,
+			true,
+			{ restoreFromSessions: false },
+			undefined,
+			undefined,
+			true,
+			{
+				get isVisible() { return visible; },
+				show: () => {
+					visible = true;
+					showCount++;
+				},
+				hide: () => {
+					visible = false;
+					hideCount++;
+				},
+				updateItems: (items, _focusItemId, options) => {
+					updates.push(items);
+					preserveOpenPanel.push(options?.preserveHover === true);
+				},
+			},
+		);
+		picker.showPicker(false, document.createElement('button'));
+
+		onDidChangeSessionTypes.fire();
+
+		const remoteItem = updates[0]?.find(item => item.label === 'Remote');
+		assert.deepStrictEqual({
+			showCount,
+			hideCount,
+			updateCount: updates.length,
+			preserveOpenPanel,
+			hasRemoteSubmenu: !!remoteItem?.submenuActions?.length,
+		}, {
+			showCount: 1,
+			hideCount: 0,
+			updateCount: 1,
+			preserveOpenPanel: [true],
+			hasRemoteSubmenu: true,
+		});
+	});
+
+	test('keeps the unified remote submenu open when dev container availability changes while open', async () => {
+		const onDidChangeDevContainerAvailability = disposables.add(new Emitter<void>());
+		const provider = createMockProvider('agenthost-remote-1', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+			remoteAddress: 'ssh:host',
+			onDidChangeDevContainerAvailability: onDidChangeDevContainerAvailability.event,
+		});
+		providersService.setProviders([provider]);
+		let visible = false;
+		let showCount = 0;
+		let hideCount = 0;
+		const updates: Array<readonly IActionListItem<unknown>[]> = [];
+		const preserveOpenPanel: boolean[] = [];
+		const picker = createTestablePicker(
+			disposables,
+			providersService,
+			true,
+			{ restoreFromSessions: false },
+			undefined,
+			undefined,
+			true,
+			{
+				get isVisible() { return visible; },
+				show: () => {
+					visible = true;
+					showCount++;
+				},
+				hide: () => {
+					visible = false;
+					hideCount++;
+				},
+				updateItems: (items, _focusItemId, options) => {
+					updates.push(items);
+					preserveOpenPanel.push(options?.preserveHover === true);
+				},
+			},
+		);
+		picker.showPicker(false, document.createElement('button'));
+
+		onDidChangeDevContainerAvailability.fire();
+		await timeout(80);
+
+		const remoteItem = updates[0]?.find(item => item.label === 'Remote');
+		assert.deepStrictEqual({
+			showCount,
+			hideCount,
+			updateCount: updates.length,
+			preserveOpenPanel,
+			hasRemoteSubmenu: !!remoteItem?.submenuActions?.length,
+		}, {
+			showCount: 1,
+			hideCount: 0,
+			updateCount: 1,
+			preserveOpenPanel: [true],
+			hasRemoteSubmenu: true,
 		});
 	});
 
@@ -2683,6 +2910,10 @@ suite('WorkspacePicker - Category Triggers', () => {
 				this.onHide?.();
 				this.onHide = undefined;
 			}
+
+			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+				this.shownLabels.push(items.flatMap(item => item.label ? [item.label] : []));
+			}
 		}
 
 		const actionWidgetService = new CapturingActionWidgetService();
@@ -2895,6 +3126,10 @@ suite('WorkspacePicker - Category Triggers', () => {
 				this.isVisible = false;
 				this.onHide?.();
 				this.onHide = undefined;
+			}
+
+			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+				this.shownLabels.push(items.flatMap(item => item.label ? [item.label] : []));
 			}
 		}
 
@@ -4014,9 +4249,10 @@ function createTestablePicker(
 	commandService: Partial<ICommandService> = { executeCommand: async () => { } },
 	storageService: IStorageService = disposables.add(new TestStorageService()),
 	consolidatedRemoteWorkspaces = false,
+	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { }, updateItems: () => { } },
 ): TestablePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
-	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, storageService);
 	instantiationService.stub(IUriIdentityService, { extUri });
@@ -4418,6 +4654,36 @@ suite('WorkspacePicker - Tab discovery', () => {
 				triggerLabel: 'Chat',
 				triggerAriaLabel: 'Workspace: Chat',
 			},
+		});
+	});
+
+	test('opens Chat as a host submenu when targets are provided', async () => {
+		const selectedHosts: string[] = [];
+		const picker = createTestablePicker(disposables, providersService, true, {
+			getNoWorkspaceOption: () => ({
+				description: 'Start without a backing workspace',
+				isSelected: false,
+				select: () => selectedHosts.push('default'),
+				submenuActions: [
+					toAction({ id: 'quickChat.local', label: 'Local', run: () => selectedHosts.push('local') }),
+					toAction({ id: 'quickChat.remote', label: 'Test Remote', run: () => selectedHosts.push('remote') }),
+				],
+			}),
+		}, undefined, undefined, true);
+		const chatItem = picker.getItems().find(item => item.label === 'Chat');
+
+		await picker.selectSubmenu('Chat', 'Test Remote');
+
+		assert.deepStrictEqual({
+			openSubmenuOnClick: chatItem?.openSubmenuOnClick,
+			ariaDescription: chatItem?.ariaDescription,
+			actions: chatItem?.submenuActions?.map(action => action.label),
+			selectedHosts,
+		}, {
+			openSubmenuOnClick: true,
+			ariaDescription: 'Start the session in a temporary directory.',
+			actions: ['Local', 'Test Remote'],
+			selectedHosts: ['remote'],
 		});
 	});
 
@@ -4979,7 +5245,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		providersService.setProviders([provider]);
 
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { }, updateItems: () => { } });
 		instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IUriIdentityService, { extUri });
