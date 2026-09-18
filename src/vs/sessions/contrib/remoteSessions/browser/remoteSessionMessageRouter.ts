@@ -13,13 +13,15 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { resolveAgentHostSessionTrustFolders } from '../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity } from '../../../services/sessions/common/session.js';
@@ -73,6 +75,7 @@ export class RemoteSessionMessageRouter {
 		@IAgentHostConnectionsService private readonly connectionsService: IAgentHostConnectionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRemoteSessionChatService private readonly backgroundChats: IRemoteSessionChatService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 	) { }
 
 	async prepareTarget(source: URI, target: string, token: CancellationToken): Promise<IRemoteMessageTarget> {
@@ -170,23 +173,46 @@ export class RemoteSessionMessageRouter {
 		};
 	}
 
+	private async checkTargetTrust(target: IResolvedRemoteChat, state: SessionState, token: CancellationToken): Promise<void> {
+		if (!readSessionWorkspaceless(state._meta) && state.workingDirectories === undefined) {
+			throw new Error(localize('remoteMessage.unknownWorkspace', "The target session's working directories are unavailable. Open the session before sending a remote message."));
+		}
+		const folders = await raceCancellationError(resolveAgentHostSessionTrustFolders(
+			state, this.workspaceTrustService, resource => target.host.connection.resourceUris.fromAgentHost(resource),
+		), token);
+		if (folders === undefined) {
+			return;
+		}
+		const trusted = folders.length === 0
+			? this.workspaceTrustService.isWorkspaceTrusted()
+			: (await raceCancellationError(Promise.all(folders.map(folder => this.workspaceTrustService.getUriTrustInfo(folder))), token)).every(info => info.trusted);
+		if (!trusted) {
+			throw new Error(localize('remoteMessage.untrustedWorkspace', "The target session's workspace is not trusted. Trust it before sending a remote message."));
+		}
+	}
+
 	private async doSend(source: IResolvedRemoteChat, target: IResolvedRemoteChat, options: ISendRemoteMessageOptions, token: CancellationToken): Promise<ISendRemoteMessageResult> {
 		const store = new DisposableStore();
 		let dispatched = false;
 		let rejected = false;
 		let confirmed = false;
 		let started = false;
-		let connectionError: Error | undefined;
+		let operationError: Error | undefined;
 		let background: IRemoteSessionChatReference | undefined;
 		try {
 			const cancellation = store.add(new CancellationTokenSource(token));
-			store.add(disposableTimeout(() => cancellation.cancel(), 10_000));
+			store.add(disposableTimeout(() => {
+				operationError = new Error(dispatched
+					? localize('remoteMessage.acknowledgementTimeout', "Timed out waiting for remote message acknowledgement.")
+					: localize('remoteMessage.preparationTimeout', "Timed out preparing the remote message."));
+				cancellation.cancel();
+			}, 10_000));
 			const checkConnections = () => {
 				try {
 					this.checkConnected(source);
 					this.checkConnected(target);
 				} catch (error) {
-					connectionError = error instanceof Error ? error : new Error(toErrorMessage(error));
+					operationError = error instanceof Error ? error : new Error(toErrorMessage(error));
 					cancellation.cancel();
 				}
 			};
@@ -194,21 +220,23 @@ export class RemoteSessionMessageRouter {
 			checkConnections();
 			const connection = target.host.connection;
 			const session = store.add(connection.getSubscription(StateComponents.Session, target.host.backendSession, 'RemoteSessionMessageRouter'));
-			const sessionState = await readRemoteSessionState(session.object, cancellation.token);
+			const sessionState = await readRemoteSessionState(session.object, cancellation.token, true);
 			const chatResource = getSessionChatResource(sessionState, target.chat.fragment || DEFAULT_CHAT_ID);
 			const identity = chatResource ? parseChatUri(chatResource) : undefined;
 			if (!chatResource || !identity || !isEqual(URI.parse(identity.session), target.host.backendSession)) {
 				throw new Error(localize('remoteMessage.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
 			const chat = store.add(connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionMessageRouter'));
-			const chatState = await readRemoteSessionState(chat.object, cancellation.token);
+			const chatState = await readRemoteSessionState(chat.object, cancellation.token, true);
 			if (!isEqual(URI.parse(chatState.resource), URI.parse(chatResource))) {
 				throw new Error(localize('remoteMessage.chatChanged', "The target chat identity changed while preparing the message."));
 			}
 			if (effectiveChatInteractivity(chatState.interactivity, isSessionStatusArchived(sessionState.status)) !== ProtocolChatInteractivity.Full) {
 				throw new Error(localize('remoteMessage.readOnly', "The target chat is archived or read-only."));
 			}
+			await this.checkTargetTrust(target, sessionState, cancellation.token);
 			background = await this.backgroundChats.acquire(target.chat, cancellation.token, true);
+			await this.checkTargetTrust(target, await readRemoteSessionState(session.object, cancellation.token, true), cancellation.token);
 			this.checkEnabled();
 			this.checkConnected(source);
 			this.checkConnected(target);
@@ -254,13 +282,13 @@ export class RemoteSessionMessageRouter {
 			await raceCancellationError(accepted, cancellation.token);
 		} catch (error) {
 			if (!confirmed && dispatched && !rejected) {
-				throw new Error(localize('remoteMessage.unconfirmed', "Remote message delivery was not confirmed. It may already be queued; do not retry automatically. {0}", toErrorMessage(connectionError ?? error)));
+				throw new Error(localize('remoteMessage.unconfirmed', "Remote message delivery was not confirmed. It may already be queued; do not retry automatically. {0}", toErrorMessage(operationError ?? error)));
 			}
 			if (!confirmed) {
-				throw connectionError ?? error;
+				throw operationError ?? error;
 			}
 		} finally {
-			if (confirmed) {
+			if (confirmed || (dispatched && !rejected)) {
 				background?.releaseWhenIdle();
 			} else {
 				background?.dispose();

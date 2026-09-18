@@ -30,8 +30,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { resolveModelIdentifierFromCatalog } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveModelIdentifierFromCatalog } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionGitRepository, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
@@ -39,6 +40,10 @@ import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementServi
 import { RemoteSessionService } from '../../browser/remoteSessionService.js';
 import { parseCreateRemoteSessionOptions } from '../../common/remoteSessions.js';
 import { IRemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
+
+class RemoteConnection extends mock<IAgentConnection>() {
+	override clientId = 'target-client';
+}
 
 class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override readonly remoteAddress: string;
@@ -50,6 +55,7 @@ class RemoteProvider extends mock<IAgentHostSessionsProvider>() {
 	override sessionTypes: ISessionType[];
 	root: RootState;
 	rootAvailable = true;
+	connection = new RemoteConnection();
 
 	constructor(name: string, load = 0, platform: 'windows' | 'linux' | 'macos' = 'linux', agentProvider = 'copilot') {
 		super();
@@ -116,6 +122,20 @@ suite('RemoteSessionService', () => {
 			sourceConnected: true,
 			sourceClientId: 'test-client',
 		};
+		const models = new Map<string, ILanguageModelChatMetadata>(hosts.flatMap(host => host.root.agents.flatMap(agent => {
+			const vendor = remoteAgentHostSessionTypeId(agentHostAuthority(host.remoteAddress), agent.provider);
+			return agent.models.map(model => [
+				`${vendor}:${model.id}`,
+				upcastPartial<ILanguageModelChatMetadata>({ id: model.id, vendor, targetChatSessionType: vendor }),
+			] as const);
+		})));
+		const hiddenModels = new Set<string>();
+		const languageModels = new class extends mock<ILanguageModelsService>() {
+			override getLanguageModelIds() { return [...models.keys()]; }
+			override lookupLanguageModel(identifier: string) { return models.get(identifier); }
+			override isModelHidden(identifier: string) { return hiddenModels.has(identifier); }
+		}();
+		const autoModelSessionTypes = new Set<string>();
 		const management = new class extends mock<ISessionsManagementService>() {
 			override getSession(resource: URI): ISession | undefined {
 				return isEqual(resource, source.resource) ? source : undefined;
@@ -133,8 +153,9 @@ suite('RemoteSessionService', () => {
 				calls.push({ request, options, workspace });
 				const number = calls.length;
 				const host = hosts.find(host => host.id === options?.providerId)!;
+				const sessionType = host.sessionTypes.find(type => type.id === options?.sessionTypeId)!;
 				const created = state.transformSession(makeSession(
-					URI.from({ scheme: host.sessionTypes[0].chatSessionType!, path: `/created-${number}` }),
+					URI.from({ scheme: sessionType.chatSessionType!, path: `/created-${number}` }),
 					workspace ? upcastPartial<ISessionWorkspace>({
 						uri: workspace,
 						folders: [{ root: workspace, workingDirectory: workspace, name: 'repo', description: undefined }],
@@ -144,10 +165,7 @@ suite('RemoteSessionService', () => {
 				await options?.onSessionCreated?.(created);
 				if (options?.modelId) {
 					const vendor = created.resource.scheme;
-					const models = host.root.agents.find(agent => agent.provider === options.sessionTypeId)!.models.map(model => ({
-						identifier: `${vendor}:${model.id}`,
-						metadata: upcastPartial<ILanguageModelChatMetadata>({ id: model.id, vendor, targetChatSessionType: vendor }),
-					}));
+					const models = getVisibleLanguageModelsForTarget(getRegisteredLanguageModels(languageModels), vendor, languageModels);
 					const resolution = resolveModelIdentifierFromCatalog(models, options.modelId, {
 						hasLiveModels: candidate => candidate === vendor,
 						hasResolved: candidate => candidate === vendor,
@@ -179,6 +197,10 @@ suite('RemoteSessionService', () => {
 		}();
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
 			override readonly onDidChangeConnections = Event.None;
+			override getConnectionByAddress(address: string) {
+				const host = hosts.find(host => host.remoteAddress === address);
+				return host?.connectionStatus.get().kind === 'connected' ? host.connection : undefined;
+			}
 			override resolveSessionResource(resource: URI) {
 				return state.sourceConnected && isEqual(resource, source.resource)
 					? { connection, connectionAuthority: 'local', backendSession: sourceMetadata.session }
@@ -212,9 +234,13 @@ suite('RemoteSessionService', () => {
 					};
 				}
 			}(),
+			languageModels,
+			new class extends mock<IChatSessionsService>() {
+				override supportsAutoModelForSessionType(type: string) { return autoModelSessionTypes.has(type); }
+			}(),
 		);
 		const create = (input: object = {}, id = 'request') => service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }), sourceChat.resource, id, CancellationToken.None);
-		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents };
+		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents, models, hiddenModels, autoModelSessionTypes };
 	}
 
 	test('lists resources, models, host identity and workload without connecting hosts', () => {
@@ -333,9 +359,137 @@ suite('RemoteSessionService', () => {
 	test('rejects unavailable or policy-disabled models instead of substituting', async () => {
 		const host = new RemoteProvider('host');
 		host.root.agents[0].models[0].policyState = PolicyState.Disabled;
-		const { create, calls } = setup([host]);
+		const { service, create, calls } = setup([host]);
 		await assert.rejects(create({ model: { provider: 'copilot', id: 'test-model' } }), /Model copilot\/test-model is not available/);
-		assert.deepStrictEqual(calls, []);
+		assert.deepStrictEqual({ advertised: service.listHosts()[0].agents[0].models, calls }, { advertised: [], calls: [] });
+	});
+
+	for (const byok of [false, true]) {
+		test(`discovery and explicit creation honor Manage Models visibility: BYOK=${byok}`, async () => {
+			const host = new RemoteProvider('host');
+			const id = byok ? 'openrouter/aion-labs/aion-3.0' : 'test-model';
+			host.root.agents[0].models[0] = { provider: 'copilot', id, name: 'Test Model' };
+			const { service, create, calls, models, hiddenModels } = setup([host]);
+			const identifier = `${host.sessionTypes[0].chatSessionType}:${id}`;
+			const manageModelsIdentifier = byok ? 'openrouter/OpenRouter/aion-labs/aion-3.0' : identifier;
+			if (byok) {
+				models.set(identifier, { ...models.get(identifier)!, byokModelIdentifier: manageModelsIdentifier });
+			}
+			hiddenModels.add(manageModelsIdentifier);
+			await assert.rejects(create({ model: { provider: 'copilot', id } }), /is not available/);
+			assert.deepStrictEqual({ advertised: service.listHosts()[0].agents[0].models, calls }, { advertised: [], calls: [] });
+
+			hiddenModels.clear();
+			const advertised = service.listHosts()[0].agents[0];
+			const result = await create({ model: { provider: advertised.provider, id: advertised.models[0].id } }, 'visible');
+			assert.deepStrictEqual({
+				advertised: advertised.models,
+				requestedModel: calls[0].options?.modelId,
+				reportedModel: result.model,
+			}, {
+				advertised: [{ id, name: 'Test Model' }],
+				requestedModel: identifier,
+				reportedModel: { provider: 'copilot', id },
+			});
+		});
+	}
+
+	test('hiding a host-specific model does not hide the same native model on another host', async () => {
+		const hidden = new RemoteProvider('hidden');
+		const visible = new RemoteProvider('visible', 1);
+		const { service, create, calls, hiddenModels } = setup([hidden, visible]);
+		hiddenModels.add(`${hidden.sessionTypes[0].chatSessionType}:test-model`);
+		const result = await create({ model: { provider: 'copilot', id: 'test-model' } });
+		await assert.rejects(create({ hostId: hidden.id, model: { provider: 'copilot', id: 'test-model' } }, 'pinned'), /is not available/);
+		assert.deepStrictEqual({
+			advertised: service.listHosts().map(host => host.agents[0].models),
+			selectedHost: result.host.id,
+			requestedHosts: calls.map(call => call.options?.providerId),
+		}, {
+			advertised: [[], [{ id: 'test-model', name: 'Test Model' }]],
+			selectedHost: visible.id,
+			requestedHosts: [visible.id],
+		});
+	});
+
+	test('unregistered models are not advertised but declared Auto keeps default workspace-less creation available', async () => {
+		const host = new RemoteProvider('host', 0, 'linux', 'copilotcli');
+		const { service, create, calls, models, autoModelSessionTypes } = setup([host]);
+		autoModelSessionTypes.add(host.sessionTypes[0].chatSessionType!);
+		models.clear();
+		await assert.rejects(create({ model: { provider: 'copilotcli', id: 'test-model' } }), /is not available/);
+		const result = await create({}, 'default');
+		assert.deepStrictEqual({
+			advertised: service.listHosts()[0].agents[0].models,
+			model: result.model,
+			workspace: result.workspace,
+			requestedModels: calls.map(call => call.options?.modelId),
+		}, { advertised: [], model: { provider: 'copilotcli', id: null }, workspace: null, requestedModels: [undefined] });
+	});
+
+	for (const provider of ['claude', 'codex']) {
+		test(`default placement skips model-less ${provider} hosts without ignoring an explicit host pin`, async () => {
+			const unavailable = new RemoteProvider('unavailable', 0, 'linux', provider);
+			unavailable.root.agents[0].models = [];
+			const available = new RemoteProvider('available', 2);
+			const { create, calls } = setup([unavailable, available]);
+			const result = await create();
+			await assert.rejects(create({ hostId: unavailable.id }, 'pinned'), /available model or Auto fallback/);
+			assert.deepStrictEqual({
+				host: result.host.id,
+				requestedHosts: calls.map(call => call.options?.providerId),
+				modelOverrides: calls.map(call => call.options?.modelId),
+			}, { host: available.id, requestedHosts: [available.id], modelOverrides: [undefined] });
+		});
+	}
+
+	for (const availability of ['empty', 'hidden', 'policy-disabled']) {
+		test(`default placement skips an agent with ${availability} models on the same host`, async () => {
+			const host = new RemoteProvider('host', 0, 'linux', 'claude');
+			const runnable = new RemoteProvider('host', 0, 'linux', 'codex');
+			if (availability === 'empty') {
+				host.root.agents[0].models = [];
+			} else if (availability === 'policy-disabled') {
+				host.root.agents[0].models[0].policyState = PolicyState.Disabled;
+			}
+			host.root.agents.push(...runnable.root.agents);
+			host.sessionTypes.push(...runnable.sessionTypes);
+			const { create, calls, hiddenModels } = setup([host]);
+			if (availability === 'hidden') {
+				hiddenModels.add(`${host.sessionTypes[0].chatSessionType}:test-model`);
+			}
+			const result = await create();
+			assert.deepStrictEqual({
+				host: result.host.id,
+				sessionType: calls[0].options?.sessionTypeId,
+				resourceScheme: URI.parse(result.session).scheme,
+				modelOverride: calls[0].options?.modelId,
+				model: result.model,
+			}, {
+				host: host.id,
+				sessionType: 'codex',
+				resourceScheme: runnable.sessionTypes[0].chatSessionType,
+				modelOverride: undefined,
+				model: { provider: 'codex', id: null },
+			});
+		});
+	}
+
+	test('default placement can choose a later agent with only a declared Auto fallback', async () => {
+		const host = new RemoteProvider('host', 0, 'linux', 'claude');
+		const auto = new RemoteProvider('host', 0, 'linux', 'copilotcli');
+		host.root.agents[0].models = [];
+		auto.root.agents[0].models = [];
+		host.root.agents.push(...auto.root.agents);
+		host.sessionTypes.push(...auto.sessionTypes);
+		const { create, calls, autoModelSessionTypes } = setup([host]);
+		autoModelSessionTypes.add(auto.sessionTypes[0].chatSessionType!);
+		const result = await create();
+		assert.deepStrictEqual({
+			sessionType: calls[0].options?.sessionTypeId,
+			modelOverride: calls[0].options?.modelId,
+			model: result.model,
+		}, { sessionType: 'copilotcli', modelOverride: undefined, model: { provider: 'copilotcli', id: null } });
 	});
 
 	test('an older host without origin support is never selected', async () => {
@@ -415,6 +569,118 @@ suite('RemoteSessionService', () => {
 		state.trusted = true;
 		state.inspectionError = new Error('Directory missing');
 		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }, 'missing'), /Directory missing/);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	for (const replaced of [false, true]) {
+		for (const change of ['capability', 'cpu', 'memory'] as const) {
+			test(`revalidates target ${change} after workspace inspection: replacement=${replaced}`, async () => {
+				const host = new RemoteProvider('host');
+				const { create, calls, state, service } = setup([host]);
+				state.beforeStat = async () => {
+					if (replaced) {
+						host.connection = new RemoteConnection();
+					}
+					host.root._meta = change === 'capability' ? undefined : withAgentHostResources(host.root._meta, {
+						platform: 'linux', architecture: 'x64',
+						cpuCount: change === 'cpu' ? 2 : 8,
+						memoryBytes: (change === 'memory' ? 4 : 32) * 1024 ** 3,
+					});
+				};
+				const rejection = {
+					capability: /Update the agent host/,
+					cpu: /Required 8 logical CPUs/,
+					memory: /Required 32 GiB of memory/,
+				}[change];
+				await assert.rejects(create({
+					workspace: { uri: 'file:///repo' },
+					requirements: { minCpuCount: 8, minMemoryGiB: 32 },
+				}), replaced ? /connection changed/ : rejection);
+				assert.deepStrictEqual({ calls, pending: service.listHosts()[0].pendingCreations }, { calls: [], pending: 0 });
+			});
+		}
+	}
+
+	test('does not reuse a default agent choice after a same-address target reconnect', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state } = setup([host, new RemoteProvider('other', 1)]);
+		const inspecting = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		state.beforeStat = async () => { await inspecting.complete(); await release.p; };
+		const request = create({ hostId: host.id, workspace: { uri: 'file:///repo' } });
+		await inspecting.p;
+		const replacement = new RemoteProvider('host', 0, 'linux', 'claude');
+		host.connection = replacement.connection;
+		host.root = replacement.root;
+		host.sessionTypes = replacement.sessionTypes;
+		await release.complete();
+		await assert.rejects(request, /connection changed/);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('rejects target client identity changes on a reused connection', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state } = setup([host]);
+		state.beforeStat = async () => { host.connection.clientId = 'replacement-client'; };
+		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }), /connection changed/);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('refreshes the default agent choice when the same target connection updates its agents', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state, models } = setup([host]);
+		state.beforeStat = async () => {
+			const updated = new RemoteProvider('host', 0, 'linux', 'claude');
+			host.root = updated.root;
+			host.sessionTypes = updated.sessionTypes;
+			const vendor = updated.sessionTypes[0].chatSessionType!;
+			models.set(`${vendor}:test-model`, upcastPartial<ILanguageModelChatMetadata>({ id: 'test-model', vendor, targetChatSessionType: vendor }));
+		};
+		const result = await create({ workspace: { uri: 'file:///repo' } });
+		assert.deepStrictEqual({
+			sessionType: calls[0].options?.sessionTypeId,
+			modelOverride: calls[0].options?.modelId,
+			model: result.model,
+		}, { sessionType: 'claude', modelOverride: undefined, model: { provider: 'claude', id: null } });
+	});
+
+	test('rejects a requested model hidden during workspace inspection', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state, hiddenModels } = setup([host]);
+		state.beforeStat = async () => { hiddenModels.add(`${host.sessionTypes[0].chatSessionType}:test-model`); };
+		await assert.rejects(create({
+			model: { provider: 'copilot', id: 'test-model' },
+			workspace: { uri: 'file:///repo' },
+		}), /Model copilot\/test-model is not available/);
+		assert.deepStrictEqual(calls, []);
+	});
+
+	for (const auto of [false, true]) {
+		test(`revalidates default model availability after workspace inspection: Auto=${auto}`, async () => {
+			const host = new RemoteProvider('host', 0, 'linux', auto ? 'copilotcli' : 'claude');
+			if (auto) {
+				host.root.agents[0].models = [];
+			}
+			const { create, calls, state, hiddenModels, autoModelSessionTypes } = setup([host]);
+			if (auto) {
+				autoModelSessionTypes.add(host.sessionTypes[0].chatSessionType!);
+			}
+			state.beforeStat = async () => {
+				hiddenModels.add(`${host.sessionTypes[0].chatSessionType}:test-model`);
+				autoModelSessionTypes.clear();
+			};
+			await assert.rejects(create({ workspace: { uri: 'file:///repo' } }), /available model or Auto fallback/);
+			assert.deepStrictEqual(calls, []);
+		});
+	}
+
+	test('revalidates workspace isolation support after inspection', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state } = setup([host]);
+		state.beforeStat = async () => {
+			host.sessionTypes = host.sessionTypes.map(type => ({ ...type, supportsWorktreeConfiguration: false }));
+		};
+		await assert.rejects(create({ workspace: { uri: 'file:///repo' } }), /No agent supports/);
 		assert.deepStrictEqual(calls, []);
 	});
 
@@ -531,6 +797,21 @@ suite('RemoteSessionService', () => {
 		await assert.rejects(create(), /not registered and connected/);
 		assert.deepStrictEqual({ committed, released: backgroundEvents.at(-1) }, { committed: false, released: 'dispose' });
 	});
+
+	test('rejects a target reconnect after preparing the child without dispatching or failing over', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, state, backgroundEvents } = setup([host, new RemoteProvider('other', 1)]);
+		let committed = false;
+		state.beforeAcquire = async () => { host.connection = new RemoteConnection(); };
+		state.beforeCommit = async () => { committed = true; };
+		await assert.rejects(create(), /connection changed/);
+		assert.deepStrictEqual({
+			requestedHosts: calls.map(call => call.options?.providerId),
+			committed,
+			released: backgroundEvents.at(-1),
+		}, { requestedHosts: [host.id], committed: false, released: 'dispose' });
+	});
+
 	test('disabled remote hosts and AI features prevent invocation', async () => {
 		const { create, configuration, calls } = setup([new RemoteProvider('host')]);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);

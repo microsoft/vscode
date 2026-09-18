@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -26,12 +27,16 @@ import { IAgentSubscription } from '../../../../../platform/agentHost/common/sta
 import { ActionEnvelope, ActionType, ChatPendingMessageSetAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { chatReducer } from '../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, ComponentToState, MessageKind, parseChatUri, PendingMessageKind, RootState, SessionState, SessionStatus, StateComponents, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, ComponentToState, MessageKind, parseChatUri, PendingMessageKind, RootState, SessionState, SessionStatus, StateComponents, withSessionSpawnDepth, withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { messageToRequestOrigin } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSession, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatModel, IChatPendingRequest } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -41,10 +46,11 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { maxRemoteMessageLength, parseSendRemoteMessageOptions, RemoteSessionMessageRouter } from '../../browser/remoteSessionMessageRouter.js';
 import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
-import { IRemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
+import { IRemoteSessionChatService, RemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 
 class TestSubscription<T> implements IAgentSubscription<T> {
 	value: T | Error | undefined;
+	confirmedValue: T | undefined;
 	readonly onDidChange: Event<T>;
 	readonly onDidError = Event.None;
 	readonly onWillApplyAction = Event.None;
@@ -57,7 +63,7 @@ class TestSubscription<T> implements IAgentSubscription<T> {
 		this.onDidChange = this.changed.event;
 	}
 
-	get verifiedValue(): T | undefined { return this.value instanceof Error ? undefined : this.value; }
+	get verifiedValue(): T | undefined { return this.confirmedValue ?? (this.value instanceof Error ? undefined : this.value); }
 
 	set(value: T): void {
 		this.value = value;
@@ -82,11 +88,12 @@ class TestConnection extends mock<IAgentHostService>() {
 	acknowledge = true;
 	readonly blockedChannels = new Set<string>();
 	afterAcknowledged: (() => void) | undefined;
+	afterDispatch: (() => void) | undefined;
 	rejectionReason: string | undefined;
 	references = 0;
 	private readonly actions: Emitter<ActionEnvelope>;
 
-	constructor(readonly backendSession: URI, store: Pick<DisposableStore, 'add'>) {
+	constructor(readonly backendSession: URI, store: Pick<DisposableStore, 'add'>, override readonly resourceUris = identityAgentHostResourceUriMapper) {
 		super();
 		this.actions = store.add(new Emitter<ActionEnvelope>());
 		this.onDidAction = this.actions.event;
@@ -97,7 +104,9 @@ class TestConnection extends mock<IAgentHostService>() {
 			status: SessionStatus.Idle,
 			modifiedAt: new Date(0).toISOString(),
 		}));
-		this.sessionState = new TestSubscription(upcastPartial<SessionState>({ chats, defaultChat: chats[0].resource }), store);
+		this.sessionState = new TestSubscription(upcastPartial<SessionState>({
+			chats, defaultChat: chats[0].resource, _meta: withSessionWorkspaceless(undefined, true),
+		}), store);
 		for (const summary of chats) {
 			this.chatStates.set(summary.resource, new TestSubscription<ChatState>({ ...summary, turns: [] }, store));
 		}
@@ -128,9 +137,15 @@ class TestConnection extends mock<IAgentHostService>() {
 		}
 		this.dispatched.push({ channel, action });
 		void this.didDispatch.complete();
+		this.afterDispatch?.();
 		if (!this.acknowledge || this.blockedChannels.has(channel)) {
 			return;
 		}
+		this.acknowledgeDispatch(this.dispatched.length - 1);
+	}
+
+	acknowledgeDispatch(index: number): void {
+		const { channel, action } = this.dispatched[index];
 		const subscription = this.chatStates.get(channel)!;
 		if (!this.rejectionReason) {
 			subscription.set(chatReducer(subscription.verifiedValue!, action));
@@ -166,10 +181,10 @@ suite('RemoteSessionMessageRouter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const backendSession = URI.parse('copilot:/same-id');
 
-	function setup() {
+	function setup(useRealBackground = false) {
 		const local = new TestConnection(backendSession, store);
-		const first = new TestConnection(backendSession, store);
-		const second = new TestConnection(backendSession, store);
+		const first = new TestConnection(backendSession, store, createAgentHostResourceUriMapper('first'));
+		const second = new TestConnection(backendSession, store, createAgentHostResourceUriMapper('second'));
 		const changed = store.add(new Emitter<void>());
 		const hosts = new Map([['first', first], ['second', second]]);
 		const remoteService = new class extends mock<IRemoteAgentHostService>() {
@@ -220,24 +235,67 @@ suite('RemoteSessionMessageRouter', () => {
 		const config = new TestConfigurationService({ chat: { remoteAgentHosts: { enabled: true } } });
 		config.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
 		const backgroundEvents: { resource: string; event: string; claim?: boolean }[] = [];
+		const pendingChanged = store.add(new Emitter<void>());
+		const modelDisposed = store.add(new Emitter<void>());
+		const active = observableValue('active', false);
+		const pending: IChatPendingRequest[] = [];
+		const backgroundState = { references: 0, beforeAcquire: () => { } };
+		const model = upcastPartial<IChatModel>({
+			hasActiveRequest: active, getPendingRequests: () => pending,
+			onDidChangePendingRequests: pendingChanged.event, onDidDispose: modelDisposed.event,
+		});
+		const realBackground = useRealBackground ? store.add(new RemoteSessionChatService(
+			new class extends mock<IChatService>() {
+				override async acquireOrLoadSession() {
+					backgroundState.references++;
+					return { object: model, dispose: () => backgroundState.references-- };
+				}
+			}(),
+			new class extends mock<IChatSessionsService>() {
+				override async getOrCreateChatSession() {
+					return upcastPartial<IChatSession>({ prepareForClientTools: async () => { } });
+				}
+			}(),
+			connections,
+		)) : undefined;
 		const backgroundChats = new class extends mock<IRemoteSessionChatService>() {
 			override async acquire(resource: URI, _token: CancellationToken, claim?: boolean) {
+				backgroundState.beforeAcquire();
 				backgroundEvents.push({ resource: resource.toString(), event: 'acquire', claim });
+				const reference = await realBackground?.acquire(resource, _token, claim);
 				return {
-					dispose: () => backgroundEvents.push({ resource: resource.toString(), event: 'dispose' }),
-					releaseWhenIdle: () => backgroundEvents.push({ resource: resource.toString(), event: 'releaseWhenIdle' }),
+					dispose: () => { backgroundEvents.push({ resource: resource.toString(), event: 'dispose' }); reference?.dispose(); },
+					releaseWhenIdle: () => { backgroundEvents.push({ resource: resource.toString(), event: 'releaseWhenIdle' }); reference?.releaseWhenIdle(); },
 				};
 			}
 		}();
-		const router = new RemoteSessionMessageRouter(management, providersService, connections, config, backgroundChats);
+		const trust = { uris: new Set<string>(), checked: [] as URI[], granted: [] as URI[][], workspaceTrusted: false };
+		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
+			override isWorkspaceTrusted() { return trust.workspaceTrusted; }
+			override async getUriTrustInfo(uri: URI) {
+				trust.checked.push(uri);
+				return { uri, trusted: trust.uris.has(uri.toString()) };
+			}
+			override async setUrisTrust(uris: URI[], trusted: boolean) {
+				trust.granted.push(uris);
+				for (const uri of uris) {
+					if (trusted) { trust.uris.add(uri.toString()); } else { trust.uris.delete(uri.toString()); }
+				}
+			}
+		}();
+		const router = new RemoteSessionMessageRouter(management, providersService, connections, config, backgroundChats, trustService);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, management);
 		instantiationService.stub(ISessionsProvidersService, providersService);
 		instantiationService.stub(IAgentHostConnectionsService, connections);
 		instantiationService.stub(IConfigurationService, config);
 		instantiationService.stub(IRemoteSessionChatService, backgroundChats);
+		instantiationService.stub(IWorkspaceTrustManagementService, trustService);
 		store.add(toDisposable(() => assert.deepStrictEqual([local.references, first.references, second.references], [0, 0, 0])));
-		return { router, local, first, second, changed, hosts, sessions, config, providers, management, connections, backgroundEvents, tool: instantiationService.createInstance(SendRemoteMessageTool) };
+		return {
+			router, local, first, second, changed, hosts, sessions, config, providers, management, connections,
+			backgroundEvents, backgroundState, active, pending, pendingChanged, trust, tool: instantiationService.createInstance(SendRemoteMessageTool),
+		};
 	}
 
 	test('claims and retains background client tools beyond the queue acknowledgement', async () => {
@@ -538,6 +596,24 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(first.dispatched, []);
 	});
 
+	for (const cancel of [false, true]) {
+		test(`target hydration reports timeout separately from caller cancellation: cancel=${cancel}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { router, first, sessions, backgroundEvents } = setup();
+			first.sessionState.value = undefined;
+			const cancellation = store.add(new CancellationTokenSource());
+			const request = router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'hydration-timeout', cancellation.token);
+			const rejected = assert.rejects(request, cancel ? { name: 'Canceled', message: 'Canceled' } : /Timed out preparing the remote message/);
+			await first.didSubscribe.p;
+			if (cancel) {
+				cancellation.cancel();
+			}
+			await rejected;
+			assert.deepStrictEqual({
+				dispatched: first.dispatched, references: first.references, backgroundEvents,
+			}, { dispatched: [], references: 0, backgroundEvents: [] });
+		}));
+	}
+
 	test('an unavailable ambient source is rejected even when its connection facade is present', async () => {
 		const { router, local, first, sessions } = setup();
 		local.rootState.value = new Error('The ambient agent host exited');
@@ -569,6 +645,152 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(first.dispatched, []);
 	});
 
+	test('a reply cannot resume a local origin whose persisted folder trust was revoked', async () => {
+		const { router, local, first, sessions, trust, backgroundEvents } = setup();
+		const directory = URI.file('/revoked');
+		trust.workspaceTrusted = true;
+		local.sessionState.set({ ...local.sessionState.verifiedValue!, _meta: undefined, workingDirectories: [directory.toString()] });
+		first.sessionState.set({
+			...first.sessionState.verifiedValue!,
+			_meta: withRemoteSessionOrigin(undefined, {
+				session: sessions[0].resource.toString(), chat: sessions[0].resource.toString(), depth: 1,
+			}),
+		});
+		await assert.rejects(router.send(sessions[1].resource, { session: 'origin', message: 'Done' }, 'untrusted-origin', CancellationToken.None), /workspace is not trusted/);
+		assert.deepStrictEqual({
+			checked: trust.checked.map(uri => uri.toString()), sent: local.dispatched, backgroundEvents,
+		}, { checked: [directory.toString()], sent: [], backgroundEvents: [] });
+	});
+
+	test('remote folders are checked in their host identity, not against a same-path local grant', async () => {
+		const { router, first, sessions, trust } = setup();
+		const directory = URI.file('/repo');
+		const mapped = toAgentHostUri(directory, 'first');
+		first.sessionState.set({ ...first.sessionState.verifiedValue!, _meta: undefined, workingDirectories: [directory.toString()] });
+		trust.uris.add(directory.toString());
+		const options = { session: sessions[1].resource.toString(), message: 'Follow up' };
+		await assert.rejects(router.send(sessions[0].resource, options, 'local-trust', CancellationToken.None), /workspace is not trusted/);
+		trust.uris.add(mapped.toString());
+		await router.send(sessions[0].resource, options, 'remote-trust', CancellationToken.None);
+		assert.deepStrictEqual({
+			checked: [...new Set(trust.checked.map(uri => uri.toString()))], sent: first.dispatched.length,
+		}, { checked: [mapped.toString()], sent: 1 });
+	});
+
+	test('an optimistic working-directory change cannot hide an untrusted persisted target', async () => {
+		const { router, local, sessions, trust } = setup();
+		const untrusted = URI.file('/untrusted');
+		const trusted = URI.file('/trusted');
+		const state = { ...local.sessionState.verifiedValue!, _meta: undefined };
+		local.sessionState.confirmedValue = { ...state, workingDirectories: [untrusted.toString()] };
+		local.sessionState.value = { ...state, workingDirectories: [trusted.toString()] };
+		trust.uris.add(trusted.toString());
+		await assert.rejects(router.send(sessions[1].resource, { session: sessions[0].resource.toString(), message: 'Hi' }, 'optimistic-directory', CancellationToken.None), /workspace is not trusted/);
+		assert.deepStrictEqual({
+			checked: trust.checked.map(uri => uri.toString()), dispatched: local.dispatched,
+		}, { checked: [untrusted.toString()], dispatched: [] });
+	});
+
+	test('all persisted working directories must be trusted before enqueueing', async () => {
+		const { router, local, sessions, trust, backgroundEvents } = setup();
+		const firstDirectory = URI.file('/first');
+		const secondDirectory = URI.file('/second');
+		trust.uris.add(firstDirectory.toString());
+		local.sessionState.set({
+			...local.sessionState.verifiedValue!, _meta: undefined,
+			workingDirectories: [firstDirectory.toString(), secondDirectory.toString()],
+		});
+		await assert.rejects(router.send(sessions[1].resource, { session: sessions[0].resource.toString(), message: 'Hi' }, 'multi-root', CancellationToken.None), /workspace is not trusted/);
+		assert.deepStrictEqual({
+			checked: trust.checked.map(uri => uri.toString()), dispatched: local.dispatched, backgroundEvents,
+		}, { checked: [firstDirectory.toString(), secondDirectory.toString()], dispatched: [], backgroundEvents: [] });
+	});
+
+	for (const path of ['/repo.worktrees/task', '/repo.worktrees', '/outside']) {
+		test(`queued sends reuse structurally guarded worktree trust for ${path}`, async () => {
+			const { router, local, sessions, trust } = setup();
+			const repository = URI.file('/repo');
+			const directory = URI.file(path);
+			const allowed = path === '/repo.worktrees/task';
+			trust.uris.add(repository.toString());
+			local.sessionState.set({
+				...local.sessionState.verifiedValue!, _meta: undefined, workingDirectories: [directory.toString()],
+				project: { uri: repository.toString(), displayName: 'repo' },
+				config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			});
+			const request = router.send(sessions[1].resource, { session: sessions[0].resource.toString(), message: 'Follow up' }, 'worktree', CancellationToken.None);
+			if (allowed) {
+				await request;
+			} else {
+				await assert.rejects(request, /workspace is not trusted/);
+			}
+			assert.deepStrictEqual({
+				granted: trust.granted.map(uris => uris.map(uri => uri.toString())), sent: local.dispatched.length,
+			}, { granted: allowed ? [[directory.toString()]] : [], sent: allowed ? 1 : 0 });
+		});
+	}
+
+	test('workspace-less scratch directories do not become user trust roots', async () => {
+		const { router, first, sessions, trust } = setup();
+		first.sessionState.set({ ...first.sessionState.verifiedValue!, workingDirectories: [URI.file('/internal/scratch').toString()] });
+		await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'scratch', CancellationToken.None);
+		assert.deepStrictEqual({ checked: trust.checked, granted: trust.granted, sent: first.dispatched.length }, { checked: [], granted: [], sent: 1 });
+	});
+
+	test('trust is rechecked after asynchronous background preparation', async () => {
+		const { router, local, sessions, trust, backgroundState } = setup();
+		const directory = URI.file('/repo');
+		local.sessionState.set({ ...local.sessionState.verifiedValue!, _meta: undefined, workingDirectories: [directory.toString()] });
+		trust.uris.add(directory.toString());
+		backgroundState.beforeAcquire = () => trust.uris.clear();
+		await assert.rejects(router.send(sessions[1].resource, { session: sessions[0].resource.toString(), message: 'Hi' }, 'revoked', CancellationToken.None), /workspace is not trusted/);
+		assert.deepStrictEqual(local.dispatched, []);
+	});
+
+	test('unresolved target folders cannot inherit unrelated current-workspace trust', async () => {
+		const { router, local, sessions, trust } = setup();
+		trust.workspaceTrusted = true;
+		local.sessionState.set({ ...local.sessionState.verifiedValue!, _meta: undefined, workingDirectories: undefined });
+		await assert.rejects(router.send(sessions[1].resource, { session: sessions[0].resource.toString(), message: 'Hi' }, 'unknown-folders', CancellationToken.None), /working directories are unavailable/);
+		assert.deepStrictEqual(local.dispatched, []);
+	});
+
+	for (const cancel of [true, false]) {
+		test(`uncertain delivery keeps a pending-only background model alive until delayed host updates: cancel=${cancel}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { router, first, sessions, backgroundState, active, pending, pendingChanged } = setup(true);
+			const channel = buildDefaultChatUri(backendSession);
+			const chat = first.chatStates.get(channel)!;
+			store.add(chat.onDidChange(state => transaction(tx => {
+				pending.splice(0, pending.length, ...(state.queuedMessages ?? []).map(() => upcastPartial<IChatPendingRequest>({})));
+				active.set(!!state.activeTurn, tx);
+				pendingChanged.fire();
+			})));
+			first.acknowledge = false;
+			first.afterDispatch = () => chat.set(chatReducer(chat.verifiedValue!, first.dispatched.at(-1)!.action));
+			const cancellation = store.add(new CancellationTokenSource());
+			const request = router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Possibly accepted' }, 'uncertain', cancellation.token);
+			const rejected = assert.rejects(request, cancel
+				? /delivery was not confirmed.*Canceled/
+				: /delivery was not confirmed.*Timed out waiting for remote message acknowledgement/);
+			await first.didDispatch.p;
+			if (cancel) {
+				cancellation.cancel();
+			}
+			await rejected;
+			const pendingOnly = { retained: backgroundState.references, active: active.get(), queued: pending.length };
+			first.acknowledgeDispatch(0);
+			const running = { retained: backgroundState.references, active: active.get(), queued: pending.length };
+			chat.set(chatReducer(chat.verifiedValue!, { type: ActionType.ChatTurnComplete, turnId: chat.verifiedValue!.activeTurn!.id, duration: 1 }));
+			assert.deepStrictEqual({
+				pendingOnly, running, released: backgroundState.references, dispatches: first.dispatched.length,
+			}, {
+				pendingOnly: { retained: 1, active: false, queued: 1 },
+				running: { retained: 1, active: true, queued: 0 },
+				released: 0, dispatches: 1,
+			});
+		}));
+	}
+
 	test('disconnect before acknowledgement reports uncertain delivery and never retries on reconnect', async () => {
 		const { router, first, sessions, changed, hosts } = setup();
 		first.acknowledge = false;
@@ -584,10 +806,10 @@ suite('RemoteSessionMessageRouter', () => {
 	});
 
 	test('host rejection is not reported as a successful send', async () => {
-		const { router, first, sessions } = setup();
+		const { router, first, sessions, backgroundEvents } = setup();
 		first.rejectionReason = 'Target rejected the message';
 		await assert.rejects(router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'rejected', CancellationToken.None), /Target rejected/);
-		assert.deepStrictEqual(first.started, []);
+		assert.deepStrictEqual({ started: first.started, released: backgroundEvents.at(-1)?.event }, { started: [], released: 'dispose' });
 	});
 
 	test('a disconnect after host acknowledgement does not turn confirmed delivery into an uncertain failure', async () => {
