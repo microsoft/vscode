@@ -1,9 +1,8 @@
 # Standalone Tunnel Terminal (Experimental)
 
 Open a **new remote shell in Windows Terminal**, without running local VS Code,
-installing either companion extension, or copying a relay URL. This is an
+installing extensions, or copying a relay URL. This is an
 independent Node.js application, not an extension and not part of VS Code's build.
-The sibling `tunnel-terminal` experiment is unchanged.
 
 ```text
 Windows Terminal -> this Node client -> authenticated Dev Tunnels SDK stream

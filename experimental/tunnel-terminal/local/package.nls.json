@@ -1,4 +1,0 @@
-{
-	"displayName": "Tunnel Terminal (Experimental Local Companion)",
-	"description": "Connect independently paired local terminal clients to the experimental remote terminal bridge through one reusable VS Code relay URL."
-}

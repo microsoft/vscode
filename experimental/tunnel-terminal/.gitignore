@@ -1,6 +1,0 @@
-node_modules/
-dist/
-out/
-*.vsix
-local/LICENSE.txt
-local/README.md
