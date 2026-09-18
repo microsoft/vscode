@@ -2534,7 +2534,22 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
+		function setSessionChatsExpanded(container: HTMLElement, expanded: boolean, title?: string): void {
+			const sessionItem = title
+				? [...container.querySelectorAll<HTMLElement>('.session-item')].find(item => item.querySelector('.session-title')?.textContent === title)
+				: container.querySelector<HTMLElement>('.session-item');
+			const row = sessionItem?.closest<HTMLElement>('.monaco-list-row');
+			if (!row || row.getAttribute('aria-expanded') === String(expanded)) {
+				return;
+			}
+			const twistie = row.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+			if (!twistie) {
+				return;
+			}
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+		}
+
+		function renderSessionChatsList(session: ISession, onChatOpen?: (session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean) => void, enableMotion = false, expandChats = true): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], enableMotion
 				? instantiationService => instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 					override isMotionReduced(): boolean { return false; }
@@ -2548,6 +2563,9 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen,
 			}));
 			list.layout(300, 400);
+			if (expandChats) {
+				setSessionChatsExpanded(container, true);
+			}
 			return { container, list, managementService: harness.managementService };
 		}
 
@@ -2625,6 +2643,9 @@ suite('Sessions - SessionsList', () => {
 			const before = chatRowTitles(container);
 
 			chats.set([main, peer], undefined);
+			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+			assert.ok(twistie);
+			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 
 			assert.deepStrictEqual({
 				before,
@@ -2705,8 +2726,8 @@ suite('Sessions - SessionsList', () => {
 			const container = renderSessionChats(session, undefined, true);
 			const snapshot = () => ({
 				parent: sessionRowSnapshot(container),
-				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner'),
-				childHasProgress: !!container.querySelector('.session-chat-item .session-chat-icon > .monaco-pixel-spinner'),
+				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
+				childHasProgress: !!container.querySelector('.session-chat-item .session-chat-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
 			});
 			const toggle = () => {
 				const twistie = container.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
@@ -2747,7 +2768,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('clears collapsed child progress when a filtered session is reinserted expanded', () => {
+		test('keeps child progress on the parent when a filtered session is reinserted collapsed', () => {
 			const main = createChat('Main chat');
 			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
 			const base = createTestSession('Session').session;
@@ -2774,9 +2795,9 @@ suite('Sessions - SessionsList', () => {
 				childHasProgress: !!container.querySelector('.session-chat-item .session-chat-icon > .monaco-pixel-spinner'),
 			}, {
 				collapsedParentHasProgress: true,
-				parent: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				parentHasProgress: false,
-				childHasProgress: true,
+				parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+				parentHasProgress: true,
+				childHasProgress: false,
 			});
 		});
 
@@ -2932,6 +2953,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
+			setSessionChatsExpanded(container, true);
 			const chatRow = container.querySelector<HTMLElement>('.session-chat-item')?.closest<HTMLElement>('.monaco-list-row');
 			assert.ok(chatRow);
 			const desktopHeight = chatRow.style.height;
@@ -2996,6 +3018,7 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen: () => { },
 			}));
 			list.layout(300, 400);
+			setSessionChatsExpanded(container, true);
 			list.reveal(session.resource);
 			list.focus();
 			const contextTarget = container.querySelector<HTMLElement>('.monaco-list');
@@ -3223,7 +3246,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('uses the native twistie only for sessions with nested chats', () => {
+		test('starts nested chats collapsed and uses the native twistie only for sessions with nested chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const multiChatBase = createTestSession('Multi-chat session').session;
@@ -3272,12 +3295,12 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual(rows, {
 				'Multi-chat session': {
-					expanded: 'true',
+					expanded: 'false',
 					hasSessionChatTwistie: true,
 					hasHiddenTwistie: false,
 					hasNativeGlyph: true,
 					isCollapsible: true,
-					isCollapsed: false,
+					isCollapsed: true,
 					fontSize: '16px',
 					opacity: '0',
 					paddingLeft: '0px',
@@ -3304,7 +3327,7 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(multiChatItem);
 			multiChatItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 1 }));
 			multiChatItem.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, detail: 2 }));
-			assert.strictEqual(multiChatItem.closest('.monaco-list-row')?.getAttribute('aria-expanded'), 'true');
+			assert.strictEqual(multiChatItem.closest('.monaco-list-row')?.getAttribute('aria-expanded'), 'false');
 
 			const twistie = multiChatItem.closest('.monaco-list-row')?.querySelector<HTMLElement>('.monaco-tl-twistie');
 			assert.ok(twistie);
@@ -3315,9 +3338,9 @@ suite('Sessions - SessionsList', () => {
 				isCollapsed: twistie.classList.contains('collapsed'),
 				visibleChats: chatRowTitles(container),
 			}, {
-				expanded: 'false',
-				isCollapsed: true,
-				visibleChats: [],
+				expanded: 'true',
+				isCollapsed: false,
+				visibleChats: ['Peer chat'],
 			});
 		});
 
@@ -3409,6 +3432,11 @@ suite('Sessions - SessionsList', () => {
 					onChatOpen: () => { },
 				}));
 				list.layout(300, 400);
+				if (!activePeer) {
+					setSessionChatsExpanded(container, true, 'Session');
+					setSessionChatsExpanded(container, true, 'Other session');
+					list.clearFocus();
+				}
 				return { container, session, other };
 			}
 
@@ -3629,6 +3657,7 @@ suite('Sessions - SessionsList', () => {
 				approvalModel,
 			}));
 			list.layout(400, 400);
+			setSessionChatsExpanded(container, true);
 			return { container, list };
 		}
 
@@ -3860,6 +3889,7 @@ suite('Sessions - SessionsList', () => {
 			}));
 			// Short viewport so only the top rows render; the target is offscreen.
 			list.layout(120, 400);
+			setSessionChatsExpanded(container, true);
 
 			const targetRow = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
 				.find(item => item.querySelector('.session-chat-title')?.textContent === targetTitle)

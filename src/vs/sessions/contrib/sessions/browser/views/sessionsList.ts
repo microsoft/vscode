@@ -3755,7 +3755,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return {
 					element: session as SessionListItem,
 					collapsible: chats.length > 0,
-					collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+					collapsed: ObjectTreeElementCollapseState.PreserveOrCollapsed,
 					children: chats.length > 0
 						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
 						: undefined,
