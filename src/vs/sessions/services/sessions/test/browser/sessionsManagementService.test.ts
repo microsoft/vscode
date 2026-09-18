@@ -215,6 +215,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override setModel(_sessionId: string, _chatResource: URI, _modelId: string): void { }
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
+	override async setSessionReadState(_sessionId: string, _isRead: boolean): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
 	override async deleteChat(): Promise<boolean> { return true; }
@@ -429,39 +430,105 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ resolved }, { resolved: true });
 	});
 
-	test('marks the active session as read via its provider even when its provider state was unread', async () => {
-		const isRead = observableValue('isRead', false);
-		const session = stubSession({ sessionId: 'unread', providerId: 'test', isRead });
-		const provider = new class extends TestSessionsProvider {
-			override async setSessionReadState(_sessionId: string, read: boolean): Promise<void> {
-				isRead.set(read, undefined);
-			}
-		}(session);
-		const { view } = createSessionsManagementService(session, disposables, provider);
+	suite('read state', () => {
+		function createReadStateSessions() {
+			const isRead = observableValue('isRead', false);
+			const status = observableValue('status', SessionStatus.Completed);
+			const session = stubSession({ sessionId: 'unread', providerId: 'test', isRead, status });
+			const other = stubSession({ sessionId: 'other', providerId: 'test' });
+			const readChanges: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [session, other]; }
+				override async setSessionReadState(sessionId: string, read: boolean): Promise<void> {
+					if (sessionId === session.sessionId) {
+						isRead.set(read, undefined);
+						readChanges.push(read);
+					}
+				}
+			}(session);
+			return { ...createSessionsManagementService(session, disposables, provider), session, other, isRead, status, readChanges };
+		}
 
-		// While not active, the provider-owned unread state is untouched.
-		const readBeforeActive = session.isRead.get();
+		test('marks the active session as read via its provider even when its provider state was unread', async () => {
+			const { session, view } = createReadStateSessions();
+			const readBeforeActive = session.isRead.get();
+			await view.openSession(session.resource);
 
-		// Opening the session makes it active; it must then be marked read.
-		await view.openSession(session.resource);
-		const readWhileActive = session.isRead.get();
+			assert.deepStrictEqual(
+				{ readBeforeActive, readWhileActive: session.isRead.get(), activeId: view.activeSession.get()?.sessionId },
+				{ readBeforeActive: false, readWhileActive: true, activeId: 'unread' },
+			);
+		});
 
-		assert.deepStrictEqual(
-			{ readBeforeActive, readWhileActive, activeId: view.activeSession.get()?.sessionId },
-			{ readBeforeActive: false, readWhileActive: true, activeId: 'unread' },
-		);
-	});
+		test('leaves a non-active session in its provider read state', async () => {
+			const { session, other, view, readChanges } = createReadStateSessions();
+			await view.openSession(other.resource);
 
-	test('leaves a non-active session in its provider read state', () => {
-		const active = stubSession({ sessionId: 'active', providerId: 'test' });
-		const other = stubSession({ sessionId: 'other', providerId: 'test', isRead: constObservable(false) });
-		const { view } = createSessionsManagementService(active, disposables);
+			assert.deepStrictEqual(
+				{ activeId: view.activeSession.get()?.sessionId, otherRead: session.isRead.get(), readChanges },
+				{ activeId: 'other', otherRead: false, readChanges: [] },
+			);
+		});
 
-		// Nothing is opened, so `other` stays non-active and keeps its unread state.
-		assert.deepStrictEqual(
-			{ activeId: view.activeSession.get()?.sessionId, otherRead: other.isRead.get() },
-			{ activeId: undefined, otherRead: false },
-		);
+		for (const destination of ['another session', 'the new-session composer']) {
+			test(`keeps an explicitly unread active session unread until navigating to ${destination} and back`, async () => {
+				const { session, other, service, view, readChanges } = createReadStateSessions();
+				await view.openSession(session.resource);
+				await service.markUnread(session);
+				const afterMarkUnread = session.isRead.get();
+
+				await view.openSession(session.resource);
+				const afterReopeningActive = session.isRead.get();
+
+				if (destination === 'another session') {
+					await view.openSession(other.resource);
+				} else {
+					await view.openNewSession();
+				}
+				const afterLeaving = session.isRead.get();
+				await view.openSession(session.resource);
+
+				assert.deepStrictEqual(
+					{ afterMarkUnread, afterReopeningActive, afterLeaving, afterReturning: session.isRead.get(), readChanges },
+					{ afterMarkUnread: false, afterReopeningActive: false, afterLeaving: false, afterReturning: true, readChanges: [true, false, true] },
+				);
+			});
+		}
+
+		test('automatically reads active-session updates without overriding an explicit unread mark', async () => {
+			const { session, service, view, isRead, status, readChanges } = createReadStateSessions();
+			await view.openSession(session.resource);
+			isRead.set(false, undefined);
+			const afterProviderUpdate = isRead.get();
+
+			await service.markUnread(session);
+			status.set(SessionStatus.InProgress, undefined);
+			status.set(SessionStatus.Completed, undefined);
+
+			assert.deepStrictEqual(
+				{ afterProviderUpdate, afterTurn: isRead.get(), readChanges },
+				{ afterProviderUpdate: true, afterTurn: false, readChanges: [true, true, false] },
+			);
+		});
+
+		for (const all of [false, true]) {
+			test(`${all ? 'marking all sessions read' : 'marking the session read'} resumes automatic reading`, async () => {
+				const { session, service, view, isRead, readChanges } = createReadStateSessions();
+				await view.openSession(session.resource);
+				await service.markUnread(session);
+				if (all) {
+					await service.markAllRead([session]);
+				} else {
+					await service.markRead(session);
+				}
+				isRead.set(false, undefined);
+
+				assert.deepStrictEqual(
+					{ isRead: isRead.get(), readChanges },
+					{ isRead: true, readChanges: [true, false, true, true] },
+				);
+			});
+		}
 	});
 
 	test('archiving the active session keeps the custom view open', async () => {
