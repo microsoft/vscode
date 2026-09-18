@@ -83,13 +83,15 @@ suite('agentHostMcpServerSupport', () => {
 		};
 		const projected = store.add(createCustomizationMcpServerCompatibilityScope(Event.None, () => [], () => scope));
 		const servers = projected.servers.get();
+		const isResolved = projected.isResolved.get();
 		projected.dispose();
 
-		assert.deepStrictEqual({ servers, disposed }, {
+		assert.deepStrictEqual({ servers, isResolved, disposed }, {
 			servers: [
-				{ id: 'partial', kind: 'partiallySupported' },
-				{ id: 'unsupported', kind: 'unsupported' },
+				{ id: 'partial', kind: 'partiallySupported', details: ['Environment files are not supported by the Copilot harness.\nMove required variables from the environment file into the server env configuration.'] },
+				{ id: 'unsupported', kind: 'unsupported', details: ['The current configuration location for this server is not supported by the Copilot harness.\nMove the server configuration to the workspace root .mcp.json file.'] },
 			],
+			isResolved: true,
 			disposed: true,
 		});
 	});
@@ -136,6 +138,7 @@ suite('agentHostMcpServerSupport', () => {
 			acquiredRoots.push(rootStrings);
 			return scope;
 		}));
+		const initiallyResolved = projected.isResolved.get();
 		await acquiredScopes[0].whenResolved();
 		const initial = projected.servers.get();
 
@@ -162,6 +165,7 @@ suite('agentHostMcpServerSupport', () => {
 		onDidChange.fire();
 
 		assert.deepStrictEqual({
+			initiallyResolved,
 			initial,
 			afterSessionSnapshot,
 			scopesAfterUnchangedRoots,
@@ -170,10 +174,15 @@ suite('agentHostMcpServerSupport', () => {
 			acquiredRoots,
 			releasedRoots,
 		}, {
+			initiallyResolved: false,
 			initial: [],
-			afterSessionSnapshot: [{ id: serverOptions.id, kind: 'partiallySupported' }],
+			afterSessionSnapshot: [{
+				id: serverOptions.id,
+				kind: 'partiallySupported',
+				details: ['Environment files are not supported by the Copilot harness.\nMove required variables from the environment file into the server env configuration.'],
+			}],
 			scopesAfterUnchangedRoots: 2,
-			afterSupportChange: [{ id: serverOptions.id, kind: 'supported' }],
+			afterSupportChange: [{ id: serverOptions.id, kind: 'supported', details: undefined }],
 			afterRootChange: [],
 			acquiredRoots: [[], [root.toString()], [URI.file('/workspace-b').toString()]],
 			releasedRoots: [[], [root.toString()], [URI.file('/workspace-b').toString()]],

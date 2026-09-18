@@ -68,7 +68,7 @@ A descriptor may define:
 - required agent availability;
 - external items, enablement, and plugin actions.
 
-Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish generic per-server compatibility, allowing shared widgets to present support without importing provider-specific assessment logic.
+Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 

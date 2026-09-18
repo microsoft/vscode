@@ -76,10 +76,14 @@ export type CustomizationMcpServerCompatibilityKind = 'supported' | 'partiallySu
 export interface ICustomizationMcpServerCompatibility {
 	readonly id: string;
 	readonly kind: CustomizationMcpServerCompatibilityKind;
+	/** Localized reasons for non-supported compatibility states. */
+	readonly details?: readonly string[];
 }
 
 export interface ICustomizationMcpServerCompatibilityScope extends IDisposable {
 	readonly servers: IObservable<readonly ICustomizationMcpServerCompatibility[]>;
+	/** Whether the current server compatibility assessment has settled. */
+	readonly isResolved: IObservable<boolean>;
 }
 
 export interface ICustomizationMcpServerCompatibilityProvider {

@@ -89,7 +89,7 @@ import { IAutomationService } from '../../../../contrib/chat/common/automations/
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { MCP_ERROR_PREVIEW_LENGTH, McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
+import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -649,13 +649,6 @@ const inlineErrorMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[2], id: 'inline-disabled', name: 'Disabled Server', enabled: false },
 ];
 
-const hugeMcpErrorServer: FixtureAgentHostMcpServer = {
-	...activeSessionMcpServers[2],
-	id: 'huge-error',
-	name: 'Verbose HTTP Server',
-	state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'HTTP 502: upstream response body\n' + 'Synthetic verbose diagnostics. '.repeat(2000) + '\nFINAL DIAGNOSTIC CHARACTER' } },
-};
-
 function makeFixtureTool(id: string, displayName: string, description: string, source: ToolDataSource): IToolData {
 	return {
 		id,
@@ -790,6 +783,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
 				acquire: () => ({
 					servers: constObservable(mcpServerCompatibility),
+					isResolved: constObservable(true),
 					dispose() { },
 				}),
 			} : undefined,
@@ -1379,34 +1373,20 @@ const galleryServers = [
 	makeGalleryServer('gallery-redis', 'Redis', 'In-memory data store operations and key management', 'Redis Ltd'),
 ];
 
-async function renderMcpInlineErrors(ctx: ComponentFixtureContext, options: Pick<IRenderEditorOptions, 'width' | 'height' | 'mcpSearchQuery'> & { expanded?: boolean; huge?: boolean }): Promise<void> {
-	const { expanded, huge, ...editorOptions } = options;
+async function renderMcpErrorsWithoutDetails(ctx: ComponentFixtureContext): Promise<void> {
 	await renderEditor(ctx, {
 		sessionResource: localSessionResource,
 		isSessionsWindow: true,
 		selectedSection: AICustomizationManagementSection.McpServers,
-		activeSessionMcpServers: huge ? [hugeMcpErrorServer] : inlineErrorMcpServers,
-		enableHovers: true,
-		...editorOptions,
+		activeSessionMcpServers: inlineErrorMcpServers,
+		mcpSearchQuery: 'component',
 	});
-	const rows = ctx.container.querySelectorAll('.mcp-server-item.has-error');
-	assert(rows.length > 0, 'The fixture must render an installed error row.');
-	for (const row of rows) {
-		assert(row.querySelector('.mcp-runtime-status-badge.error')?.textContent === 'Error', 'Keep the Error badge beside the server name.');
-		const actions = row.querySelector('.mcp-server-actions');
-		assert(actions?.childElementCount === 2 && !!actions.querySelector('[role="switch"]') && !!actions.querySelector('.plugin-card-icon-button'), 'Error rows retain only the enable switch and more-actions button, without a trailing error icon or reserved gap.');
-		const description = row.querySelector<HTMLElement>('.mcp-server-description')!;
-		assert(description.textContent!.length <= MCP_ERROR_PREVIEW_LENGTH * 2 + 1, 'The collapsed DOM must not contain the full unbounded diagnostic.');
-		assert(row.getAttribute('aria-label')!.length < MCP_ERROR_PREVIEW_LENGTH * 2 + 150, 'The collapsed accessible label must be bounded.');
-		assert(description.clientHeight <= 42, 'The collapsed preview must occupy at most three lines.');
-		if (expanded) {
-			const button = row.querySelector<HTMLElement>('.mcp-server-error-toggle')!;
-			button.click();
-			await timeout(50);
-			assert(button.getAttribute('aria-expanded') === 'true' && description.classList.contains('expanded'), 'Full diagnostic rendering must require explicit expansion.');
-			assert(description.textContent!.endsWith('handshake.'), 'Expanded diagnostics must include the final characters.');
-		}
-	}
+	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
+		.find(row => row.querySelector('.mcp-runtime-status-badge.error')) as HTMLElement | undefined;
+	assert(!!row, 'The fixture must render an installed error row.');
+	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
+	assert(!row.textContent?.includes('Unable to connect') && !row.getAttribute('aria-label')?.includes('Unable to connect'), 'Error details must only appear in the MCP detail view.');
+	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
 }
 
 async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -1805,11 +1785,36 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 // Embedded compact detail widgets — standalone (no host editor)
 // ============================================================================
 
-function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenchMcpServer | undefined): void {
-	const width = 480;
-	const height = 320;
+function renderEmbeddedMcpDetail(
+	ctx: ComponentFixtureContext,
+	server: IWorkbenchMcpServer | undefined,
+	options: {
+		readonly width?: number;
+		readonly height?: number;
+		readonly harnessLabel?: string;
+		readonly compatibility?: ICustomizationMcpServerCompatibility;
+		readonly error?: string;
+	} = {},
+): void {
+	const width = options.width ?? 480;
+	const height = options.height ?? 320;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
+	const localDescriptor = createVSCodeHarnessDescriptor();
+	const harnessId = options.harnessLabel ? 'fixture-harness' : localDescriptor.id;
+	const compatibility = options.compatibility;
+	const harnessDescriptor: IHarnessDescriptor = {
+		...localDescriptor,
+		id: harnessId,
+		label: options.harnessLabel ?? 'Local',
+		mcpServerCompatibilityProvider: compatibility ? {
+			acquire: () => ({
+				servers: constObservable([compatibility]),
+				isResolved: constObservable(true),
+				dispose() { },
+			}),
+		} : undefined,
+	};
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -1822,6 +1827,7 @@ function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenc
 				override async open() { /* no-op in fixture */ }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
+			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(URI.from({ scheme: harnessId, path: '/fixture-session' }), [harnessDescriptor]));
 		},
 	});
 
@@ -1833,7 +1839,10 @@ function renderEmbeddedMcpDetail(ctx: ComponentFixtureContext, server: IWorkbenc
 
 	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedMcpServerDetail, host));
 	if (server) {
-		detail.setInput(createWorkbenchMcpServerDetailInput(server));
+		detail.setInput({
+			...createWorkbenchMcpServerDetailInput(server),
+			error: options.error ? constObservable(options.error) : undefined,
+		});
 	}
 }
 
@@ -2100,53 +2109,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	McpServersInlineErrors: defineComponentFixture({
+	McpServersErrorsWithoutDetails: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row shows a padded three-line red preview and Show More below it. The Error badge, enable switch, and more-actions button remain, without a trailing red X. Healthy rows stay compact.'],
-		render: ctx => renderMcpInlineErrors(ctx, {
-			height: 900,
-		}),
-	}),
-
-	McpServersInlineErrorsNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['At narrow width, the red preview stays within three lines and Show More provides access to hidden text. The following healthy row does not overlap, and there is no trailing red X.'],
-		render: ctx => renderMcpInlineErrors(ctx, {
-			mcpSearchQuery: 'component',
-			width: 550,
-			height: 750,
-		}),
-	}),
-
-	McpServersInlineErrorsSearch: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Search results show a bounded red error preview with an omission ellipsis and Show More, above a compact healthy row. The Error badge and management controls remain without a trailing red X.'],
-		render: ctx => renderMcpInlineErrors(ctx, {
-			mcpSearchQuery: 'component',
-		}),
-	}),
-
-	McpServersInlineErrorsExpanded: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['After Show More is activated, the complete diagnostic wraps beneath the server name, including the final handshake sentence. Show Less is available on the same control.'],
-		render: ctx => renderMcpInlineErrors(ctx, { mcpSearchQuery: 'component', expanded: true }),
-	}),
-
-	McpServersInlineErrorsExpandedNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: ctx => renderMcpInlineErrors(ctx, { mcpSearchQuery: 'component', expanded: true, width: 550, height: 750 }),
-	}),
-
-	McpServersHugeErrorCollapsed: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['A large HTTP response body is represented by only a three-line preview and Show More. No huge hidden DOM or accessible error text is created.'],
-		render: ctx => renderMcpInlineErrors(ctx, { mcpSearchQuery: 'Verbose', huge: true }),
+		expectedVisualDescriptions: ['The error row stays compact and shows its ordinary description with an Error badge. No inline error message or Show More control appears; diagnostics are available from the MCP detail page.'],
+		render: renderMcpErrorsWithoutDetails,
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
@@ -2662,6 +2629,74 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			type: McpServerType.REMOTE,
 			url: 'https://mcp.example.com/search',
 		})),
+	}),
+
+	EmbeddedMcpDetailErrorUnsupported: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Two untitled diagnostic cards appear above Configuration and are stacked vertically with red backgrounds in color themes. The first reports the connection-refused error; the second says Not supported by Copilot and explains the unsupported source location.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+			}),
+			{
+				width: 800,
+				height: 560,
+				harnessLabel: 'Copilot',
+				error: 'Connection refused at localhost:5432. Check that the database is running.',
+				compatibility: {
+					id: 'mcp-postgres',
+					kind: 'unsupported',
+					details: ['The current configuration location for this server is not supported by the Copilot harness.\nMove the server configuration to the workspace root .mcp.json file.'],
+				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailPartiallySupported: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A single untitled yellow diagnostic card appears above Configuration. It says Partially supported by Copilot and lists two configuration limitations; no error card is shown.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('component-explorer', 'component-explorer', LocalMcpServerScope.Workspace, 'Component fixtures', {
+				type: McpServerType.LOCAL,
+				command: 'npm',
+			}),
+			{
+				width: 800,
+				height: 560,
+				harnessLabel: 'Copilot',
+				compatibility: {
+					id: 'component-explorer',
+					kind: 'partiallySupported',
+					details: [
+						'Environment files are not supported by the Copilot harness.\nMove required variables from the environment file into the server env configuration.',
+						'Per-server sandbox settings are not supported by the Copilot harness.\nRemove the server sandbox setting to use the MCP server.',
+					],
+				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailCompatible: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The text No diagnostics to show appears above Configuration. No diagnostics header or diagnostic cards are shown.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('component-explorer', 'component-explorer', LocalMcpServerScope.Workspace, 'Component fixtures', {
+				type: McpServerType.LOCAL,
+				command: 'npm',
+			}),
+			{
+				width: 800,
+				height: 560,
+				harnessLabel: 'Copilot',
+				compatibility: { id: 'component-explorer', kind: 'supported' },
+			},
+		),
 	}),
 
 	// Standalone embedded MCP detail widget before marketplace installation.

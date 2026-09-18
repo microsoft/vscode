@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../../../base
 import { autorun, IObservable, observableFromEventOpts, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -18,7 +19,7 @@ import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization }
 import { ICustomizationMcpServerCompatibility, ICustomizationMcpServerCompatibilityScope } from '../../../common/customizationHarnessService.js';
 import { IMcpService, IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { AgentHostMcpServerApplicability, assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from './agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from './agentHostMcpServerSupport.js';
 
 const MCP_SUPPORT_UPDATE_DEBOUNCE_DELAY = 50;
 
@@ -47,6 +48,7 @@ export function createCustomizationMcpServerCompatibilityScope(
 ): ICustomizationMcpServerCompatibilityScope {
 	const store = new DisposableStore();
 	const servers = observableValue<readonly ICustomizationMcpServerCompatibility[]>('mcpServerCompatibility', []);
+	const isResolved = observableValue('mcpServerCompatibilityResolved', false);
 	const workingDirectories = observableFromEventOpts(
 		{ equalsFn: (a, b) => equals(a, b, isEqual) },
 		onDidChange,
@@ -55,20 +57,58 @@ export function createCustomizationMcpServerCompatibilityScope(
 	store.add(autorun(reader => {
 		const scope = acquireScope(workingDirectories.read(reader));
 		if (!scope) {
-			servers.set([], undefined);
+			transaction(tx => {
+				servers.set([], tx);
+				isResolved.set(true, tx);
+			});
 			return;
 		}
 		reader.store.add(scope);
 		reader.store.add(autorun(reader => {
-			servers.set(scope.support.read(reader).servers
+			const compatibility = scope.support.read(reader).servers
 				.filter(server => server.applicability !== AgentHostMcpServerApplicability.OutsideCurrentScope)
-				.map(server => ({ id: server.id, kind: server.compatibility.kind })), undefined);
+				.map(server => ({
+					id: server.id,
+					kind: server.compatibility.kind,
+					details: server.compatibility.kind === 'supported' ? undefined : server.compatibility.reasons.map(getMcpCompatibilityDetail),
+				}));
+			const resolved = scope.isResolved.read(reader);
+			transaction(tx => {
+				servers.set(compatibility, tx);
+				isResolved.set(resolved, tx);
+			});
 		}));
 	}));
 	return {
 		servers,
+		isResolved,
 		dispose: () => store.dispose(),
 	};
+}
+
+function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): string {
+	switch (reason) {
+		case AgentHostMcpSupportReason.UnsupportedSourceLocation:
+			return localize('mcpCompatibilityUnsupportedSourceLocation', "The current configuration location for this server is not supported by the Copilot harness.\nMove the server configuration to the workspace root .mcp.json file.");
+		case AgentHostMcpSupportReason.RequiresUserInteraction:
+			return localize('mcpCompatibilityRequiresUserInteraction', "Input and command variables are not supported by the Copilot harness.\nReplace them with concrete values or environment variables defined directly in the server configuration.");
+		case AgentHostMcpSupportReason.UnresolvedConfiguration:
+			return localize('mcpCompatibilityUnresolvedConfiguration', "Unresolved configuration, environment, or workspace variables are not supported by the Copilot harness.\nDefine the missing variables or replace them with concrete values.");
+		case AgentHostMcpSupportReason.LaunchNotRepresentable:
+			return localize('mcpCompatibilityLaunchNotRepresentable', "The launch configuration for this server is not supported by the Copilot harness.\nAdd a command for a local server or a valid URL for a remote server.");
+		case AgentHostMcpSupportReason.EnvironmentFileIgnored:
+			return localize('mcpCompatibilityEnvironmentFileIgnored', "Environment files are not supported by the Copilot harness.\nMove required variables from the environment file into the server env configuration.");
+		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:
+			return localize('mcpCompatibilitySandboxConfigurationIgnored', "Per-server sandbox settings are not supported by the Copilot harness.\nRemove the server sandbox setting to use the MCP server.");
+		case AgentHostMcpSupportReason.DevelopmentModeIgnored:
+			return localize('mcpCompatibilityDevelopmentModeIgnored', "MCP development mode is not supported by the Copilot harness.\nRemove the development mode setting and restart the server manually after configuration changes.");
+		case AgentHostMcpSupportReason.OAuthClientConfigurationIgnored:
+			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "Custom OAuth client configuration is not supported by the Copilot harness.\nRemove the custom OAuth client configuration and sign in when the Copilot harness prompts for authentication.");
+		case AgentHostMcpSupportReason.DefinitionNotLoaded:
+			return localize('mcpCompatibilityDefinitionNotLoaded', "Compatibility cannot be determined because the server definition has not loaded.\nWait for MCP discovery to finish, then refresh this view. If the issue persists, check the server configuration for errors.");
+		case AgentHostMcpSupportReason.SourceUnknown:
+			return localize('mcpCompatibilitySourceUnknown', "Compatibility cannot be determined because the server configuration source is unknown.\nMove the server configuration to a recognized location such as the workspace root .mcp.json file.");
+	}
 }
 
 /** Owns MCP support assessment and refreshes it while at least one consumer holds a reference. */
