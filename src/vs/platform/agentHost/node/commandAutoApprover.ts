@@ -87,7 +87,8 @@ function classifyFileRedirect(redirectText: string, isPowerShell?: boolean): Fil
 		return { kind: 'unsafeWrite', dest: undefined };
 	}
 	let dest = rawDest;
-	if (fullyQuoted) {
+	if ((dest.startsWith(`'`) && dest.endsWith(`'`)) ||
+		(dest.startsWith('"') && dest.endsWith('"'))) {
 		dest = dest.slice(1, -1);
 	}
 	return { kind: 'unsafeWrite', dest };

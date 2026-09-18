@@ -468,6 +468,25 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove(`Write-Host hi >".[c]odex/hooks.json"`, powershell),
 			], ['noMatch', 'noMatch', 'noMatch', 'approved', 'approved', 'approved', 'noMatch', 'noMatch', 'noMatch']);
 		});
+
+		test('preserves quote stripping for non-glob redirect destinations', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return false;
+				},
+			};
+			const results = [
+				approver.shouldAutoApprove('echo hi > "/outside/"report".txt"', opts),
+				approver.shouldAutoApprove(`echo hi >> '/outside/'report'.txt'`, opts),
+				approver.shouldAutoApprove(`Write-Host hi > '/outside/report''s.txt'`, { ...opts, language: 'powershell' }),
+			];
+			assert.deepStrictEqual({ results, destinations }, {
+				results: ['noMatch', 'noMatch', 'noMatch'],
+				destinations: ['/outside/"report".txt', `/outside/'report'.txt`, `/outside/report''s.txt`],
+			});
+		});
 	});
 
 	suite('evaluate', () => {
