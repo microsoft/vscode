@@ -740,14 +740,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	// -- Session-type sync ---------------------------------------------------
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
-		return agentLabel;
+		const hostLabel = this._workspaceHostLabel;
+		return hostLabel ? `${agentLabel} [${hostLabel}]` : agentLabel;
 	}
 
 	// -- Workspaces ----------------------------------------------------------
 
 	/**
-	 * The host name appended to this host's workspace labels, or `undefined` when it would add
-	 * nothing — in web the workbench is already scoped to a single host by the host picker.
+	 * The host name appended to this host's workspace and session-type labels,
+	 * or `undefined` when it would add nothing — in web the workbench is already
+	 * scoped to a single host by the host picker.
 	 */
 	private get _workspaceHostLabel(): string | undefined {
 		return this.isWebPlatform || this._omitHostFromWorkspaceLabel ? undefined : this.label;
