@@ -1764,19 +1764,19 @@ suite('ActionListWidget', () => {
 
 	test('refreshing parent items while removing a nested row keeps the submenu open', async () => {
 		let hidden = 0;
-		let widget: ActionListWidget<ITestActionItem>;
+		const widgetRef: { current: ActionListWidget<ITestActionItem> | undefined } = { current: undefined };
 		const remaining = toAction({ id: 'beta', label: 'Beta', run: () => { } });
 		const removed = Object.assign(
 			toAction({ id: 'alpha', label: 'Alpha', run: () => { } }),
 			{
-				onRemove: () => widget.updateItems([{
+				onRemove: () => widgetRef.current?.updateItems([{
 					...action('remote'),
 					submenuActions: [remaining],
 					submenuOptions: { showFilter: true, filterAsCombobox: true, focusFilterOnOpen: true },
 				}], undefined, { preserveHover: true }),
 			},
 		);
-		widget = createActionListWidget(disposables, {
+		const widget = createActionListWidget(disposables, {
 			items: [{
 				...action('remote'),
 				submenuActions: [removed, remaining],
@@ -1785,6 +1785,7 @@ suite('ActionListWidget', () => {
 			listOptions: { showFilter: false },
 			onHide: () => hidden++,
 		});
+		widgetRef.current = widget;
 		widget.focus();
 		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
