@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { AgentHostLanguageModelProvider } from '../../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { usageInfoToChatUsage } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextUsageWidget, isSameContextUsageData, resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from '../../../../browser/widgetHosts/viewPane/chatContextUsageDetails.js';
 import { IChatUsage } from '../../../../common/chatService/chatService.js';
@@ -137,7 +141,7 @@ suite('ChatContextUsageWidget', () => {
 		} as unknown as ILanguageModelsService;
 	}
 
-	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService): ChatContextUsageWidget {
+	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService, languageModelsService: ILanguageModelsService = createLanguageModelsService()): ChatContextUsageWidget {
 		const hoverService = {
 			setupDelayedHover: () => Disposable.None,
 			showInstantHover: () => { },
@@ -145,14 +149,14 @@ suite('ChatContextUsageWidget', () => {
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
-			createLanguageModelsService(),
+			languageModelsService,
 			new MockContextKeyService(),
 			store.add(new InMemoryStorageService()),
 			new TestConfigurationService(),
 		));
 	}
 
-	function createWidgetWithData(): { widget: ChatContextUsageWidget; getData: () => IChatContextUsageData | undefined } {
+	function createWidgetWithData(languageModelsService?: ILanguageModelsService): { widget: ChatContextUsageWidget; getData: () => IChatContextUsageData | undefined } {
 		let currentData: IObservable<IChatContextUsageData | undefined> | undefined;
 		const details = {
 			domNode: document.createElement('div'),
@@ -164,7 +168,7 @@ suite('ChatContextUsageWidget', () => {
 				currentData = data;
 				return details;
 			},
-		} as unknown as IInstantiationService);
+		} as unknown as IInstantiationService, languageModelsService);
 		return { widget, getData: () => currentData?.get() };
 	}
 
@@ -176,6 +180,41 @@ suite('ChatContextUsageWidget', () => {
 
 	function usage(actualModelId?: string): IChatUsage {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
+	}
+
+	for (const { name, limits } of [
+		{ name: 'only a total context window', limits: { maxContextWindow: 108_000 } },
+		{ name: 'a total context window and output limit', limits: { maxContextWindow: 108_000, maxOutputTokens: 8_000 } },
+		{ name: 'separate input and output limits', limits: { maxPromptTokens: 100_000, maxOutputTokens: 8_000 } },
+	]) {
+		test(`renders BYOK usage without a Copilot catalogue when the host reports ${name}`, async () => {
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli'));
+			provider.updateModels([{ provider: 'copilotcli', id: 'custom/model', name: 'Custom Model', ...limits }]);
+			const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			const { widget, getData } = createWidgetWithData(upcastPartial<ILanguageModelsService>({
+				lookupLanguageModel: id => id === model.identifier ? model.metadata : undefined,
+				getModelConfiguration: () => undefined,
+			}));
+
+			widget.setSelectedModel(model.identifier);
+			widget.update(createRequest(model.identifier, usageInfoToChatUsage({ inputTokens: 50_000, outputTokens: 4_000 })));
+
+			assert.deepStrictEqual({
+				visible: widget.isVisible.get(),
+				detailsShown: widget.showDetails(),
+				usedTokens: getData()?.usedTokens,
+				totalContextWindow: getData()?.totalContextWindow,
+				percentage: widget.domNode.querySelector('.percentage-label')?.textContent,
+				ariaLabel: widget.domNode.getAttribute('aria-label'),
+			}, {
+				visible: true,
+				detailsShown: true,
+				usedTokens: 54_000,
+				totalContextWindow: 108_000,
+				percentage: '50%',
+				ariaLabel: 'Context window usage: 50%',
+			});
+		});
 	}
 
 	test('falls back to the actual model window when "auto" is selected (regression for #321781)', () => {

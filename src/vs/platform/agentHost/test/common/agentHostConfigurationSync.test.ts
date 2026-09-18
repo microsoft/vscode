@@ -202,10 +202,16 @@ suite('AgentHostConfigurationSync', () => {
 			local: getAgentHostConfigurationSyncTarget(LOCAL_AGENT_HOST_RESOURCE_IDENTITY),
 			remoteExtensionHost: getAgentHostConfigurationSyncTarget('vscode-remote://ssh-remote+host'),
 			remote: getAgentHostConfigurationSyncTarget('ssh://host'),
+			sshCredentials: getAgentHostConfigurationSyncTarget('user@127.0.0.1:2222'),
+			ipv6: getAgentHostConfigurationSyncTarget('[::1]:8080'),
+			tunnel: getAgentHostConfigurationSyncTarget('tunnel:host'),
 		}, {
 			local: AgentHostConfigurationSyncTarget.Local,
 			remoteExtensionHost: AgentHostConfigurationSyncTarget.RemoteExtensionHost,
 			remote: AgentHostConfigurationSyncTarget.Remote,
+			sshCredentials: AgentHostConfigurationSyncTarget.Remote,
+			ipv6: AgentHostConfigurationSyncTarget.Remote,
+			tunnel: AgentHostConfigurationSyncTarget.Remote,
 		});
 	});
 

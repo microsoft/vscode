@@ -74,6 +74,8 @@ suite('CustomizationMigrationDashboard', () => {
 			reviewCategory: (id, storage) => actions.push(`review:${id}:${storage}`),
 		});
 		dashboard.showOverview(overview());
+		dashboard.focus();
+		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		button(parent, 'Review Prompts to skills from Your profile').click();
 		button(parent, 'Review User Data from Your profile').click();
 		button(parent, 'Review MCP Servers from vscode').click();
@@ -87,6 +89,7 @@ suite('CustomizationMigrationDashboard', () => {
 			progress: parent.querySelector('.migration-checklist-progress')?.textContent,
 			workspaceDescription: parent.querySelector('[data-storage="local"] .migration-scope-description')?.textContent,
 			workspaceDestinationButton: parent.querySelector('[aria-label="Change destinations for vscode"]') !== null,
+			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
 		}, {
@@ -96,9 +99,25 @@ suite('CustomizationMigrationDashboard', () => {
 			highRisk: 'High risk',
 			progress: '0 of 2 complete',
 			workspaceDescription: 'Workspace customizations. Skip this workspace if you do not own it.',
+			initialFocus: 'Review Prompts to skills from Your profile',
 			focus: 'Change destinations for Your profile',
 			workspaceDestinationButton: false,
 			actions: ['review:promptFiles:user', 'review:userData:user', 'review:mcpServers:local', 'destinations:user'],
+		});
+	});
+
+	test('moves initial loading focus to the first review action when the overview loads', () => {
+		const { dashboard } = createDashboard();
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.focus();
+		const loadingFocus = document.activeElement?.textContent;
+		dashboard.showOverview(overview());
+		assert.deepStrictEqual({
+			loadingFocus,
+			overviewFocus: document.activeElement?.getAttribute('aria-label'),
+		}, {
+			loadingFocus: 'Migrations',
+			overviewFocus: 'Review Prompts to skills from Your profile',
 		});
 	});
 
@@ -154,7 +173,7 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: parent.querySelector('.migration-empty')?.textContent,
 			buttons: parent.querySelectorAll('[role="button"]').length,
 			focus: document.activeElement?.tagName,
-		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'H1' });
+		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'H2' });
 	});
 
 	test('View Changes expands newest activity and dismissals restore meaningful focus', () => {
@@ -230,6 +249,6 @@ suite('CustomizationMigrationDashboard', () => {
 			retries,
 			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
 			focus: document.activeElement?.textContent,
-		}, { retries: 1, busy: 'false', focus: 'Migrations unavailable' });
+		}, { retries: 1, busy: 'false', focus: 'Retry' });
 	});
 });

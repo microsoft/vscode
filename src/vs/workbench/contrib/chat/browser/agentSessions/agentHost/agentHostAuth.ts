@@ -5,8 +5,9 @@
 
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { match } from '../../../../../../base/common/glob.js';
+import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -15,6 +16,7 @@ import { type AgentInfo } from '../../../../../../platform/agentHost/common/stat
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { localize } from '../../../../../../nls.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -23,6 +25,7 @@ import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticat
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
+import { reportAgentHostAuthRecovery, reportAgentHostAuthSignInResult, type AgentHostAuthSignInData, type AgentHostAuthTrigger } from './agentHostAuthTelemetry.js';
 
 /**
  * Stable identity for an agent-host MCP server, used as the key for
@@ -69,6 +72,7 @@ export class AgentHostAuthTokenCache {
 	private readonly _completedTokens = new Map<string, string>();
 	private readonly _pendingAuthentications = new Map<string, { readonly token: string; readonly promise: Promise<void> }>();
 	private readonly _keyGenerations = new Map<string, number>();
+	private readonly _rejectedSessions = new Map<string, RejectedAuthenticationSession>();
 	private _globalGeneration = 0;
 
 	/**
@@ -150,7 +154,20 @@ export class AgentHostAuthTokenCache {
 			this._completedTokens.clear();
 			this._pendingAuthentications.clear();
 			this._keyGenerations.clear();
+			this._rejectedSessions.clear();
 		}
+	}
+
+	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession): void {
+		this._rejectedSessions.set(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
+	}
+
+	getRejectedSession(resource: string, scopes: readonly string[] | undefined): RejectedAuthenticationSession | undefined {
+		return this._rejectedSessions.get(this._key(resource, scopes));
+	}
+
+	clearRejectedSession(resource: string, scopes: readonly string[] | undefined): void {
+		this._rejectedSessions.delete(this._key(resource, scopes));
 	}
 
 	private _invalidateKey(key: string): void {
@@ -167,9 +184,23 @@ export class AgentHostAuthTokenCache {
 }
 
 type AuthenticationSessionResolution =
-	| { readonly kind: 'resolved'; readonly session: AuthenticationSession }
+	| { readonly kind: 'resolved'; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset' }
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'unavailable' };
+
+interface RejectedAuthenticationSession {
+	readonly id: string;
+	readonly accessToken: string;
+	readonly accountId: string;
+}
+
+function isSameAuthenticationSession(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession): boolean {
+	return session.id === rejectedSession.id && session.accessToken === rejectedSession.accessToken;
+}
+
+function isAuthenticationSessionCandidate(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession | null): boolean {
+	return rejectedSession === null || (session.account.id === rejectedSession.accountId && !isSameAuthenticationSession(session, rejectedSession));
+}
 
 /**
  * Returns a stable identity for an authentication challenge.
@@ -188,6 +219,10 @@ function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata)
 export class AgentHostAuthenticationRecovery {
 	private readonly _resentTokens = new Map<string, string>();
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
+
+	constructor(
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	) { }
 
 	clear(): void {
 		this._resentTokens.clear();
@@ -217,43 +252,84 @@ export class AgentHostAuthenticationRecovery {
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
-		const resolution = await resolveAuthenticationSessionForResource(
-			URI.parse(resource.resource),
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
+		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
+		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
 		throwIfAuthenticationStale(options);
+		if (resolution.kind === 'signedOut') {
+			this._resentTokens.delete(key);
+		}
 		if (resolution.kind !== 'resolved') {
 			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
-			if (resolution.kind === 'signedOut') {
-				this._resentTokens.delete(key);
-			}
+			reportAgentHostAuthRecovery(this._telemetryService, {
+				trigger: 'hostChallenge',
+				action: resolution.kind === 'signedOut' ? 'noSession' : 'defer',
+				initialSessionMatch: resolution.kind === 'signedOut' ? 'none' : 'unavailable',
+				quarantinePresent,
+			});
 			return;
 		}
-		const session = resolution.session;
-
+		const currentSession = resolution.session;
 		const previousToken = this._resentTokens.get(key);
-		if (previousToken !== undefined && previousToken === session.accessToken) {
-			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+		const isQuarantined = rejectedSession !== undefined && isSameAuthenticationSession(currentSession, rejectedSession);
+		let candidateResolution: AuthenticationSessionResolution = resolution;
+		if (isQuarantined || previousToken === currentSession.accessToken) {
+			candidateResolution = await resolveSessionForProtectedResource(
+				authenticationService,
+				logService,
+				resource,
+				options,
+				{ id: currentSession.id, accessToken: currentSession.accessToken, accountId: currentSession.account.id },
+			);
 			throwIfAuthenticationStale(options);
-			const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
-			throwIfAuthenticationStale(options);
-			if (interactiveSession) {
-				this._resentTokens.set(key, interactiveSession.accessToken);
-				if (interactiveSession.accessToken === session.accessToken) {
-					logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
-				}
+		}
+		if (isQuarantined && candidateResolution.kind === 'unavailable') {
+			logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, candidateResolution);
+			reportAgentHostAuthRecovery(this._telemetryService, {
+				trigger: 'hostChallenge',
+				action: 'defer',
+				initialSessionMatch: resolution.match,
+				quarantinePresent,
+			});
+			return;
+		}
+
+		if (candidateResolution.kind === 'resolved' && (!isQuarantined || candidateResolution.session.accessToken !== previousToken)) {
+			const session = candidateResolution.session;
+			const isNewAlternative = session !== currentSession && !isQuarantined;
+			if (isNewAlternative) {
+				options.authTokenCache?.rejectSession(resource.resource, scopes, currentSession);
+			}
+			options.authTokenCache?.clear(resource.resource, isNewAlternative ? scopes : resource.scopes_supported);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+				this._resentTokens.set(key, session.accessToken);
+				logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+				reportAgentHostAuthRecovery(this._telemetryService, {
+					trigger: 'hostChallenge',
+					action: session === currentSession ? 'forwardCurrent' : 'forwardAlternative',
+					initialSessionMatch: resolution.match,
+					quarantinePresent,
+				});
 			}
 			return;
 		}
 
 		options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
-		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], session)) {
-			this._resentTokens.set(key, session.accessToken);
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+		reportAgentHostAuthRecovery(this._telemetryService, {
+			trigger: 'hostChallenge',
+			action: 'prompt',
+			initialSessionMatch: resolution.match,
+			quarantinePresent,
+		});
+		const challengedToken = candidateResolution.kind === 'resolved' ? candidateResolution.session.accessToken : currentSession.accessToken;
+		const interactiveSession = await forceAuthenticationInteractively(authenticationService, commandService, logService, this._telemetryService, resource, options, 'hostChallenge', challengedToken);
+		throwIfAuthenticationStale(options);
+		if (!interactiveSession) {
+			return;
+		}
+		this._resentTokens.set(key, interactiveSession.accessToken);
+		if (interactiveSession.accessToken === challengedToken) {
+			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
 	}
 }
@@ -290,8 +366,10 @@ async function resolveAuthenticationSessionForResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	logPrefix: string,
+	rejectedSession: RejectedAuthenticationSession | null = null,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
+	const requestedSet = new Set(scopes);
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
 		let providerId: string | undefined;
@@ -326,9 +404,13 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions[0];
+		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession));
 		if (exactSession) {
-			return { kind: 'resolved', session: exactSession };
+			return {
+				kind: 'resolved',
+				session: exactSession,
+				match: exactSession.scopes.every(scope => requestedSet.has(scope)) ? 'exact' : 'superset',
+			};
 		}
 
 		let allSessions: readonly AuthenticationSession[];
@@ -340,10 +422,12 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const requestedSet = new Set(scopes);
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
+			if (!isAuthenticationSessionCandidate(session, rejectedSession)) {
+				continue;
+			}
 			const sessionScopes = new Set(session.scopes);
 			let isSuperset = true;
 			for (const scope of requestedSet) {
@@ -361,7 +445,7 @@ async function resolveAuthenticationSessionForResource(
 			}
 		}
 		if (bestSession) {
-			return { kind: 'resolved', session: bestSession };
+			return { kind: 'resolved', session: bestSession, match: bestExtraScopes === 0 ? 'exact' : 'superset' };
 		}
 	}
 	return hasUnavailableProvider ? { kind: 'unavailable' } : { kind: 'signedOut' };
@@ -408,16 +492,21 @@ async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: Pick<AuthenticationSession, 'accessToken' | 'expiresIn'> | undefined,
+	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id'>>) | undefined,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
-	const expiresIn = session?.expiresIn;
+	const rejectedSession = options.authTokenCache?.getRejectedSession(resource, scopes);
+	// The lookup may have started before this session was quarantined.
+	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
+		throw new CancellationError();
+	}
+	const expiresAfter = session?.expiresAfter;
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
 		scopes,
 		token,
-		...(expiresIn !== undefined && Number.isInteger(expiresIn) && expiresIn > 0 ? { expiresIn } : {}),
+		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 	};
 	if (options.authTokenCache) {
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request));
@@ -511,8 +600,13 @@ export async function revokeAuthenticationForRemovedSessions(
 			if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
 				continue;
 			}
+			throwIfAuthenticationStale(options);
 			reconciledResources.add(key);
 
+			const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+			if (rejectedSession && removedSessions.some(session => session.id === rejectedSession.id)) {
+				options.authTokenCache?.clearRejectedSession(resource.resource, scopes);
+			}
 			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 			throwIfAuthenticationStale(options);
 			if (resolution.kind === 'unavailable') {
@@ -601,11 +695,15 @@ async function authenticateProtectedResourceWithServices(
 	return true;
 }
 
+/**
+ * Defaults to the cached rejection; pass null for an unfiltered lookup.
+ */
 async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IAgentHostAuthenticationOptions, 'logPrefix'>,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'logPrefix'>,
+	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
 	return resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
@@ -614,6 +712,7 @@ async function resolveSessionForProtectedResource(
 		authenticationService,
 		logService,
 		options.logPrefix,
+		rejectedSession,
 	);
 }
 
@@ -642,26 +741,34 @@ export async function resolveAuthenticationInteractively(
 	const authenticationService = accessor.get(IAuthenticationService);
 	const commandService = accessor.get(ICommandService);
 	const logService = accessor.get(ILogService);
+	const telemetryService = accessor.get(ITelemetryService);
 	for (const resource of protectedResources) {
 		throwIfAuthenticationStale(options);
-		const resourceUri = URI.parse(resource.resource);
 		const scopes = resource.scopes_supported ?? [];
-		const existingSession = await resolveSessionForResource(
-			resourceUri,
-			resource.authorization_servers ?? [],
-			scopes,
-			authenticationService,
-			logService,
-			options.logPrefix,
-		);
+		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+		const existingSessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 		throwIfAuthenticationStale(options);
-		if (existingSession) {
-			await forwardAuthenticationToken(options, resource.resource, scopes, existingSession);
+		if (existingSessionResolution.kind === 'resolved') {
+			const existingSession = existingSessionResolution.session;
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, existingSession)) {
+				reportAgentHostAuthRecovery(telemetryService, {
+					trigger: 'sessionCreation',
+					action: 'forwardCurrent',
+					initialSessionMatch: existingSessionResolution.match,
+					quarantinePresent: rejectedSession !== undefined,
+				});
+			}
 			logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
 			return true;
 		}
 
-		return (await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options)) !== undefined;
+		reportAgentHostAuthRecovery(telemetryService, {
+			trigger: 'sessionCreation',
+			action: 'prompt',
+			initialSessionMatch: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
+			quarantinePresent: rejectedSession !== undefined,
+		});
+		return (await forceAuthenticationInteractively(authenticationService, commandService, logService, telemetryService, resource, options, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
 	}
 
 	return false;
@@ -671,44 +778,61 @@ async function forceAuthenticationInteractively(
 	authenticationService: IAuthenticationService,
 	commandService: ICommandService,
 	logService: ILogService,
+	telemetryService: ITelemetryService,
 	resource: ProtectedResourceMetadata,
 	options: IAgentHostAuthenticationOptions,
+	trigger: AgentHostAuthTrigger,
+	challengedToken?: string,
 ): Promise<AuthenticationSession | undefined> {
 	throwIfAuthenticationStale(options);
-	const scopes = resource.scopes_supported ?? [];
-	const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
-		forceSignInDialog: true,
-		additionalScopes: scopes,
-		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
-		disableChatViewReveal: true,
-		returnResult: true,
-	});
-	throwIfAuthenticationStale(options);
-	if (setupResult?.success === undefined) {
-		return undefined;
+	const watch = StopWatch.create();
+	const data: AgentHostAuthSignInData = { trigger, result: 'failed', credentialChanged: undefined, sessionMatch: undefined };
+	try {
+		const scopes = resource.scopes_supported ?? [];
+		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
+			telemetrySource: 'agentHost',
+			forceSignInDialog: true,
+			additionalScopes: scopes,
+			dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
+			disableChatViewReveal: true,
+			returnResult: true,
+		});
+		throwIfAuthenticationStale(options);
+		if (setupResult?.success === undefined) {
+			data.result = 'cancelled';
+			return undefined;
+		}
+		if (!setupResult.success) {
+			throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
+		}
+		let sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+		if (sessionResolution.kind === 'signedOut' && options.authTokenCache?.getRejectedSession(resource.resource, scopes)) {
+			sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
+		}
+		throwIfAuthenticationStale(options);
+		if (sessionResolution.kind !== 'resolved') {
+			data.sessionMatch = sessionResolution.kind === 'signedOut' ? 'none' : 'unavailable';
+			data.result = 'noSessionResolved';
+			logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
+			return undefined;
+		}
+		const session = sessionResolution.session;
+		data.sessionMatch = sessionResolution.match;
+		data.credentialChanged = challengedToken === undefined ? undefined : session.accessToken !== challengedToken;
+		options.authTokenCache?.clear(resource.resource, scopes);
+		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+			data.result = 'deduplicated';
+			return undefined;
+		}
+		data.result = 'tokenForwarded';
+		logService.info(`${options.logPrefix} Interactive authentication completed for ${resource.resource}`);
+		return session;
+	} catch (error) {
+		data.result = isCancellationError(error) ? 'superseded' : 'failed';
+		throw error;
+	} finally {
+		reportAgentHostAuthSignInResult(telemetryService, data, watch.elapsed());
 	}
-	if (!setupResult.success) {
-		throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
-	}
-	const session = await resolveSessionForResource(
-		URI.parse(resource.resource),
-		resource.authorization_servers ?? [],
-		scopes,
-		authenticationService,
-		logService,
-		options.logPrefix,
-	);
-	throwIfAuthenticationStale(options);
-	if (!session) {
-		logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
-		return undefined;
-	}
-	options.authTokenCache?.clear(resource.resource, scopes);
-	if (!await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
-		return undefined;
-	}
-	logService.info(`${options.logPrefix} Interactive authentication completed for ${resource.resource}`);
-	return session;
 }
 
 export async function resolveMcpServerAuthentication(

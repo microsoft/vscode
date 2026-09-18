@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { parse } from '../../../../../../base/common/jsonc.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -198,6 +200,36 @@ suite('McpServerCustomizationMigration', () => {
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			...overrides,
 		};
+	}
+
+	for (const cancelBeforeReading of [true, false]) {
+		test(`stops cancelled planning ${cancelBeforeReading ? 'before' : 'during'} source reads`, async () => {
+			const roots = [URI.file('/first'), URI.file('/second')];
+			const source = store.add(new CancellationTokenSource());
+			const reads: URI[] = [];
+			const provider = new class extends InMemoryFileSystemProvider {
+				override async readFile(resource: URI): Promise<Uint8Array> {
+					reads.push(resource);
+					source.cancel();
+					return super.readFile(resource);
+				}
+			}();
+			const fileService = createFileService(provider);
+			for (const root of roots) {
+				await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+			}
+			if (cancelBeforeReading) {
+				source.cancel();
+			}
+			const snapshot: IAgentHostMcpServerSupportSnapshot = {
+				servers: roots.map(root => support(root, 'server')),
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			};
+
+			await assert.rejects(createMigrator(fileService).createPlan(snapshot, roots, source.token), isCancellationError);
+			assert.deepStrictEqual(reads.map(uri => uri.path), cancelBeforeReading ? [] : ['/first/.vscode/mcp.json']);
+		});
 	}
 
 	test('plans only enabled, applicable, fully supported and exactly representable workspace-folder servers', async () => {

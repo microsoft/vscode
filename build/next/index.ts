@@ -12,6 +12,7 @@ import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
+import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
 import product from '../../product.json' with { type: 'json' };
@@ -21,6 +22,10 @@ import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { copyResources, type BuildTarget } from './resources.ts';
+import { optimizeSvgFiles } from './svg.ts';
+import { getBundleOptions } from './bundle.ts';
+import { compileStandaloneFiles } from './standalone.ts';
 
 const globAsync = promisify(glob);
 
@@ -55,9 +60,6 @@ const options = {
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
 };
-
-// Build targets
-type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
 
 const SRC_DIR = 'src';
 const OUT_DIR = 'out';
@@ -115,12 +117,6 @@ const codeEntryPoints = [
 	'vs/sessions/electron-browser/sessions',
 ];
 
-// Web entry points (used in server-web and vscode-web)
-const webEntryPoints = [
-	'vs/workbench/workbench.web.main.internal',
-	'vs/code/browser/workbench/workbench',
-];
-
 // Additional web-only entry points (CDN build only, not in server-web)
 const sessionsWebEntryPoint = 'vs/sessions/sessions.web.main.internal';
 const webOnlyEntryPoints = [
@@ -175,7 +171,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 			return [
 				...serverEntryPoints,
 				...workerEntryPoints,
-				...webEntryPoints,
+				'vs/code/browser/workbench/workbench', // Includes workbench.web.main.internal.
 				...keyboardMapEntryPoints,
 			];
 		case 'web':
@@ -223,7 +219,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set(); // Server has no UI
 		case 'server-web':
 			return new Set([
-				'vs/workbench/workbench.web.main.internal',
 				'vs/code/browser/workbench/workbench',
 			]);
 		case 'web':
@@ -231,175 +226,6 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 				'vs/workbench/workbench.web.main.internal',
 				'vs/sessions/sessions.web.main.internal',
 			]);
-		default:
-			throw new Error(`Unknown target: ${target}`);
-	}
-}
-
-// ============================================================================
-// Resource Patterns (files to copy, not transpile/bundle)
-// ============================================================================
-
-// Common resources needed by all targets
-const commonResourcePatterns = [
-	// Tree-sitter queries
-	'vs/editor/common/languages/highlights/*.scm',
-	'vs/editor/common/languages/injections/*.scm',
-
-	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
-	'vs/workbench/browser/media/code-icon.svg',
-	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-	'vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
-	'vs/sessions/contrib/chat/browser/media/*.svg',
-	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
-];
-
-// Resources for desktop target
-const desktopResourcePatterns = [
-	...commonResourcePatterns,
-
-	// HTML
-	'vs/code/electron-browser/workbench/workbench.html',
-	'vs/code/electron-browser/workbench/workbench-dev.html',
-	'vs/sessions/electron-browser/sessions.html',
-	'vs/sessions/electron-browser/sessions-dev.html',
-	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Webview pre scripts
-	'vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Shell scripts
-	'vs/base/node/*.sh',
-	'vs/workbench/contrib/terminal/common/scripts/*.sh',
-	'vs/workbench/contrib/terminal/common/scripts/*.ps1',
-	'vs/workbench/contrib/terminal/common/scripts/*.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/*.fish',
-	'vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
-	'vs/workbench/contrib/externalTerminal/**/*.scpt',
-
-	// Media - audio
-	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Media - images
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
-	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
-	'vs/workbench/services/extensionManagement/common/media/*.svg',
-	'vs/workbench/services/extensionManagement/common/media/*.png',
-	'vs/workbench/browser/parts/editor/media/*.png',
-	'vs/workbench/contrib/debug/browser/media/*.png',
-
-	// Sessions - built-in prompts and skills
-	'vs/sessions/prompts/*.prompt.md',
-	'vs/sessions/skills/**/SKILL.md',
-];
-
-// Resources for server target (minimal - no UI)
-const serverResourcePatterns = [
-	// Shell scripts for process monitoring
-	'vs/base/node/cpuUsage.sh',
-	'vs/base/node/ps.sh',
-
-	// External Terminal
-	'vs/workbench/contrib/externalTerminal/**/*.scpt',
-
-	// Terminal shell integration
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
-	'vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psd1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.psm1',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
-];
-
-// Resources for server-web target (server + web UI)
-const serverWebResourcePatterns = [
-	...serverResourcePatterns,
-	...commonResourcePatterns,
-
-	// Web HTML
-	'vs/code/browser/workbench/workbench.html',
-	'vs/code/browser/workbench/workbench-dev.html',
-	'vs/code/browser/workbench/callback.html',
-	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Webview pre scripts
-	'vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Media - audio
-	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Media - images
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
-	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.png',
-	'vs/workbench/services/extensionManagement/common/media/*.svg',
-	'vs/workbench/services/extensionManagement/common/media/*.png',
-];
-
-// Resources for standalone web target (browser-only, no server)
-const webResourcePatterns = [
-	...commonResourcePatterns,
-
-	// Web HTML
-	'vs/code/browser/workbench/workbench.html',
-	'vs/code/browser/workbench/workbench-dev.html',
-	'vs/code/browser/workbench/callback.html',
-	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-	'vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Webview pre scripts
-	'vs/workbench/contrib/webview/browser/pre/*.js',
-
-	// Media - audio
-	'vs/platform/accessibilitySignal/browser/media/*.mp3',
-	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
-
-	// Media - images
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
-	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
-	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.svg',
-	'vs/workbench/contrib/extensions/browser/media/*.png',
-	'vs/workbench/services/extensionManagement/common/media/*.svg',
-	'vs/workbench/services/extensionManagement/common/media/*.png',
-];
-
-/**
- * Get resource patterns for a build target.
- */
-function getResourcePatternsForTarget(target: BuildTarget): string[] {
-	switch (target) {
-		case 'desktop':
-			return desktopResourcePatterns;
-		case 'server':
-			return serverResourcePatterns;
-		case 'server-web':
-			return serverWebResourcePatterns;
-		case 'web':
-			return webResourcePatterns;
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -471,51 +297,6 @@ function readISODate(outDir: string): string {
 }
 
 /**
- * Standalone TypeScript files that need to be compiled separately (not bundled).
- * These run in special contexts (e.g., Electron preload) where bundling isn't appropriate.
- * Only needed for desktop target.
- */
-const desktopStandaloneFiles = [
-	'vs/base/parts/sandbox/electron-browser/preload.ts',
-	'vs/base/parts/sandbox/electron-browser/preload-aux.ts',
-	'vs/platform/browserView/electron-browser/preload-browserView.ts',
-];
-
-async function compileStandaloneFiles(outDir: string, doMinify: boolean, target: BuildTarget): Promise<void> {
-	// Only desktop needs preload scripts
-	if (target !== 'desktop') {
-		return;
-	}
-
-	console.log(`[standalone] Compiling ${desktopStandaloneFiles.length} standalone files...`);
-
-	const banner = `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/`;
-
-	await Promise.all(desktopStandaloneFiles.map(async (file) => {
-		const entryPath = path.join(REPO_ROOT, SRC_DIR, file);
-		const outPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
-
-		await esbuild.build({
-			entryPoints: [entryPath],
-			outfile: outPath,
-			bundle: false, // Don't bundle - these are standalone scripts
-			format: 'cjs', // CommonJS for Electron preload
-			platform: 'node',
-			target: ['es2024'],
-			sourcemap: 'linked',
-			sourcesContent: false,
-			minify: doMinify,
-			banner: { js: banner },
-			logLevel: 'warning',
-		});
-	}));
-
-	console.log(`[standalone] Done`);
-}
-
-/**
  * Copy ALL non-TypeScript files from src/ to the output directory.
  * This matches the old gulp build behavior where `gulp.src('src/**')` streams
  * every file and non-TS files bypass the compiler via tsFilter.restore.
@@ -554,36 +335,6 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 	});
 
 	console.log(`[resources] Copied ${allFiles.length} files`);
-}
-
-/**
- * Copy curated resource files for production bundles.
- * Uses specific per-target patterns matching the old build's vscodeResourceIncludes,
- * serverResourceIncludes, etc. Only called by bundle() - transpile uses copyAllNonTsFiles().
- */
-async function copyResources(outDir: string, target: BuildTarget): Promise<void> {
-	console.log(`[resources] Copying to ${outDir} for target '${target}'...`);
-	let copied = 0;
-
-	const ignorePatterns = ['**/test/**', '**/*-dev.html'];
-
-	const resourcePatterns = getResourcePatternsForTarget(target);
-	for (const pattern of resourcePatterns) {
-		const files = await globAsync(pattern, {
-			cwd: path.join(REPO_ROOT, SRC_DIR),
-			ignore: ignorePatterns,
-		});
-
-		for (const file of files) {
-			const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
-			const destPath = path.join(REPO_ROOT, outDir, file);
-
-			await copyFile(srcPath, destPath);
-			copied++;
-		}
-	}
-
-	console.log(`[resources] Copied ${copied} files`);
 }
 
 // ============================================================================
@@ -738,27 +489,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
 
-	// Read TSLib for banner
-	const tslibPath = path.join(REPO_ROOT, 'node_modules/tslib/tslib.es6.js');
-	const tslib = await fs.promises.readFile(tslibPath, 'utf-8');
-	const banner = {
-		js: `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-${tslib}`,
-		css: `/*!--------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/`,
-	};
-
-	// Shared TypeScript options for bundling directly from source
-	const tsconfigRaw = JSON.stringify({
-		compilerOptions: {
-			experimentalDecorators: true,
-			useDefineForClassFields: false
-		}
-	});
-
 	// Create shared NLS collector (only used if doNls is true)
 	const nlsCollector = createNLSCollector();
 	const preserveEnglish = false; // Production mode: replace messages with null
@@ -795,22 +525,13 @@ ${tslib}`,
 		const needsCssBundling = bundleCssEntryPoints.has(entryPoint);
 
 		const buildOptions: esbuild.BuildOptions = {
+			...getBundleOptions(doMinify, 'neutral'),
 			entryPoints: needsCssBundling
 				? [{ in: entryPath, out: entryPoint }]
 				: [entryPath],
 			...(needsCssBundling
 				? { outdir: path.join(REPO_ROOT, outDir) }
 				: { outfile: outPath }),
-			bundle: true,
-			format: 'esm',
-			platform: 'neutral',
-			target: ['es2024'],
-			packages: 'external',
-			sourcemap: 'linked',
-			sourcesContent: true,
-			minify: doMinify,
-			treeShaking: true,
-			banner,
 			loader: {
 				'.ttf': 'file',
 				'.svg': 'file',
@@ -819,12 +540,6 @@ ${tslib}`,
 			},
 			assetNames: 'media/[name]',
 			plugins,
-			write: false, // Don't write yet, we need to post-process
-			logLevel: 'warning',
-			logOverride: {
-				'unsupported-require-call': 'silent',
-			},
-			tsconfigRaw,
 		};
 
 		const result = await esbuild.build(buildOptions);
@@ -851,25 +566,10 @@ ${tslib}`,
 		}
 
 		const result = await esbuild.build({
+			...getBundleOptions(doMinify, 'node'),
 			entryPoints: [entryPath],
 			outfile: outPath,
-			bundle: true,
-			format: 'esm',
-			platform: 'node',
-			target: ['es2024'],
-			packages: 'external',
-			sourcemap: 'linked',
-			sourcesContent: true,
-			minify: doMinify,
-			treeShaking: true,
-			banner,
 			plugins: bootstrapPlugins,
-			write: false, // Don't write yet, we need to post-process
-			logLevel: 'warning',
-			logOverride: {
-				'unsupported-require-call': 'silent',
-			},
-			tsconfigRaw,
 		});
 
 		buildResults.push({ outPath, result });
@@ -936,17 +636,7 @@ ${tslib}`,
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
-				if (sourceMapBaseUrl) {
-					const relativePath = path.relative(path.join(REPO_ROOT, outDir), file.path);
-					content = content.replace(
-						/\/\/# sourceMappingURL=.+$/m,
-						`//# sourceMappingURL=${sourceMapBaseUrl}/${relativePath}.map`
-					);
-					content = content.replace(
-						/\/\*# sourceMappingURL=.+\*\/$/m,
-						`/*# sourceMappingURL=${sourceMapBaseUrl}/${relativePath}.map*/`
-					);
-				}
+				content = rewriteSourceMappingURL(content, path.relative(path.join(REPO_ROOT, outDir), file.path), sourceMapBaseUrl);
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
@@ -1018,10 +708,10 @@ ${tslib}`,
 	}
 
 	// Copy resources (curated per-target patterns for production)
-	await copyResources(outDir, target);
+	await copyResources(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
-	await compileStandaloneFiles(outDir, doMinify, target);
+	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
@@ -1029,6 +719,9 @@ ${tslib}`,
 			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
 		});
 	}
+
+	// Finish emitted assets and copied resources before packaging computes integrity data.
+	await optimizeSvgFiles(outDirPath, doMinify);
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
@@ -1166,7 +859,7 @@ Options for 'transpile':
 	--exclude-tests    Exclude test files from transpilation
 
 Options for 'bundle':
-	--minify           Minify the output bundles
+	--minify           Minify bundles, copied JavaScript resources, and SVG assets
 	--nls              Process NLS (localization) strings
 	--mangle-privates  Convert native #private fields to regular properties
 	--out <dir>        Output directory (default: out-vscode)

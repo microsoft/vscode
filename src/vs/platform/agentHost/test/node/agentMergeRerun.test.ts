@@ -451,7 +451,7 @@ class RerunTestHarness extends Disposable {
 			}(),
 			this.logService,
 		));
-		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), gitHubService, this.logService));
+		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), session => this.controller.getTurnContext(session), gitHubService, this.logService, this.stateManager, this.configurationService));
 		this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
 	}
 

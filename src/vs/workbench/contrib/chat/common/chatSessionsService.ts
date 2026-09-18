@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -309,6 +310,7 @@ export type IChatSessionHistoryItem = {
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
@@ -343,6 +345,8 @@ export interface IChatSessionServerRequest {
 	readonly id: string;
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	/** The feature that submitted this request on the user's behalf. */

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.138.0",
-  "distro": "d76d51d547a1ffe9fc223201e9de2d3a2817c859",
+  "version": "1.139.0",
+  "distro": "8c7e9eebe250686ee086ffb96a4c570302ece3e3",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -97,13 +97,15 @@
     "update-build-ts-version": "npm install -D typescript@npm:@typescript/typescript6@^6.0.2 && npm install -D @typescript/native@npm:typescript@next && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-webpack-plugin-0.1.0.tgz --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
     "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/packages/webpack-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
-    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
+    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next",
+    "setup-feed": "npm install --global @microsoft/artifacts-npm-credprovider --registry https://pkgs.dev.azure.com/artifacts-public/PublicTools/_packaging/AzureArtifacts/npm/registry/ && npm config set registry https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/",
+    "reauth-feed": "artifacts-npm-credprovider --force"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot": "1.0.84-4",
-    "@github/copilot-sdk": "1.0.13",
+    "@github/copilot": "1.0.84-9",
+    "@github/copilot-sdk": "1.0.14",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -114,7 +116,7 @@
     "@microsoft/mxc-sdk": "0.8.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-39",
+    "@vscode/codicons": "^0.0.46-40",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -283,6 +285,7 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
+    "koffi": "3.2.1",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },
@@ -301,7 +304,7 @@
     "cpu-features": false,
     "foundry-local-sdk@1.2.3": true,
     "kerberos@2.1.1": true,
-    "koffi@3.1.2": false,
+    "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,
     "protobufjs@7.6.5": false,
     "native-is-elevated@0.9.0": true,

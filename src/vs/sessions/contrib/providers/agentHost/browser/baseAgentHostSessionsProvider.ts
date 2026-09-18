@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
-import { equals } from '../../../../../base/common/objects.js';
+import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
@@ -61,12 +61,12 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
-import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
+import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -3897,6 +3897,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 		const remembered = migrateLegacyAutopilotConfig(config);
+		if (workspace && rememberedValues[SessionConfigKey.Isolation] === undefined) {
+			remembered[SessionConfigKey.Isolation] = this._baseConfigurationService.getValue<boolean>(USE_WORKTREE_SETTING) !== false ? 'worktree' : 'folder';
+		}
 
 		// `chat.defaultConfiguration` controls both axes. Per axis the
 		// precedence is: enterprise policy > remembered pick > effective
@@ -4035,11 +4038,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			: constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
-		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
-
-		// Remember portable config picks across sessions.
+	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
 		if (typeof normalizedValue === 'string' && isRememberedSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
@@ -4051,6 +4050,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			nextRememberedValues[property] = normalizedValue;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
+	}
+
+	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
+		this._rememberSessionConfigValue(property, normalizedValue);
 
 		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
@@ -4253,6 +4258,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
 		return this._getNewSession(sessionId)?.getConfigValues();
+	}
+
+	async getNewSessionConfig(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined> {
+		const newSession = this._getNewSession(sessionId);
+		await newSession?.waitForConfigurationReady();
+		const providerConfig = deepClone(newSession?.getConfigValues());
+		if (!providerConfig) {
+			return undefined;
+		}
+		const isolation = providerConfig[SessionConfigKey.Isolation];
+		return {
+			isolation: isolation === 'worktree' || isolation === 'folder' ? isolation : undefined,
+			providerConfig,
+		};
 	}
 
 	async setIsolationMode(sessionId: string, mode: string): Promise<void> {
@@ -5252,6 +5271,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
+		}
+
+		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
+			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+			if (rememberedValues[SessionConfigKey.Isolation] === undefined) {
+				this._rememberSessionConfigValue(SessionConfigKey.Isolation, newSession.getConfig()?.values[SessionConfigKey.Isolation]);
+			}
 		}
 
 		newSession.setStatus(SessionStatus.InProgress);

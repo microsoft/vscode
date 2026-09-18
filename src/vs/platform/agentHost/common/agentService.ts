@@ -17,6 +17,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -259,10 +260,9 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
- * is `false`). Supported values are:
+ * shell tool. Supported values are:
  *
- *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
+ *  - `'off'` (the default): sandboxing is explicitly disabled for the SDK shell
  *    path \u2014 commands run unsandboxed.
  *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
  *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
@@ -270,10 +270,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
  *
  * Unrestricted outbound network is controlled separately by
  * `chat.agent.sandbox.allowNetwork`.
- *
- * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
- * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
- * commands and reads `chat.agent.sandbox.enabled` directly.
  */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
@@ -292,7 +288,7 @@ export type AgentHostCopilotSandboxSettingId =
 	| typeof AgentHostSdkSandboxEnabledSettingId
 	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
 
-export function getAgentHostCopilotSandboxSettingId(_customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
 	// TODO: Check Agent Host-specific sandbox settings once they are enabled for users.
 	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
@@ -1063,6 +1059,9 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+
+	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
+	readonly devContainerService?: IDevContainerAgentHostMainService;
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;

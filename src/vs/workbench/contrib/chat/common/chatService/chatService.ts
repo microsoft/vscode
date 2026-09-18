@@ -8,10 +8,12 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
@@ -213,11 +215,14 @@ export interface IChatUsage {
 	kind: 'usage';
 }
 
+const copilotCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 1 });
+
 /**
- * Formats a copilot credit value for display.
+ * Formats a Copilot credit value with locale-aware grouping and at most one decimal place.
  */
 export function formatCopilotCredits(credits: number): string {
-	return parseFloat(credits.toFixed(1)).toString();
+	const roundedCredits = parseFloat(credits.toFixed(1));
+	return copilotCreditsFormatter.value.format(roundedCredits === 0 ? 0 : roundedCredits);
 }
 
 /**
@@ -226,7 +231,7 @@ export function formatCopilotCredits(credits: number): string {
  */
 export function formatCopilotCreditsLabel(credits: number): string {
 	const formatted = formatCopilotCredits(credits);
-	return formatted === '1'
+	return parseFloat(credits.toFixed(1)) === 1
 		? localize('chat.credit', "{0} credit", formatted)
 		: localize('chat.credits', "{0} credits", formatted);
 }
@@ -1200,6 +1205,8 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	/** Chat-layer model identifier, independent of its provider-qualified display name. */
+	modelId?: string;
 	modelName?: string;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
@@ -1415,6 +1422,7 @@ export interface IChatMcpAuthenticationRequired {
 	readonly kind: 'mcpAuthenticationRequired';
 	readonly sessionResource: UriComponents;
 	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	/** Set by the producer before publishing the empty server list on completion. */
 	isUsed: boolean;
 }
 
@@ -1920,6 +1928,8 @@ export interface IRemotePendingRequest {
 	/** The raw message text. */
 	readonly message: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 	readonly metadata?: Record<string, unknown>;
 }

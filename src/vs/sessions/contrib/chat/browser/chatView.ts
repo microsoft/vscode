@@ -5,21 +5,20 @@
 
 import './media/chatView.css';
 import './media/voiceChatView.css';
-import { $, addDisposableListener, EventHelper, EventType, getWindow, isHTMLElement, size } from '../../../../base/browser/dom.js';
-import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
-import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -51,11 +50,11 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
-import { Menus } from '../../../browser/menus.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -72,6 +71,14 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 }
 
 /**
+ * Whether a chat input keydown should move focus to the status pills above it. Matches an
+ * unmodified Shift+Tab, mirroring the accessibility-help guidance for reaching those pills.
+ */
+export function isFocusChatPillsKeyDown(event: Pick<IKeyboardEvent, 'keyCode' | 'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey'>): boolean {
+	return event.keyCode === KeyCode.Tab && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+}
+
+/**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
  * shown before a session has been created. This is the default view that
  * the `SessionsPart` grid is seeded with.
@@ -85,6 +92,7 @@ export class NewChatView extends AbstractChatView {
 	static readonly TYPE = 'sessions.newSession';
 
 	override readonly kind: ChatViewKind;
+	override readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
 	private readonly _isVisibleObs = observableValue(this, true);
@@ -102,6 +110,7 @@ export class NewChatView extends AbstractChatView {
 		this._widget = this._register(isNewChatInSession
 			? instantiationService.createInstance(NewChatInSessionWidget, widgetOptions)
 			: instantiationService.createInstance(NewChatWidget, widgetOptions));
+		this.pickerVisibility = this._widget instanceof NewChatWidget ? this._widget.pickerVisibility : constObservable(noSessionPickerVisibility);
 		this._widget.render(this.element);
 	}
 
@@ -220,7 +229,6 @@ export class ChatView extends AbstractChatView {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -281,24 +289,6 @@ export class ChatView extends AbstractChatView {
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
-		const transcript = this._widget.transcriptDomNode;
-		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
-			if (isHighContrast(this.themeService.getColorTheme().type)) {
-				return;
-			}
-			const target = isHTMLElement(event.target) ? event.target : undefined;
-			if (!target || target.closest('.monaco-list-row, .scrollbar')) {
-				return;
-			}
-
-			EventHelper.stop(event, true);
-			const anchor = new StandardMouseEvent(getWindow(transcript), event);
-			this.contextMenuService.showContextMenu({
-				menuId: Menus.SessionChatBackgroundContext,
-				contextKeyService: scopedContextKeyService,
-				getAnchor: () => anchor,
-			});
-		}));
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
 			ExternalSessionBanner,
 			this.element,
@@ -346,6 +336,12 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
+		this._register(this._widget.inputEditor.onKeyDown(event => {
+			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
 		const updateChatPillsVisibility = (visible: boolean) => {
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 		};
@@ -667,11 +663,7 @@ export class ChatView extends AbstractChatView {
 	private _updateChatBackground(): void {
 		const background = this.chatBackgroundService.getBackground();
 		this._updateChatItemHorizontalPadding(!!background);
-		const replica = this._stickyScrollBackgroundReplica.value;
-		if (replica) {
-			replica.setBackground(background);
-			replica.layout();
-		}
+		this._stickyScrollBackgroundReplica.value?.setBackground(background);
 	}
 
 	private _updateChatItemHorizontalPadding(hasBackground: boolean): void {
@@ -707,8 +699,9 @@ export class ChatView extends AbstractChatView {
 			this._stickyScrollBackgroundReplica.value = replica;
 			this._stickyScrollBackgroundContainer = stickyContainer;
 			replica.setBackground(this.chatBackgroundService.getBackground());
+		} else {
+			replica.layout();
 		}
-		replica.layout();
 	}
 
 	/**

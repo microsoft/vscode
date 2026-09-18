@@ -22,6 +22,8 @@ import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 import '../../browser/media/agentFeedbackEditorInput.css';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
@@ -147,6 +149,7 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
 		}
@@ -173,6 +176,7 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, createMockCodeReviewService());
 			reg.defineInstance(IContextKeyService, contextKeyService);
 		},
 	});

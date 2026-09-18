@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
@@ -19,6 +19,8 @@ import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMM
 import { Menus } from '../../../../../browser/menus.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import '../../browser/agentHostSessionBranchActions.js';
+import '../../browser/agentHostSettings.contribution.js';
+import '../../browser/agentSessionSettings.contribution.js';
 
 suite('Agent Host session link actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +40,57 @@ suite('Agent Host session link actions', () => {
 			group: '2_copy',
 			order: 1,
 			when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+		});
+	});
+
+	test('groups settings in a submenu and omits branch name copying', () => {
+		const submenu = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.SessionItemSettings);
+		const settings = MenuRegistry.getMenuItems(Menus.SessionItemSettings)
+			.filter(isIMenuItem)
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.map(item => ({
+				id: item.command.id,
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
+		const sessionMenuCommandIds = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.map(item => item.command.id);
+
+		assert.deepStrictEqual({
+			submenu: submenu && {
+				title: typeof submenu.title === 'string' ? submenu.title : submenu.title.value,
+				group: submenu.group,
+				order: submenu.order,
+				when: submenu.when?.serialize(),
+			},
+			settings,
+			hasCopyBranchName: sessionMenuCommandIds.includes('sessionsViewPane.agentHost.copySessionBranchName'),
+		}, {
+			submenu: {
+				title: 'Settings',
+				group: '2_settings',
+				order: 1,
+				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+			},
+			settings: [{
+				id: 'sessionsViewPane.openSessionSettings',
+				title: 'Open Session Settings',
+				group: 'navigation',
+				order: 1,
+				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+			}, {
+				id: 'sessionsViewPane.openHostSettings',
+				title: 'Open Host Settings',
+				group: 'navigation',
+				order: 2,
+				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+			}],
+			hasCopyBranchName: false,
 		});
 	});
 
