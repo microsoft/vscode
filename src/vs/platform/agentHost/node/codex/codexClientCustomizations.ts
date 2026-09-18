@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { dirname } from '../../../../base/common/path.js';
+import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
@@ -78,15 +79,43 @@ export class CodexClientCustomizationStore {
 
 	private readonly _byClient = new Map<string, readonly ICodexClientPlugin[]>();
 	private readonly _enablement = new Map<string, boolean>();
+	/** Superseded paths stay leased because the current SDK thread may still reference its prior snapshot. */
+	private readonly _leases = new Set<IDisposable>();
+	private _isDisposed = false;
 
 	/** Replace one client's synced+parsed plugin set. */
 	setClient(clientId: string, plugins: readonly ICodexClientPlugin[]): void {
+		if (this._isDisposed) {
+			for (const plugin of plugins) {
+				plugin.synced.lease?.dispose();
+			}
+			return;
+		}
+		for (const plugin of plugins) {
+			const lease = plugin.synced.lease;
+			if (lease) {
+				this._leases.add(lease);
+			}
+		}
 		this._byClient.set(clientId, plugins);
 	}
 
 	/** Drop a client's contribution. Returns whether anything was removed. */
 	removeClient(clientId: string): boolean {
 		return this._byClient.delete(clientId);
+	}
+
+	dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		for (const lease of this._leases) {
+			lease.dispose();
+		}
+		this._leases.clear();
+		this._byClient.clear();
+		this._enablement.clear();
 	}
 
 	setEnabled(id: string, enabled: boolean): boolean {

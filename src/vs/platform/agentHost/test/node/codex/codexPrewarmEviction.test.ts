@@ -626,6 +626,14 @@ suite('CodexAgent prewarm eviction', () => {
 		const configurationKey = configurationResource.toString();
 		const created = await createSession(agent, { session: configurationResource });
 		const runtime = agent['_sessions'].get(AgentSession.id(created.session))!;
+		let pluginLeaseDisposed = false;
+		runtime.clientCustomizations.setClient('client', [{
+			synced: {
+				customization: { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin' },
+				lease: { dispose: () => pluginLeaseDisposed = true },
+			},
+			parsed: undefined,
+		}]);
 		runtime.threadId = 'shutdown-prewarm';
 		runtime.prewarmClaimed = false;
 		let postShutdownConnections = 0;
@@ -652,6 +660,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		assert.deepStrictEqual({
 			runtimeDisposed: runtime.disposed,
+			pluginLeaseDisposed,
 			prewarmTimer: runtime.prewarmTimer,
 			postShutdownConnections,
 			desktopThreads: agent['_desktopThreadIds'].size,
@@ -668,6 +677,7 @@ suite('CodexAgent prewarm eviction', () => {
 			mcpAuthResources: agent['_mcpAuthServerUrlsByResource'].size,
 		}, {
 			runtimeDisposed: true,
+			pluginLeaseDisposed: true,
 			prewarmTimer: undefined,
 			postShutdownConnections: 0,
 			desktopThreads: 0,
@@ -683,6 +693,26 @@ suite('CodexAgent prewarm eviction', () => {
 			mcpAuthTokens: 0,
 			mcpAuthResources: 0,
 		});
+	});
+
+	test('session teardown releases plugin leases and refreshes global skill roots', async () => {
+		const agent = await createAgent(disposables);
+		const { session } = await createSession(agent);
+		const runtime = agent['_sessions'].get(AgentSession.id(session))!;
+		let pluginLeaseDisposed = false;
+		let skillRootRefreshes = 0;
+		runtime.clientCustomizations.setClient('client', [{
+			synced: {
+				customization: { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin' },
+				lease: { dispose: () => pluginLeaseDisposed = true },
+			},
+			parsed: undefined,
+		}]);
+		agent['_refreshSkillExtraRoots'] = async () => { skillRootRefreshes++; };
+
+		await agent['_teardownSessionInMemory'](runtime, AgentSession.id(session), false);
+
+		assert.deepStrictEqual({ pluginLeaseDisposed, skillRootRefreshes }, { pluginLeaseDisposed: true, skillRootRefreshes: 1 });
 	});
 
 	test('shutdown rejects an exact-chat lifecycle operation that was still queued', async () => {

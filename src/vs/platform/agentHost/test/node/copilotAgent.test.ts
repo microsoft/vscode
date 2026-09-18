@@ -9114,6 +9114,37 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('disposes synchronized plugin leases with the active session', async () => {
+			let disposed = false;
+			class LeasingPluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({
+						customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } },
+						lease: { dispose: () => disposed = true },
+					}));
+				}
+			}
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]), pluginManager: new LeasingPluginManager() });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'lease-session'),
+					workingDirectories: [URI.file('/workspace')],
+					activeClient: {
+						clientId: 'client-1',
+						tools: [],
+						customizations: [{ type: CustomizationType.Plugin, id: 'plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' }],
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+
+			assert.strictEqual(disposed, true);
+		});
+
 		test('createChat without activeClient does not sync customizations', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);

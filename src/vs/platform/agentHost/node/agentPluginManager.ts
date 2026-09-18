@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
+import { Disposable, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { isPidAlive } from './agentHostLockfile.js';
 
 /**
- * Cap on materialized plugin revisions retained across manager lifetimes.
- * Cleanup runs before any cached path is returned, so it cannot invalidate a
- * directory referenced by an active session.
+ * Cap on unleased materialized plugin revisions retained by one Agent Host.
  */
 const DEFAULT_MAX_PLUGIN_REVISIONS = 64;
 
@@ -31,17 +32,24 @@ const DEFAULT_MAX_PLUGIN_REVISIONS = 64;
  */
 const MAX_REVISIONS_PER_PLUGIN = 8;
 
-/** On-disk cache entry format. */
 interface ICacheEntry {
 	readonly uri: string;
 	readonly nonce: string;
+	references: number;
+}
+
+interface IRuntimeOwner {
+	readonly pid: number;
+	readonly instanceId: string;
 }
 
 /**
  * Implementation of {@link IAgentPluginManager}.
  *
  * Syncs plugin directories to local storage under
- * `{userDataPath}/agentPlugins/{key}/{nonce}/`. Materializing each nonce in
+ * `{userDataPath}/agentPlugins/runtimes/{runtime}/{key}/{nonce}/`. Each Agent
+ * Host owns a separate runtime directory, so another live host sharing the
+ * same user data path cannot invalidate its plugin paths. Materializing each nonce in
  * its own subdirectory means a new revision is copied into a fresh directory
  * rather than overwriting (and deleting) the previous one. This both avoids
  * `EBUSY` failures when the in-use copy is still locked and allows multiple
@@ -50,24 +58,28 @@ interface ICacheEntry {
  * {@link SequencerByKey} per plugin URI so that concurrent syncs of the same
  * plugin are serialized and cannot clobber each other.
  *
- * Older nonces are evicted when the manager starts, before any cached path can
- * be handed to a session. Runtime eviction is unsafe because sessions retain
- * the concrete nonce path and may read a skill from it much later. Up to
- * {@link MAX_REVISIONS_PER_PLUGIN} revisions are retained across restarts so a
- * customization set which cycles back to a recent state remains a cache hit.
+ * Older unleased nonces are evicted after synchronization and lease release.
+ * Leased revisions may temporarily exceed the limits until their owning
+ * sessions end. Up to {@link MAX_REVISIONS_PER_PLUGIN} unleased revisions are
+ * retained so a customization set which cycles back to a recent state remains
+ * a cache hit.
  *
- * The LRU (which records each plugin's URI and nonce) is persisted to a JSON
- * file in the base path so it survives process restarts.
+ * Crashed runtimes are removed when a later manager observes that their owner
+ * process is no longer alive.
  */
-export class AgentPluginManager implements IAgentPluginManager {
+export class AgentPluginManager extends Disposable implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _storagePath: URI;
+	private readonly _runtimesPath: URI;
 	private readonly _basePath: URI;
-	private readonly _cachePath: URI;
+	private readonly _ownerPath: URI;
 	private readonly _maxRevisions: number;
+	private readonly _instanceId = generateUuid();
 
 	/** Serializes concurrent sync operations per plugin URI. */
 	private readonly _sequencer = new SequencerByKey<string>();
+	private readonly _cacheSequencer = new Sequencer();
 
 	/**
 	 * LRU of synced plugins, most recently used at the end. Each entry records
@@ -76,7 +88,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 */
 	private readonly _lru: ICacheEntry[] = [];
 
-	private _cacheLoadPromise: Promise<void> | undefined;
+	private _initializationPromise: Promise<void> | undefined;
+	private _isDisposed = false;
 
 	constructor(
 		userDataPath: URI,
@@ -84,8 +97,11 @@ export class AgentPluginManager implements IAgentPluginManager {
 		@ILogService private readonly _logService: ILogService,
 		maxRevisions: number = DEFAULT_MAX_PLUGIN_REVISIONS,
 	) {
-		this._basePath = URI.joinPath(userDataPath, 'agentPlugins');
-		this._cachePath = URI.joinPath(this._basePath, 'cache.json');
+		super();
+		this._storagePath = URI.joinPath(userDataPath, 'agentPlugins');
+		this._runtimesPath = URI.joinPath(this._storagePath, 'runtimes');
+		this._basePath = URI.joinPath(this._runtimesPath, `${process.pid}-${this._instanceId}`);
+		this._ownerPath = URI.joinPath(this._basePath, 'owner.json');
 		this._maxRevisions = maxRevisions;
 	}
 
@@ -98,16 +114,21 @@ export class AgentPluginManager implements IAgentPluginManager {
 		customizations: ClientPluginCustomization[],
 		progress?: (status: PluginCustomization) => void,
 	): Promise<ISyncedCustomization[]> {
-		await this._ensureCacheLoaded();
+		await this._ensureInitialized();
 
 		// Sync each customization in parallel, serialized per URI
 		const results = await Promise.all(customizations.map(ref =>
 			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
 				try {
-					const pluginDir = await this._syncPlugin(clientId, ref);
+					const synced = await this._syncPlugin(clientId, ref);
 					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
-					progress?.(customization);
-					return { customization, pluginDir };
+					try {
+						progress?.(customization);
+					} catch (error) {
+						synced.lease.dispose();
+						throw error;
+					}
+					return { customization, ...synced };
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
@@ -128,32 +149,59 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * own `{key}/{nonce}` subdirectory; when the same nonce is already present
 	 * the copy is skipped. Returns the local directory URI.
 	 */
-	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
+	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<{ pluginDir: URI; lease: IDisposable }> {
 		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
-		const destDir = this._dirFor(ref.uri, ref.nonce);
+		const revision = ref.nonce ?? generateUuid();
+		const destDir = this._dirFor(ref.uri, revision);
 
 		// Nonce cache hit — the plugin is already materialized under the nonce
 		// subdirectory, so skip the copy.
-		if (ref.nonce && this._findEntry(ref.uri, ref.nonce) && await this._fileService.exists(destDir)) {
-			this._touchLru(ref.uri, ref.nonce);
-			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
-			// Persist the reordering: retention now keeps several revisions per
-			// plugin, so an unpersisted touch would reload in the pre-hit order
-			// and evict the revision that was most recently used.
-			await this._persistCache();
-			return destDir;
+		if (ref.nonce) {
+			const cached = await this._cacheSequencer.queue(async () => {
+				const entry = this._findEntry(ref.uri, revision);
+				if (!entry || !await this._fileService.exists(destDir)) {
+					return undefined;
+				}
+				entry.references++;
+				this._touchLru(entry);
+				return { pluginDir: destDir, lease: this._createLease(entry) };
+			});
+			if (cached) {
+				this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
+				return cached;
+			}
 		}
 
 		this._logService.info(`[AgentPluginManager] Syncing plugin: ${ref.uri} → ${destDir.toString()}`);
 
 		await this._fileService.copy(pluginUri, destDir, true);
 
-		this._removeEntry(ref.uri, ref.nonce);
-		this._lru.push({ uri: ref.uri, nonce: ref.nonce ?? '' });
+		return this._cacheSequencer.queue(async () => {
+			let entry = this._findEntry(ref.uri, revision);
+			if (entry) {
+				entry.references++;
+				this._touchLru(entry);
+			} else {
+				entry = { uri: ref.uri, nonce: revision, references: 1 };
+				this._lru.push(entry);
+			}
+			await this._cleanupStaleNoncesFor(ref.uri);
+			await this._evictIfNeeded();
+			return { pluginDir: destDir, lease: this._createLease(entry) };
+		});
+	}
 
-		await this._persistCache();
-
-		return destDir;
+	private _createLease(entry: ICacheEntry): IDisposable {
+		return toDisposable(() => {
+			void this._cacheSequencer.queue(async () => {
+				entry.references--;
+				if (this._isDisposed) {
+					return;
+				}
+				await this._cleanupStaleNoncesFor(entry.uri);
+				await this._evictIfNeeded();
+			});
+		});
 	}
 
 	private _keyForUri(uri: string): string {
@@ -183,13 +231,6 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return this._lru.find(entry => entry.uri === uri && entry.nonce === n);
 	}
 
-	private _removeEntry(uri: string, nonce: string | undefined): void {
-		const entry = this._findEntry(uri, nonce);
-		if (entry) {
-			this._removeEntryRef(entry);
-		}
-	}
-
 	private _removeEntryRef(entry: ICacheEntry): void {
 		const idx = this._lru.indexOf(entry);
 		if (idx !== -1) {
@@ -197,12 +238,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 		}
 	}
 
-	private _touchLru(uri: string, nonce: string | undefined): void {
-		const entry = this._findEntry(uri, nonce);
-		if (entry) {
-			this._removeEntryRef(entry);
-			this._lru.push(entry);
-		}
+	private _touchLru(entry: ICacheEntry): void {
+		this._removeEntryRef(entry);
+		this._lru.push(entry);
 	}
 
 	/** Best-effort recursive delete; returns `true` only when the dir is gone. */
@@ -219,13 +257,6 @@ export class AgentPluginManager implements IAgentPluginManager {
 		}
 	}
 
-	/** Attempts to evict older nonces of every tracked plugin. */
-	private async _cleanupStaleNonces(): Promise<void> {
-		for (const uri of new Set(this._lru.map(entry => entry.uri))) {
-			await this._cleanupStaleNoncesFor(uri);
-		}
-	}
-
 	/**
 	 * Attempts to evict revisions of {@link uri} beyond the most recent
 	 * {@link MAX_REVISIONS_PER_PLUGIN}. Entries whose directory cannot be
@@ -234,12 +265,18 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 */
 	private async _cleanupStaleNoncesFor(uri: string): Promise<void> {
 		const entries = this._lru.filter(entry => entry.uri === uri);
-		// `entries` preserves LRU order; the tail holds the revisions we keep.
-		const stale = entries.slice(0, -MAX_REVISIONS_PER_PLUGIN);
-		for (const entry of stale) {
+		let excess = entries.length - MAX_REVISIONS_PER_PLUGIN;
+		for (const entry of entries) {
+			if (excess <= 0) {
+				break;
+			}
+			if (entry.references > 0) {
+				continue;
+			}
 			this._logService.info(`[AgentPluginManager] Evicting stale nonce ${entry.nonce || 'default'} for plugin: ${uri}`);
 			if (await this._tryDeleteDir(this._dirFor(entry.uri, entry.nonce))) {
 				this._removeEntryRef(entry);
+				excess--;
 			}
 		}
 	}
@@ -252,6 +289,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		let i = 0;
 		while (this._lru.length > this._maxRevisions && i < this._lru.length) {
 			const candidate = this._lru[i];
+			if (candidate.references > 0) {
+				i++;
+				continue;
+			}
 			this._logService.info(`[AgentPluginManager] Evicting revision ${candidate.nonce || 'default'} of plugin: ${candidate.uri}`);
 			if (await this._tryDeleteDir(this._dirFor(candidate.uri, candidate.nonce))) {
 				this._lru.splice(i, 1);
@@ -265,76 +306,44 @@ export class AgentPluginManager implements IAgentPluginManager {
 		}
 	}
 
-	// ---- cache persistence --------------------------------------------------
-
-	private _ensureCacheLoaded(): Promise<void> {
-		this._cacheLoadPromise ??= this._loadCache();
-		return this._cacheLoadPromise;
+	private _ensureInitialized(): Promise<void> {
+		this._initializationPromise ??= this._initialize();
+		return this._initializationPromise;
 	}
 
-	private async _loadCache(): Promise<void> {
+	private async _initialize(): Promise<void> {
+		await this._fileService.createFolder(this._basePath);
+		const owner: IRuntimeOwner = { pid: process.pid, instanceId: this._instanceId };
+		await this._fileService.writeFile(this._ownerPath, VSBuffer.fromString(JSON.stringify(owner)));
+		await this._cleanupStaleRuntimes();
+	}
+
+	private async _cleanupStaleRuntimes(): Promise<void> {
+		let runtimes;
 		try {
-			if (!await this._fileService.exists(this._cachePath)) {
-				return;
-			}
-			const content = await this._fileService.readFile(this._cachePath);
-			const entries: ICacheEntry[] = JSON.parse(content.value.toString());
-			if (!Array.isArray(entries)) {
-				return;
-			}
-
-			// Entries are stored in LRU order (oldest first)
-			for (const entry of entries) {
-				if (typeof entry.uri === 'string' && typeof entry.nonce === 'string') {
-					this._lru.push({ uri: entry.uri, nonce: entry.nonce });
-				}
-			}
-			this._logService.trace(`[AgentPluginManager] Loaded ${entries.length} cache entries from disk`);
-		} catch (err) {
-			this._logService.warn('[AgentPluginManager] Failed to load cache from disk', err);
+			runtimes = await this._fileService.resolve(this._runtimesPath);
+		} catch {
+			return;
 		}
-
-		await this._pruneMissingEntries();
-		await this._cleanupStaleNonces();
-		await this._evictIfNeeded();
-		await this._persistCache();
-	}
-
-	/**
-	 * Drops entries whose directory is gone (deleted out from under us, or a
-	 * copy that never completed). Such an entry can never produce a cache hit,
-	 * so leaving it in place would waste a per-plugin retention slot and a slot
-	 * against the global cap.
-	 */
-	private async _pruneMissingEntries(): Promise<void> {
-		const present = await Promise.all(this._lru.map(async entry => {
+		for (const runtime of runtimes.children ?? []) {
+			if (!runtime.isDirectory || runtime.resource.toString() === this._basePath.toString()) {
+				continue;
+			}
 			try {
-				await this._fileService.stat(this._dirFor(entry.uri, entry.nonce));
-				return true;
-			} catch (err) {
-				// Only a confirmed absence justifies dropping the entry.
-				// `exists()` reports false for transient I/O and permission
-				// failures too, which would evict a still-valid revision and
-				// force a full re-copy of the bundle later.
-				return toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND;
-			}
-		}));
-		for (let i = this._lru.length - 1; i >= 0; i--) {
-			if (!present[i]) {
-				this._logService.trace(`[AgentPluginManager] Dropping cache entry with no directory: ${this._lru[i].uri}`);
-				this._lru.splice(i, 1);
+				const content = await this._fileService.readFile(URI.joinPath(runtime.resource, 'owner.json'));
+				const owner = JSON.parse(content.value.toString()) as Partial<IRuntimeOwner>;
+				if (typeof owner.pid === 'number' && Number.isSafeInteger(owner.pid) && !isPidAlive(owner.pid)) {
+					await this._tryDeleteDir(runtime.resource);
+				}
+			} catch {
+				// An incomplete or unreadable owner is retained conservatively.
 			}
 		}
 	}
 
-	private async _persistCache(): Promise<void> {
-		try {
-			// Write entries in LRU order (oldest first)
-			const entries: ICacheEntry[] = this._lru.map(entry => ({ uri: entry.uri, nonce: entry.nonce }));
-			await this._fileService.createFolder(this._basePath);
-			await this._fileService.writeFile(this._cachePath, VSBuffer.fromString(JSON.stringify(entries)));
-		} catch (err) {
-			this._logService.warn('[AgentPluginManager] Failed to persist cache to disk', err);
-		}
+	override dispose(): void {
+		this._isDisposed = true;
+		void this._cacheSequencer.queue(() => this._tryDeleteDir(this._basePath));
+		super.dispose();
 	}
 }

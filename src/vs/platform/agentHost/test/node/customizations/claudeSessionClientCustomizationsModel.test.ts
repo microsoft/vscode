@@ -40,6 +40,19 @@ suite('SessionClientCustomizationsDiff', () => {
 		assert.strictEqual(diff.hasDifference, false);
 	});
 
+	test('disposes adopted plugin leases with the session diff', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		let disposed = false;
+		diff.adoptSyncedCustomizations('c1', [{
+			...synced('https://a', { dir: '/p/a' }),
+			lease: { dispose: () => disposed = true },
+		}]);
+
+		diff.dispose();
+
+		assert.strictEqual(disposed, true);
+	});
+
 	test('setSyncedCustomizations flips dirty and fires onDidChange', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		let fires = 0;

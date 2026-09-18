@@ -6469,6 +6469,8 @@ class SessionPluginController extends Disposable {
 	public readonly mcpServerStates: ISettableObservable<ReadonlyMap<string, IMcpServerRuntimeState>> = observableValue(this, new Map());
 	/** Per-client customization state; published customizations are the stable first-wins union of these entries. */
 	private readonly _clients = new Map<string, IClientCustomizationState>();
+	/** Superseded paths stay leased because the current SDK turn may still reference its prior snapshot. */
+	private readonly _pluginLeases = this._register(new DisposableStore());
 
 	private readonly _sessionDiscovered: MutableDisposable<SessionDiscoveredEntry> = this._register(new MutableDisposable());
 	private readonly _sessionMcpDiscovery = this._register(new MutableDisposable<{ readonly discovery: SessionMcpDiscovery; dispose(): void }>());
@@ -6768,6 +6770,11 @@ class SessionPluginController extends Disposable {
 					input: inputByUri.get(status.uri),
 				});
 			});
+			for (const item of result) {
+				if (item.lease) {
+					this._pluginLeases.add(item.lease);
+				}
+			}
 
 			const resolved = await Promise.all(result.map(item => this._parent.resolveSyncedCustomization(item, clientId, inputByUri.get(item.customization.uri))));
 			if (revision === client.revision) {
