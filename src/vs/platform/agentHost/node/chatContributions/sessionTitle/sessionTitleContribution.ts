@@ -12,6 +12,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
 
 /** Coordinates automatic and user-defined session and chat titles. */
@@ -25,6 +26,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
+		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -39,6 +41,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
+		this._turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, this._titleController.getAutomaticTitleGenerationStrategy(turn.session));
 		const instruction = await this._titleController.prepareInstructionForAgent(turn.session, turn.chat);
 		return instruction ? { instructions: [instruction] } : undefined;
 	}

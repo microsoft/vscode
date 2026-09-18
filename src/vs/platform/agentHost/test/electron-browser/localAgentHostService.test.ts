@@ -59,7 +59,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		serverSeq: 1,
 		origin: undefined,
 	};
-	const notification: INotification = { type: NotificationType.SessionRemoved, session: 'copilotcli:/test' };
+	const notification: INotification = { type: NotificationType.SessionRemoved, channel: ROOT_STATE_URI, session: 'copilotcli:/test' };
 	const mcpNotification: IMcpNotification = { channel: 'mcp:/test', method: 'notifications/tools/list_changed' };
 	const expected = [action, notification, mcpNotification];
 

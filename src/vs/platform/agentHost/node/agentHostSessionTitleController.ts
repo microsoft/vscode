@@ -7,7 +7,7 @@ import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { hasKey, isObject } from '../../../base/common/types.js';
+import { isObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -981,8 +981,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (!raw) {
 					return;
 				}
-				const seed: unknown = JSON.parse(raw);
-				if (!isObject(seed) || !hasKey(seed, { title: true, turnIndex: true }) || typeof seed.title !== 'string' || typeof seed.turnIndex !== 'number' || !Number.isSafeInteger(seed.turnIndex) || seed.turnIndex < 0) {
+				const parsedSeed: unknown = JSON.parse(raw);
+				if (!isObject(parsedSeed)) {
+					return;
+				}
+				const seed = parsedSeed as Record<string, unknown>;
+				if (typeof seed.title !== 'string' || typeof seed.turnIndex !== 'number' || !Number.isSafeInteger(seed.turnIndex) || seed.turnIndex < 0) {
 					return;
 				}
 				const [title, source] = await Promise.all([

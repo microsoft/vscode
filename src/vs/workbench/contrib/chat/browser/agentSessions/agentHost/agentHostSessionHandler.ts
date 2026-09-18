@@ -18,7 +18,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
-import { AgentHostFirstResponseTiming, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
+import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -1661,7 +1661,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return this._forkSession(sessionResource, resolvedSession, request, token);
 				},
 				(title: string, _token: CancellationToken) => {
-					this._config.connection.dispatch(this._getRenameChatURI(sessionResource, resolvedSession), {
+					this._config.connection.dispatch(this._getChatURIOrDefault(sessionResource, resolvedSession), {
 						type: ActionType.SessionTitleChanged,
 						title,
 					});
@@ -1823,10 +1823,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let chatId: string | undefined;
 		let sessionTurnKind: IAgentHostFirstResponseEvent['sessionTurnKind'] = 'unknown';
 		let invocationKind: IAgentHostFirstResponseEvent['invocationKind'] = 'unknown';
+		let rendererRootInvocationOrdinal: number | undefined;
+		let trustInteractionRequired = false;
 		const preparingStatus = new MutableDisposable();
 		let failureStage: AgentHostInvocationFailureStage = 'resolveSession';
 		try {
 			this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
+			const invocationChat = this._getChatURIOrDefault(request.sessionResource, this._resolveSessionUri(request.sessionResource));
+			if (!isSubagentChatUri(invocationChat)) {
+				rendererRootInvocationOrdinal = nextRendererRootInvocationOrdinal();
+			}
 
 			// Gate spawning an agent on workspace trust. Viewing chat and the
 			// agent list does not require trust, but sending a message does, since
@@ -1843,7 +1849,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (cancellationToken.isCancellationRequested) {
 				return {};
 			}
-			if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders)) {
+			if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders, () => trustInteractionRequired = true)) {
 				return {};
 			}
 			if (cancellationToken.isCancellationRequested) {
@@ -1952,6 +1958,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const stopWatch = StopWatch.create(false);
 			let firstProgress: number | undefined;
 			const measuredProgress = (parts: IChatProgress[]) => {
+				if (invocationKind === 'newTurn') {
+					for (const part of parts) {
+						if (part.kind === 'toolInvocation' && part.subAgentInvocationId === undefined) {
+							firstResponse.observeToolCall(part.toolCallId);
+						}
+					}
+				}
 				// Real progress has started — cancel the pending "preparing" status.
 				preparingStatus.clear();
 				if (firstProgress === undefined && parts.some(isFirstVisibleProgressPart)) {
@@ -1987,6 +2000,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const timing = firstResponse.finish({
 				requestId: request.requestId, provider: this._config.provider, sessionId, chatId,
 				sessionTurnKind, invocationKind, outcome: cancellationToken.isCancellationRequested ? 'cancelled' : outcome,
+				rendererRootInvocationOrdinal, trustInteractionRequired,
 			});
 			this._telemetryService.publicLog2<IAgentHostFirstResponseEvent, AgentHostFirstResponseClassification>('agentHost.firstResponse', timing);
 			this._logService.info(`[AgentHostFirstResponse] ${JSON.stringify({ ...timing, turnId: request.requestId })}`);
@@ -2308,7 +2322,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatURI;
 	}
 
-	private _getRenameChatURI(sessionResource: URI, session: URI): string {
+	private _getChatURIOrDefault(sessionResource: URI, session: URI): string {
 		const mapped = this._chatURIsBySessionResource.get(sessionResource);
 		if (mapped) {
 			return mapped;
@@ -3921,8 +3935,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const delta = content.substring(lastEmitted);
 			lastEmitted = content.length;
-			opts.sink([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
 			opts.onResponseText?.(delta);
+			opts.sink([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
 		}));
 	}
 
@@ -6274,10 +6288,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * is checked for all folders in parallel and only untrusted folders are prompted
 	 * for, one at a time.
 	 */
-	private async _ensureFoldersTrusted(folders: readonly URI[]): Promise<boolean> {
+	private async _ensureFoldersTrusted(folders: readonly URI[], onInteractionRequired: () => void): Promise<boolean> {
 		const message = localize('agentHost.workspaceTrust', "AI features are currently only supported in trusted workspaces.");
 		const localFolders = folders.filter(folder => folder.scheme === Schemas.file);
 		if (localFolders.length === 0) {
+			if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+				onInteractionRequired();
+			}
 			return !!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		}
 
@@ -6293,6 +6310,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// A folder in the open workspace is gated via whole-workspace trust (matching
 		// extension-host chat); others via per-resource trust.
 		for (const folder of untrustedFolders) {
+			if (!this._workspaceContextService.getWorkspaceFolder(folder) || !this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+				onInteractionRequired();
+			}
 			const trusted = this._workspaceContextService.getWorkspaceFolder(folder)
 				? await this._workspaceTrustRequestService.requestWorkspaceTrust({ message })
 				: await this._workspaceTrustRequestService.requestResourcesTrust({ uri: folder, message });

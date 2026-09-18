@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentHostFirstResponseTiming } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
+import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal } from '../../../browser/agentSessions/agentHost/agentHostFirstResponseTelemetry.js';
 
 suite('AgentHostFirstResponseTiming', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,18 +19,41 @@ suite('AgentHostFirstResponseTiming', () => {
 		timing.observeText('answer');
 		elapsed = 900;
 		timing.observeText('duplicate');
-		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn' }), {
-			schemaVersion: 1, requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn',
-			firstResponseTextMs: 250, totalElapsedMs: 900, hasResponseText: true,
+		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }), {
+			schemaVersion: 1, requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false,
+			firstResponseTextMs: 250, rootToolCallsBeforeFirstText: 0, totalElapsedMs: 900, hasResponseText: true,
 		});
+	});
+
+	test('counts distinct root tools only until first nonwhitespace text', () => {
+		const timing = new AgentHostFirstResponseTiming({ elapsed: () => 42 });
+		timing.observeToolCall('rename');
+		timing.observeText(' \n');
+		timing.observeToolCall('rename');
+		timing.observeToolCall('second');
+		timing.observeText('answer');
+		timing.observeToolCall('after-text');
+		assert.strictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }).rootToolCallsBeforeFirstText, 2);
+	});
+
+	test('shares the ordinal across timing instances without waiting for completion', () => {
+		const first = nextRendererRootInvocationOrdinal();
+		const firstTiming = new AgentHostFirstResponseTiming();
+		const second = nextRendererRootInvocationOrdinal();
+		const secondTiming = new AgentHostFirstResponseTiming();
+		const context = { requestId: 'turn', provider: 'copilot', outcome: 'notDispatched', sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false } as const;
+		const secondResult = secondTiming.finish({ ...context, rendererRootInvocationOrdinal: second });
+		const firstResult = firstTiming.finish({ ...context, rendererRootInvocationOrdinal: first });
+		assert.deepStrictEqual([firstResult.rendererRootInvocationOrdinal, secondResult.rendererRootInvocationOrdinal], [first, first + 1]);
 	});
 
 	for (const outcome of ['success', 'cancelled', 'error', 'notDispatched'] as const) {
 		test(`preserves absence of text for ${outcome}`, () => {
 			const timing = new AgentHostFirstResponseTiming({ elapsed: () => 42 });
-			assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown' }), {
-				schemaVersion: 1, requestId: 'turn', provider: 'copilot', outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown',
-				firstResponseTextMs: undefined, totalElapsedMs: 42, hasResponseText: false,
+			timing.observeToolCall('no-answer');
+			assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false }), {
+				schemaVersion: 1, requestId: 'turn', provider: 'copilot', outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false,
+				firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, totalElapsedMs: 42, hasResponseText: false,
 			});
 		});
 	}

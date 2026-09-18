@@ -30,13 +30,35 @@ final-only responses, not physical submit, paint, or a semantic guarantee of an
 answer. Reasoning, tool output, restored history and server-initiated observation
 do not start this metric. Existing first-progress measurements are unchanged.
 
+`rendererRootInvocationOrdinal` counts root invocation attempts across providers
+in this renderer lifetime, including declined, cancelled and resumed attempts.
+Subagents do not advance it. Reload resets it; host reconnection does not.
+`rootToolCallsBeforeFirstText` counts distinct live root tool calls presented
+before first text, excluding child calls, replay and updates to the same call.
+It is absent without qualifying text, and is not a model-round count.
+`trustInteractionRequired` identifies invocations that requested an interactive
+trust decision. Exclude these rows from primary latency comparisons without
+discarding them from outcome reporting. Missing historical fields remain unknown.
+
 The host log separately records `[AgentHostTurnTiming]` JSON with `schemaVersion: 1`,
 `sessionId`, `chatId`, `turnId`, `provider`, `hostRootTurnOrdinal` (one-based, across providers)
-and `hostProcessAgeMs`. Join on the actual turn ID, not timestamps. A first host
+and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
+an enriched marker with the same start values and `titleGenerationStrategy`
+(`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
+retaining the known strategy rather than counting them as separate observations.
+`agentHost.turnCompleted` carries those host fields and the effective saved
+strategy, when available. Join its raw `turnId` and `provider` with renderer
+`requestId` and `provider`, not timestamps or differently formatted session IDs.
+A first host
 root turn is an observable process-first cohort, not proof of a cold SDK/model
 cache. Combine that ordinal with the renderer's observed prior-chat-turn state
 to separate first process turn, new chat in a warm process, and later chat turns;
 retain unknowns for missing observations. SDK readiness is not inferred.
+
+Report unmatched received events alongside latency, separating expected
+pre-dispatch absence from missing host observations. Error/cancelled outcomes
+alone do not prove dispatch. Both completion events and the renderer's `finally`
+can be absent after a crash or permanent hang; join coverage is not a hang rate.
 
 The existing debug-gated `usage.jsonl` export retains at most 2048 recent records and 2 MiB
 (compacting to the latest 1024 when full). Version 2 model-call records have
@@ -51,7 +73,7 @@ Only exact API call IDs join version 2 records to persisted model messages;
 legacy-only exports retain their existing approximate positional association.
 No prompts, response bodies, tool arguments, or workspace paths are added.
 
-These diagnostics are separate from provider OTel and product telemetry.
+The usage sidecar diagnostics are separate from provider OTel and product telemetry.
 The native SDK's output TTFT includes reasoning and tool-call output, so it is
 not interchangeable with renderer first-response-text latency.
 
