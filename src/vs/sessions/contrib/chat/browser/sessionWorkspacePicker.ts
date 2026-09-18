@@ -266,10 +266,12 @@ export class WorkspacePicker extends Disposable {
 		if (!activeTrigger || (!this.actionWidgetService.isVisible && !this._tabbedWidget.isVisible)) {
 			return;
 		}
-		if (this._tabbedWidget.isVisible) {
+		if (this._showTabs()) {
+			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+		} else if (this._tabbedWidget.isVisible) {
 			this._tabbedWidget.refreshActiveList();
 		} else {
-			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
 		}
 	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
