@@ -36,10 +36,16 @@ export interface IMcpServerDetailInput {
 	readonly compatibilityId?: string;
 	/** Current full runtime error, independent of compatibility. */
 	readonly error?: IObservable<string | undefined>;
+	/** Whether the migration planner currently considers this server eligible. */
+	readonly migratable?: boolean;
 	readonly source?: {
 		readonly uri: URI;
 		readonly range?: IRange;
 	};
+}
+
+export interface IMcpServerDetailOptions {
+	readonly openMigrationPage: () => void;
 }
 
 export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer): IMcpServerDetailInput {
@@ -82,9 +88,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly definitionEmptyEl: HTMLElement;
 	private readonly errorsSection: IMcpDiagnosticSection;
 	private readonly compatibilitySection: IMcpDiagnosticSection;
+	private readonly migrationSection: IMcpDiagnosticSection;
 	private definitionEditor: CodeEditorWidget | undefined;
 	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
 	private readonly diagnosticDisposables = this._register(new DisposableStore());
+	private readonly migrationLinkListener = this._register(new MutableDisposable());
 	private readonly emptyEl: HTMLElement;
 
 	private current: IMcpServerDetailInput | undefined;
@@ -96,6 +104,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	constructor(
 		parent: HTMLElement,
+		private readonly options: IMcpServerDetailOptions,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -118,6 +127,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const diagnostics = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
 		this.errorsSection = this.createDiagnosticSection(diagnostics);
 		this.compatibilitySection = this.createDiagnosticSection(diagnostics);
+		this.migrationSection = this.createDiagnosticSection(diagnostics);
 		this.diagnosticsEmpty = DOM.append(diagnostics, $('p.mcp-detail-diagnostics-empty'));
 		this.diagnosticsEmpty.textContent = localize('mcpNoDiagnostics', "No diagnostics to show");
 
@@ -135,8 +145,8 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// Refresh when the underlying server changes (install state, enablement, etc.).
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (this.current && server && server.id === this.current.id) {
-				const { error, compatibilityId } = this.current;
-				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId };
+				const { error, compatibilityId, migratable } = this.current;
+				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable };
 				this.bindDiagnostics();
 				this.renderItem();
 			}
@@ -167,8 +177,17 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.renderItem();
 	}
 
+	setMigratable(migratable: boolean): void {
+		if (!this.current || this.current.migratable === migratable) {
+			return;
+		}
+		this.current = { ...this.current, migratable };
+		this.renderMigration();
+	}
+
 	clearInput(): void {
 		this.diagnosticDisposables.clear();
+		this.migrationLinkListener.clear();
 		this.current = undefined;
 		this.renderItem();
 	}
@@ -212,6 +231,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	private bindDiagnostics(): void {
 		this.diagnosticDisposables.clear();
+		this.migrationLinkListener.clear();
 		this.currentError = undefined;
 		this.compatibilityState = { kind: 'checking', details: [] };
 		const server = this.current;
@@ -274,6 +294,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private renderDiagnostics(): void {
 		this.renderErrors();
 		this.renderCompatibility();
+		this.renderMigration();
 		this.updateDiagnosticsVisibility();
 	}
 
@@ -317,8 +338,35 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.updateDiagnosticsVisibility();
 	}
 
+	private renderMigration(): void {
+		const migratable = this.current?.migratable === true;
+		this.migrationSection.section.style.display = migratable ? '' : 'none';
+		if (!migratable) {
+			this.migrationLinkListener.clear();
+			this.updateDiagnosticsVisibility();
+			return;
+		}
+
+		this.migrationSection.card.className = 'mcp-detail-diagnostic-card migration';
+		this.migrationSection.icon.className = 'mcp-detail-diagnostic-icon';
+		this.migrationSection.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+		this.migrationSection.summary.textContent = localize('mcpMigrationAvailable', "Migration available");
+		DOM.clearNode(this.migrationSection.details);
+		this.migrationSection.details.style.display = '';
+		const link = DOM.append(this.migrationSection.details, $('a.mcp-detail-migration-link')) as HTMLAnchorElement;
+		link.href = '#';
+		link.textContent = localize('mcpReviewMigration', "Review Migration...");
+		this.migrationLinkListener.value = DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			this.options.openMigrationPage();
+		});
+		this.updateDiagnosticsVisibility();
+	}
+
 	private updateDiagnosticsVisibility(): void {
-		const hasDiagnostics = this.errorsSection.section.style.display !== 'none' || this.compatibilitySection.section.style.display !== 'none';
+		const hasDiagnostics = this.errorsSection.section.style.display !== 'none'
+			|| this.compatibilitySection.section.style.display !== 'none'
+			|| this.migrationSection.section.style.display !== 'none';
 		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
 	}
 

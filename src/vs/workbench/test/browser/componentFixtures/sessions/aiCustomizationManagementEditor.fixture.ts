@@ -1794,6 +1794,7 @@ function renderEmbeddedMcpDetail(
 		readonly harnessLabel?: string;
 		readonly compatibility?: ICustomizationMcpServerCompatibility;
 		readonly error?: string;
+		readonly migratable?: boolean;
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -1837,11 +1838,14 @@ function renderEmbeddedMcpDetail(
 	host.style.width = '100%';
 	host.style.overflow = 'auto';
 
-	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedMcpServerDetail, host));
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedMcpServerDetail, host, {
+		openMigrationPage: () => { },
+	}));
 	if (server) {
 		detail.setInput({
 			...createWorkbenchMcpServerDetailInput(server),
 			error: options.error ? constObservable(options.error) : undefined,
+			migratable: options.migratable,
 		});
 	}
 }
@@ -2695,6 +2699,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				height: 560,
 				harnessLabel: 'Copilot',
 				compatibility: { id: 'component-explorer', kind: 'supported' },
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailMigratable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A Migration available card appears above Configuration with a Review Migration link. No error or compatibility issue card is shown.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+			}),
+			{
+				width: 800,
+				height: 560,
+				harnessLabel: 'Copilot',
+				compatibility: { id: 'mcp-postgres', kind: 'supported' },
+				migratable: true,
 			},
 		),
 	}),

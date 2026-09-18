@@ -1792,6 +1792,11 @@ per-word capitalization does not survive translation. */
 	border-color: color-mix(in srgb, var(--vscode-inputValidation-errorBorder) 70%, var(--vscode-agentsPanel-border));
 }
 
+.ai-customization-management-editor .mcp-detail-diagnostic-card.migration {
+	background: color-mix(in srgb, var(--vscode-inputValidation-infoBackground) 45%, var(--vscode-agentsPanel-background));
+	border-color: color-mix(in srgb, var(--vscode-inputValidation-infoBorder) 70%, var(--vscode-agentsPanel-border));
+}
+
 .vscode-high-contrast .ai-customization-management-editor .mcp-detail-diagnostic-card {
 	border-color: var(--vscode-contrastBorder);
 }
@@ -1816,6 +1821,10 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-errorForeground);
 }
 
+.ai-customization-management-editor .mcp-detail-diagnostic-card.migration .mcp-detail-diagnostic-icon {
+	color: var(--vscode-editorInfo-foreground);
+}
+
 .ai-customization-management-editor .mcp-detail-diagnostic-summary {
 	min-width: 0;
 	font-size: var(--vscode-fontSize-label1);
@@ -1838,6 +1847,15 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .mcp-detail-diagnostic-list {
 	padding-left: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .mcp-detail-migration-link {
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-management-editor .mcp-detail-migration-link:hover,
+.ai-customization-management-editor .mcp-detail-migration-link:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /* Embedded plugin detail view */
