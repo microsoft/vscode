@@ -63,7 +63,7 @@ import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessio
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
+import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -331,7 +331,8 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.icon?.id === y.icon?.id &&
 			x.state === y.state &&
 			x.liveState === y.liveState &&
-			x.title === y.title) &&
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
@@ -344,7 +345,8 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.repo === y.repo &&
 			x.number === y.number &&
 			isEqual(x.uri, y.uri) &&
-			x.title === y.title);
+			x.title === y.title &&
+			x.recordedReferenceId === y.recordedReferenceId);
 }
 
 function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -355,17 +357,17 @@ function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString
 	return a === b || !!a && !!b && markdownStringEqual(a, b);
 }
 
-/** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
-function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubIssueRef[] | undefined {
+/** Maps GitHub issue records from the session metadata to issue references. */
+function toGitHubIssueRefs(issues: readonly IRecordedGitHubReference[]): readonly IGitHubIssueRef[] | undefined {
 	const refs: IGitHubIssueRef[] = [];
-	for (const url of issueUrls ?? []) {
-		const reference = parseGitHubIssueUrl(url);
+	for (const issue of issues) {
+		const reference = parseGitHubIssueUrl(issue.url);
 		if (reference) {
-			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
-				uri: URI.parse(url),
-				...(title ? { title } : {}),
+				uri: URI.parse(issue.url),
+				...(issue.title ? { title: issue.title } : {}),
+				...(issue.recordedReferenceId ? { recordedReferenceId: issue.recordedReferenceId } : {}),
 			});
 		}
 	}
@@ -376,21 +378,23 @@ function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: Rea
  * Maps session pull request URLs to references, preserving recency order.
  *
  * `titles` is keyed by {@link linkKey}; a URL missing from it simply carries no
- * title. Every pull request published here belongs to the session — it either
- * produced it or its branch relates to it — so all are marked as such.
+ * title. A discovered pull request (no recorded id at all) is always treated
+ * as the session's own. A recorded one is the session's own only when it was
+ * recorded as a durable artifact — a recorded mere reference never is, even
+ * though both kinds retain their removal identity.
  */
-function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequestUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequests: readonly IRecordedGitHubReference[]): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
-	for (const url of pullRequestUrls ?? []) {
-		const reference = parseGitHubPullRequestUrl(url);
+	for (const pullRequest of pullRequests) {
+		const reference = parseGitHubPullRequestUrl(pullRequest.url);
 		if (reference) {
-			const title = titles.get(linkKey(url));
 			refs.push({
 				...reference,
-				uri: URI.parse(url),
-				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(url) ? state.pullRequestState : undefined,
-				...(title ? { title } : {}),
-				createdByThisSession: true,
+				uri: URI.parse(pullRequest.url),
+				state: state?.pullRequestStateUrl && linkKey(state.pullRequestStateUrl) === linkKey(pullRequest.url) ? state.pullRequestState : undefined,
+				...(pullRequest.title ? { title: pullRequest.title } : {}),
+				...(pullRequest.recordedReferenceId ? { recordedReferenceId: pullRequest.recordedReferenceId } : {}),
+				createdByThisSession: pullRequest.recordedReferenceId ? pullRequest.isArtifact === true : true,
 			});
 		}
 	}
@@ -400,10 +404,14 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { pullRequestUrls, pullRequestTitles, issueUrls, issueTitles } = partitionSessionArtifacts(meta);
+	const { pullRequests: recordedPullRequests, issues: recordedIssues } = partitionSessionArtifacts(meta);
+	const recordedPullRequestLinks = new Set(recordedPullRequests.map(reference => linkKey(reference.url)));
+	const discoveredPullRequests = dedupeLinks(getSessionRelatedPullRequestUrls(state))
+		.filter(url => !recordedPullRequestLinks.has(linkKey(url)))
+		.map(url => ({ url }));
 
 	// Recorded pull requests lead discovered ones, so the first is the newest.
-	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
+	const allPullRequests = toGitHubPullRequestRefs(state, [...recordedPullRequests, ...discoveredPullRequests]);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
 		: gitState?.githubOwner && gitState.githubRepo
@@ -421,7 +429,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
 	const pullRequest = pullRequests?.at(0);
-	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls), issueTitles)?.filter(belongsToRepository);
+	const issues = toGitHubIssueRefs(recordedIssues)?.filter(belongsToRepository);
 
 	return {
 		owner: repository.owner,

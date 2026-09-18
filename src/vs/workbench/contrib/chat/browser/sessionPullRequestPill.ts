@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toAction, type IAction } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { derived, IObservable, isObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -14,8 +14,6 @@ import type { IStandardChatInputPillSections } from './chatInputPills.js';
 
 export interface IChatPullRequestPillEntry extends IChatPillEntry {
 	readonly pullRequestState?: ChatPullRequestState;
-	/** Offered in the dropdown toolbar, or the context menu for a single visible entry. */
-	readonly removeAction?: IAction;
 }
 
 export interface IChatPullRequestPillSection extends IChatPillSection {

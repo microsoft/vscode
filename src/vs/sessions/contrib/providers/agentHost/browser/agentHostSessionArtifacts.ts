@@ -56,21 +56,27 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 	};
 }
 
-/** All recorded entries, alongside the GitHub artifacts eligible for promotion into dedicated pills. */
+export interface IRecordedGitHubReference {
+	readonly url: string;
+	readonly title?: string;
+	/** Stable id of the recorded session artifact or reference, used for removal. */
+	readonly recordedReferenceId?: string;
+	/**
+	 * Whether the recorded entry is a durable artifact (`true`) or a mere
+	 * reference (`false`). Distinguishes a recorded pull request from one the
+	 * session actually produced, independent of whether it can be removed.
+	 */
+	readonly isArtifact?: boolean;
+}
+
+/** All recorded entries, alongside the GitHub entries eligible for promotion into dedicated pills. */
 export interface ISessionArtifactPartition {
 	/** Every mapped artifact and reference, most recent first. */
 	readonly entries: readonly ISessionArtifactEntry[];
-	/** Pull requests this session produced, most recent first; polled and shown in the pull request pill. */
-	readonly pullRequestUrls: readonly string[];
-	/**
-	 * Titles the agent recorded for its pull request artifacts, keyed by
-	 * {@link linkKey}. Pull requests discovered from git state have no entry.
-	 */
-	readonly pullRequestTitles: ReadonlyMap<string, string>;
-	/** Issues this session produced, most recent first. */
-	readonly issueUrls: readonly string[];
-	/** Titles the agent recorded for its issue artifacts, keyed by {@link linkKey}. */
-	readonly issueTitles: ReadonlyMap<string, string>;
+	/** Recorded pull requests, most recent first; polled and shown in the pull request pill. */
+	readonly pullRequests: readonly IRecordedGitHubReference[];
+	/** Recorded issues, most recent first; polled and shown in the issue pill. */
+	readonly issues: readonly IRecordedGitHubReference[];
 }
 
 interface ISessionArtifactEntry {
@@ -97,10 +103,8 @@ function gitHubLink(artifact: IProtocolSessionArtifact): string | undefined {
 
 export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
-	const pullRequestUrls: string[] = [];
-	const pullRequestTitles = new Map<string, string>();
-	const issueUrls: string[] = [];
-	const issueTitles = new Map<string, string>();
+	const pullRequests: IRecordedGitHubReference[] = [];
+	const issues: IRecordedGitHubReference[] = [];
 
 	for (const artifact of readSessionArtifacts(meta)) {
 		const mapped = toSessionArtifact(artifact);
@@ -109,30 +113,32 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 		}
 		entries.push({ artifact: mapped });
 		const link = gitHubLink(artifact);
-		if (!link || !artifact.isArtifact) {
+		if (!link) {
 			continue;
 		}
 
-		const titles = artifact.type === SessionArtifactType.Issue ? issueTitles : pullRequestTitles;
-		const key = linkKey(link);
-		if (mapped.label && !titles.has(key)) {
-			titles.set(key, mapped.label);
-		}
-
+		// Every entry here came from an explicit add_artifact_or_reference call, so
+		// both artifacts and references carry their stable id for removal — only
+		// git-/session-discovered associations (never recorded) go without one.
+		const reference = {
+			url: link,
+			...(mapped.label ? { title: mapped.label } : {}),
+			recordedReferenceId: artifact.id,
+			isArtifact: artifact.isArtifact,
+		};
 		if (artifact.type === SessionArtifactType.Issue) {
-			issueUrls.push(link);
+			issues.push(reference);
 			continue;
 		}
 
-		pullRequestUrls.push(link);
+		pullRequests.push(reference);
 	}
 
-	// Reversed here, after the walk let the first title recorded for a link win.
 	entries.reverse();
-	pullRequestUrls.reverse();
-	issueUrls.reverse();
+	pullRequests.reverse();
+	issues.reverse();
 
-	return { entries, pullRequestUrls, pullRequestTitles, issueUrls, issueTitles };
+	return { entries, pullRequests, issues };
 }
 
 /** Case-insensitive de-duplication that keeps the first occurrence's casing. */

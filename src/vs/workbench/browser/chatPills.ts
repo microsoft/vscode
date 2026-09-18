@@ -60,6 +60,8 @@ export interface IChatPillEntry {
 	readonly resource?: URI;
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IAction[];
+	/** Removes the recorded session reference represented by this entry. */
+	readonly removeAction?: IAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */

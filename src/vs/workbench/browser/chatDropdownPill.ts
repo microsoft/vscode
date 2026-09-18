@@ -73,6 +73,14 @@ function getInlineEntry(entries: readonly IChatPillEntry[], options: IChatDropdo
 	}
 }
 
+function getEntryToolbarActions(entry: IChatPillEntry): readonly IAction[] {
+	const actions = [...entry.toolbarActions ?? []];
+	if (entry.removeAction && !actions.includes(entry.removeAction)) {
+		actions.push(entry.removeAction);
+	}
+	return actions;
+}
+
 /**
  * The `icon + label` pill extended with a dropdown. A single entry renders as
  * that entry's own icon and label and opens it directly; several collapse into
@@ -228,7 +236,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
-		const toolbarActions = this.isSummarized ? undefined : this.entries.at(0)?.toolbarActions;
+		const entry = this.isSummarized ? undefined : this.entries.at(0);
+		const toolbarActions = entry ? getEntryToolbarActions(entry) : undefined;
 		return toolbarActions?.length ? {
 			trapFocus: true,
 			actions: toolbarActions.map(action => ({
@@ -317,7 +326,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...(entry.className ? { className: entry.className } : {}),
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
-					...(entry.toolbarActions?.length ? { toolbarActions: [...entry.toolbarActions] } : {}),
+					...((entry.toolbarActions?.length || entry.removeAction) ? { toolbarActions: [...getEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: entry.hover,
 					item: entry,
