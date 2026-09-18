@@ -20,6 +20,7 @@ import { ConfirmationOptionKind, McpServerStatus } from '../../../../../../platf
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
@@ -1384,6 +1385,7 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IProductService, { _serviceBrand: undefined, ...instantiationService.get(IProductService), quality: 'stable' });
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
 		instantiationService.stub(IChatOutputRendererService, new class extends mock<IChatOutputRendererService>() {
 			override hasCodeBlockRenderer() { return false; }
