@@ -532,7 +532,8 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	margin-top: 12px;
-	white-space: pre;
+	flex-wrap: wrap;
+	white-space: normal;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
@@ -604,7 +605,9 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
-	max-width: 500px;
+	box-sizing: border-box;
+	max-width: 564px;
+	min-width: min(379px, 100%);
 	grid-template-columns: auto;
 	grid-template-rows: 30px max-content minmax(30%, max-content) minmax(30%, 1fr) auto;
 	row-gap: 4px;
