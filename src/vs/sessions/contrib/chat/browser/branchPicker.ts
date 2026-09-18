@@ -192,12 +192,13 @@ export class BranchPicker extends Disposable {
 	}
 
 	update(state: IBranchPickerState): void {
+		const filterChanged = this._state.filterBranches !== state.filterBranches;
 		this._state = state;
 		this._isolationState = state.isolation;
 		this._updateTrigger();
 		this._updateIsolation();
 		if (this._isOpen) {
-			if (!state.canOpen) {
+			if (!state.canOpen || filterChanged) {
 				this._actionWidgetService.hide(true);
 			} else {
 				this._actionWidgetService.updateItems(this._getItems());
