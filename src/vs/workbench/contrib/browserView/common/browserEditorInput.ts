@@ -124,8 +124,18 @@ export class BrowserEditorInput extends EditorInput {
 		}));
 
 		// Listen for label-relevant changes to fire onDidChangeLabel
-		this._modelStore.add(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
-		this._modelStore.add(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
+		this._modelStore.add(this._model.onDidChangeTitle(() => {
+			if (this._initialData.title !== undefined) {
+				this._initialData = { ...this._initialData, title: undefined };
+			}
+			this._onDidChangeLabel.fire();
+		}));
+		this._modelStore.add(this._model.onDidChangeFavicon(() => {
+			if (this._initialData.favicon !== undefined) {
+				this._initialData = { ...this._initialData, favicon: undefined };
+			}
+			this._onDidChangeLabel.fire();
+		}));
 		this._modelStore.add(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidNavigate(() => {
 			this._initialData = { ...this._initialData, title: undefined, favicon: undefined };

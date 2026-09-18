@@ -22,6 +22,8 @@ suite('BrowserViewModel', () => {
 	test('only blocks disallowed pages that cannot be shared directly', () => {
 		const browserViewService = upcastPartial<IBrowserViewService>({
 			destroyBrowserView: async () => { },
+			getNavigationState: async () => createInitialState(BrowserViewStorageScope.Ephemeral, []),
+			setBrowserZoomIndex: async () => { },
 			onDynamicDidChangePermissions: () => Event.None,
 			onDynamicDidNavigate: () => Event.None,
 			onDynamicDidChangeLoadingState: () => Event.None,
@@ -81,6 +83,7 @@ suite('BrowserViewModel', () => {
 
 function createInitialState(storageScope: BrowserViewStorageScope, audiences: IBrowserViewAudience[]): IBrowserViewState {
 	return {
+		navigationStateVersion: 0,
 		url: 'https://blocked.example.com/',
 		title: '',
 		canGoBack: false,
