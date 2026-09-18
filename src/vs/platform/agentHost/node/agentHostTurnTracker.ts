@@ -21,7 +21,7 @@ import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import { isSubagentChatUri, isSubagentSession, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
-import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -91,6 +91,12 @@ interface ITurnTiming {
 	timeToFirstEditClassifierVersion: number | undefined;
 	firstProgressMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
+	/** Elapsed time of each completed pre-send stage, in milliseconds. */
+	readonly sendStageDurationsMs: Map<AgentHostTurnSendStage, number>;
+	/** The pre-send stage currently being timed, and when it opened. */
+	openSendStage: { readonly stage: AgentHostTurnSendStage; readonly startedMs: number } | undefined;
+	/** Elapsed time from turn start to provider dispatch, in milliseconds. */
+	sendDispatchedMs: number | undefined;
 
 	// Hang watchdog state
 	/** Reset on every observed activity; measures the current quiet period. */
@@ -225,6 +231,9 @@ export class AgentHostTurnTracker extends Disposable {
 			timeToFirstEditClassifierVersion: undefined,
 			firstProgressMs: undefined,
 			currentStage: 'validation',
+			sendStageDurationsMs: new Map(),
+			openSendStage: undefined,
+			sendDispatchedMs: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
 			inFlightToolCalls: new Map(),
@@ -267,6 +276,56 @@ export class AgentHostTurnTracker extends Disposable {
 		if (timing && timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = timing.stopWatch.elapsed();
 		}
+	}
+
+	/**
+	 * Opens `stage` for timing and closes whichever pre-send stage was open.
+	 * Stages are timed off the turn's own stopwatch, so their durations share a
+	 * clock with {@link markFirstProgress} and can be subtracted from it.
+	 *
+	 * Only the host's pre-send work is accounted for here; call
+	 * {@link markSendDispatched} once the message reaches the provider. A turn
+	 * that never runs this sequence — a subagent turn, or one resumed straight
+	 * into the provider — simply reports no stage durations, which is why a
+	 * stage that did run but took no measurable time still reports `0` rather
+	 * than being omitted.
+	 */
+	markSendStage(session: string, turnId: string, stage: AgentHostTurnSendStage): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.sendDispatchedMs !== undefined) {
+			return;
+		}
+		this._closeSendStage(timing);
+		timing.openSendStage = { stage, startedMs: timing.stopWatch.elapsed() };
+		// Seed the stage so a step that completes within the clock's resolution
+		// is still distinguishable from one that never ran.
+		if (!timing.sendStageDurationsMs.has(stage)) {
+			timing.sendStageDurationsMs.set(stage, 0);
+		}
+	}
+
+	/**
+	 * Marks the boundary where host pre-send work ends and the provider takes
+	 * over. Closes any open stage and stops further stage accounting, so work
+	 * the host does later in the turn cannot be mistaken for pre-send cost.
+	 */
+	markSendDispatched(session: string, turnId: string): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.sendDispatchedMs !== undefined) {
+			return;
+		}
+		this._closeSendStage(timing);
+		timing.sendDispatchedMs = timing.stopWatch.elapsed();
+	}
+
+	private _closeSendStage(timing: ITurnTiming): void {
+		const open = timing.openSendStage;
+		if (!open) {
+			return;
+		}
+		const elapsed = Math.max(0, timing.stopWatch.elapsed() - open.startedMs);
+		timing.sendStageDurationsMs.set(open.stage, (timing.sendStageDurationsMs.get(open.stage) ?? 0) + elapsed);
+		timing.openSendStage = undefined;
 	}
 
 	/**
@@ -469,6 +528,10 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 		// Capture terminal timing before collecting or reporting additional telemetry.
 		const totalTime = timing.stopWatch.elapsed();
+		// A turn can end mid-stage (a failed checkpoint, a cancel during model
+		// selection). Close the open stage so its partial cost is still
+		// attributed rather than silently dropped.
+		this._closeSendStage(timing);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
 		const usage = this._turnUsages.get(key);
 		let summaries: readonly IAgentTokenUsageSummary[] | undefined;
@@ -499,6 +562,8 @@ export class AgentHostTurnTracker extends Disposable {
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
+			sendStageDurationsMs: timing.sendStageDurationsMs,
+			sendDispatchedMs: timing.sendDispatchedMs,
 			totalTime,
 			result,
 			model: timing.model,

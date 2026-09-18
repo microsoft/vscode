@@ -482,6 +482,99 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	test('runs the turn-start checkpoint alongside model selection and sends only once it settles', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		const capture = new DeferredPromise<void>();
+		const order: string[] = [];
+		const checkpointService: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: async () => {
+				order.push('checkpoint:start');
+				await capture.p;
+				order.push('checkpoint:end');
+			},
+		};
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpointService);
+		disposables.add(localSideEffects.registerProgressListener(agent));
+		agent.chats.changeAgent = async () => { order.push('changeAgent'); };
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await timeout(0);
+
+		// Model selection must have run while the capture was still outstanding,
+		// and the message must not have been sent yet.
+		const whileCapturing = { order: [...order], sends: agent.sendMessageCalls.length };
+		capture.complete();
+		await waitForSendMessageCalls(1);
+
+		assert.deepStrictEqual({ whileCapturing, afterCapture: order }, {
+			whileCapturing: { order: ['checkpoint:start', 'changeAgent'], sends: 0 },
+			afterCapture: ['checkpoint:start', 'changeAgent', 'checkpoint:end'],
+		});
+	});
+
+	test('discards a concurrently started turn-start checkpoint when the turn is cancelled before dispatch', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		const capture = new DeferredPromise<void>();
+		const order: string[] = [];
+		const checkpointService: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: async () => {
+				order.push('capture:start');
+				await capture.p;
+				order.push('capture:end');
+			},
+			discardTurnStartCheckpoint: async () => { order.push('discard'); },
+		};
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, checkpointService);
+		disposables.add(localSideEffects.registerProgressListener(agent));
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await timeout(0);
+
+		stateManager.dispatchClientAction(defaultChatUri, {
+			type: ActionType.ChatTurnCancelled,
+			turnId: 'turn-1',
+			duration: 0,
+		}, { clientId: 'test', clientSeq: 1 });
+		capture.complete();
+		await timeout(0);
+
+		// The cancel-time discard runs before the capture settles, so it has
+		// nothing to remove; the send path must discard again afterwards or the
+		// cancelled turn keeps a checkpoint.
+		assert.deepStrictEqual({ order, sends: agent.sendMessageCalls.length }, {
+			order: ['capture:start', 'discard', 'capture:end', 'discard'],
+			sends: 0,
+		});
+	});
+
 	test('preserves the original turn-start checkpoint identity across resume and completion', async () => {
 		const workingDirectory = URI.file('/wd');
 		setupSession(workingDirectory.toString());

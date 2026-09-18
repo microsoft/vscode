@@ -1161,6 +1161,71 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.timeToFirstProgress, undefined);
 	});
 
+	test('attributes host pre-send time to each bounded stage up to provider dispatch', async () => {
+		setupSession();
+		startTurn('turn-1');
+		// Let the asynchronous send path run to the provider hand-off.
+		await timeout(0);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			workingDirectory: typeof data.sendStageWorkingDirectoryMs,
+			modelSelection: typeof data.sendStageModelSelectionMs,
+			attachments: typeof data.sendStageAttachmentsMs,
+			contributions: typeof data.sendStageContributionsMs,
+			checkpoint: typeof data.sendStageCheckpointMs,
+			providerDispatch: typeof data.timeToProviderDispatch,
+		}, {
+			workingDirectory: 'number',
+			modelSelection: 'number',
+			attachments: 'number',
+			contributions: 'number',
+			checkpoint: 'number',
+			providerDispatch: 'number',
+		});
+	});
+
+	test('reports no duration for a pre-send stage that never ran', async () => {
+		// An ephemeral session skips the turn-start checkpoint entirely, so that
+		// stage must be absent rather than reported as zero — otherwise a skipped
+		// stage is indistinguishable from an instantaneous one.
+		setupSession(true, undefined, true);
+		startTurn('turn-1');
+		await timeout(0);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			checkpoint: data.sendStageCheckpointMs,
+			contributions: typeof data.sendStageContributionsMs,
+			providerDispatch: typeof data.timeToProviderDispatch,
+		}, {
+			checkpoint: undefined,
+			contributions: 'number',
+			providerDispatch: 'number',
+		});
+	});
+
+	test('reports no stage durations for a turn that never runs the host send path', () => {
+		setupSession();
+		// Completing synchronously leaves the send path mid-flight, so the turn
+		// never reaches provider dispatch.
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-direct', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(defaultChatUri, 'turn-direct', 'success');
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			workingDirectory: data.sendStageWorkingDirectoryMs,
+			checkpoint: data.sendStageCheckpointMs,
+			providerDispatch: data.timeToProviderDispatch,
+		}, {
+			workingDirectory: undefined,
+			checkpoint: undefined,
+			providerDispatch: undefined,
+		});
+	});
+
 	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {
 		setupSession();
 		startTurn('turn-1');

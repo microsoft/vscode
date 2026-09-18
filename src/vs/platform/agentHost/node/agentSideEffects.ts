@@ -1727,12 +1727,28 @@ export class AgentSideEffects extends Disposable {
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
+			this._turnTracker.markSendStage(turnChannel, turnId, 'workingDirectory');
 			// Host-owned working-directory resolution: resolve the session's working
 			// directory before the agent materializes, so the agent runs in it
 			// without ever knowing how it was derived. Returns the created worktree
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
+			// Start the turn-start checkpoint as soon as the working directory is
+			// known so its git snapshot runs alongside the provider round-trips
+			// below instead of after them. It is still awaited before the message
+			// is sent, so the snapshot continues to reflect the tree the agent
+			// starts from. A turn cancelled before it got here never captures at
+			// all — the snapshot is expensive and would only be discarded.
+			// Rejections are marked handled here because the early returns below
+			// can skip the await; the later `await` still surfaces them so a
+			// failed capture fails the turn exactly as it used to.
+			const shouldCheckpoint = !this._stateManager.isEphemeralSession(sessionChannel)
+				&& !this._cancelledTurnIds.get(turnChannel)?.has(turnId);
+			const checkpointCapture = shouldCheckpoint
+				? this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories)
+				: undefined;
+			checkpointCapture?.catch(() => { /* surfaced by the await below */ });
 			const chatContext = this._chatContext(options.sessionChannel, chat);
 			const clientOperationContext = {
 				...chatContext,
@@ -1742,6 +1758,7 @@ export class AgentSideEffects extends Disposable {
 
 			const selectionUpdates: Promise<void>[] = [];
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'modelSelection');
+			this._turnTracker.markSendStage(turnChannel, turnId, 'modelSelection');
 			if (message.model) {
 				failureStage = 'modelSelection';
 				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, clientOperationContext));
@@ -1754,18 +1771,27 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
+			this._turnTracker.markSendStage(turnChannel, turnId, 'attachments');
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			this._turnTracker.markSendStage(turnChannel, turnId, 'contributions');
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
 			const sendContext = { ...clientOperationContext, ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
-			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
-			if (!this._stateManager.isEphemeralSession(sessionChannel)) {
-				await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
+				return;
+			}
+			if (checkpointCapture) {
+				// Measures only what the checkpoint still costs the critical path
+				// after overlapping the work above, not the capture's total cost.
+				this._turnTracker.markSendStage(turnChannel, turnId, 'checkpoint');
+				await checkpointCapture;
 			}
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
-				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
+				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
+			this._turnTracker.markSendDispatched(turnChannel, turnId);
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
@@ -1793,6 +1819,23 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
+	}
+
+	/**
+	 * Discards a turn-start checkpoint that was started concurrently with the
+	 * rest of the send path. The capture is settled first so the discard cannot
+	 * race it; a capture that failed left nothing to discard.
+	 */
+	private async _discardPendingTurnStartCheckpoint(capture: Promise<void> | undefined, sessionChannel: ProtocolURI, chatUri: URI, turnId: string): Promise<void> {
+		if (!capture) {
+			return;
+		}
+		try {
+			await capture;
+		} catch {
+			return;
+		}
+		await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
 	}
 
 	private async _resolveChatAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<readonly MessageAttachment[] | undefined> {
