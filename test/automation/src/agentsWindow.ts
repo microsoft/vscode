@@ -260,7 +260,14 @@ export class AgentsWindow {
 
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
 		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
-		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
+		const selected = ((await picker.textContent()) ?? '').trim().toLowerCase();
+		return this.getSessionTypeLabelVariants(label).includes(selected);
+	}
+
+	private getSessionTypeLabelVariants(label: string): string[] {
+		const normalized = label.trim().toLowerCase();
+		const baseLabel = normalized.replace(/\s+\[[^\]]+\]$/, '');
+		return baseLabel !== normalized ? [normalized, baseLabel] : [normalized];
 	}
 
 	/**
@@ -285,11 +292,15 @@ export class AgentsWindow {
 		}
 
 		const itemSel = `.action-widget .monaco-list-row`;
-		const needle = label.toLowerCase();
+		const needles = this.getSessionTypeLabelVariants(label);
 		const isEnabledAction = (el: { className: string }) => el.className.includes('action') && !el.className.includes('option-disabled');
 		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
 			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
-			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && (el.textContent ?? '').trim().toLowerCase() === needle);
+			return needles.some(needle =>
+				ariaLabel === needle
+				|| ariaLabel.startsWith(`${needle}, `)
+				|| (!ariaLabel && (el.textContent ?? '').trim().toLowerCase() === needle)
+			);
 		};
 		const deadline = Date.now() + timeoutMs;
 
@@ -345,13 +356,17 @@ export class AgentsWindow {
 
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
-		const needle = label.toLowerCase();
+		const needles = this.getSessionTypeLabelVariants(label);
 		const isActionRow = (el: { className: string }) => el.className.includes('action');
 		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
 		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
 		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
 			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
-			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
+			return needles.some(needle =>
+				ariaLabel === needle
+				|| ariaLabel.startsWith(`${needle}, `)
+				|| (!ariaLabel && rowText(el) === needle)
+			);
 		};
 
 		// The picker click can silently do nothing if the active session
@@ -373,7 +388,7 @@ export class AgentsWindow {
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
 				if ((items ?? []).some(item =>
 					(isEnabledActionRow(item) && actionLabelMatches(item)) ||
-					(!isActionRow(item) && rowText(item) === needle)
+					(!isActionRow(item) && needles.includes(rowText(item)))
 				)) {
 					break outer;
 				}
@@ -394,7 +409,7 @@ export class AgentsWindow {
 		// Agent Host"): headers are non-clickable rows rendered above their
 		// session types, so select the first actionable row beneath the header.
 		if (matchIndex < 0) {
-			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
+			const headerIndex = items.findIndex(el => !isActionRow(el) && needles.includes(rowText(el)));
 			if (headerIndex >= 0) {
 				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));
 			}
