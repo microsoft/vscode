@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
@@ -218,6 +219,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			? this._lifecycleTracker.incrementAndGetUserRequestCounters(session)
 			: this._lifecycleTracker.getUserRequestCounters(session);
 		const sync = {
+			...new EditorChatUsage(this._storageService).getTelemetry(),
 			isNewSession,
 			isNewChat,
 			visibleSessionsCount,
@@ -869,6 +871,11 @@ type AllSessionsFields = {
 // --- Event: agents/requestSent ---
 
 type SessionRequestSentEvent = {
+	editorSessionsByProvider: string;
+	editorMessages: number;
+	editorMessagesWithOtherSessionInProgress: number;
+	editorMessagesWithOtherSessionInProgressAcrossWindows: number;
+	editorLastMessageSecondsAgo: number | undefined;
 	isNewSession: boolean;
 	isNewChat: boolean;
 	visibleSessionsCount: number;
@@ -934,6 +941,11 @@ type SessionActionEvent = {
 // Classifications
 
 type SessionRequestSentClassification = {
+	editorSessionsByProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON map of cumulative editor chat starts by bounded provider category. No remote addresses or extension identifiers.' };
+	editorMessages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative user messages accepted in editor windows, including queued and steering submissions, excluding retries and Agents window messages.' };
+	editorMessagesWithOtherSessionInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session known to the submitting window in progress, counted once per message.' };
+	editorMessagesWithOtherSessionInProgressAcrossWindows: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session in progress in the submitting window or reported by another live editor window within a 200ms probe, counted once per message.' };
+	editorLastMessageSecondsAgo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Seconds since the last editor message at request submission; absent if no editor message has been recorded. Never an absolute timestamp.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user sends a request from a session in the Agents window, including the user state at the time of send.';
 	isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request starts a brand-new session, false when it is a new or continued chat in an existing session.' };

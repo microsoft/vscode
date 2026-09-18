@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -139,6 +140,7 @@ suite('AgentHostSessionTitleController', () => {
 		getGitHubHost = () => 'github.com',
 		activeAgentTitleGeneration = false,
 		isEphemeral = false,
+		deferredTitleGeneration = false,
 	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
@@ -170,6 +172,7 @@ suite('AgentHostSessionTitleController', () => {
 			octoKitService,
 			copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
+			isDeferredTitleGenerationEnabled: () => deferredTitleGeneration,
 		}, new NullLogService()));
 		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, octoKitService };
 	}
@@ -195,6 +198,387 @@ suite('AgentHostSessionTitleController', () => {
 				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_USER,
 			},
 		}]);
+	});
+
+	function setupDeferred(getToken = () => 'gh-token', isEphemeral = false) {
+		return setup(undefined, '', getToken, undefined, undefined, undefined, undefined, true, isEphemeral, true);
+	}
+
+	test('deferred mode persists its seed without utility requests or foreground naming instructions', async () => {
+		const { controller, session, db, titleActions, copilotApiService, octoKitService } = setupDeferred();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+
+		assert.deepStrictEqual({
+			titleActions,
+			title: await db.getMetadata('customTitle'),
+			source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			strategy: await db.getMetadata('titleGenerationStrategy'),
+			instruction: await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+			utilityCalls: copilotApiService.utilityCalls.length,
+			githubCalls: octoKitService.calls.length,
+		}, {
+			titleActions: ['Fix https://github.com/microsoft/vscode/issues/123'],
+			title: 'Fix https://github.com/microsoft/vscode/issues/123',
+			source: AGENT_HOST_TITLE_SOURCE_AUTO,
+			strategy: 'deferred',
+			instruction: undefined,
+			utilityCalls: 0,
+			githubCalls: 0,
+		});
+	});
+
+	test('deferred refinement is nonblocking and starts only once', async () => {
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Implemented dark mode.')])]);
+
+		const result = controller.refineTitleFromFirstTurn(session.toString());
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		assert.deepStrictEqual({
+			result,
+			pending: !pendingTitle.isSettled,
+			title: stateManager.getSessionState(session.toString())?.title,
+			turnState: stateManager.getSessionState(session.toString())?.turns[0].state,
+			calls: copilotApiService.utilityCalls.length,
+		}, { result: undefined, pending: true, title: 'Add dark mode', turnState: TurnState.Complete, calls: 1 });
+
+		await pendingTitle.complete('Dark mode setting');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Dark mode setting', 'refinement should persist');
+		controller.refineTitleFromFirstTurn(session.toString());
+		assert.strictEqual(copilotApiService.utilityCalls.length, 1);
+	});
+
+	for (const { rename, generated } of [
+		{ rename: undefined, generated: 'Dark mode setting' },
+		{ rename: undefined, generated: 'Add dark mode' },
+		{ rename: 'Manual title', generated: 'Dark mode setting' },
+		{ rename: 'Add dark mode', generated: 'Dark mode setting' },
+	]) {
+		test(`pending deferred refinement follows the default chat when a peer is added (rename: ${rename}, generated: ${generated})`, async () => {
+			const { stateManager, session, copilotApiService, db } = setupDeferred();
+			const sessionData = createSessionDataService(db);
+			const chatDb = new TestSessionDatabase();
+			const chatData = createSessionDataService(chatDb);
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: {
+					...sessionData,
+					openDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).openDatabase(resource),
+					tryOpenDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).tryOpenDatabase(resource),
+				},
+				isDeferredTitleGenerationEnabled: () => true,
+				copilotApiService,
+				getGitHubCopilotToken: () => 'gh-token',
+			}, new NullLogService()));
+			const defaultChat = buildDefaultChatUri(session);
+			const pendingTitle = new DeferredPromise<string>();
+			copilotApiService.responsePromise = pendingTitle.p;
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+
+			stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+			if (rename !== undefined) {
+				stateManager.updateChatTitle(session.toString(), defaultChat, rename);
+				controller.markTitleRenamed(session.toString(), defaultChat, rename);
+			}
+			await pendingTitle.complete(generated);
+			await timeout(0);
+			controller.refineTitleFromFirstTurn(session.toString(), defaultChat);
+			await timeout(0);
+			assert.deepStrictEqual({
+				sessionTitle: stateManager.getSessionState(session.toString())?.title,
+				chatTitle: stateManager.getChatState(defaultChat)?.title,
+				persistedSessionTitle: await db.getMetadata('customTitle'),
+				persistedChatTitle: await db.getMetadata(customChatTitleMetadataKey(defaultChat)),
+				chatDatabaseTitle: await chatDb.getMetadata('customTitle'),
+				calls: copilotApiService.utilityCalls.length,
+			}, {
+				sessionTitle: 'Add dark mode',
+				chatTitle: rename ?? generated,
+				persistedSessionTitle: 'Add dark mode',
+				persistedChatTitle: rename === undefined ? generated : undefined,
+				chatDatabaseTitle: rename === undefined ? generated : 'Add dark mode',
+				calls: 1,
+			});
+		});
+	}
+
+	for (const initial of ['activeAgent', 'utility', 'deferred'] as const) {
+		test(`snapshots ${initial} before session state exists and persists only after registration`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const db = new TestSessionDatabase();
+			const session = URI.parse('agenthost-session://copilot/creating');
+			let activeAgent = initial === 'activeAgent';
+			let deferred = initial === 'deferred';
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				isActiveAgentTitleGenerationEnabled: () => activeAgent,
+				isDeferredTitleGenerationEnabled: () => deferred,
+			}, new NullLogService()));
+			const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			const beforeRegistration = await db.getMetadata('titleGenerationStrategy');
+			activeAgent = !activeAgent;
+			deferred = !deferred;
+			const duringCreation = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			stateManager.createSession(createSummary(session));
+			const registered = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			assert.deepStrictEqual({
+				first, beforeRegistration, duringCreation, registered,
+				persisted: await db.getMetadata('titleGenerationStrategy'),
+			}, { first: initial, beforeRegistration: undefined, duringCreation: initial, registered: initial, persisted: initial });
+		});
+	}
+
+	test('clears an unregistered strategy snapshot after failed creation', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = URI.parse('agenthost-session://copilot/creating');
+		let deferred = true;
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(),
+			isDeferredTitleGenerationEnabled: () => deferred,
+		}, new NullLogService()));
+		const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
+		controller.clearSession(session.toString(), []);
+		deferred = false;
+		assert.deepStrictEqual({ first, retry: controller.getAutomaticTitleGenerationStrategy(session.toString()) }, { first: 'deferred', retry: 'utility' });
+	});
+
+	for (const state of [TurnState.Cancelled, TurnState.Error]) {
+		test(`deferred mode keeps its seed after ${state}`, async () => {
+			const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [{ ...firstTurn('Add dark mode', [textPart('Partial response')]), state }]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({ calls: copilotApiService.utilityCalls.length, title: await db.getMetadata('customTitle') }, { calls: 0, title: 'Add dark mode' });
+		});
+	}
+
+	test('deferred mode retains the fallback with no response text or credentials', async () => {
+		for (const hasText of [false, true]) {
+			const { controller, stateManager, session, copilotApiService, db } = setupDeferred(() => hasText ? '' : 'gh-token');
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart(hasText ? 'Done' : '  \n')])]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({ calls: copilotApiService.utilityCalls.length, title: await db.getMetadata('customTitle') }, { calls: 0, title: 'Add dark mode' });
+		}
+	});
+
+	test('deferred utility failure keeps the persisted fallback and is not retried', async () => {
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		copilotApiService.error = new Error('Utility unavailable');
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should be attempted');
+		controller.refineTitleFromFirstTurn(session.toString());
+		assert.deepStrictEqual({ calls: copilotApiService.utilityCalls.length, title: await db.getMetadata('customTitle') }, { calls: 1, title: 'Add dark mode' });
+	});
+
+	for (const phase of ['before', 'during', 'after'] as const) {
+		test(`manual rename wins ${phase} deferred refinement even when it matches the seed`, async () => {
+			const { controller, stateManager, session, copilotApiService } = setupDeferred();
+			const pendingTitle = new DeferredPromise<string>();
+			copilotApiService.responsePromise = pendingTitle.p;
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			if (phase === 'before') {
+				controller.markTitleRenamed(session.toString());
+			}
+			controller.refineTitleFromFirstTurn(session.toString());
+			if (phase === 'during') {
+				await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+				controller.markTitleRenamed(session.toString());
+			}
+			await pendingTitle.complete('Generated title');
+			if (phase === 'after') {
+				await waitForCondition(() => stateManager.getSessionState(session.toString())?.title === 'Generated title', 'refinement should finish');
+				controller.markTitleRenamed(session.toString());
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Add dark mode' });
+			}
+			controller.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				title: stateManager.getSessionState(session.toString())?.title,
+				calls: copilotApiService.utilityCalls.length,
+				abortedDuring: phase === 'during' ? copilotApiService.utilityCalls[0]?.options?.signal?.aborted : undefined,
+			}, { title: 'Add dark mode', calls: phase === 'before' ? 0 : 1, abortedDuring: phase === 'during' ? true : undefined });
+		});
+	}
+
+	for (const target of ['peer', 'default', 'defaultBeforePeer'] as const) {
+		test(`deferred refinement targets the seeded ${target} title in multi-chat sessions`, async () => {
+			const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session.toString(), 'peer');
+			const chat = target === 'peer' ? peer : defaultChat;
+			if (target !== 'defaultBeforePeer') {
+				stateManager.addChat(session.toString(), peer, {});
+			}
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat);
+			if (target === 'defaultBeforePeer') {
+				stateManager.addChat(session.toString(), peer, {});
+			}
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-01-01T00:00:00Z', message: { text: 'Add dark mode', origin: { kind: MessageKind.User } } });
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: textPart('Done') });
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			controller.refineTitleFromFirstTurn(session.toString(), chat);
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+			const key = customChatTitleMetadataKey(chat);
+			await waitForCondition(async () => await db.getMetadata(key) === 'Generated title', 'correct title should persist');
+			assert.deepStrictEqual({
+				chatTitle: stateManager.getChatState(chat)?.title,
+				sessionTitle: stateManager.getSessionState(session.toString())?.title,
+			}, { chatTitle: 'Generated title', sessionTitle: target === 'defaultBeforePeer' ? 'Add dark mode' : '' });
+		});
+	}
+
+	test('deferred forks wait for their first new successful response', async () => {
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Forked: Original' });
+		stateManager.seedDefaultChatTurns(session.toString(), [inherited]);
+		controller.generateForkedTitle(session.toString(), undefined, [inherited], 'Forked: Original', 'Original');
+		controller.refineTitleFromFirstTurn(session.toString());
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		stateManager.seedDefaultChatTurns(session.toString(), [inherited, { ...firstTurn('Fix dark mode', [textPart('Fixed')]), id: 'turn-2' }]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'fork should refine after its own response');
+	});
+
+	test('deferred seed following a local command refines the first provider response', async () => {
+		const { controller, stateManager, session, db } = setupDeferred();
+		controller.seedProvisionalTitle(session.toString(), 'List files');
+		const localTurn = firstTurn('!ls', []);
+		stateManager.seedDefaultChatTurns(session.toString(), [localTurn]);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [localTurn, { ...firstTurn('Add dark mode', [textPart('Done')]), id: 'turn-2' }]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'first real response should refine');
+	});
+
+	test('restored deferred auto seed refines only after its first successful response', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(db),
+			isDeferredTitleGenerationEnabled: () => false,
+			isActiveAgentTitleGenerationEnabled: () => false,
+			copilotApiService,
+			getGitHubCopilotToken: () => 'gh-token',
+		}, new NullLogService()));
+		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+		assert.deepStrictEqual({
+			strategy: restored.getAutomaticTitleGenerationStrategy(session.toString()),
+			instruction: await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+			calls: copilotApiService.utilityCalls.length,
+		}, { strategy: 'deferred', instruction: undefined, calls: 0 });
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		restored.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'restored seed should refine');
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			pendingSeed: await db.getMetadata('deferredTitleSeed'),
+		}, { calls: 1, pendingSeed: '' });
+	});
+
+	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}']) {
+		test(`ignores invalid persisted deferred title seed ${JSON.stringify(rawSeed)}`, async () => {
+			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			await db.setMetadata('deferredTitleSeed', rawSeed);
+			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				copilotApiService,
+				getGitHubCopilotToken: () => 'gh-token',
+			}, new NullLogService()));
+			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			restored.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				calls: copilotApiService.utilityCalls.length,
+				title: stateManager.getSessionState(session.toString())?.title,
+			}, { calls: 0, title: 'Add dark mode' });
+		});
+	}
+
+	for (const source of [AGENT_HOST_TITLE_SOURCE_USER, AGENT_HOST_TITLE_SOURCE_AGENT]) {
+		test(`restored deferred seed never overrides ${source} rename provenance`, async () => {
+			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			await db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, source);
+			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				copilotApiService,
+				getGitHubCopilotToken: () => 'gh-token',
+			}, new NullLogService()));
+			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			restored.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				calls: copilotApiService.utilityCalls.length,
+				title: stateManager.getSessionState(session.toString())?.title,
+				source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			}, { calls: 0, title: 'Add dark mode', source });
+		});
+	}
+
+	for (const outcome of ['failed', 'empty', 'refined'] as const) {
+		test(`restored deferred seed does not retry a ${outcome} first turn`, async () => {
+			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+			copilotApiService.response = 'Add dark mode';
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [{
+				...firstTurn('Add dark mode', outcome === 'empty' ? [] : [textPart('Done')]),
+				state: outcome === 'failed' ? TurnState.Error : TurnState.Complete,
+			}]);
+			controller.refineTitleFromFirstTurn(session.toString(), undefined, outcome !== 'failed');
+			await waitForCondition(async () => await db.getMetadata('deferredTitleSeed') === '', 'terminal outcome should consume eligibility');
+			if (outcome === 'refined') {
+				await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'first refinement should run');
+			}
+			const callsBeforeRestore = copilotApiService.utilityCalls.length;
+			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				copilotApiService,
+				getGitHubCopilotToken: () => 'gh-token',
+			}, new NullLogService()));
+			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			restored.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				calls: copilotApiService.utilityCalls.length,
+				title: stateManager.getSessionState(session.toString())?.title,
+			}, { calls: callsBeforeRestore, title: 'Add dark mode' });
+		});
+	}
+
+	test('legacy restored sessions do not opt into deferred naming', async () => {
+		const { controller, session } = setupDeferred();
+		await controller.restoreTitleGenerationStrategy(session.toString());
+		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(session.toString()), 'activeAgent');
+	});
+
+	test('deferred disposal cancels pending work and ephemeral sessions do not seed', async () => {
+		const ephemeral = setupDeferred(undefined, true);
+		ephemeral.controller.seedTitleFromFirstMessage(ephemeral.session.toString(), 'Throwaway');
+		assert.deepStrictEqual(ephemeral.titleActions, []);
+
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		controller.dispose();
+		await pendingTitle.complete('Stale title');
+		assert.deepStrictEqual({
+			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
+			title: await db.getMetadata('customTitle'),
+		}, { aborted: true, title: 'Add dark mode' });
 	});
 
 	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
