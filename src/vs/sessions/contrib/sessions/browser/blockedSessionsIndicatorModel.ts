@@ -87,6 +87,8 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 
 	/** Acknowledged occurrences by session id, in acknowledgement order; the latest 50 survive reloads. */
 	private readonly _ignoredBlockOccurrences = observableValue<ReadonlyMap<string, IAcknowledgedOccurrence>>('ignoredBlockOccurrences', new Map());
+	private _storedIgnoredOccurrences: ReadonlyMap<string, IAcknowledgedOccurrence> = new Map();
+	private _writingIgnoredOccurrences = false;
 
 	/**
 	 * Blocked sessions that are not visible, ignored, being fixed, or already approved.
@@ -143,7 +145,17 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		// The blocked-sessions feature is only enabled outside of stable builds.
 		const enabled = productService.quality !== 'stable';
 
-		this._ignoredBlockOccurrences.set(this._loadIgnoredOccurrences(), undefined);
+		this._storedIgnoredOccurrences = this._loadIgnoredOccurrences();
+		this._ignoredBlockOccurrences.set(this._storedIgnoredOccurrences, undefined);
+		if (enabled) {
+			this._storeIgnoredOccurrences(this._storedIgnoredOccurrences);
+			this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, IGNORED_OCCURRENCES_STORAGE_KEY, this._store)(() => {
+				if (!this._writingIgnoredOccurrences) {
+					this._storedIgnoredOccurrences = this._loadIgnoredOccurrences();
+					this._ignoredBlockOccurrences.set(this._storedIgnoredOccurrences, undefined);
+				}
+			}));
+		}
 		const allSessions = observableFromEvent(this, sessionsManagementService.onDidChangeSessions, () => sessionsManagementService.getSessions());
 
 		this._logService.trace(`${LOG_PREFIX} created (enabled: ${enabled})`);
@@ -199,6 +211,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 
 		// A visible blocked session has been acknowledged. Keep that occurrence
 		// ignored after navigation, and clear stale ignores when a new block appears.
+		let observedInputSessions = new Map<string, ISession>();
 		this._register(autorun(reader => {
 			if (!enabled) {
 				return;
@@ -209,6 +222,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
 			const sessionsById = new Map(ignoredOccurrences.size > 0 ? allSessions.read(reader).map(session => [session.sessionId, session] as const) : []);
 			const next = new Map(ignoredOccurrences);
+			const nextObservedInputSessions = new Map<string, ISession>();
 			let changed = false;
 
 			for (const [sessionId, acknowledged] of ignoredOccurrences) {
@@ -218,6 +232,11 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 					changed = true;
 					this._logService.trace(`${LOG_PREFIX} releasing acknowledgement of ${sessionId}: archived`);
 					continue;
+				}
+				const connectionStatus = session?.remoteConnectionStatus?.read(reader);
+				const connected = !connectionStatus || connectionStatus.kind === 'connected';
+				if (session && connected && (session.status.read(reader) === SessionStatus.NeedsInput || observedInputSessions.get(sessionId) === session)) {
+					nextObservedInputSessions.set(sessionId, session);
 				}
 				const blockedSession = blockedById.get(sessionId);
 				if (blockedSession) {
@@ -232,8 +251,8 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 					continue;
 				}
 
-				// A missing session may still be loading or temporarily disconnected.
-				if (!session || session.status.read(reader) === SessionStatus.NeedsInput) {
+				// Cached facades and disconnected hosts do not establish that an input request cleared.
+				if (!session || !connected || nextObservedInputSessions.get(sessionId) !== session || session.status.read(reader) === SessionStatus.NeedsInput) {
 					continue;
 				}
 
@@ -267,21 +286,9 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				}
 			}
 
+			observedInputSessions = nextObservedInputSessions;
 			if (changed) {
-				this._ignoredBlockOccurrences.set(next, undefined);
-			}
-		}));
-
-		this._register(autorun(reader => {
-			if (!enabled) {
-				return;
-			}
-			// Bound persisted history without undoing acknowledgements in the current window.
-			const entries = [...this._ignoredBlockOccurrences.read(reader)].slice(-MAX_STORED_IGNORED_SESSIONS);
-			if (entries.length === 0) {
-				this._storageService.remove(IGNORED_OCCURRENCES_STORAGE_KEY, StorageScope.PROFILE);
-			} else {
-				this._storageService.store(IGNORED_OCCURRENCES_STORAGE_KEY, JSON.stringify(entries), StorageScope.PROFILE, StorageTarget.MACHINE);
+				this._setIgnoredOccurrences(next);
 			}
 		}));
 
@@ -390,7 +397,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			next.set(sessionId, { occurrenceId, reason: blocked.reason });
 			this._logService.trace(`${LOG_PREFIX} ignoring ${sessionId} (${occurrenceId}): ignore all`);
 		}
-		this._ignoredBlockOccurrences.set(next, undefined);
+		this._setIgnoredOccurrences(next);
 	}
 
 	/**
@@ -463,11 +470,51 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		}
 	}
 
+	private _setIgnoredOccurrences(next: ReadonlyMap<string, IAcknowledgedOccurrence>): void {
+		const previous = this._ignoredBlockOccurrences.get();
+		const stored = new Map(this._loadIgnoredOccurrences());
+		for (const [sessionId, occurrence] of previous) {
+			if (!next.has(sessionId) && stored.get(sessionId)?.occurrenceId === occurrence.occurrenceId) {
+				stored.delete(sessionId);
+			}
+		}
+		for (const [sessionId, occurrence] of next) {
+			if (occurrence !== previous.get(sessionId)) {
+				stored.delete(sessionId);
+				stored.set(sessionId, occurrence);
+			}
+		}
+		const reconciled = new Map(next);
+		for (const sessionId of this._storedIgnoredOccurrences.keys()) {
+			reconciled.delete(sessionId);
+		}
+		for (const [sessionId, occurrence] of stored) {
+			reconciled.set(sessionId, occurrence);
+		}
+		this._storeIgnoredOccurrences(stored);
+		this._ignoredBlockOccurrences.set(reconciled, undefined);
+	}
+
+	private _storeIgnoredOccurrences(occurrences: ReadonlyMap<string, IAcknowledgedOccurrence>): void {
+		// Bound persisted history without undoing acknowledgements in the current window.
+		this._storedIgnoredOccurrences = new Map([...occurrences].slice(-MAX_STORED_IGNORED_SESSIONS));
+		this._writingIgnoredOccurrences = true;
+		try {
+			if (this._storedIgnoredOccurrences.size === 0) {
+				this._storageService.remove(IGNORED_OCCURRENCES_STORAGE_KEY, StorageScope.PROFILE);
+			} else {
+				this._storageService.store(IGNORED_OCCURRENCES_STORAGE_KEY, JSON.stringify([...this._storedIgnoredOccurrences]), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		} finally {
+			this._writingIgnoredOccurrences = false;
+		}
+	}
+
 	private _ignoreOccurrence(blocked: IBlockedSession, occurrenceId: string): void {
 		const next = new Map(this._ignoredBlockOccurrences.get());
 		next.delete(blocked.session.sessionId);
 		next.set(blocked.session.sessionId, { occurrenceId, reason: blocked.reason });
-		this._ignoredBlockOccurrences.set(next, undefined);
+		this._setIgnoredOccurrences(next);
 		this._logService.trace(`${LOG_PREFIX} ignoring ${blocked.session.sessionId} (${occurrenceId})`);
 	}
 

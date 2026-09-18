@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -14,7 +15,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../blockedSessions/browser/blockedSessions.js';
@@ -366,6 +367,143 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.deepStrictEqual({ afterReconnect, afterNewInput: blockedIds(restored.model) }, { afterReconnect: [], afterNewInput: ['input'] });
 	});
 
+	for (const initialStatus of [SessionStatus.Completed, SessionStatus.Error]) {
+		test(`retains restored input acknowledgements while a fresh facade initially reports ${initialStatus}`, () => {
+			const first = createModel();
+			const input = new TestSession('input');
+			first.blockedModel.setBlocked([needsInput(input)]);
+			first.model.ignoreSession(input);
+			first.model.dispose();
+
+			const restored = createModel({ storageService: first.storageService });
+			const cached = new TestSession('input');
+			cached.status.set(initialStatus, undefined);
+			restored.sessionsManagementService.setSessions([cached]);
+			const beforeHydration = restored.storageService.getObject(storageKey, StorageScope.PROFILE);
+			restored.blockedModel.setBlocked([needsInput(cached)]);
+			const afterHydration = blockedIds(restored.model);
+			restored.blockedModel.setBlocked([]);
+			restored.blockedModel.setBlocked([needsInput(cached)]);
+
+			assert.deepStrictEqual({ beforeHydration, afterHydration, afterNewInput: blockedIds(restored.model) }, {
+				beforeHydration: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+				afterHydration: [],
+				afterNewInput: ['input'],
+			});
+		});
+	}
+
+	for (const replaceFacade of [false, true]) {
+		test(`retains input acknowledgements across disconnect with a ${replaceFacade ? 'replacement' : 'reused'} facade`, () => {
+			const { model, blockedModel, sessionsManagementService, storageService } = createModel();
+			const input = new TestSession('input');
+			blockedModel.setBlocked([needsInput(input)]);
+			model.ignoreSession(input);
+
+			const reconnecting = replaceFacade ? new TestSession('input') : input;
+			transaction(tx => {
+				reconnecting.remoteConnectionStatus.set({ kind: 'reconnecting' }, tx);
+				reconnecting.status.set(SessionStatus.Error, tx);
+				sessionsManagementService.setSessions([reconnecting]);
+				blockedModel.blockedSessionsWithReasons.set([], tx);
+				blockedModel.blockedSessions.set([], tx);
+			});
+			const whileDisconnected = storageService.getObject(storageKey, StorageScope.PROFILE);
+			transaction(tx => {
+				reconnecting.status.set(SessionStatus.Completed, tx);
+				reconnecting.remoteConnectionStatus.set({ kind: 'connected' }, tx);
+			});
+			blockedModel.setBlocked([needsInput(reconnecting)]);
+
+			assert.deepStrictEqual({ whileDisconnected, afterReconnect: blockedIds(model), blink: model.consumePendingBlink() }, {
+				whileDisconnected: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+				afterReconnect: [],
+				blink: false,
+			});
+		});
+	}
+
+	test('reconciles interleaved window acknowledgements, new occurrences, and archive removals', () => {
+		const first = createModel();
+		const second = createModel({ storageService: first.storageService });
+		const sessions = ['a', 'b', 'c'].map(id => new TestSession(id));
+		first.blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+		second.blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+
+		first.model.ignoreSession(sessions[0]);
+		second.model.ignoreSession(sessions[1]);
+		first.model.ignoreSession(sessions[2]);
+		const afterIgnores = [blockedIds(first.model), blockedIds(second.model)];
+		transaction(() => {
+			first.blockedModel.setBlocked([failingCI(sessions[0], 'new-sha'), failingCI(sessions[1]), failingCI(sessions[2])]);
+			second.blockedModel.setBlocked([failingCI(sessions[0], 'new-sha'), failingCI(sessions[1]), failingCI(sessions[2])]);
+		});
+		second.model.ignoreSession(sessions[0]);
+		sessions[1].isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ afterIgnores, stored: first.storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+			afterIgnores: [[], []],
+			stored: [
+				['c', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+				['a', { occurrenceId: 'failingCI:new-sha', reason: BlockedSessionReason.FailingCI }],
+			],
+		});
+	});
+
+	test('does not write external storage updates back or resurrect removed acknowledgements', () => {
+		const { model, blockedModel, storageService } = createModel();
+		const sessions = ['a', 'b', 'c'].map(id => new TestSession(id));
+		blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+		model.ignoreSession(sessions[0]);
+		let changes = 0;
+		const listenerStore = store.add(new DisposableStore());
+		listenerStore.add(storageService.onDidChangeValue(StorageScope.PROFILE, storageKey, listenerStore)(() => changes++));
+		storageService.storeAll([{
+			key: storageKey,
+			value: JSON.stringify([['b', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]]),
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.MACHINE,
+		}], true);
+		const afterExternalUpdate = { blocked: blockedIds(model), changes };
+		model.ignoreSession(sessions[2]);
+
+		assert.deepStrictEqual({ afterExternalUpdate, stored: storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+			afterExternalUpdate: { blocked: ['a', 'c'], changes: 1 },
+			stored: [
+				['b', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+				['c', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+			],
+		});
+	});
+
+	for (const hasSavedIgnores of [false, true]) {
+		test(`replaces acknowledgements on a profile storage switch ${hasSavedIgnores ? 'with' : 'without'} saved ignores`, () => {
+			const { model, blockedModel, storageService } = createModel();
+			const sessions = Array.from({ length: 52 }, (_, i) => new TestSession(`ci-${i}`));
+			blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+			for (const session of sessions.slice(0, 51)) {
+				model.ignoreSession(session);
+			}
+			const saved = [['ci-51', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]];
+			storageService.storeAll([{
+				key: storageKey,
+				value: hasSavedIgnores ? JSON.stringify(saved) : undefined,
+				scope: StorageScope.PROFILE,
+				target: StorageTarget.MACHINE,
+			}], true);
+			const afterSwitch = blockedIds(model);
+			model.ignoreSession(sessions[0]);
+
+			assert.deepStrictEqual({ afterSwitch, stored: storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+				afterSwitch: sessions.slice(0, hasSavedIgnores ? 51 : 52).map(session => session.sessionId),
+				stored: [
+					...(hasSavedIgnores ? saved : []),
+					['ci-0', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+				],
+			});
+		});
+	}
+
 	for (const archiveBeforeReload of [false, true]) {
 		test(`removes archived sessions from storage ${archiveBeforeReload ? 'during restoration' : 'when archived'}`, () => {
 			const first = createModel();
@@ -510,6 +648,7 @@ class TestSession extends mock<ISession>() {
 	override readonly chats: IObservable<readonly IChat[]>;
 	override readonly isArchived = observableValue('isArchived', false);
 	override readonly status = observableValue('status', SessionStatus.Completed);
+	override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('remoteConnectionStatus', { kind: 'connected' });
 
 	constructor(override readonly sessionId: string) {
 		super();
