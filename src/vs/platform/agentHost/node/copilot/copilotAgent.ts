@@ -243,12 +243,7 @@ function getCopilotPlatformPackageCandidates(): string[] {
 interface ICopilotRuntimePaths {
 	readonly runtimePath: string;
 	readonly sdkPath: string;
-	readonly builtinSkillDirectories: readonly string[];
 }
-
-// Keep the runtime-owned skills the standalone Copilot CLI exposed in VS Code.
-// `discover-resources` is excluded because Agent Host does not provide its required `catalog_search` tool.
-const supportedCopilotBuiltinSkills = ['customize-cloud-agent', 'github-pr-media'] as const;
 
 async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilotRuntimePaths> {
 	const tried: string[] = [];
@@ -258,13 +253,9 @@ async function resolveCopilotRuntimePaths(nodeModulesUri: URI): Promise<ICopilot
 		const runtimePath = URI.joinPath(prebuildsUri, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime').fsPath;
 		const nativePath = URI.joinPath(prebuildsUri, 'runtime.node').fsPath;
 		const sdkPath = URI.joinPath(packageUri, 'sdk', 'index.js').fsPath;
-		const builtinSkillsPath = URI.joinPath(packageUri, 'builtin-skills').fsPath;
-		tried.push(`${runtimePath} with ${nativePath}, ${sdkPath}, and ${builtinSkillsPath}`);
-		if (await fileExists(runtimePath) && await fileExists(nativePath) && await fileExists(sdkPath) && await fileExists(builtinSkillsPath)) {
-			const builtinSkillDirectories = supportedCopilotBuiltinSkills.map(name => join(builtinSkillsPath, name));
-			if ((await Promise.all(builtinSkillDirectories.map(directory => fileExists(join(directory, 'SKILL.md'))))).every(Boolean)) {
-				return { runtimePath, sdkPath, builtinSkillDirectories };
-			}
+		tried.push(`${runtimePath} with ${nativePath} and ${sdkPath}`);
+		if (await fileExists(runtimePath) && await fileExists(nativePath) && await fileExists(sdkPath)) {
+			return { runtimePath, sdkPath };
 		}
 	}
 
@@ -831,7 +822,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
-	private _builtinSkillDirectories: readonly string[] = [];
 	/**
 	 * Coalesces the whole acquire-and-self-heal sequence in `_ensureClient` so
 	 * that all concurrent callers share a single, global retry budget for
@@ -2330,8 +2320,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Keep the SDK wrapper and native module paired within one platform package.
 			const nodeModulesUri = getAppNodeModulesUri();
-			const { runtimePath, builtinSkillDirectories } = await resolveCopilotRuntimePaths(nodeModulesUri);
-			this._builtinSkillDirectories = builtinSkillDirectories;
+			const { runtimePath } = await resolveCopilotRuntimePaths(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
 			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
@@ -3997,7 +3986,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				kind: 'create',
 				client,
 				sessionId: sdkSessionId,
-				builtinSkillDirectories: this._builtinSkillDirectories,
 				isEphemeral: provisional.isEphemeral,
 				hasScopedEditSurface: provisional.hasScopedEditSurface,
 				workingDirectory,
@@ -4543,7 +4531,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					kind: 'resume',
 					client,
 					sessionId: sdkSessionId,
-					builtinSkillDirectories: this._builtinSkillDirectories,
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
@@ -4559,7 +4546,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					kind: 'create',
 					client,
 					sessionId: chatSdkId,
-					builtinSkillDirectories: this._builtinSkillDirectories,
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
@@ -5003,7 +4989,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					kind: 'resume',
 					client,
 					sessionId: info.sdkSessionId,
-					builtinSkillDirectories: this._builtinSkillDirectories,
 					workingDirectory,
 					additionalDirectories: launchWorkingDirectories?.slice(1),
 					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
@@ -5578,7 +5563,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'resume',
 			client,
 			sessionId,
-			builtinSkillDirectories: this._builtinSkillDirectories,
 			workingDirectory: resolvedWorkingDirectory,
 			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,
