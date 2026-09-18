@@ -8224,7 +8224,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('leaves an independently discovered pull request non-removable and visible after its recorded duplicate is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
-			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			private readonly _model = upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) });
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
 

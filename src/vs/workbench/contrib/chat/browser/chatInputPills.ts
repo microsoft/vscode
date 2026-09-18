@@ -295,7 +295,24 @@ export class ChatInputPills extends Disposable {
 		if (targetKind) {
 			for (const source of this._options.sources.get()) {
 				if (source.kind === targetKind && this._options.offeredKinds.includes(targetKind)) {
-					targetActions.push(...source.getContextMenuPrimaryActions?.() ?? []);
+					// A primary action can remove the entry the menu was opened from,
+					// taking its pill with it, so focus has to be placed again once the
+					// action settles instead of being left on the detached anchor.
+					targetActions.push(...(source.getContextMenuPrimaryActions?.() ?? []).map(action => toAction({
+						id: action.id,
+						label: action.label,
+						enabled: action.enabled,
+						checked: action.checked,
+						class: action.class,
+						tooltip: action.tooltip,
+						run: async () => {
+							try {
+								await action.run();
+							} finally {
+								restoreFocus();
+							}
+						},
+					})));
 				}
 			}
 			if (targetActions.length) {

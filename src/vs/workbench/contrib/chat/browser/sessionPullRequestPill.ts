@@ -37,9 +37,9 @@ export function createSessionPullRequestPillData(
 		}
 		return visibleSections.map(section => ({
 			...section,
-			entries: section.entries.map(entry => entry.removeAction ? {
+			entries: section.entries.map(entry => entry.promotedAction ? {
 				...entry,
-				toolbarActions: [...entry.toolbarActions ?? [], entry.removeAction],
+				toolbarActions: [...entry.toolbarActions ?? [], entry.promotedAction],
 			} : entry),
 		}));
 	});
@@ -71,7 +71,7 @@ export function createSessionPullRequestPillData(
 		},
 		getContextMenuPrimaryActions: () => {
 			const entries = filteredSections.get().flatMap(section => section.entries);
-			return entries.length === 1 && entries[0].removeAction ? [entries[0].removeAction] : [];
+			return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
 		},
 	} satisfies IStandardChatInputPillSections;
 }

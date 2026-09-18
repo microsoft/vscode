@@ -328,17 +328,17 @@ suite('Session Artifacts', () => {
 		});
 		const initial = read();
 		const first = presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'reference-a')!;
-		await first.removeAction?.run();
+		await first.promotedAction?.run();
 		const afterFirst = read();
 		setRemovalError(new Error('offline'));
-		await presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'reference-b')?.removeAction?.run();
+		await presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'reference-b')?.promotedAction?.run();
 		const afterFailure = read();
 		setRemovalError(undefined);
-		await presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'issue')?.removeAction?.run();
+		await presentation.referenceSections.get().flatMap(section => section.entries).find(entry => entry.id === 'issue')?.promotedAction?.run();
 		const afterLastIssue = read();
 		// Removing the durable artifact only deletes its session record; since it
 		// was gated equally to references, this must succeed and empty its pill.
-		await presentation.sections.get().flatMap(section => section.entries).find(entry => entry.id === 'artifact')?.removeAction?.run();
+		await presentation.sections.get().flatMap(section => section.entries).find(entry => entry.id === 'artifact')?.promotedAction?.run();
 		const afterArtifact = read();
 
 		assert.deepStrictEqual({
@@ -358,7 +358,7 @@ suite('Session Artifacts', () => {
 			// The durable artifacts pill has nothing left to show once its only entry is removed.
 			afterArtifact: { sections: [['Websites', ['reference-b']]], artifacts: [] },
 			removed: ['reference-a', 'reference-b', 'issue', 'artifact'],
-			errors: ['Could not remove Docs: offline'],
+			errors: ['Could not remove Docs from this session: offline'],
 			persisted: ['reference-b'],
 		});
 	});
@@ -387,14 +387,21 @@ suite('Session Artifacts', () => {
 		const withoutSupport = buildSessionArtifactSections(entries, actions, labelService, true, new Set()).flatMap(section => section.entries);
 		const withSupport = buildSessionArtifactSections(entries, { ...actions, remove: async () => { } }, labelService, true, new Set()).flatMap(section => section.entries);
 
+		const byId = (rendered: readonly { readonly id: string; readonly promotedAction?: unknown }[]) =>
+			rendered.map(entry => [entry.id, !!entry.promotedAction]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+		// Expectations derive from the input entries, so a dropped or unrendered
+		// kind fails instead of silently agreeing with whatever was produced.
+		const expected = (removable: boolean) =>
+			entries.map(entry => [entry.id, removable]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
 		assert.deepStrictEqual({
-			withoutSupport: withoutSupport.map(entry => [entry.id, !!entry.removeAction]),
-			withSupport: withSupport.map(entry => [entry.id, !!entry.removeAction]),
+			withoutSupport: byId(withoutSupport),
+			withSupport: byId(withSupport),
 		}, {
 			// No entry of any kind — artifact or reference — gets a remove action without provider support.
-			withoutSupport: withoutSupport.map(entry => [entry.id, false]),
+			withoutSupport: expected(false),
 			// Every kind gets a remove action once the provider supports it, regardless of isArtifact.
-			withSupport: withSupport.map(entry => [entry.id, true]),
+			withSupport: expected(true),
 		});
 	});
 

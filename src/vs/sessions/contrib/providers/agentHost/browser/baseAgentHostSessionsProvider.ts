@@ -332,6 +332,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.state === y.state &&
 			x.liveState === y.liveState &&
 			x.title === y.title &&
+			x.createdByThisSession === y.createdByThisSession &&
 			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
@@ -357,8 +358,15 @@ function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString
 	return a === b || !!a && !!b && markdownStringEqual(a, b);
 }
 
+/**
+ * A GitHub link fed into the ref mappers. Recorded entries arrive as a full
+ * {@link IRecordedGitHubReference} and carry their stable removal id; entries
+ * discovered from git or session state supply only a url.
+ */
+type IGitHubReferenceSource = Partial<IRecordedGitHubReference> & { readonly url: string };
+
 /** Maps GitHub issue records from the session metadata to issue references. */
-function toGitHubIssueRefs(issues: readonly IRecordedGitHubReference[]): readonly IGitHubIssueRef[] | undefined {
+function toGitHubIssueRefs(issues: readonly IGitHubReferenceSource[]): readonly IGitHubIssueRef[] | undefined {
 	const refs: IGitHubIssueRef[] = [];
 	for (const issue of issues) {
 		const reference = parseGitHubIssueUrl(issue.url);
@@ -380,7 +388,7 @@ function toGitHubIssueRefs(issues: readonly IRecordedGitHubReference[]): readonl
  * Recorded entries retain their stable removal IDs. A discovered association
  * makes a matching recorded entry session-owned without dropping its identity.
  */
-function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequests: readonly IRecordedGitHubReference[]): readonly IGitHubPullRequestRef[] | undefined {
+function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullRequests: readonly IGitHubReferenceSource[]): readonly IGitHubPullRequestRef[] | undefined {
 	const refs: IGitHubPullRequestRef[] = [];
 	for (const pullRequest of pullRequests) {
 		const reference = parseGitHubPullRequestUrl(pullRequest.url);
@@ -1076,17 +1084,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					index === 0 ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
 				)
 			}));
-			const icon = pullRequests[0].icon;
-			const liveState = pullRequests[0].liveState;
-			const title = pullRequests[0].title;
+			const primaryPullRequest = pullRequests.find(pullRequest =>
+				pullRequest.number === baseGitHubInfo.pullRequest?.number &&
+				isEqual(pullRequest.uri, baseGitHubInfo.pullRequest.uri)
+			) ?? pullRequests[0];
 			return {
 				...baseGitHubInfo,
 				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
 				pullRequest: {
 					...baseGitHubInfo.pullRequest,
-					icon,
-					liveState,
-					title,
+					icon: primaryPullRequest.icon,
+					liveState: primaryPullRequest.liveState,
+					title: primaryPullRequest.title,
 				}
 			};
 		});

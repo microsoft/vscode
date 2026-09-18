@@ -815,16 +815,16 @@ suite('SessionChatInputToolbar', () => {
 			remove: async id => { removed.push(id); },
 		})[0].entries[0];
 		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
-		await entries[0].removeAction?.run();
-		await entries[1].removeAction?.run();
-		await issueEntry.removeAction?.run();
+		await entries[0].promotedAction?.run();
+		await entries[1].promotedAction?.run();
+		await issueEntry.promotedAction?.run();
 		await entries[0].toolbarActions?.[0].run();
 		entries[0].open();
 
 		assert.deepStrictEqual({
 			ids: entries.map(entry => entry.id),
-			removable: [...entries.map(entry => !!entry.removeAction), !!issueEntry.removeAction],
-			unsupported: unsupported.map(entry => !!entry.removeAction),
+			removable: [...entries.map(entry => !!entry.promotedAction), !!issueEntry.promotedAction],
+			unsupported: unsupported.map(entry => !!entry.promotedAction),
 			removed, copied, opened,
 		}, {
 			ids: ['reference-a', 'reference-b', refs[2].uri.toString()],
@@ -916,7 +916,7 @@ suite('SessionChatInputToolbar', () => {
 		}, {
 			unavailable: false,
 			afterFailure: { removable: true, artifacts: ['pr-reference', 'durable-artifact'] },
-			errors: ['Could not remove Pull Request #1: offline'],
+			errors: ['Could not remove Pull Request #1 from this session: offline'],
 			calls: [{ owningSession: true, artifactId: 'pr-reference' }, { owningSession: true, artifactId: 'pr-reference' }],
 			afterSuccess: { removable: false, artifactRemovable: true, artifacts: ['durable-artifact'], label: undefined },
 		});

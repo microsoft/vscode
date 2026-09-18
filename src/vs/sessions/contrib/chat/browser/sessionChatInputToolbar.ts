@@ -154,7 +154,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
-			removeAction: recordedReferenceId && referenceActions ? toAction({
+			promotedAction: recordedReferenceId && referenceActions ? toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
 				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Reference from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
@@ -220,7 +220,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
-			removeAction: recordedReferenceId && referenceActions ? toAction({
+			promotedAction: recordedReferenceId && referenceActions ? toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
 				label: localize('sessionChatPills.removeIssue', "Remove Issue Reference from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
@@ -379,7 +379,7 @@ export class SessionChatInputToolbar extends Disposable {
 					await sessionsManagementService.removeSessionArtifact(session, id);
 					status(localize('sessionChatPills.referenceRemoved', "{0} removed from session.", label));
 				} catch (error) {
-					notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0}: {1}", label, toErrorMessage(error)));
+					notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
 				}
 			},
 		} : undefined;
@@ -455,24 +455,24 @@ export class SessionChatInputToolbar extends Disposable {
 				icon: issueIcon,
 				getContextMenuPrimaryActions: () => {
 					const entries = issueSections.get().flatMap(section => section.entries);
-					const removeAction = entries.length === 1 ? entries[0].removeAction : undefined;
-					return removeAction ? [removeAction] : [];
+					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
+					return promotedAction ? [promotedAction] : [];
 				},
 			},
 			artifacts: {
 				sections: this._artifactSections,
 				getContextMenuPrimaryActions: () => {
 					const entries = this._artifactSections.get().flatMap(section => section.entries);
-					const removeAction = entries.length === 1 ? entries[0].removeAction : undefined;
-					return removeAction ? [removeAction] : [];
+					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
+					return promotedAction ? [promotedAction] : [];
 				},
 			},
 			references: {
 				sections: this._referenceSections,
 				getContextMenuPrimaryActions: () => {
 					const entries = this._referenceSections.get().flatMap(section => section.entries);
-					const removeAction = entries.length === 1 ? entries[0].removeAction : undefined;
-					return removeAction ? [removeAction] : [];
+					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
+					return promotedAction ? [promotedAction] : [];
 				},
 			},
 			customizations: { sections: this._customizationSections },

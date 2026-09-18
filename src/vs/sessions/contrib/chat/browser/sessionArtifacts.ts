@@ -174,7 +174,7 @@ function withRemoveAction(artifact: ISessionArtifact, entry: IChatPillEntry, act
 	}
 	return {
 		...entry,
-		removeAction: toAction({
+		promotedAction: toAction({
 			id: `sessions.artifacts.remove.${artifact.id}`,
 			label: localize('sessionArtifacts.removeArtifact', "Remove {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
@@ -394,7 +394,7 @@ export class SessionArtifacts extends Disposable {
 						await this._sessionsManagementService.removeSessionArtifact(session, id);
 						status(localize('sessionArtifacts.artifactRemoved', "{0} removed from session.", label));
 					} catch (error) {
-						this._notificationService.error(localize('sessionArtifacts.removeArtifactFailed', "Could not remove {0}: {1}", label, toErrorMessage(error)));
+						this._notificationService.error(localize('sessionArtifacts.removeArtifactFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
 					}
 				},
 			} : {}),

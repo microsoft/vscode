@@ -320,7 +320,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...(entry.className ? { className: entry.className } : {}),
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
-					...((entry.toolbarActions?.length || entry.removeAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
+					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: entry.hover,
 					item: entry,

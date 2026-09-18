@@ -60,8 +60,12 @@ export interface IChatPillEntry {
 	readonly resource?: URI;
 	/** Actions shown at the trailing edge of the entry's dropdown row. */
 	readonly toolbarActions?: readonly IAction[];
-	/** Removes the recorded session reference represented by this entry. */
-	readonly removeAction?: IAction;
+	/**
+	 * Action shown on the entry's dropdown row alongside {@link toolbarActions},
+	 * which consumers may also promote onto the pill itself when this is its
+	 * only entry.
+	 */
+	readonly promotedAction?: IAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
@@ -75,10 +79,11 @@ export interface IChatPillEntry {
 	open(): void;
 }
 
+/** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
 export function getChatPillEntryToolbarActions(entry: IChatPillEntry): readonly IAction[] {
 	const actions = [...entry.toolbarActions ?? []];
-	if (entry.removeAction && !actions.includes(entry.removeAction)) {
-		actions.push(entry.removeAction);
+	if (entry.promotedAction && !actions.includes(entry.promotedAction)) {
+		actions.push(entry.promotedAction);
 	}
 	return actions;
 }

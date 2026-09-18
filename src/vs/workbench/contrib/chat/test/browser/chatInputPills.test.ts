@@ -141,7 +141,7 @@ suite('StandardChatInputPillSources', () => {
 		let removed = 0;
 		const entry: IChatPullRequestPillEntry = {
 			...pullRequestEntry('#1', 'open'),
-			removeAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
+			promotedAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
 		};
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [entry] }]), createPullRequestVisibility());
 		const pills = createPills({ pullRequests: data });

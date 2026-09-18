@@ -56,17 +56,22 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
 	};
 }
 
+/**
+ * A GitHub link that was explicitly recorded on the session, so it always
+ * carries the stable id needed to remove that record. Git-/session-discovered
+ * associations are never recorded and so are not represented by this type.
+ */
 export interface IRecordedGitHubReference {
 	readonly url: string;
 	readonly title?: string;
 	/** Stable id of the recorded session artifact or reference, used for removal. */
-	readonly recordedReferenceId?: string;
+	readonly recordedReferenceId: string;
 	/**
 	 * Whether the recorded entry is a durable artifact (`true`) or a mere
 	 * reference (`false`). Distinguishes a recorded pull request from one the
 	 * session actually produced, independent of whether it can be removed.
 	 */
-	readonly isArtifact?: boolean;
+	readonly isArtifact: boolean;
 }
 
 /** All recorded entries, alongside the GitHub entries eligible for promotion into dedicated pills. */
