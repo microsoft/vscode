@@ -322,15 +322,6 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
-	protected async _pathExists(resource: URI): Promise<boolean> {
-		try {
-			await this._fileService.resolve(resource);
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
 	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
@@ -640,6 +631,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
 	private readonly _enterpriseEnabledPluginsConfig: IObservable<Record<string, boolean>>;
+	private readonly _copilotCliWatcher = this._register(new MutableDisposable<CopilotCliInstalledPluginsWatcher>());
+	private _refreshScheduler: RunOnceScheduler | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -667,6 +660,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._refreshScheduler = scheduler;
 		this._register(autorun(reader => {
 			this._pluginLocationsConfig.read(reader);
 			this._enterpriseEnabledPluginsConfig.read(reader);
@@ -678,6 +672,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
 		const userHome = await this._pathService.userHome();
+		const copilotCliRoot = joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+		let watchCopilotCliRoot = false;
 
 		// User-configured filesystem paths in `chat.pluginLocations` — removable
 		// by re-writing the user setting. Filesystem-only; an entry that happens
@@ -688,7 +684,9 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				continue;
 			}
 			for (const resource of await this._resolvePluginPath(trimmed, userHome)) {
-				await this._addPluginSource(sources, resource, 'plugin path', () => this._removePluginPath(key));
+				const watchPluginContents = !isEqualOrParent(resource, copilotCliRoot);
+				watchCopilotCliRoot ||= !watchPluginContents;
+				await this._addPluginSource(sources, resource, 'plugin path', () => this._removePluginPath(key), watchPluginContents);
 			}
 		}
 
@@ -706,13 +704,30 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				this._logService.debug(`[ConfiguredAgentPluginDiscovery] Skipping enterprise plugin entry that is not in <plugin>@<marketplace> form: ${trimmed}`);
 				continue;
 			}
-			await this._addPluginSource(sources, resource, 'enterprise plugin path');
+			watchCopilotCliRoot = true;
+			await this._addPluginSource(sources, resource, 'enterprise plugin path', undefined, false);
 		}
 
+		this._setCopilotCliWatcher(watchCopilotCliRoot);
 		return sources;
 	}
 
-	private async _addPluginSource(sources: IPluginSource[], resource: URI, label: string, remove?: () => Promise<boolean>): Promise<void> {
+	private _setCopilotCliWatcher(enabled: boolean): void {
+		if (!enabled) {
+			this._copilotCliWatcher.clear();
+			return;
+		}
+		if (!this._copilotCliWatcher.value && this._refreshScheduler) {
+			this._copilotCliWatcher.value = new CopilotCliInstalledPluginsWatcher(
+				this._fileService,
+				this._pathService,
+				this._logService,
+				() => this._refreshScheduler?.schedule(200),
+			);
+		}
+	}
+
+	private async _addPluginSource(sources: IPluginSource[], resource: URI, label: string, remove?: () => Promise<boolean>, watchPluginContents = true): Promise<void> {
 		let stat;
 		try {
 			stat = await this._fileService.resolve(resource);
@@ -729,6 +744,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		sources.push({
 			uri: stat.resource,
 			fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
+			watchPluginContents,
 			remove,
 		});
 	}
@@ -895,6 +911,80 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
  */
 const COPILOT_CLI_INSTALLED_PLUGINS_DIR = '.copilot/installed-plugins';
 
+class CopilotCliInstalledPluginsWatcher extends Disposable {
+	private readonly _watcher = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _setupWatcherScheduler: RunOnceScheduler;
+	private _setupVersion = 0;
+
+	constructor(
+		private readonly _fileService: IFileService,
+		private readonly _pathService: IPathService,
+		private readonly _logService: ILogService,
+		private readonly _onDidChange: () => void,
+	) {
+		super();
+		this._setupWatcherScheduler = this._register(new RunOnceScheduler(() => {
+			this._setupWatcher().catch(error => this._logService.warn('[CopilotCliInstalledPluginsWatcher] Failed to watch installed plugins', error));
+		}, 0));
+		this._setupWatcherScheduler.schedule();
+	}
+
+	private async _setupWatcher(): Promise<void> {
+		const version = ++this._setupVersion;
+		const root = await getCopilotCliInstalledPluginsDir(this._pathService);
+		let watchRoot = root;
+		let pathToWatch = root;
+		while (!(await this._pathExists(watchRoot))) {
+			pathToWatch = watchRoot;
+			const parent = dirname(watchRoot);
+			if (isEqual(parent, watchRoot)) {
+				return;
+			}
+			watchRoot = parent;
+		}
+		if (version !== this._setupVersion || this._store.isDisposed) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		const recursive = isEqual(watchRoot, root);
+		const onDidChange = (event: FileChangesEvent) => {
+			const watchedPathChanged = recursive
+				? event.affects(root)
+				: event.affects(pathToWatch) || event.contains(watchRoot, FileChangeType.DELETED);
+			if (!watchedPathChanged) {
+				return;
+			}
+			this._onDidChange();
+			if (!recursive || event.contains(root, FileChangeType.DELETED)) {
+				this._setupWatcherScheduler.schedule();
+			}
+		};
+		if (recursive) {
+			store.add(this._fileService.watch(watchRoot, { recursive: true, excludes: [] }));
+			store.add(this._fileService.onDidFilesChange(onDidChange));
+		} else {
+			const ancestorWatcher = store.add(this._fileService.createWatcher(watchRoot, { recursive: false, excludes: [] }));
+			store.add(ancestorWatcher.onDidChange(onDidChange));
+		}
+		this._watcher.value = store;
+	}
+
+	private async _pathExists(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.resolve(resource);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
+async function getCopilotCliInstalledPluginsDir(pathService: IPathService): Promise<URI> {
+	const userHome = await pathService.userHome();
+	return joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+}
+
 /**
  * Discovers plugins installed by the Copilot CLI under
  * `~/.copilot/installed-plugins/<marketplace>/<plugin>/`. Each leaf directory
@@ -915,64 +1005,18 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
-
-		const watcher = this._register(new MutableDisposable<DisposableStore>());
-		let setupVersion = 0;
-		const setupWatchers = async () => {
-			const version = ++setupVersion;
-			const root = await this._getInstalledPluginsDir();
-			let watchRoot = root;
-			let pathToWatch = root;
-			while (!(await this._pathExists(watchRoot))) {
-				pathToWatch = watchRoot;
-				const parent = dirname(watchRoot);
-				if (isEqual(parent, watchRoot)) {
-					return;
-				}
-				watchRoot = parent;
-			}
-			if (version !== setupVersion || this._store.isDisposed) {
-				return;
-			}
-			const store = new DisposableStore();
-			const recursive = isEqual(watchRoot, root);
-			const onDidChange = (event: FileChangesEvent) => {
-				const watchedPathChanged = recursive
-					? event.affects(root)
-					: event.affects(pathToWatch) || event.contains(watchRoot, FileChangeType.DELETED);
-				if (!watchedPathChanged) {
-					return;
-				}
-				scheduler.schedule();
-				if (!recursive || event.contains(root, FileChangeType.DELETED)) {
-					setupWatcherScheduler.schedule();
-				}
-			};
-			if (recursive) {
-				store.add(this._fileService.watch(watchRoot, { recursive: true, excludes: [] }));
-				store.add(this._fileService.onDidFilesChange(onDidChange));
-			} else {
-				const ancestorWatcher = store.add(this._fileService.createWatcher(watchRoot, { recursive: false, excludes: [] }));
-				store.add(ancestorWatcher.onDidChange(onDidChange));
-			}
-			watcher.value = store;
-		};
-
-		const setupWatcherScheduler = this._register(new RunOnceScheduler(() => {
-			setupWatchers().catch(error => this._logService.warn('[CopilotCliAgentPluginDiscovery] Failed to watch installed plugins', error));
-		}, 0));
-		setupWatcherScheduler.schedule();
-		scheduler.schedule();
-	}
-
-	private async _getInstalledPluginsDir(): Promise<URI> {
-		const userHome = await this._pathService.userHome();
-		return joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 200));
+		this._register(new CopilotCliInstalledPluginsWatcher(
+			this._fileService,
+			this._pathService,
+			this._logService,
+			() => scheduler.schedule(),
+		));
+		scheduler.schedule(0);
 	}
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
-		const root = await this._getInstalledPluginsDir();
+		const root = await getCopilotCliInstalledPluginsDir(this._pathService);
 
 		let rootStat;
 		try {

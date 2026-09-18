@@ -81,7 +81,7 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 ### Discovery Implementations
 
-**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes.
+**ConfiguredAgentPluginDiscovery** — resolves `chat.pluginLocations` configuration entries (absolute, tilde-expanded, or workspace-relative paths) and watches for config changes. Configured sources under the Copilot CLI install root, including managed `enabledPlugins` entries, use the CLI root watcher rather than plugin-local watchers.
 
 **MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
 

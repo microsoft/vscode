@@ -15,6 +15,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { FileChangesEvent, FileChangeType } from '../../../../../../platform/files/common/files.js';
@@ -23,8 +24,10 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
-import { CopilotCliAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 
 class TestCopilotCliAgentPluginDiscovery extends CopilotCliAgentPluginDiscovery {
 	public discoverPluginSources() {
@@ -212,6 +215,66 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 				recursive: true,
 			},
 			hasRecursiveAncestor: false,
+			labels: ['spark-v1', 'spark-v2'],
+		});
+	}));
+
+	test('managed CLI plugins use the root watcher and remain atomically replaceable', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const pluginUri = joinPath(marketplaceRoot, 'spark');
+		const stagingUri = joinPath(marketplaceRoot, '.spark.tmp-123-0');
+		const backupUri = joinPath(marketplaceRoot, '.spark.old-123-0');
+		await writePlugin(pluginUri, 'spark-v1');
+		await writePlugin(stagingUri, 'spark-v2');
+
+		const createWatcherSpy = sinon.spy(fileService, 'createWatcher');
+		const watchSpy = sinon.spy(fileService, 'watch');
+		const discovery = store.add(new ConfiguredAgentPluginDiscovery(
+			new TestConfigurationService({
+				[ChatConfiguration.EnabledPlugins]: {
+					'spark@copilot-plugins': true,
+				},
+			}),
+			fileService,
+			new class extends mock<IPluginMarketplaceService>() {
+				override getMarketplacePluginMetadata() {
+					return undefined;
+				}
+			},
+			new TestContextService(testWorkspace(workspaceRoot)),
+			new class extends mock<IPathService>() {
+				override userHome(options: { preferLocal: true }): URI;
+				override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+				override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+					return options?.preferLocal ? userHome : Promise.resolve(userHome);
+				}
+			},
+			logService,
+		));
+		discovery.start(enablementModel);
+
+		const initialPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v1');
+		assert.ok(initialPlugins);
+		await waitForState(initialPlugins[0].skills, skills => skills.length === 1);
+
+		await fileService.move(pluginUri, backupUri);
+		await fileService.move(stagingUri, pluginUri);
+
+		const updatedPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0]?.label === 'spark-v2');
+		assert.ok(updatedPlugins);
+
+		assert.deepStrictEqual({
+			pluginWatcherCount: createWatcherSpy.callCount,
+			rootWatchers: watchSpy.getCalls().map(call => ({
+				resource: call.args[0].toString(),
+				recursive: call.args[1]?.recursive,
+			})),
+			labels: [initialPlugins[0].label, updatedPlugins[0].label],
+		}, {
+			pluginWatcherCount: 0,
+			rootWatchers: [{
+				resource: installedPluginsRoot.toString(),
+				recursive: true,
+			}],
 			labels: ['spark-v1', 'spark-v2'],
 		});
 	}));
