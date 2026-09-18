@@ -23,10 +23,11 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IProgress } from '../../../../../../platform/progress/common/progress.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { IDevContainerAgentHostConnector } from '../../../../../common/devContainerAgentHostService.js';
+import { IDevContainerAgentHostConnector, IDevContainerAgentHostProgress } from '../../../../../common/devContainerAgentHostService.js';
 import { DevContainerAgentHostService } from '../../browser/devContainerAgentHostService.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -628,6 +629,7 @@ suite('Dev Container Agent Host Service', () => {
 		const connection = new TestAgentConnection();
 		let connectorCalls = 0;
 		let connectorToken = CancellationToken.None;
+		let connectorProgress: IProgress<IDevContainerAgentHostProgress> | undefined;
 		const result = new DeferredPromise<{
 			address: string;
 			name: string;
@@ -636,18 +638,23 @@ suite('Dev Container Agent Host Service', () => {
 		}>();
 		store.add(service.registerConnector({
 			isAvailable: async () => true,
-			createConnection: async (_workspaceUri, _address, token) => {
+			createConnection: async (_workspaceUri, _address, token, progress) => {
 				connectorCalls++;
 				connectorToken = token;
+				connectorProgress = progress;
 				return result.p;
 			},
 		}));
 
-		const first = service.connect(sourceWorkspace, CancellationToken.None);
+		const firstProgress: IDevContainerAgentHostProgress[] = [];
+		const secondProgress: IDevContainerAgentHostProgress[] = [];
+		const first = service.connect(sourceWorkspace, CancellationToken.None, { report: value => firstProgress.push(value) });
+		connectorProgress?.report({ output: 'x'.repeat(70 * 1024) });
 		const secondTokenSource = store.add(new CancellationTokenSource());
-		const second = service.connect(sourceWorkspace, secondTokenSource.token);
+		const second = service.connect(sourceWorkspace, secondTokenSource.token, { report: value => secondProgress.push(value) });
 		secondTokenSource.cancel();
 		await assert.rejects(second, CancellationError);
+		connectorProgress?.report({ output: 'after cancellation' });
 		result.complete({
 			address,
 			name: 'Source Dev Container',
@@ -667,11 +674,21 @@ suite('Dev Container Agent Host Service', () => {
 			underlyingConnectionCanceled: connectorToken.isCancellationRequested,
 			removedAddress: remoteAgentHostService.removedAddress,
 			connectionDisposed: connection.disposed,
+			replayedOutputLength: secondProgress[0].output?.length,
+			secondProgressCount: secondProgress.length,
+			finalOutputLength: firstProgress.at(-1)?.output?.length,
+			finalOutputSuffix: firstProgress.at(-1)?.output?.slice(-18),
+			phases: [...new Set(firstProgress.map(value => value.message))],
 		}, {
 			connectorCalls: 1,
 			underlyingConnectionCanceled: false,
 			removedAddress: address,
 			connectionDisposed: true,
+			replayedOutputLength: 64 * 1024,
+			secondProgressCount: 1,
+			finalOutputLength: 64 * 1024,
+			finalOutputSuffix: 'after cancellation',
+			phases: ['Starting Dev Container...', 'Connecting to Dev Container...', 'Waiting for agents in Dev Container...'],
 		});
 	});
 

@@ -702,6 +702,63 @@
 	/* For the scroll down button */
 }
 
+.chat-transcript-progress-controls {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-transcript-progress-controls[hidden],
+.chat-transcript-progress-output[hidden],
+.chat-transcript-progress-controls > .monaco-button[hidden] {
+	display: none;
+}
+
+.chat-transcript-progress-output {
+	width: 100%;
+	min-width: 0;
+	pointer-events: auto;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-transcript-progress-output > summary {
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-transcript-progress-output > .monaco-scrollable-element {
+	margin-top: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-textCodeBlock-background);
+}
+
+.chat-transcript-progress-output-text {
+	box-sizing: border-box;
+	max-height: 160px;
+	margin: 0;
+	padding: var(--vscode-spacing-size80);
+	overflow: hidden;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	user-select: text;
+}
+
+.chat-transcript-progress-output > summary:focus-visible,
+.chat-transcript-progress-output-text:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-transcript-progress-controls > .monaco-button {
+	width: auto;
+	pointer-events: auto;
+}
+
 .hc-black .interactive-request,
 .hc-light .interactive-request {
 	border-left: 3px solid var(--vscode-chat-requestBorder);

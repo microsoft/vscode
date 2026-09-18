@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -36,7 +36,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -52,7 +52,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostProgress, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -3669,6 +3669,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 			WorkspaceNotTrustedError,
 		);
 		assert.strictEqual(connectCalls, 0);
+	});
+
+	test('Dev Container preparation exposes output and cancellation without committing the draft', async () => {
+		const connecting = new DeferredPromise<void>();
+		const pending = new DeferredPromise<never>();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> { return true; }
+				override async connect(_workspace: URI, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<never> {
+					progress?.report({ message: 'Building container...', output: 'Step 1\nStep 2\n' });
+					connecting.complete();
+					return raceCancellationError(pending.p, token);
+				}
+			}(),
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		provider.setDevContainerEnabled(session.sessionId, true);
+		const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello');
+		const rejected = assert.rejects(preparation, /Canceled/);
+		await connecting.p;
+		const progress = session.preparationProgress?.get();
+		const during = { message: progress?.message, output: progress?.output, status: session.status.get() };
+		progress?.cancel();
+		await rejected;
+		assert.deepStrictEqual({
+			during,
+			after: session.preparationProgress?.get(),
+			status: session.status.get(),
+			deletedDetachedWorktrees: agentHost.deletedDetachedWorktrees,
+		}, {
+			during: { message: 'Building container...', output: 'Step 1\nStep 2\n', status: SessionStatus.Untitled },
+			after: undefined,
+			status: SessionStatus.Untitled,
+			deletedDetachedWorktrees: ['00000000-0000-4000-8000-000000000001'],
+		});
 	});
 
 	test('waits for preferred Dev Container availability before preparing a request', async () => {

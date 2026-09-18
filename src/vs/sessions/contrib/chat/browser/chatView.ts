@@ -384,8 +384,11 @@ export class ChatView extends AbstractChatView {
 		this._register(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
+			const preparation = session?.preparationProgress?.read(reader);
 			const statusMessage = session
-				? getSessionStatusMessage(session.status.read(reader), session.description.read(reader))
+				? session.isNewSessionRequestInProgress?.read(reader)
+					? session.description.read(reader)
+					: getSessionStatusMessage(session.status.read(reader), session.description.read(reader))
 				: undefined;
 			const activity = typeof statusMessage === 'string' ? statusMessage : statusMessage ? renderAsPlaintext(statusMessage) : undefined;
 			const model = chatModel.read(reader);
@@ -411,8 +414,10 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity);
-			this._widget.setTranscriptProgress(progress, progress, showCompletion ? { complete: true } : undefined);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			this._widget.setTranscriptProgress(progress, progress, preparation
+				? { output: preparation.output, onCancel: preparation.cancel }
+				: showCompletion ? { complete: true } : undefined);
 		}));
 	}
 
@@ -479,7 +484,7 @@ export class ChatView extends AbstractChatView {
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full || session?.isNewSessionRequestInProgress?.read(reader) === true);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -750,6 +755,13 @@ export class ChatView extends AbstractChatView {
 	//#endregion
 
 	override focus(): void {
+		if (this._currentSessionObs.get()?.isNewSessionRequestInProgress?.get()) {
+			if (!this._widget.focusTranscriptProgress()) {
+				this.element.tabIndex = -1;
+				this.element.focus();
+			}
+			return;
+		}
 		this._widget.focusInput();
 	}
 

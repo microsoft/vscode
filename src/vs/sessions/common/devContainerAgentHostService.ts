@@ -9,6 +9,7 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IProgress } from '../../platform/progress/common/progress.js';
 
 /** Experimental setting that enables Dev Container Agent Host sessions. */
 export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
@@ -32,11 +33,17 @@ export interface IDevContainerAgentHostConnection {
 	readonly defaultDirectory?: string;
 }
 
+/** A startup phase update and/or an output chunk from the connector. */
+export interface IDevContainerAgentHostProgress {
+	readonly message?: string;
+	readonly output?: string;
+}
+
 /** Creates a Dev Container and connects to its Agent Host. */
 export interface IDevContainerAgentHostConnector {
 	/** Whether the workspace has a supported configuration and Docker is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<IDevContainerAgentHostConnection>;
 }
 
 /** Sessions provider and workspace selected after connecting a Dev Container. */
@@ -57,6 +64,7 @@ export interface IDevContainerAgentHostService {
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget>;
+	/** Reports the current phase and a bounded snapshot of startup output. */
+	connect(workspaceUri: URI, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<IDevContainerAgentHostTarget>;
 	disconnect(workspaceUri: URI): Promise<void>;
 }

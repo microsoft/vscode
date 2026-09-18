@@ -33,9 +33,10 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostProgress, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
@@ -310,7 +311,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		return getDevContainerEnvironment(workspaceUris, this._fileService, this._mainService);
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 		if (workspaceUri.scheme !== Schemas.file && !sourceEntry) {
@@ -331,6 +332,9 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		const workspaceFolder = devContainerSourcePath(workspaceUri);
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
 		const outputWriter = new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService);
+		const progressListener = progress ? Event.filter(mainService.onDidOutput, event => event.connectionId === connectionId)(
+			event => progress.report({ output: event.data })
+		) : undefined;
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
@@ -440,6 +444,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 			}
 			throw error;
 		} finally {
+			progressListener?.dispose();
 			cancellationListener.dispose();
 		}
 	}
