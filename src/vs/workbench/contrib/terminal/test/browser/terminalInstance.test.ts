@@ -941,20 +941,26 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should use process cwd when detected cwd is untrusted', async () => {
 			const instance = await createRealTerminalInstance({ processCwd: '/process' });
-			const result = await instance.getCwdResource();
+			const result = await instance.getCwdResourceForAuthorization();
 			strictEqual(result?.path, '/process');
 		});
 
 		test('should return undefined when detected cwd is untrusted and process cwd is unavailable', async () => {
 			const instance = await createRealTerminalInstance({});
-			const result = await instance.getCwdResource();
+			const result = await instance.getCwdResourceForAuthorization();
 			strictEqual(result, undefined);
 		});
 
 		test('should return undefined for untrusted cwd on Windows', async () => {
 			const instance = await createRealTerminalInstance({ processCwd: 'C:\\process', backendOS: OperatingSystem.Windows });
-			const result = await instance.getCwdResource();
+			const result = await instance.getCwdResourceForAuthorization();
 			strictEqual(result, undefined);
+		});
+
+		test('should preserve untrusted detected cwd for non-authorization callers', async () => {
+			const instance = await createRealTerminalInstance({ processCwd: '/process' });
+			const result = await instance.getCwdResource();
+			strictEqual(result?.path, '/spoofed');
 		});
 
 		test('should return URI.file for local terminal when file exists', async () => {

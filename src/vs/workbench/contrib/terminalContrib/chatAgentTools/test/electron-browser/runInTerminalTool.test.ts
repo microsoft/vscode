@@ -189,6 +189,7 @@ suite('RunInTerminalTool', () => {
 				onDisposedEmitter.fire(createdTerminalInstance);
 			},
 			getCwdResource: async () => undefined,
+			getCwdResourceForAuthorization: async () => undefined,
 			isDisposed: false,
 		} as unknown as ITerminalInstance;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
@@ -923,7 +924,7 @@ suite('RunInTerminalTool', () => {
 		const model = createChatModelWithRequest(sessionResource);
 		Object.defineProperty(model, 'workingDirectory', { value: URI.file('/workspace') });
 		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
-			instance: { ...createdTerminalInstance, getCwdResource: async () => undefined },
+			instance: { ...createdTerminalInstance, getCwdResourceForAuthorization: async () => undefined },
 			shellIntegrationQuality: ShellIntegrationQuality.Rich,
 			isBackground: false,
 		});

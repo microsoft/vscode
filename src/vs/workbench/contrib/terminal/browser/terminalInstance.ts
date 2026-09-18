@@ -2389,6 +2389,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async getCwdResource(): Promise<URI | undefined> {
+		return this._getValidatedCwdResource(this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd());
+	}
+
+	async getCwdResourceForAuthorization(): Promise<URI | undefined> {
 		const cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		let cwd = cwdDetection?.isTrusted ? cwdDetection.getCwd() : undefined;
 		if (!cwd && cwdDetection && !cwdDetection.isTrusted) {
@@ -2402,6 +2406,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return undefined;
 			}
 		}
+		return this._getValidatedCwdResource(cwd);
+	}
+
+	private async _getValidatedCwdResource(cwd: string | undefined): Promise<URI | undefined> {
 		if (!cwd) {
 			return undefined;
 		}
