@@ -190,7 +190,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (info) {
 				const signature = ts.displayPartsToString(info.displayParts);
-				const documentation = ts.displayPartsToString(info.documentation);
+				const documentation = displayPartsToMarkdown(info.documentation);
 				const tags = tagsToMarkdown(info.tags);
 
 				const parts: string[] = [];
@@ -456,9 +456,56 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 }
 
+function displayPartsToMarkdown(parts: readonly ts.SymbolDisplayPart[] | string | undefined): string {
+	if (!parts) {
+		return '';
+	}
+	if (typeof parts === 'string') {
+		return parts;
+	}
+
+	const result: string[] = [];
+	let currentLink: { name?: string; text?: string; linkcode: boolean } | undefined;
+	for (const part of parts) {
+		switch (part.kind) {
+			case 'link':
+				if (currentLink) {
+					const text = currentLink.text ?? currentLink.name;
+					if (text) {
+						if (/^https?:/.test(text)) {
+							const [url, ...labelParts] = text.split(' ');
+							const label = labelParts.join(' ') || url;
+							result.push(labelParts.length === 0 && !currentLink.linkcode ? `<${url}>` : `[${currentLink.linkcode ? `\`${label.replace(/`/g, '\\`')}\`` : label}](${url})`);
+						} else {
+							result.push(text.replace(/`/g, '\\`'));
+						}
+					}
+					currentLink = undefined;
+				} else {
+					currentLink = { linkcode: part.text === '{@linkcode ' };
+				}
+				break;
+			case 'linkName':
+				if (currentLink) {
+					currentLink.name = part.text;
+				}
+				break;
+			case 'linkText':
+				if (currentLink) {
+					currentLink.text = part.text;
+				}
+				break;
+			default:
+				result.push(part.text);
+				break;
+		}
+	}
+	return result.join('');
+}
+
 
 function tagToMarkdown(tag: ts.JSDocTagInfo): string {
-	const text = ts.displayPartsToString(tag.text);
+	const text = displayPartsToMarkdown(tag.text);
 	switch (tag.name) {
 		case 'param':
 		case 'template':
