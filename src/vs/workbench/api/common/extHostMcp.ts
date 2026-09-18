@@ -365,6 +365,7 @@ export class McpHTTPHandle extends Disposable {
 	private readonly _abortCtrl = new AbortController();
 	private _authMetadata?: AuthMetadata;
 	private _didSendClose = false;
+	private _didSendInitialized = false;
 
 	constructor(
 		private readonly _id: number,
@@ -384,8 +385,17 @@ export class McpHTTPHandle extends Disposable {
 
 	async send(message: string) {
 		try {
-			if (this._mode.value === HttpMode.Unknown) {
-				await this._requestSequencer.queue(() => this._send(message));
+			// Keep sends serialized until `notifications/initialized` has been
+			// delivered. Each message is a separate HTTP POST, so otherwise the
+			// notification and the first request that follows it race, and servers
+			// that track session state can reject the request as uninitialized.
+			if (this._mode.value === HttpMode.Unknown || !this._didSendInitialized) {
+				await this._requestSequencer.queue(async () => {
+					await this._send(message);
+					if (isInitializedNotification(message)) {
+						this._didSendInitialized = true;
+					}
+				});
 			} else {
 				await this._send(message);
 			}
@@ -951,6 +961,14 @@ function isJSON(str: string): boolean {
 	try {
 		JSON.parse(str);
 		return true;
+	} catch (e) {
+		return false;
+	}
+}
+
+function isInitializedNotification(message: string): boolean {
+	try {
+		return JSON.parse(message)?.method === 'notifications/initialized';
 	} catch (e) {
 		return false;
 	}
