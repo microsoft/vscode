@@ -29,15 +29,6 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
-          type: chat/changesetsChanged
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallStart
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          toolName: task
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallComplete
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}

@@ -18,7 +18,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { buildSessionArtifactSections, filterSessionArtifactGitHubRefsForChat, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
+import { type IChat, type IGitHubInfo, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('Session Artifacts', () => {
@@ -39,7 +39,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, pullRequests?: readonly IGitHubPullRequestRef[]) {
 		const artifacts = observableValue('artifacts', entries);
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
 		const chat = observableValue<IChat | undefined>('chat', new class extends mock<IChat>() {
@@ -63,6 +63,7 @@ suite('Session Artifacts', () => {
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly artifacts = artifacts;
 			override readonly workspace = workspace;
+			override readonly pullRequests = pullRequests ? constObservable(pullRequests) : undefined;
 		}());
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
@@ -234,6 +235,32 @@ suite('Session Artifacts', () => {
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['foreign-pr', 'gitlab-pr', 'foreign-issue', 'file'],
 			references: ['referenced-pr', 'foreign-pr-reference', 'referenced-issue'],
+		});
+	});
+
+	test('omits a peer-repository pull request promoted through the session collection', () => {
+		const chat = URI.parse('test-chat:/session#chat-a');
+		const link = URI.parse('https://github.com/octo/peer/pull/12');
+		const artifact: ISessionArtifact = {
+			id: 'peer-pr',
+			kind: SessionArtifactKind.PullRequest,
+			label: 'Peer PR',
+			isArtifact: true,
+			isGitHub: true,
+			link,
+			chat,
+		};
+		const { presentation } = createPresentation([artifact], undefined, [{
+			owner: 'octo',
+			repo: 'peer',
+			number: 12,
+			uri: link,
+			chat,
+		}]);
+
+		assert.deepStrictEqual(visibleEntries(presentation), {
+			artifacts: [],
+			references: [],
 		});
 	});
 

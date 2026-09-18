@@ -27,7 +27,7 @@ import { AgentHostTransportFailureReason } from '../../../../../platform/agentHo
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
-import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -837,6 +837,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
+	private readonly _changesetMetadata = observableValueOpts<readonly Changeset[] | undefined>({ owner: this, debugName: 'agentHostChangesetMetadata', equalsFn: structuralEquals }, undefined);
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly modelSource: ISettableObservable<ChatModelSource | undefined>;
 	modelSelection: ModelSelection | undefined;
@@ -1407,15 +1408,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				&& isEqual(activeSession.resource, this.resource)
 				&& isEqual(activeSession.activeChat.read(reader).resource, clientChatResource);
 		});
-		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
-			this._options,
-			isActiveChatObs,
-			StateComponents.Chat,
-			constObservable(backendChatResource),
-		);
 		const chatChangesetCatalog = derivedOpts<readonly Changeset[] | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const chatState = chatStateObs.read(reader).read(reader);
-			return chatState && !(chatState instanceof Error) ? chatState.changesets : undefined;
+			return this._changesetMetadata.read(reader)?.map(changeset => {
+				switch (changeset.changeKind) {
+					case ChangesetKind.Branch:
+						return { ...changeset, uriTemplate: buildBranchChangesetUri(backendChatResource.toString()) };
+					case ChangesetKind.Uncommitted:
+						return { ...changeset, uriTemplate: buildUncommittedChangesetUri(backendChatResource.toString()) };
+					default:
+						return changeset;
+				}
+			});
 		});
 		const workingDirectories = derivedOpts<readonly string[] | undefined>({ owner: this, equalsFn: structuralEquals }, reader =>
 			workspace.read(reader)?.folders.map(folder => folder.workingDirectory.toString()));
@@ -1966,7 +1969,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				: undefined,
 		} satisfies IAgentHostChangeset)));
 
-		this.changesets.set(changesets, undefined);
+		transaction(tx => {
+			this._changesetMetadata.set(changesetsMetadata, tx);
+			this.changesets.set(changesets, tx);
+		});
 	}
 
 	private _createCurrentTurnChangesObservable(): IObservable<readonly ISessionFileChange[] | undefined> {

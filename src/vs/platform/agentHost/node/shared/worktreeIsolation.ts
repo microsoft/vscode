@@ -1601,7 +1601,7 @@ function projectFromRepositoryRoot(repositoryRoot: URI): IAgentSessionProjectInf
 }
 
 /**
- * Builds  the repository {@link IAgentSessionProjectInfo} from a persisted
+ * Builds the repository {@link IAgentSessionProjectInfo} from a persisted
  * {@link WORKTREE_META_REPOSITORY_ROOT} value (a URI string), or `undefined`
  * when absent. Lets the host merge the repository project into a session's
  * catalog entry directly from a metadata batch it already read, without a

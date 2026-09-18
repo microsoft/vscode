@@ -851,11 +851,13 @@ suite('AgentHostGitStateService', () => {
 			assert.deepStrictEqual({
 				pullRequestUrl,
 				gitCalls: h.gitCalls,
+				gitBaseBranches: h.gitBaseBranches,
 				gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
 				gitHubState: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
 			}, {
 				pullRequestUrl: 'https://github.com/octo/peer/pull/1',
 				gitCalls: [peerWorkingDirectory.toString()],
+				gitBaseBranches: [undefined],
 				gitState: primaryGitState,
 				gitHubState: { owner: 'microsoft', repo: 'vscode' },
 			});

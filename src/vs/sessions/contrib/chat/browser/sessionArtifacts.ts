@@ -30,7 +30,7 @@ import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/cha
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, isSessionArtifactVisibleInChat, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getSessionGitHubPullRequestRefs, isSessionArtifactVisibleInChat, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { parseGitHubPullRequestUrl } from '../../github/common/utils.js';
 
@@ -323,7 +323,7 @@ export class SessionArtifacts extends Disposable {
 			locationFormatting.read(reader);
 			const gitHubInfo = current.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const surfacedLinks = new Set([
-				...filterSessionArtifactGitHubRefsForChat(getGitHubPullRequestRefs(gitHubInfo), artifacts, SessionArtifactKind.PullRequest, chatResource),
+				...filterSessionArtifactGitHubRefsForChat(getSessionGitHubPullRequestRefs(current, reader), artifacts, SessionArtifactKind.PullRequest, chatResource),
 				...filterSessionArtifactGitHubRefsForChat(gitHubInfo?.issues ?? [], artifacts, SessionArtifactKind.Issue, chatResource),
 			].map(ref => linkKey(ref.uri.toString())));
 			return buildSessionArtifactSections(

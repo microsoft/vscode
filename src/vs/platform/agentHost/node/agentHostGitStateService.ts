@@ -92,7 +92,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		try {
-			const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
+			const primaryWorkingDirectory = state.workingDirectories?.[0];
+			const baseBranchName = primaryWorkingDirectory && isEqual(URI.parse(primaryWorkingDirectory), workingDirectory)
+				? await this.resolveSessionBaseBranchName(sessionKey)
+				: undefined;
 			const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
 			const branchName = gitState?.branchName;
 			const owner = gitState?.githubOwner;

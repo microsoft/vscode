@@ -16,7 +16,7 @@ import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotations
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { buildBranchChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
 import { buildAnnotationsUri, isAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
 import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/state/protocol/state.js';
@@ -88,7 +88,6 @@ interface IChatEntry {
 	readonly session: string;
 	summary: ChatSummary;
 	state?: ChatState;
-	changesets?: readonly Changeset[];
 	providerData?: string;
 	inheritedTurnId?: string;
 	draft?: Message;
@@ -568,7 +567,6 @@ export class AgentHostStateManager extends Disposable {
 					...createChatState(entry.summary),
 					turns: restored.turns,
 					draft: restored.draft ?? entry.draft,
-					changesets: entry.changesets ? [...entry.changesets] : undefined,
 				};
 				entry.resolver = undefined;
 				if (restored.turns.length > 0) {
@@ -1117,9 +1115,7 @@ export class AgentHostStateManager extends Disposable {
 				...createChatState(chatSummary),
 				turns: turns ?? [],
 				draft,
-				changesets: this._changesetsForChat(chatUri, this._sessionStates.get(sessionKey)?.state.changesets),
 			},
-			changesets: this._changesetsForChat(chatUri, this._sessionStates.get(sessionKey)?.state.changesets),
 			valid: true,
 		});
 		const entry = this._sessionStates.get(sessionKey);
@@ -1186,9 +1182,7 @@ export class AgentHostStateManager extends Disposable {
 			state: {
 				...createChatState(chatSummary),
 				turns: options?.turns ?? [],
-				changesets: this._changesetsForChat(chatUri, sessionState.changesets),
 			},
-			changesets: this._changesetsForChat(chatUri, sessionState.changesets),
 			providerData: options?.providerData,
 			inheritedTurnId: options?.inheritedTurnId,
 			valid: true,
@@ -1236,7 +1230,6 @@ export class AgentHostStateManager extends Disposable {
 		this._chatEntries.set(chatUri, {
 			session,
 			summary: chatSummary,
-			changesets: this._changesetsForChat(chatUri, sessionState.changesets),
 			providerData: options.providerData,
 			inheritedTurnId: options.inheritedTurnId,
 			draft: options.draft,
@@ -1559,34 +1552,6 @@ export class AgentHostStateManager extends Disposable {
 		this.dispatchServerAction(session, {
 			type: ActionType.SessionChangesetsChanged,
 			changesets: next,
-		});
-
-		for (const chat of entry.state.chats) {
-			const chatEntry = this._chatEntries.get(chat.resource);
-			if (!chatEntry) {
-				continue;
-			}
-			const chatChangesets = this._changesetsForChat(chat.resource, next);
-			chatEntry.changesets = chatChangesets;
-			if (chatEntry.state) {
-				this.dispatchServerAction(chat.resource, {
-					type: ActionType.ChatChangesetsChanged,
-					changesets: chatChangesets,
-				});
-			}
-		}
-	}
-
-	private _changesetsForChat(chat: URI, changesets: readonly Changeset[] | undefined): Changeset[] | undefined {
-		return changesets?.map(changeset => {
-			switch (changeset.changeKind) {
-				case ChangesetKind.Branch:
-					return { ...changeset, uriTemplate: buildBranchChangesetUri(chat) };
-				case ChangesetKind.Uncommitted:
-					return { ...changeset, uriTemplate: buildUncommittedChangesetUri(chat) };
-				default:
-					return { ...changeset };
-			}
 		});
 	}
 

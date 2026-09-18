@@ -219,7 +219,7 @@ suite('Artifact Server Tools', () => {
 				routableNames: enabled ? [...names, ...legacyNames] : [],
 			});
 			if (enabled) {
-				assert.strictEqual(await execute(ArtifactServerToolName.ListArtifactsAndReferences), 'No artifacts or references recorded for this session.');
+				assert.strictEqual(await execute(ArtifactServerToolName.ListArtifactsAndReferences), 'No artifacts or references recorded for this chat.');
 			} else {
 				for (const name of [...names, ...legacyNames]) {
 					await assert.rejects(() => execute(name, {}), /is disabled/);
@@ -270,7 +270,7 @@ suite('Artifact Server Tools', () => {
 	});
 
 	test('promotes an existing reference in one batch without changing its id or downgrading it', async () => {
-		const { execute, artifacts, persisted } = createHarness();
+		const { execute, artifacts, persisted, sessionUri } = createHarness();
 		const reference = { type: 'issue', label: 'Investigated issue', isArtifact: false, link: 'https://github.com/microsoft/vscode/issues/1' };
 		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [reference] });
 		const id = artifacts()[0].id;
@@ -289,13 +289,13 @@ suite('Artifact Server Tools', () => {
 		}, {
 			result: [`Promoted artifact: ${id}`, `Already recorded: ${id}`, `Already recorded: ${id}`].join('\n'),
 			repeated: `Already recorded: ${id}`,
-			artifacts: [{ ...artifact, id, isGitHub: true }],
+			artifacts: [{ ...artifact, id, chat: buildDefaultChatUri(sessionUri), isGitHub: true }],
 			persistCalls: 2,
 		});
 	});
 
 	test('deduplicates and promotes entries within the same atomic batch', async () => {
-		const { execute, artifacts, persisted } = createHarness();
+		const { execute, artifacts, persisted, sessionUri } = createHarness();
 		const reference = { type: 'file', label: 'Report', isArtifact: false, uri: 'file:///repo/report.md' };
 		const result = await execute(ArtifactServerToolName.AddArtifactOrReference, {
 			items: [reference, { ...reference, isArtifact: true }, reference],
@@ -304,8 +304,8 @@ suite('Artifact Server Tools', () => {
 
 		assert.deepStrictEqual({ result, artifacts: artifacts(), persisted }, {
 			result: [`Added reference: ${id}`, `Promoted artifact: ${id}`, `Already recorded: ${id}`].join('\n'),
-			artifacts: [{ ...reference, id, isArtifact: true }],
-			persisted: [[{ ...reference, id, isArtifact: true }]],
+			artifacts: [{ ...reference, id, chat: buildDefaultChatUri(sessionUri), isArtifact: true }],
+			persisted: [[{ ...reference, id, chat: buildDefaultChatUri(sessionUri), isArtifact: true }]],
 		});
 	});
 
@@ -397,7 +397,7 @@ suite('Artifact Server Tools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
-		const group = createArtifactServerToolGroup({ isEnabled: () => true, persist: () => { } });
+		const group = createArtifactServerToolGroup({ isEnabled: () => true, useCompactPrompts: () => true, persist: () => { } });
 		const input = {
 			items: [{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' }],
 		};

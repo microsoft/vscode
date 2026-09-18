@@ -5898,7 +5898,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			} as IActiveSession, undefined);
 			agentHost.setChatState(peerChat, {
 				...makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
-				changesets: [peerBranchChangeset, peerUncommittedChangeset],
 				turns: [],
 			});
 			agentHost.setChangesetState(peerBranchChangeset.uriTemplate, {
