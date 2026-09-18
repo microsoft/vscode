@@ -408,6 +408,9 @@ export class SCMInputWidget {
 		}
 
 		const textModel = input.repository.provider.inputBoxTextModel;
+		if (textModel.isDisposed()) {
+			return;
+		}
 		this.inputEditor.setModel(textModel);
 
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
