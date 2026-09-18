@@ -112,11 +112,11 @@ suite('SessionPullRequestPillData', () => {
 		const visibility = createVisibility();
 		const removed: string[] = [];
 		const copyAction = toAction({ id: 'copy', label: 'Copy', run: () => { } });
-		const removeAction = toAction({ id: 'remove', label: 'Remove', run: () => { removed.push('open'); } });
+		const promotedAction = toAction({ id: 'remove', label: 'Remove', run: () => { removed.push('open'); } });
 		const input = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', [{
 			title: 'Pull Requests',
 			entries: [
-				{ id: 'open', label: 'Open', pullRequestState: 'open', toolbarActions: [copyAction], removeAction, open: () => { } },
+				{ id: 'open', label: 'Open', pullRequestState: 'open', toolbarActions: [copyAction], promotedAction, open: () => { } },
 				{ id: 'closed', label: 'Closed', pullRequestState: 'closed', open: () => { } },
 			],
 		}]);
