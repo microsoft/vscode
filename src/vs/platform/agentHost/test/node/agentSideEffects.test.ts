@@ -2814,6 +2814,7 @@ suite('AgentSideEffects', () => {
 			const cancellation = { type: ActionType.ChatTurnCancelled, turnId: 'never-started', duration: 0 } as const;
 			stateManager.dispatchClientAction(defaultChatUri, cancellation, { clientId: 'test', clientSeq: 2 });
 			persisting.handleAction(defaultChatUri, cancellation);
+			assert.deepStrictEqual(agent.abortSessionCalls, []);
 
 			assert.deepStrictEqual({
 				readChanges: readChangesFrom(envelopes),
@@ -2822,6 +2823,21 @@ suite('AgentSideEffects', () => {
 				readChanges: [],
 				isReadBitSet: true,
 			});
+		});
+
+		test('stale cancellation leaves a newer provider turn running', () => {
+			const { sideEffects: persisting } = setupPersisting();
+			setupSession();
+			disposables.add(persisting.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnStarted, turnId: 'newer', startedAt: '2025-01-01T00:00:00.000Z', message: { text: '', origin: { kind: MessageKind.Agent } } },
+			});
+			const cancellation = { type: ActionType.ChatTurnCancelled, turnId: 'older', duration: 0 } as const;
+			stateManager.dispatchClientAction(defaultChatUri, cancellation, { clientId: 'test', clientSeq: 2 });
+			persisting.handleAction(defaultChatUri, cancellation);
+			assert.deepStrictEqual(agent.abortSessionCalls, []);
+			assert.strictEqual(stateManager.getActiveTurnId(defaultChatUri), 'newer');
 		});
 
 		test('marks a read session unread when a turn errors', () => {
@@ -2853,6 +2869,8 @@ suite('AgentSideEffects', () => {
 
 		test('calls abortSession on the agent', async () => {
 			setupSession();
+			startTurn('turn-1');
+			sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } });
 			const clientContext = {
 				clientType: AgentHostClientType.EditorWindow,
 				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
@@ -6354,6 +6372,7 @@ suite('AgentSideEffects', () => {
 		test('cancelSubagentSessions cancels all subagent chats', () => {
 			setupSession();
 			startTurn('turn-1', defaultChatUri);
+			sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hello', origin: { kind: MessageKind.User } } });
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Start two parent tool calls with subagents

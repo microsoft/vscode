@@ -11,6 +11,11 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
 import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
 
+/** Metadata key for an SDK-initiated turn's first persisted assistant message. */
+export function sdkInitiatedTurnKey(uuid: string): string {
+	return `claude.sdkInitiatedTurn.${uuid}`;
+}
+
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
  * (summary, cwd, timestamps) live on {@link SDKSessionInfo} and are
@@ -81,6 +86,38 @@ export class ClaudeSessionMetadataStore {
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) { }
+
+	async readSdkTurns(resource: URI, messageIds: readonly string[]): Promise<ReadonlyMap<string, string>> {
+		const ref = await this._sessionDataService.tryOpenDatabase(resource);
+		if (!ref) {
+			return new Map();
+		}
+		try {
+			const turns = new Map<string, string>();
+			for (let offset = 0; offset < messageIds.length; offset += 500) {
+				const ids = messageIds.slice(offset, offset + 500);
+				const metadata = await ref.object.getMetadataObject(Object.fromEntries(ids.map(id => [sdkInitiatedTurnKey(id), true])));
+				for (const id of ids) {
+					const turnId = metadata[sdkInitiatedTurnKey(id)];
+					if (turnId !== undefined) {
+						turns.set(id, turnId);
+					}
+				}
+			}
+			return turns;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	async writeSdkTurns(resource: URI, turns: ReadonlyMap<string, string>): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(resource);
+		try {
+			await ref.object.setMetadataValues(Object.fromEntries([...turns].map(([uuid, turnId]) => [sdkInitiatedTurnKey(uuid), turnId])));
+		} finally {
+			ref.dispose();
+		}
+	}
 
 	async hasKnownSession(session: URI): Promise<boolean> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);

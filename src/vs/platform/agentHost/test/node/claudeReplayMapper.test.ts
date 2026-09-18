@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState } from '../../common/state/protocol/state.js';
+import { isMessageRequestHiddenFromTranscript } from '../../common/state/sessionState.js';
 import { mapSessionMessagesToTurns, missingPromptPlaceholder, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
 
 suite('claudeReplayMapper', () => {
@@ -84,6 +85,17 @@ suite('claudeReplayMapper', () => {
 			message: { subtype, ...(text !== undefined ? { text } : {}) },
 		};
 	}
+
+	test('restores SDK-initiated boundaries and fork anchors', () => {
+		const messages = [makeUser('user', 'work'), makeAssistantText('answer', 'started'), makeAssistantText('background', 'finished')];
+		const boundaries = new Map([['background', 'sdk-turn']]);
+		const turns = mapSessionMessagesToTurns(messages, session, logService, boundaries);
+		assert.deepStrictEqual(turns.map(turn => turn.id), ['user', 'sdk-turn']);
+		assert.strictEqual(turns[1].message.origin.kind, 'agent');
+		assert.strictEqual(isMessageRequestHiddenFromTranscript(turns[1].message), true);
+		assert.strictEqual(resolveForkAnchorUuid(messages, 'user', boundaries), 'answer');
+		assert.strictEqual(resolveForkAnchorUuid(messages, 'sdk-turn', boundaries), 'background');
+	});
 
 	test('Fixture 1: single text turn', () => {
 		const messages: SessionMessage[] = [

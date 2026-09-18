@@ -22,6 +22,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
+import { sdkInitiatedTurnKey } from './claudeSessionMetadataStore.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
@@ -248,7 +249,7 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	private readonly _router: ClaudeSdkMessageRouter;
 
-	private _sdkInitiatedTurn: { turnId: string; stopWatch: StopWatch } | undefined;
+	private _sdkInitiatedTurn: { turnId: string; stopWatch: StopWatch; persisted?: boolean } | undefined;
 
 	constructor(
 		readonly sessionId: string,
@@ -256,7 +257,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
-		dbRef: IReference<ISessionDatabase>,
+		private readonly _dbRef: IReference<ISessionDatabase>,
 		subagents: SubagentRegistry,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -277,7 +278,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, resource, this._dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -727,6 +728,15 @@ export class ClaudeSdkPipeline extends Disposable {
 					}
 				}
 				this._adoptSdkTurn(message);
+				const sdkTurn = this._sdkInitiatedTurn;
+				if (sdkTurn && !sdkTurn.persisted && message.type === 'assistant' && message.parent_tool_use_id === null) {
+					await this._dbRef.object.setMetadata(sdkInitiatedTurnKey(message.uuid), sdkTurn.turnId);
+					if (this._abortController.signal.aborted) {
+						throw new CancellationError();
+					}
+					sdkTurn.persisted = true;
+				}
+
 				const parent = this._queue.peekParent();
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
@@ -743,11 +753,13 @@ export class ClaudeSdkPipeline extends Disposable {
 				if (message.type === 'result') {
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
-					// Final result: queue fully drained → protocol turn done.
+					// Final result for this protocol turn completes it.
 					// Intermediate result (still pending entries from a
 					// steering preempt) does NOT fire ChatTurnComplete.
-					if (completed && this._queue.isEmpty) {
-						this._sdkInitiatedTurn = undefined;
+					if (completed && !this._queue.hasPendingTurn(completed.turnId)) {
+						if (this._sdkInitiatedTurn?.turnId === completed.turnId) {
+							this._sdkInitiatedTurn = undefined;
+						}
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							resource: this.chatChannelUri,

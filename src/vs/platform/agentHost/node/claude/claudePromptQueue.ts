@@ -109,15 +109,7 @@ export class ClaudePromptQueue extends Disposable {
 		return entry.deferred.p;
 	}
 
-	/**
-	 * Register a turn the SDK started on its own — one the client never
-	 * sent (e.g. the model resuming after a background task finishes).
-	 * Seeds an in-flight entry so {@link peekParent} tags the turn's actions
-	 * with `turnId` and {@link settleHead} fires its completion on `result`.
-	 * The entry goes straight onto the yielded list, never `_toYield`, so
-	 * nothing is handed to the SDK. No-op (returns false) if a turn is
-	 * already in flight.
-	 */
+	/** Register an SDK-initiated turn without yielding a prompt. Returns false while another turn is pending. */
 	adoptUnsolicited(turnId: string): boolean {
 		if (this._toYield.length > 0 || this._yielded.length > 0) {
 			return false;
@@ -145,27 +137,25 @@ export class ClaudePromptQueue extends Disposable {
 		return this._yielded[0] ?? this._toYield[this._toYield.length - 1];
 	}
 
-	/**
-	 * Pop the head of the yielded list. If the queue is now fully
-	 * drained (no more pending or in-flight entries), batch-complete
-	 * every popped-but-deferred deferred from this turn including the
-	 * one we just popped. Otherwise hold the popped entry's deferred
-	 * until the turn ends — the M10 invariant for steering preempt.
-	 * Called by the consumer on every `result` message.
-	 */
+	/** Whether a prompt for this protocol turn is queued or in flight. */
+	hasPendingTurn(turnId: string): boolean {
+		return this._toYield.some(entry => entry.turnId === turnId) || this._yielded.some(entry => entry.turnId === turnId);
+	}
+
+	/** Settle the oldest result, completing deferreds when its protocol turn drains. */
 	settleHead(): PendingSdkTurn | undefined {
 		const completed = this._yielded.shift();
 		if (!completed) {
 			return undefined;
 		}
-		if (this.isEmpty) {
+		if (!this.hasPendingTurn(completed.turnId)) {
 			completed.deferred.complete();
 			for (const e of this._popped) {
-				if (!e.deferred.isSettled) {
+				if (e.turnId === completed.turnId && !e.deferred.isSettled) {
 					e.deferred.complete();
 				}
 			}
-			this._popped = [];
+			this._popped = this._popped.filter(entry => entry.turnId !== completed.turnId);
 		} else {
 			this._popped.push(completed);
 		}

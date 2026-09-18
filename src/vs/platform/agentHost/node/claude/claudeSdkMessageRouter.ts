@@ -13,7 +13,7 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
-import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { ClaudeMapperState, mapSDKMessageToAgentSignals, resolveSdkMessageTurnId } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 interface IClaudeSdkMessageContext {
@@ -66,7 +66,8 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	}
 
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
-		if (message.type === 'assistant') {
+		turnId = resolveSdkMessageTurnId(message, turnId, this._subagents);
+		if (message.type === 'assistant' && turnId !== undefined) {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);

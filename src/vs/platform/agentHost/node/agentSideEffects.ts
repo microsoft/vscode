@@ -1486,22 +1486,18 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
-				const endedTurn = this._completeTurn(channel, action.turnId, 'cancelled');
+				if (!this._completeTurn(channel, action.turnId, 'cancelled')) {
+					break;
+				}
 				this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, action.turnId));
 				this._toolCallTracker.clearSession(channel);
-				// Keep client cancellations aligned with the agent-signal cancellation path,
-				// but only when a turn actually ended: the reducer no-ops a stale or duplicate
-				// cancellation, and reporting one would mark a read session unread for a turn
-				// that never stopped.
-				if (endedTurn) {
-					this._chatContributions.turnEnd({
-						session: sessionChannel,
-						channel,
-						turnId: action.turnId,
-						reason: { kind: 'cancelled' },
-						clientContext,
-					});
-				}
+				this._chatContributions.turnEnd({
+					session: sessionChannel,
+					channel,
+					turnId: action.turnId,
+					reason: { kind: 'cancelled' },
+					clientContext,
+				});
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);

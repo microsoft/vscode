@@ -209,6 +209,7 @@ interface IClaudeChatBacking {
 interface IClaudeInheritedConversation {
 	readonly sdkSessionId?: string;
 	readonly inheritedTurnId?: string;
+	readonly sdkTurns?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -1089,7 +1090,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			}
 
 			const messages = await this._sdkService.getSessionMessages(sdkSessionId, { includeSystemMessages: true });
-			const anchor = resolveForkAnchorUuid(messages, turnId);
+			const sdkTurns = await this._metadataStore.readSdkTurns(current.resource, messages.map(message => message.uuid));
+			const anchor = resolveForkAnchorUuid(messages, turnId, sdkTurns);
 			if (anchor === undefined) {
 				throw new Error(`Cannot truncate session ${sdkSessionId}: turn ${turnId} not found in transcript`);
 			}
@@ -1425,7 +1427,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const forked = await this._forkChat(options.fork);
 		return {
-			...(forked ? { sdkSessionId: forked.sessionId } : {}),
+			...(forked ? { sdkSessionId: forked.sessionId, sdkTurns: forked.sdkTurns } : {}),
 			...(forked?.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
 		};
 	}
@@ -1450,6 +1452,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		options?: IAgentCreateChatOptions,
 	): Promise<IAgentCreateChatResult> {
 		const { sdkSessionId } = inherited;
+		if (inherited.sdkTurns?.size) {
+			await this._metadataStore.writeSdkTurns(context.resource, inherited.sdkTurns);
+		}
 		// The source's settings live under its own exact persistence resource —
 		// the same key its own overlay was written under (see the write below
 		// and `_persistSessionOverlay`) — never the shared configuration scope.
@@ -1650,22 +1655,25 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the source's sequencer would park the new chat behind the very turn it
 	 * branches from. The SDK's flushed transcript is read-only here.
 	 */
-	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined } | undefined> {
+	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined; sdkTurns: ReadonlyMap<string, string> } | undefined> {
 		const sourceSdkId = this._sourceChatSdkId(fork.source);
 		if (!sourceSdkId) {
 			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK chat; creating fresh chat`);
 			return undefined;
 		}
 		const messages = await this._sdkService.getSessionMessages(sourceSdkId, { includeSystemMessages: true });
-		const upToMessageId = resolveForkAnchorUuid(messages, fork.turnId);
+		const resource = this._sourceChatScope(fork.source)?.resource ?? fork.source;
+		const sdkTurns = await this._metadataStore.readSdkTurns(resource, messages.map(message => message.uuid));
+		const upToMessageId = resolveForkAnchorUuid(messages, fork.turnId, sdkTurns);
 		if (upToMessageId === undefined) {
 			this._logService.warn(`[Claude] createChat fork: turn ${fork.turnId} not found in source ${sourceSdkId}; creating fresh chat`);
 			return undefined;
 		}
 		const { sessionId } = await this._sdkService.forkSession(sourceSdkId, { upToMessageId });
 		const anchorIndex = messages.findIndex(message => message.uuid === upToMessageId);
-		const inheritedTurns = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService);
-		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id };
+		const inheritedTurns = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService, sdkTurns);
+		const inheritedIds = new Set(messages.slice(0, anchorIndex + 1).map(message => message.uuid));
+		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id, sdkTurns: new Map([...sdkTurns].filter(([id]) => inheritedIds.has(id))) };
 	}
 
 
@@ -1940,7 +1948,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!context.sdkSessionId) {
 			return [];
 		}
-		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents, context.resource);
 	}
 
 	/**
@@ -1969,7 +1977,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const subagents = parentSession?.subagents ?? store.add(new SubagentRegistry());
 		try {
 			if (!parentSession) {
-				await this._reconstructTurns(parentSessionId, parentChat, subagents);
+				await this._reconstructTurns(parentSessionId, parentChat, subagents, this._sourceChatScope(parentChat)?.resource ?? parentChat);
 			}
 			return await getSubagentTranscript(context.chat, parentChat, parentSessionId, spawnedFrom.toolCallId, subagents, this._sdkService, this._logService, CancellationToken.None);
 		} catch (err) {
@@ -1987,7 +1995,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * SDK encoded in Task tool_result blocks. Resilient: any failure warn-logs
 	 * and returns `[]` rather than propagating.
 	 */
-	private async _reconstructTurns(sdkSessionId: string, routingUri: URI, subagents: SubagentRegistry | undefined): Promise<readonly Turn[]> {
+	private async _reconstructTurns(sdkSessionId: string, routingUri: URI, subagents: SubagentRegistry | undefined, resource: URI): Promise<readonly Turn[]> {
 		let messages;
 		try {
 			messages = await this._sdkService.getSessionMessages(sdkSessionId, { includeSystemMessages: true });
@@ -1997,7 +2005,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		let turns: readonly Turn[];
 		try {
-			turns = mapSessionMessagesToTurns(messages, routingUri, this._logService);
+			const sdkTurns = await this._metadataStore.readSdkTurns(resource, messages.map(message => message.uuid));
+			turns = mapSessionMessagesToTurns(messages, routingUri, this._logService, sdkTurns);
 		} catch (err) {
 			// Defensive boundary: a single malformed SDK message must not
 			// blow up the entire transcript read.

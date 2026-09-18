@@ -67,6 +67,16 @@ suite('ClaudePromptQueue', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('settles an adopted turn while a different turn is queued', () => {
+		const { queue } = createQueue(disposables);
+		assert.strictEqual(queue.adoptUnsolicited('background'), true);
+		const adopted = queue.peekParent()!;
+		void queue.push(makeEntry('next', { turnId: 'next-turn' })).catch(() => { });
+		assert.strictEqual(queue.settleHead(), adopted);
+		assert.strictEqual(adopted.deferred.isSettled, true);
+		queue.failAll(new Error('cleanup'));
+	});
+
 	test('push then iterable yields then settleHead resolves the deferred', async () => {
 		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();

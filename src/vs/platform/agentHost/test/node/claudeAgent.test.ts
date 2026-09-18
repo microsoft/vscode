@@ -477,6 +477,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * deterministically. Resolves immediately when undefined.
 	 */
 	queryAdvance: ((index: number) => Promise<void>) | undefined;
+	promptReceived: ((message: SDKUserMessage) => void) | undefined;
 
 	/**
 	 * Optional gate awaited by {@link FakeQuery.return}. Models the SDK's
@@ -843,6 +844,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 					return;
 				}
 				this.drainedPrompts.push(r.value);
+				this._sdk.promptReceived?.(r.value);
 			}
 		})();
 	}
@@ -11176,6 +11178,70 @@ suite('ClaudeAgent — SDK-initiated turns', () => {
 			assert.strictEqual(state.activeTurn, undefined);
 		});
 	}
+
+	test('completes a background turn before a queued prompt and restores its boundary after release', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk } = createTestContext(disposables, { database });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sid = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const ready = new DeferredPromise<void>();
+		const advance = new DeferredPromise<void>();
+		const received = new DeferredPromise<void>();
+		const completed: string[] = [];
+		let backgroundId: string | undefined;
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind !== 'action') { return; }
+			if (signal.action.type === ActionType.ChatTurnStarted) { backgroundId = signal.action.turnId; }
+			if (signal.action.type === ActionType.ChatTurnComplete) { completed.push(signal.action.turnId); }
+		}));
+		const background = makeAssistantMessage(sid, [{ type: 'text', text: 'background done', citations: [] }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), background, makeResultSuccess(sid), makeResultSuccess(sid)];
+		sdk.queryAdvance = async index => {
+			if (index === 3) { ready.complete(); await advance.p; }
+		};
+		await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await ready.p;
+		sdk.promptReceived = () => received.complete();
+		const next = agent.chats.sendMessage(chat, 'next', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
+		await received.p;
+		advance.complete();
+		await next;
+		assert.ok(backgroundId);
+		assert.deepStrictEqual(completed, ['turn-1', backgroundId, 'turn-2']);
+
+		const prompt = sdk.warmQueries[0].produced!.drainedPrompts[0];
+		sdk.sessionMessagesById.set(sid, [
+			{ ...prompt, uuid: prompt.uuid!, session_id: sid, parent_agent_id: null },
+			{ ...background, parent_agent_id: null },
+		]);
+		await releaseDefaultChat(agent, created.session);
+		const cold = createTestContext(disposables, { database });
+		cold.sdk.sessionMessagesById.set(sid, sdk.sessionMessagesById.get(sid)!);
+		await cold.agent.materializeChat(chat, chatContext(chat), JSON.stringify({ sdkSessionId: sid }));
+		const restored = await cold.agent.chats.getMessages(chat, chatContext(chat));
+		assert.deepStrictEqual(restored.map(turn => turn.id), [prompt.uuid, backgroundId]);
+		assert.strictEqual(restored[1].message.origin?.kind, MessageKind.Agent);
+		assert.ok(restored[1].responseParts.some(part => part.kind === ResponsePartKind.Markdown && part.content === 'background done'));
+		await cold.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		cold.sdk.forkSessionResult = { sessionId: 'forked-background' };
+		cold.sdk.sessionList = [{ sessionId: 'forked-background', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		const fork = await createSession(cold.agent, {}, { fork: { source: chat, turnId: backgroundId } });
+		assert.deepStrictEqual(cold.sdk.forkSessionCalls[0], { sessionId: sid, options: { upToMessageId: background.uuid } });
+		cold.sdk.sessionMessagesById.set(fork.sdkSessionId, sdk.sessionMessagesById.get(sid)!);
+		const forkChat = defaultChatUri(fork.session);
+		const forkTurns = await cold.agent.chats.getMessages(forkChat, chatContext(forkChat));
+		assert.strictEqual(forkTurns.at(-1)?.id, backgroundId);
+		assert.strictEqual(database.setMetadataCalls.filter(call => call.value === backgroundId).length, 2);
+		cold.sdk.sessionList = [...cold.sdk.sessionList, { sessionId: sid, summary: 'source', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		await cold.agent.truncateChat(chat, backgroundId, chatContext(chat));
+		cold.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+		await cold.agent.chats.sendMessage(chat, 'after truncate', undefined, undefined, 'turn-3', undefined, undefined, chatContext(chat));
+		assert.strictEqual(cold.sdk.capturedStartupOptions.at(-1)?.resumeSessionAt, background.uuid);
+
+
+	});
 
 	for (const ending of ['client abort', 'abort during rebind', 'provider abort', 'stream failure', 'dispose'] as const) {
 		test(`SDK-initiated turn has exactly one terminal action on ${ending}`, async () => {
