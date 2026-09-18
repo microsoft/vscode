@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -57,7 +57,7 @@ import type { IAgentHostStorageService } from '../../node/agentHostStorageServic
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -2986,7 +2986,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(await predicate(), message);
 		}
 
-		async function setupTitleGeneration(copilotApiService: TestCopilotApiService, activeAgentTitleGeneration = false): Promise<{ svc: AgentService; agent: MockAgent; session: URI; db: TestSessionDatabase }> {
+		class TitleTestAgent extends MockAgent {
+			serverToolHost: IAgentServerToolHost | undefined;
+
+			setServerToolHost(host: IAgentServerToolHost): void {
+				this.serverToolHost = host;
+			}
+		}
+
+		async function setupTitleGeneration(copilotApiService: TestCopilotApiService, activeAgentTitleGeneration = false, deferredTitleGeneration = false): Promise<{ svc: AgentService; agent: TitleTestAgent; session: URI; db: TestSessionDatabase }> {
 			const db = new TestSessionDatabase();
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(createTestAgentService(
@@ -3000,8 +3008,11 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				copilotApiService,
 			));
-			getConfigurationService(svc).updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration });
-			const agent = new MockAgent('copilot');
+			getConfigurationService(svc).updateRootConfig({
+				[AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration,
+				[AgentHostDeferredTitleGenerationConfigKey]: deferredTitleGeneration,
+			});
+			const agent = new TitleTestAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
 			await svc.authenticate({
@@ -3539,6 +3550,113 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'active-agent fallback provenance should be persisted');
 
+		});
+
+		test('deferred title utility does not hold foreground answer or completion delivery', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			const pendingTitle = new DeferredPromise<string>();
+			copilotApiService.responsePromise = pendingTitle.p;
+			const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService, true, true);
+			const chat = buildDefaultChatUri(session);
+			const delivered: string[] = [];
+			disposables.add(svc.onDidAction(e => {
+				if (e.action.type === ActionType.ChatResponsePart || e.action.type === ActionType.ChatTurnComplete) {
+					delivered.push(e.action.type);
+				}
+			}));
+			getConfigurationService(svc).updateRootConfig({
+				[AgentHostActiveAgentTitleGenerationConfigKey]: false,
+				[AgentHostDeferredTitleGenerationConfigKey]: false,
+			});
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-01-01T00:00:00Z',
+				message: { text: 'Add dark mode', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'foreground send should proceed');
+			assert.deepStrictEqual({
+				utilityCalls: copilotApiService.utilityCalls.length,
+				title: await db.getMetadata('customTitle'),
+				explicitRenameAvailable: agent.serverToolHost?.getDefinitionsForSession(session.toString()).find(tool => tool.name === SessionServerToolName.RenameChat)?.description?.includes('when the user explicitly asks'),
+			}, { utilityCalls: 0, title: 'Add dark mode', explicitRenameAvailable: true });
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(chat),
+				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Dark mode is implemented.' } },
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(chat),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 },
+			});
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'background refinement should start');
+			assert.deepStrictEqual({
+				delivered,
+				pendingTitle: !pendingTitle.isSettled,
+				turnState: getStateManager(svc).getSessionState(session.toString())?.turns[0].state,
+			}, {
+				delivered: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+				pendingTitle: true, turnState: TurnState.Complete,
+			});
+			await pendingTitle.complete('Dark mode setting');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Dark mode setting', 'background title should persist');
+		});
+
+		for (const phase of ['before', 'during', 'after'] as const) {
+			test(`explicit rename_chat wins ${phase} deferred title generation`, async () => {
+				const copilotApiService = new TestCopilotApiService();
+				const pendingTitle = new DeferredPromise<string>();
+				copilotApiService.responsePromise = pendingTitle.p;
+				const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService, false, true);
+				const chat = buildDefaultChatUri(session);
+				svc.dispatchAction(chat, {
+					type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-01-01T00:00:00Z',
+					message: { text: 'Add dark mode', origin: { kind: MessageKind.User } },
+				}, 'test-client', 1);
+				await waitForCondition(() => agent.sendMessageCalls.length === 1, 'foreground send should proceed');
+				const rename = () => agent.serverToolHost!.executeTool(chat, SessionServerToolName.RenameChat, { title: 'User chosen title' });
+				if (phase === 'before') {
+					await rename();
+				}
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(chat),
+					action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Done' } },
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(chat),
+					action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 },
+				});
+				if (phase !== 'before') {
+					await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+				}
+				if (phase === 'during') {
+					await rename();
+				}
+				await pendingTitle.complete('Automatic title');
+				if (phase === 'after') {
+					await waitForCondition(async () => await db.getMetadata('customTitle') === 'Automatic title', 'refinement should finish');
+					await rename();
+				}
+				assert.deepStrictEqual({
+					title: getStateManager(svc).getSessionState(session.toString())?.title,
+					persistedTitle: await db.getMetadata('customTitle'),
+					source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+					calls: copilotApiService.utilityCalls.length,
+				}, { title: 'User chosen title', persistedTitle: 'User chosen title', source: AGENT_HOST_TITLE_SOURCE_AGENT, calls: phase === 'before' ? 0 : 1 });
+			});
+		}
+
+		test('deferred naming preserves local /rename without starting utility work', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			const { svc, agent, session, db } = await setupTitleGeneration(copilotApiService, false, true);
+			svc.dispatchAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnStarted, turnId: 'rename-turn', startedAt: '2026-01-01T00:00:00Z',
+				message: { text: '/rename Chosen title', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Chosen title', 'local rename should persist');
+			assert.deepStrictEqual({
+				title: getStateManager(svc).getSessionState(session.toString())?.title,
+				utilityCalls: copilotApiService.utilityCalls.length,
+				foregroundCalls: agent.sendMessageCalls.length,
+			}, { title: 'Chosen title', utilityCalls: 0, foregroundCalls: 0 });
 		});
 
 		test('leaves fallback title when AI title generation fails', async () => {

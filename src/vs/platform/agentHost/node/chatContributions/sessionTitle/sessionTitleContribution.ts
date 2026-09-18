@@ -31,11 +31,11 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		if (turn.reason.kind !== 'success') {
+		if (turn.reason.kind === 'localCommand') {
 			return;
 		}
-		const chat = isAhpChatChannel(turn.channel) && !isDefaultChatUri(turn.channel) ? turn.channel : undefined;
-		this._titleController.refineTitleFromFirstTurn(turn.session, chat);
+		const chat = isAhpChatChannel(turn.channel) ? turn.channel : undefined;
+		this._titleController.refineTitleFromFirstTurn(turn.session, chat, turn.reason.kind === 'success');
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
@@ -74,6 +74,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	 * catalog-registration time so a restored peer chat shows its title before its turns load.
 	 */
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		await this._titleController.restoreTitleGenerationStrategy(context.session, context.chat);
 		if (restored.title !== undefined) {
 			return restored;
 		}

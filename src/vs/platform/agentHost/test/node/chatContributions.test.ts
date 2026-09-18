@@ -77,6 +77,10 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	readonly seededTitles: string[] = [];
 	readonly provisionalTitles: string[] = [];
 	readonly renamedTitles: { channel: string; chatChannel: string | undefined }[] = [];
+	readonly refinedTitles: { channel: string; chatChannel: string | undefined; successful: boolean }[] = [];
+
+	getAutomaticTitleGenerationStrategy(): 'utility' { return 'utility'; }
+	async restoreTitleGenerationStrategy(): Promise<void> { }
 
 	seedTitleFromFirstMessage(_channel: string, userPrompt: string): void {
 		this.seededTitles.push(userPrompt);
@@ -85,8 +89,11 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	seedProvisionalTitle(_channel: string, suggestedTitle: string): void {
 		this.provisionalTitles.push(suggestedTitle);
 	}
-	refineTitleFromFirstTurn(): void {
-		this._observed?.push('sessionTitle');
+	refineTitleFromFirstTurn(channel: string, chatChannel?: string, successful = true): void {
+		this.refinedTitles.push({ channel, chatChannel, successful });
+		if (successful) {
+			this._observed?.push('sessionTitle');
+		}
 	}
 	generateForkedTitle(): void { }
 	async generateExternalSessionTitle(): Promise<void> { }
@@ -1485,6 +1492,19 @@ suite('AgentHostChatContributions', () => {
 			secondPeer: false,
 			restored: false,
 		});
+	});
+
+	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {
+		const titles = createSessionTitleContributions(disposables);
+		const turn = { session: titles.session, channel: titles.defaultChat, turnId: 'turn-1' };
+		titles.service.turnEnd({ ...turn, reason: { kind: 'cancelled' } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'localCommand' } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'error', error: { errorType: 'test', message: 'Failed' }, resumable: false } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' } } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'success' } });
+		assert.deepStrictEqual(titles.titleController.refinedTitles, [false, false, false, true].map(successful => ({
+			channel: titles.session, chatChannel: titles.defaultChat, successful,
+		})));
 	});
 
 	test('updates and persists an independent chat title', async () => {
