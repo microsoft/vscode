@@ -197,14 +197,18 @@ export interface IAgentHostClientConnectionReport {
 	subscriptionCount?: number;
 }
 
+export type AgentHostProviderSendKind = 'message' | 'resume';
+export type AgentHostProviderSendOutcome = 'success' | 'prepareFailed' | 'sendFailed' | 'cancelled';
+
 export interface IAgentHostProviderSendBlockedEvent {
 	provider: string;
 	agentSessionId: string;
 	turnId: string;
+	sendKind: AgentHostProviderSendKind;
 	prepareBlockedMs: number;
 	sendBlockedMs: number;
+	outcome: AgentHostProviderSendOutcome;
 	isFirstSendOfSession: boolean;
-	sendFailed: boolean;
 	mcpServerCount: number;
 	mcpReadyCount: number;
 	mcpFailedCount: number;
@@ -223,22 +227,35 @@ export interface IAgentHostMcpReadinessReport {
 	readonly slowestServerMs: number | undefined;
 }
 
+export interface IAgentHostProviderSendBlockedReport {
+	readonly provider: string;
+	readonly session: string;
+	readonly turnId: string;
+	readonly sendKind: AgentHostProviderSendKind;
+	readonly prepareBlockedMs: number;
+	readonly sendBlockedMs: number;
+	readonly outcome: AgentHostProviderSendOutcome;
+	readonly isFirstSendOfSession: boolean;
+	readonly mcp: IAgentHostMcpReadinessReport;
+}
+
 export type IAgentHostProviderSendBlockedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
-	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn this send belongs to, so the phases can be joined to the turn and first-response timings.' };
-	prepareBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent preparing the turn before the provider send call, including the MCP inventory refresh that can wait on live server discovery.' };
-	sendBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the provider send call itself blocked before returning, excluding turn preparation.' };
-	isFirstSendOfSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this was the first send on a newly created provider session, where startup costs are paid.' };
-	sendFailed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the provider send call threw instead of returning normally.' };
-	mcpServerCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers observed for the session when the send returned.' };
-	mcpReadyCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had connected when the send returned.' };
-	mcpFailedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had failed when the send returned.' };
-	mcpUnresolvedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers still starting or awaiting authentication when the send returned.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn this dispatch belongs to, so the phases can be joined to the turn and first-response timings.' };
+	sendKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this dispatched a user or agent message, or resumed a turn with a zero-message continuation.' };
+	prepareBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent preparing the turn before the provider call, including the MCP inventory refresh that can wait on server discovery.' };
+	sendBlockedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the provider call itself blocked before returning, excluding turn preparation. Zero when preparation failed and the provider was never called.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the dispatch succeeded, was cancelled, or failed, and for a failure which phase it failed in.' };
+	isFirstSendOfSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this was the first dispatch on a newly created provider session, where startup costs are paid.' };
+	mcpServerCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers observed for the session when the dispatch ended.' };
+	mcpReadyCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had connected when the dispatch ended.' };
+	mcpFailedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that had failed when the dispatch ended.' };
+	mcpUnresolvedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers still starting or awaiting authentication when the dispatch ended.' };
 	mcpStoppedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of MCP servers that never started because they are disabled or not configured, and so contributed no startup time.' };
 	slowestMcpServerMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The longest startup any single MCP server took, in milliseconds; absent when no server startup was observed end to end.' };
 	owner: 'vijayupadya';
-	comment: 'Measures the turn-preparation and provider-send phases that precede provider execution, with the MCP server startup context they overlap.';
+	comment: 'Measures the turn-preparation and provider-dispatch phases that precede provider execution, with the MCP server startup context they overlap.';
 };
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
@@ -1064,27 +1081,28 @@ export class AgentHostTelemetryReporter {
 
 	/**
 	 * Reports the two phases that precede provider execution: turn preparation
-	 * (which awaits an MCP inventory refresh that can wait on live server
-	 * discovery) and the provider send call itself. Host turn timing covers
-	 * both inside its total but attributes neither, so a stall in one cannot
-	 * be told from a stall in the other. MCP counts describe the server startup
-	 * these phases overlap, which is the usual reason either is long.
+	 * (which awaits an MCP inventory refresh that can wait on server discovery)
+	 * and the provider call itself. Host turn timing covers both inside its
+	 * total but attributes neither, so a stall in one cannot be told from a
+	 * stall in the other. MCP counts describe the server startup these phases
+	 * overlap, which is the usual reason either is long.
 	 */
-	providerSendBlocked(provider: string, session: string, turnId: string, prepareBlockedMs: number, sendBlockedMs: number, isFirstSendOfSession: boolean, sendFailed: boolean, mcp: IAgentHostMcpReadinessReport): void {
+	providerSendBlocked(report: IAgentHostProviderSendBlockedReport): void {
 		this._telemetryService.publicLog2<IAgentHostProviderSendBlockedEvent, IAgentHostProviderSendBlockedClassification>('agentHost.providerSendBlocked', {
-			provider,
-			agentSessionId: AgentSession.id(session),
-			turnId,
-			prepareBlockedMs,
-			sendBlockedMs,
-			isFirstSendOfSession,
-			sendFailed,
-			mcpServerCount: mcp.serverCount,
-			mcpReadyCount: mcp.readyCount,
-			mcpFailedCount: mcp.failedCount,
-			mcpUnresolvedCount: mcp.unresolvedCount,
-			mcpStoppedCount: mcp.stoppedCount,
-			slowestMcpServerMs: mcp.slowestServerMs,
+			provider: report.provider,
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			sendKind: report.sendKind,
+			prepareBlockedMs: report.prepareBlockedMs,
+			sendBlockedMs: report.sendBlockedMs,
+			outcome: report.outcome,
+			isFirstSendOfSession: report.isFirstSendOfSession,
+			mcpServerCount: report.mcp.serverCount,
+			mcpReadyCount: report.mcp.readyCount,
+			mcpFailedCount: report.mcp.failedCount,
+			mcpUnresolvedCount: report.mcp.unresolvedCount,
+			mcpStoppedCount: report.mcp.stoppedCount,
+			slowestMcpServerMs: report.mcp.slowestServerMs,
 		});
 	}
 

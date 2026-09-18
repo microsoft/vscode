@@ -11,7 +11,7 @@ import { DeferredPromise, firstParallel, raceCancellation, raceTimeout, RunOnceS
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -70,7 +70,7 @@ import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
-import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, toInitiatorTelemetry, type AgentHostProviderSendKind, type AgentHostProviderSendOutcome, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
@@ -3063,21 +3063,25 @@ export class CopilotAgentSession extends Disposable {
 
 		const sdkAttachments = await this._toSdkAttachments(attachments);
 
-		// Preparation is timed separately from the send: it awaits several RPCs,
-		// including an MCP inventory refresh that can itself wait on live server
-		// discovery. Folding the two together would attribute a preparation stall
-		// to the provider call, or hide it entirely.
-		const prepareWatch = StopWatch.create(false);
-		await this._prepareSdkTurn(mode);
-		const prepareBlockedMs = Math.round(prepareWatch.elapsed());
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-		const sendingTurn = this._currentTurn.value;
-		sendingTurn?.markProviderCallPending();
+		// Preparation and the provider call are timed separately: preparation
+		// awaits several RPCs, including an MCP inventory refresh that can wait
+		// on server discovery. Folding them together would attribute a
+		// preparation stall to the provider call, or hide it. Both are inside
+		// one try so a failure in either phase still reports where it happened.
+		const phaseWatch = StopWatch.create(false);
+		let prepareBlockedMs = 0;
+		let sendBlockedMs = 0;
+		let outcome: AgentHostProviderSendOutcome = 'prepareFailed';
 		const isFirstSendOfSession = this._pendingFirstSend;
 		this._pendingFirstSend = false;
-		const sendWatch = StopWatch.create(false);
-		let sendFailed = false;
+		let sendingTurn: CopilotTurn | undefined;
 		try {
+			await this._prepareSdkTurn(mode);
+			prepareBlockedMs = Math.round(phaseWatch.elapsed());
+			outcome = 'sendFailed';
+			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
+			sendingTurn = this._currentTurn.value;
+			sendingTurn?.markProviderCallPending();
 			await this._otelService.withTraceContext(traceContext, () => {
 				if (!this._environmentService.isBuilt && prompt === '$error') {
 					return this._wrapper.session.rpc.sendMessages({
@@ -3088,38 +3092,47 @@ export class CopilotAgentSession extends Disposable {
 				return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 			});
 			sendingTurn?.markProviderCallResolved();
+			outcome = 'success';
 		} catch (error) {
-			sendFailed = true;
-			sendingTurn?.markProviderCallRejected();
+			if (outcome === 'sendFailed') {
+				sendingTurn?.markProviderCallRejected();
+			}
+			if (isCancellationError(error)) {
+				outcome = 'cancelled';
+			}
 			throw error;
 		} finally {
-			// Reported as two separate phases so a stall can be attributed. The
-			// send is the provider call alone; preparation precedes it and awaits
-			// an MCP inventory refresh that can wait on live server discovery.
-			// Host turn timing covers both in its total but attributes neither.
-			//
-			// Guarded because this runs in a `finally`: a throw from reporting here
-			// would replace the provider error the `catch` above is rethrowing,
-			// turning a real send failure into a telemetry failure.
-			try {
-				const sendBlockedMs = Math.round(sendWatch.elapsed());
-				const mcp = this._mcpReadiness.snapshot();
-				this._telemetryReporter.providerSendBlocked(
-					this._ownerSessionUri.scheme,
-					this._ownerSessionUri.toString(),
-					this._turnId,
-					prepareBlockedMs,
-					sendBlockedMs,
-					isFirstSendOfSession,
-					sendFailed,
-					mcp,
-				);
-				this._logService.info(`[Copilot:${this.sessionId}] send phases: prepare=${prepareBlockedMs}ms, send=${sendBlockedMs}ms (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
-			} catch (err) {
-				this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`);
-			}
+			sendBlockedMs = Math.round(phaseWatch.elapsed()) - prepareBlockedMs;
+			this._reportSendPhases('message', prepareBlockedMs, sendBlockedMs, outcome, isFirstSendOfSession);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	/**
+	 * Emits the preparation and provider-call phase timings for one dispatch.
+	 *
+	 * Guarded because callers invoke this from a `finally`: a throw from
+	 * reporting would replace the error being rethrown, turning a real provider
+	 * failure into a telemetry failure.
+	 */
+	private _reportSendPhases(sendKind: AgentHostProviderSendKind, prepareBlockedMs: number, sendBlockedMs: number, outcome: AgentHostProviderSendOutcome, isFirstSendOfSession: boolean): void {
+		try {
+			const mcp = this._mcpReadiness.snapshot();
+			this._telemetryReporter.providerSendBlocked({
+				provider: this._ownerSessionUri.scheme,
+				session: this._ownerSessionUri.toString(),
+				turnId: this._turnId,
+				sendKind,
+				prepareBlockedMs,
+				sendBlockedMs,
+				outcome,
+				isFirstSendOfSession,
+				mcp,
+			});
+			this._logService.info(`[Copilot:${this.sessionId}] ${sendKind} phases: prepare=${prepareBlockedMs}ms, send=${sendBlockedMs}ms, outcome=${outcome} (firstSend=${isFirstSendOfSession}, mcp=${JSON.stringify(mcp)})`);
+		} catch (err) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`);
+		}
 	}
 
 	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
@@ -3132,11 +3145,21 @@ export class CopilotAgentSession extends Disposable {
 		const turn = this._currentTurn.value;
 		this._resumingTurnAwaitingProviderStart = turn;
 		turn?.markProviderCallPending();
+		// Resume runs the same `_prepareSdkTurn`, so it can pay the same MCP
+		// inventory cost as a message send and is reported on the same event.
+		const phaseWatch = StopWatch.create(false);
+		let prepareBlockedMs = 0;
+		let outcome: AgentHostProviderSendOutcome = 'prepareFailed';
+		const isFirstSendOfSession = this._pendingFirstSend;
+		this._pendingFirstSend = false;
 		try {
 			await this._prepareSdkTurn(mode);
+			prepareBlockedMs = Math.round(phaseWatch.elapsed());
+			outcome = 'sendFailed';
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
 			turn?.markProviderCallResolved();
+			outcome = 'success';
 			this._logService.info(`[Copilot:${this.sessionId}] zero-message continuation returned`);
 		} catch (error) {
 			if (this._resumingTurnAwaitingProviderStart === turn) {
@@ -3146,7 +3169,12 @@ export class CopilotAgentSession extends Disposable {
 				turn.markProviderCallRejected();
 				this._clearActiveTurn();
 			}
+			if (isCancellationError(error)) {
+				outcome = 'cancelled';
+			}
 			throw error;
+		} finally {
+			this._reportSendPhases('resume', prepareBlockedMs, Math.round(phaseWatch.elapsed()) - prepareBlockedMs, outcome, isFirstSendOfSession);
 		}
 	}
 

@@ -3221,27 +3221,53 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [
 			{
-				provider: 'copilot', turnId: 'turn-1', isFirstSendOfSession: true, sendFailed: false,
+				provider: 'copilot', turnId: 'turn-1', sendKind: 'message', outcome: 'success', isFirstSendOfSession: true,
 				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
 				hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
 			},
 			{
-				provider: 'copilot', turnId: 'turn-2', isFirstSendOfSession: false, sendFailed: false,
+				provider: 'copilot', turnId: 'turn-2', sendKind: 'message', outcome: 'success', isFirstSendOfSession: false,
 				mcpServerCount: 4, mcpReadyCount: 1, mcpFailedCount: 1, mcpUnresolvedCount: 1, mcpStoppedCount: 1,
 				hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
 			},
 		]);
 	});
 
-	test('send blocking telemetry still reports when the provider send rejects', async () => {
+	test('send blocking telemetry distinguishes a failed send from a failed preparation', async () => {
 		const telemetryService = new CapturingTelemetryService();
-		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+		const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, { telemetryService });
+		const workingSend = mockSession.send.bind(mockSession);
 		mockSession.send = async () => { throw new Error('send failed'); };
 
-		await assert.rejects(() => session.send('hello', undefined, 'turn-failed'), /send failed/);
+		await assert.rejects(() => session.send('hello', undefined, 'turn-send-failed'), /send failed/);
+
+		// Preparation runs before the provider call, so a failure there must be
+		// reported as its own phase rather than going unrecorded. The sandbox
+		// sync propagates, unlike `applyMode`, which logs and continues.
+		mockSession.send = workingSend;
+		mockSession.sandboxConfigUpdateSuccess = false;
+		setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+		fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'on' });
+		await timeout(0);
+		await assert.rejects(() => session.send('hello', undefined, 'turn-prepare-failed'), /rejected sandbox config update/);
+
+		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService).map(event => {
+			const { mcpServerCount, mcpReadyCount, mcpFailedCount, mcpUnresolvedCount, mcpStoppedCount, ...rest } = event as Record<string, unknown>;
+			return rest;
+		}), [
+			{ provider: 'copilot', turnId: 'turn-send-failed', sendKind: 'message', outcome: 'sendFailed', isFirstSendOfSession: true, hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false },
+			{ provider: 'copilot', turnId: 'turn-prepare-failed', sendKind: 'message', outcome: 'prepareFailed', isFirstSendOfSession: false, hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false },
+		]);
+	});
+
+	test('resume reports its own preparation and provider call', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session } = await createAgentSession(disposables, { telemetryService });
+
+		await session.resume('turn-resumed');
 
 		assert.deepStrictEqual(providerSendBlockedEvents(telemetryService), [{
-			provider: 'copilot', turnId: 'turn-failed', isFirstSendOfSession: true, sendFailed: true,
+			provider: 'copilot', turnId: 'turn-resumed', sendKind: 'resume', outcome: 'success', isFirstSendOfSession: true,
 			mcpServerCount: 0, mcpReadyCount: 0, mcpFailedCount: 0, mcpUnresolvedCount: 0, mcpStoppedCount: 0,
 			hasBlockedMs: true, hasPrepareMs: true, hasSlowestMcpServerMs: false,
 		}]);
@@ -3252,7 +3278,7 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
 
 		// `_prepareSdkTurn` awaits several RPCs before the send, including an MCP
-		// inventory refresh that can itself wait on live server discovery. Gate one
+		// inventory refresh that can itself wait on server discovery. Gate one
 		// of those awaits: the delay must land in `prepareBlockedMs`, never in
 		// `sendBlockedMs`, or a preparation stall would be misread as a slow send.
 		let releasePrepare = () => { };
