@@ -115,25 +115,17 @@ const copilotOptionalNativePayloadDirs = [
 	'webview',
 ];
 
-function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
-	const files = [
-		// Computer Use ships under plugins/computer-use/** in current
-		// @github/copilot platform packages. Do not productize it.
-		'plugins/computer-use/**',
-		'prebuilds/*/computer.node',
-		'prebuilds/*/keytar.node',
-		// macOS voice media-pause helper (MediaRemote adapter). Optional and
-		// nested under prebuilds; keep it out of the product so universal
-		// merge does not need to special-case the framework binary tree.
-		'prebuilds/*/mediaremote-adapter/**',
-	];
-
-	if (platform !== 'win32') {
-		files.push('prebuilds/*/cli-native.node');
-	}
-
-	return files;
-}
+const copilotOptionalNativePayloadFiles = [
+	// Computer Use ships under plugins/computer-use/** in current
+	// @github/copilot platform packages. Do not productize it.
+	'plugins/computer-use/**',
+	'prebuilds/*/computer.node',
+	'prebuilds/*/keytar.node',
+	// macOS voice media-pause helper (MediaRemote adapter). Optional and
+	// nested under prebuilds; keep it out of the product so universal
+	// merge does not need to special-case the framework binary tree.
+	'prebuilds/*/mediaremote-adapter/**',
+];
 
 /**
  * Returns a glob filter that strips @microsoft/mxc-sdk `bin/<arch>` payload for
@@ -208,8 +200,9 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  *
  * .moduleignore strips all @github/copilot-* platform packages globally.
  * Re-add the selected runtime package so Agent Host can launch its index.js
- * entrypoint and load runtime prebuilds. Keep the standalone SEA executable
- * and optional native payload trees out of the product build.
+ * entrypoint and load runtime prebuilds, including cli-native.node on every
+ * platform. Keep the standalone SEA executable and optional native payload
+ * trees out of the product build.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
@@ -221,7 +214,7 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 		`!${path.posix.join(copilotPlatformPackageDir, 'copilot.exe')}`,
 		...copilotOutOfProcessRuntimeExecutables.map(executable => `!${path.posix.join(copilotPlatformPackageDir, 'prebuilds', '*', executable)}`),
 		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
-		...getCopilotOptionalNativePayloadFiles(platform).map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
+		...copilotOptionalNativePayloadFiles.map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
 	];
 }
 

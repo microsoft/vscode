@@ -14,6 +14,7 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
+import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -71,6 +72,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * replaced when `openSession` is called.
 	 */
 	abstract readonly kind: ChatViewKind;
+
+	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote

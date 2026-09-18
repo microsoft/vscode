@@ -11,7 +11,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -54,6 +54,7 @@ import { ISessionOpenTelemetryService } from '../../../services/sessions/browser
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 
@@ -91,6 +92,7 @@ export class NewChatView extends AbstractChatView {
 	static readonly TYPE = 'sessions.newSession';
 
 	override readonly kind: ChatViewKind;
+	override readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
 	private readonly _isVisibleObs = observableValue(this, true);
@@ -108,6 +110,7 @@ export class NewChatView extends AbstractChatView {
 		this._widget = this._register(isNewChatInSession
 			? instantiationService.createInstance(NewChatInSessionWidget, widgetOptions)
 			: instantiationService.createInstance(NewChatWidget, widgetOptions));
+		this.pickerVisibility = this._widget instanceof NewChatWidget ? this._widget.pickerVisibility : constObservable(noSessionPickerVisibility);
 		this._widget.render(this.element);
 	}
 
@@ -660,11 +663,7 @@ export class ChatView extends AbstractChatView {
 	private _updateChatBackground(): void {
 		const background = this.chatBackgroundService.getBackground();
 		this._updateChatItemHorizontalPadding(!!background);
-		const replica = this._stickyScrollBackgroundReplica.value;
-		if (replica) {
-			replica.setBackground(background);
-			replica.layout();
-		}
+		this._stickyScrollBackgroundReplica.value?.setBackground(background);
 	}
 
 	private _updateChatItemHorizontalPadding(hasBackground: boolean): void {
@@ -700,8 +699,9 @@ export class ChatView extends AbstractChatView {
 			this._stickyScrollBackgroundReplica.value = replica;
 			this._stickyScrollBackgroundContainer = stickyContainer;
 			replica.setBackground(this.chatBackgroundService.getBackground());
+		} else {
+			replica.layout();
 		}
-		replica.layout();
 	}
 
 	/**

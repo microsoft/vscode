@@ -27,6 +27,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -35,6 +36,7 @@ import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
+	readonly released: URI[] = [];
 	private readonly emitters = new Map<StateComponents, Emitter<unknown>>();
 
 	constructor(private readonly values: ReadonlyMap<StateComponents, SessionState | ChangesetState>) {
@@ -57,7 +59,7 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 				onWillApplyAction: Event.None,
 				onDidApplyAction: Event.None,
 			},
-			dispose: () => { },
+			dispose: () => { this.released.push(resource); },
 		};
 	}
 
@@ -81,10 +83,102 @@ class TestOpenerService extends mock<IOpenerService>() {
 
 suite('AgentHostSessionInputPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const noProvisionalSessions = upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+		onDidChange: Event.None,
+		get: () => undefined,
+	});
+
+	test('Back to an untitled draft does not subscribe to its UI identity', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const connection = new StaticAgentConnection(new Map());
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: resource => ({
+				connection,
+				connectionAuthority: 'local',
+				backendSession: resource.with({ scheme: 'copilotcli' }),
+			}),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const sessionResource = URI.parse('agent-host-copilotcli:/migrated');
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: () => { },
+		});
+		const provisionalChanged = store.add(new Emitter<URI>());
+		let provisionalBackend: URI | undefined;
+		const provisionalSessions = upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+			onDidChange: provisionalChanged.event,
+			get: () => provisionalBackend,
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget, false, connectionsService, browserViewService, clipboardService,
+			configurationService, editorService, instantiationService, openerService, visibility,
+			provisionalSessions,
+		));
+		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
+		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
+		viewModelChanged.fire({ previousSessionResource: sessionResource, currentSessionResource: draft });
+
+		const requested = () => [...new Set(connection.requested.map(request => request.resource.toString()))];
+		const beforeProvisioning = requested();
+		const releasedOnBack = connection.released.some(resource => resource.toString() === 'copilotcli:/migrated');
+		provisionalBackend = URI.parse('copilotcli:/provisional');
+		provisionalChanged.fire(draft);
+		const afterProvisioning = requested();
+		provisionalBackend = URI.parse('copilotcli:/replacement');
+		provisionalChanged.fire(draft);
+		const afterReplacement = requested();
+		provisionalBackend = undefined;
+		provisionalChanged.fire(draft);
+		const releasedOnRetirement = connection.released.some(resource => resource.toString() === 'copilotcli:/replacement');
+		viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		viewModelChanged.fire({ previousSessionResource: draft, currentSessionResource: sessionResource });
+
+		assert.deepStrictEqual({
+			beforeProvisioning,
+			releasedOnBack,
+			afterProvisioning,
+			afterReplacement,
+			releasedOnRetirement,
+			lastSubscription: connection.requested.at(-1)?.resource.toString(),
+			invalidDraftSubscriptions: requested().filter(resource => resource.includes('untitled-')),
+		}, {
+			beforeProvisioning: ['copilotcli:/migrated'],
+			releasedOnBack: true,
+			afterProvisioning: ['copilotcli:/migrated', 'copilotcli:/provisional'],
+			afterReplacement: ['copilotcli:/migrated', 'copilotcli:/provisional', 'copilotcli:/replacement'],
+			releasedOnRetirement: true,
+			lastSubscription: 'copilotcli:/migrated',
+			invalidDraftSubscriptions: [],
+		});
+	});
 
 	test('partitions GitHub links, artifacts, and references without duplication', () => {
 		const entries: readonly ISessionArtifact[] = [
 			{ id: 'created-pr', type: SessionArtifactType.PullRequest, label: 'Created PR', link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true, isArtifact: true },
+			{ id: 'untitled-pr', type: SessionArtifactType.PullRequest, label: '', link: 'https://github.com/microsoft/vscode/pull/3', isGitHub: true, isArtifact: true },
 			{ id: 'duplicate-pr', type: SessionArtifactType.PullRequest, label: 'Existing PR', link: 'https://github.com/microsoft/vscode/pull/1/', isGitHub: true, isArtifact: false },
 			{ id: 'created-issue', type: SessionArtifactType.Issue, label: 'Created Issue', link: 'https://github.com/microsoft/vscode/issues/3', isGitHub: true, isArtifact: true },
 			{ id: 'issue-reference', type: SessionArtifactType.Issue, label: 'Related Issue', link: 'https://github.com/microsoft/vscode/issues/4', isGitHub: true, isArtifact: false },
@@ -109,6 +203,7 @@ suite('AgentHostSessionInputPills', () => {
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
 			pullRequestUrls: [
+				'https://github.com/microsoft/vscode/pull/3',
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
@@ -255,6 +350,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 
 		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
@@ -414,6 +510,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -513,6 +610,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const button = row?.querySelector('.chat-pill-button');
@@ -655,6 +753,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -792,6 +891,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 
 		assert.deepStrictEqual({
@@ -871,6 +971,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			noProvisionalSessions,
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;

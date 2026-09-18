@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -22,7 +24,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -53,8 +55,11 @@ class TestLogService extends NullLogService {
 
 class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainService {
 	readonly relay = new TestRelay();
+	readonly relayStarted = new DeferredPromise<void>();
+	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
 	readonly devContainerArgs: string[][] = [];
+	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
 	relayCommand: string | undefined;
 	endpointPollsBeforeAvailable = 0;
 	endpointPolls = 0;
@@ -71,6 +76,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	containerMountsError: Error | undefined;
 	hostDirectoryOwnedByCurrentUser = true;
 	readonly checkedHostDirectories: string[] = [];
+	readonly hostGitConfig = new Map<string, string>();
+	readonly containerGitConfig = new Map<string, string>();
 	private _renameCalls = 0;
 	private readonly _firstRenameStarted = new DeferredPromise<void>();
 	private readonly _secondRenameFinished = new DeferredPromise<void>();
@@ -192,6 +199,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(this.hostDirectoryOwnedByCurrentUser);
 	}
 
+	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+		this.localCommands.push({ command, args });
+		if (command === 'git' && args[0] === 'config' && args[1] === '--global' && args[2] === '--get') {
+			const value = this.hostGitConfig.get(args[3]);
+			return Promise.resolve({
+				stdout: value === undefined ? '' : `${value}\n`,
+				stderr: '',
+				code: value === undefined ? 1 : 0,
+			});
+		}
+		throw new Error(`Unexpected local command: ${command} ${args.join(' ')}`);
+	}
+
 	createDevContainerExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
 		return super._createExec(connectionId, workspaceFolder, token);
 	}
@@ -199,6 +219,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	protected override _createExec(): ISshExec {
 		return async command => {
 			this.execCommands.push(command);
+			if (command === 'command -v git >/dev/null 2>&1') {
+				return { stdout: '', stderr: '', code: 0 };
+			}
 			if (command.startsWith('command -v git ')) {
 				return {
 					stdout: this.gitRootReportedAsDubiousOwnership ? '' : this.gitRootFolder ?? '',
@@ -208,6 +231,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command === 'git config --global --get-all safe.directory') {
 				return { stdout: this.safeDirectories.join('\n'), stderr: '', code: this.safeDirectories.length ? 0 : 1 };
+			}
+			const gitIdentityMatch = /^git config --get (?<key>user\.(?:name|email))$/.exec(command);
+			if (gitIdentityMatch?.groups) {
+				const value = this.containerGitConfig.get(gitIdentityMatch.groups.key);
+				return { stdout: value === undefined ? '' : `${value}\n`, stderr: '', code: value === undefined ? 1 : 0 };
 			}
 			if (command === 'uname -s') {
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
@@ -253,7 +281,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		_token: CancellationToken,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
-		return Promise.resolve(this.relay);
+		void this.relayStarted.complete();
+		return this.relayResult ?? Promise.resolve(this.relay);
 	}
 }
 
@@ -452,6 +481,27 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	}
 
+	test('disconnect cancels a launch immediately and disposes a late relay', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const result = new DeferredPromise<IDevContainerRelay>();
+		service.relayResult = result.p;
+		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
+		await service.relayStarted.p;
+		await service.disconnect('cancelled');
+		await result.complete(service.relay);
+		await assert.rejects(connecting, CancellationError);
+		await assert.rejects(service.relaySend('cancelled', 'frame'), /not available/);
+		assert.strictEqual(service.relay.disposed, true);
+	});
+
+	test('disconnect in the same turn cancels a pending launch', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const connecting = service.connect({ connectionId: 'cancelled', workspaceFolder: '/workspace', name: 'Project' });
+		await service.disconnect('cancelled');
+		await assert.rejects(connecting, CancellationError);
+		assert.strictEqual(service.relay.disposed, true);
+	});
+
 	test('reuses a standalone endpoint and exposes its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const output: string[] = [];
@@ -477,12 +527,65 @@ suite('Dev Container Agent Host Main Service', () => {
 				address: 'devcontainer:container-id',
 				name: 'Project Dev Container',
 				remoteWorkspaceFolder: '/workspaces/project',
+				hostWorkspaceFolder: '/workspace',
 			},
 			devContainerArgs: [['up', '--log-level', 'debug', '--workspace-folder', '/workspace']],
 			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',
 			sent: ['{"jsonrpc":"2.0"}'],
 			disposed: true,
 			output: ['connection:Starting Dev Container\n'],
+		});
+	});
+
+	test('forwards missing host Git identity without overwriting container identity', async () => {
+		const forwarded = store.add(new TestDevContainerAgentHostMainService());
+		forwarded.hostGitConfig.set('user.name', 'Host User');
+		forwarded.hostGitConfig.set('user.email', 'host@example.com');
+		await forwarded.connect({
+			connectionId: 'forwarded',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const preserved = store.add(new TestDevContainerAgentHostMainService());
+		preserved.hostGitConfig.set('user.name', 'Host User');
+		preserved.hostGitConfig.set('user.email', 'host@example.com');
+		preserved.containerGitConfig.set('user.name', 'Container User');
+		await preserved.connect({
+			connectionId: 'preserved',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const absent = store.add(new TestDevContainerAgentHostMainService());
+		await absent.connect({
+			connectionId: 'absent',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		assert.deepStrictEqual({
+			hostCommands: forwarded.localCommands,
+			forwardedCommands: forwarded.execCommands.filter(command => command.includes('user.')),
+			preservedCommands: preserved.execCommands.filter(command => command.includes('user.')),
+			absentCommands: absent.execCommands.filter(command => command.includes('user.')),
+		}, {
+			hostCommands: [
+				{ command: 'git', args: ['config', '--global', '--get', 'user.name'] },
+				{ command: 'git', args: ['config', '--global', '--get', 'user.email'] },
+			],
+			forwardedCommands: [
+				'git config --get user.name',
+				'git config --global --replace-all user.name \'Host User\'',
+				'git config --get user.email',
+				'git config --global --replace-all user.email \'host@example.com\'',
+			],
+			preservedCommands: [
+				'git config --get user.name',
+				'git config --get user.email',
+				'git config --global --replace-all user.email \'host@example.com\'',
+			],
+			absentCommands: [],
 		});
 	});
 
@@ -593,6 +696,16 @@ suite('Dev Container Agent Host Main Service', () => {
 			getDevContainerExecArgs('/workspace', 'relay command'),
 			['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '/bin/sh', '-c', 'relay command'],
 		);
+	});
+
+	test('rejects when the relay process exits before the WebSocket opens', async () => {
+		const webSocket = new NodeEventEmitter();
+		const child = new NodeEventEmitter();
+		const connecting = waitForDevContainerRelayConnection(webSocket, child, CancellationToken.None);
+
+		child.emit('close', 1, null);
+
+		await assert.rejects(connecting, /Dev Container relay process exited before connecting \(exit code 1\)/);
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
