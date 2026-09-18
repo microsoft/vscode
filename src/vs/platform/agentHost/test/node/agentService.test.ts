@@ -20770,6 +20770,201 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 
+		test('failed provisional worktree session stays unavailable after Agent Host restart', async () => {
+			const providerData = 'opaque-worktree-failure-backing';
+			class ProvisionalWorktreeAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const result = await createProvisionalChat(base, chat, context, options);
+						return result ? { ...result, providerData } : result;
+					},
+				}));
+			}
+			class MissingBackingAgent extends MockAgent {
+				readonly metadataProviderData: (string | undefined)[] = [];
+
+				override async getChatMetadata(_chat: URI, _context: URI | IAgentChatContext, persistedProviderData?: string): Promise<IAgentChatMetadata | undefined> {
+					this.metadataProviderData.push(persistedProviderData);
+					return undefined;
+				}
+
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					return [];
+				}
+			}
+
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-restart-failure-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const database = new TestSessionDatabase();
+			const orchestratorDatabase = new TestAgentHostOrchestratorDatabase();
+			const createService = (sessionDataService: ISessionDataService, gitService: ReturnType<typeof createNoopGitService>) => createTestAgentService(
+				new NullLogService(),
+				fileService,
+				sessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				gitService,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				orchestratorDatabase,
+			);
+
+			const firstGitService = createNoopGitService();
+			firstGitService.getRepositoryRoot = async () => sourceDir;
+			firstGitService.revParse = async () => 'head';
+			firstGitService.getCurrentBranch = async () => 'main';
+			firstGitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			firstGitService.addWorktree = async () => {
+				throw new Error('git worktree exited with code 128: restart regression diagnostic');
+			};
+			const firstSessionDataService = createSessionDataService(database);
+			const firstService = disposables.add(createService(firstSessionDataService, firstGitService));
+			const firstIsolation = disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/restart-failure' },
+				firstGitService,
+				firstSessionDataService,
+				new NullLogService(),
+			));
+			setTestAgentHostWorktreeIsolation(firstService, firstIsolation);
+			const firstAgent = new ProvisionalWorktreeAgent('copilot');
+			disposables.add(toDisposable(() => firstAgent.dispose()));
+			firstAgent.sendMessageError = new Error('provider send must not be reached');
+			registerTestAgentProvider(firstService, firstAgent);
+
+			const session = await firstService.createSession({
+				provider: firstAgent.id,
+				session: AgentSession.uri(firstAgent.id, 'worktree-restart-failure'),
+				workingDirectories: [sourceDir],
+				config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			});
+			const sessionResource = session.toString();
+			const chat = buildDefaultChatUri(sessionResource);
+			const firstFailure = Event.toPromise(Event.filter(
+				firstService.onDidAction,
+				envelope => envelope.channel === chat && envelope.action.type === ActionType.ChatError && envelope.action.turnId === 'turn-1',
+			));
+			firstService.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2026-09-18T00:00:00.000Z',
+				message: { text: 'create the worktree', origin: { kind: MessageKind.User } },
+			}, 'first-client', 1);
+			const failureEnvelope = await firstFailure;
+
+			assert.deepStrictEqual({
+				diagnostic: failureEnvelope.action.type === ActionType.ChatError
+					&& failureEnvelope.action.part.error.message.includes('restart regression diagnostic'),
+				providerSends: firstAgent.sendMessageCalls.length,
+				registered: (await firstService.getRegisteredSessions()).map(candidate => candidate.toString()),
+				provisional: await orchestratorDatabase.listProvisionalSessions(),
+				persistedProviderData: await database.getMetadata('defaultChatProviderData'),
+			}, {
+				diagnostic: true,
+				providerSends: 0,
+				registered: [sessionResource],
+				provisional: [sessionResource],
+				persistedProviderData: providerData,
+			});
+
+			firstService.markStartupComplete();
+			await firstService.listSessions();
+			await firstService.whenDeferredWorkSettled();
+			await firstService.whenCatalogReconciliationIdle();
+			await firstService.shutdown();
+			firstService.dispose();
+			firstIsolation.dispose();
+			firstAgent.dispose();
+
+			const freshGitCalls = { repositoryRoot: 0, revParse: 0, currentBranch: 0, defaultBranch: 0, addWorktree: 0 };
+			const freshGitService = createNoopGitService();
+			freshGitService.getRepositoryRoot = async () => {
+				freshGitCalls.repositoryRoot++;
+				return sourceDir;
+			};
+			freshGitService.revParse = async () => {
+				freshGitCalls.revParse++;
+				return 'head';
+			};
+			freshGitService.getCurrentBranch = async () => {
+				freshGitCalls.currentBranch++;
+				return 'main';
+			};
+			freshGitService.getDefaultBranch = async () => {
+				freshGitCalls.defaultBranch++;
+				return { name: 'main', startPoint: 'main' };
+			};
+			freshGitService.addWorktree = async () => {
+				freshGitCalls.addWorktree++;
+			};
+			const freshSessionDataService = createSessionDataService(database);
+			const freshService = disposables.add(createService(freshSessionDataService, freshGitService));
+			const freshIsolation = disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/must-not-run' },
+				freshGitService,
+				freshSessionDataService,
+				new NullLogService(),
+			));
+			setTestAgentHostWorktreeIsolation(freshService, freshIsolation);
+			const freshAgent = disposables.add(new MissingBackingAgent('copilot'));
+			registerTestAgentProvider(freshService, freshAgent);
+
+			const restoreError = await freshService.restoreSession(session).then(() => undefined, error => error);
+			assert.ok(restoreError instanceof ProtocolError);
+			assert.deepStrictEqual({
+				code: restoreError.code,
+				provisionalMessage: restoreError.message.includes('Session was never created on the backend'),
+				restoredState: getStateManager(freshService).getSessionState(sessionResource),
+				metadataSawPersistedToken: freshAgent.metadataProviderData.length > 0
+					&& freshAgent.metadataProviderData.every(value => value === providerData),
+			}, {
+				code: AHP_SESSION_NOT_FOUND,
+				provisionalMessage: true,
+				restoredState: undefined,
+				metadataSawPersistedToken: true,
+			});
+
+			const rejected = Event.toPromise(Event.filter(
+				freshService.onDidAction,
+				envelope => envelope.origin?.clientId === 'stale-client' && envelope.origin.clientSeq === 1,
+			));
+			freshService.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'stale-turn',
+				startedAt: '2026-09-18T00:00:01.000Z',
+				message: { text: 'must not run from source', origin: { kind: MessageKind.User } },
+			}, 'stale-client', 1);
+			const rejectedEnvelope = await rejected;
+
+			freshService.markStartupComplete();
+			await freshService.listSessions();
+			await freshService.whenDeferredWorkSettled();
+			await freshService.whenCatalogReconciliationIdle();
+			const listed = await freshService.listSessions();
+			assert.deepStrictEqual({
+				rejectedAsProvisional: rejectedEnvelope.rejectionReason?.includes('Session was never created on the backend'),
+				restoredState: getStateManager(freshService).getSessionState(sessionResource),
+				providerSends: freshAgent.sendMessageCalls.length,
+				providerChats: freshAgent.chatContexts.filter(call => call.boundary === 'createChat').length,
+				gitCalls: freshGitCalls,
+				listed: listed.some(candidate => candidate.session.toString() === sessionResource),
+			}, {
+				rejectedAsProvisional: true,
+				restoredState: undefined,
+				providerSends: 0,
+				providerChats: 0,
+				gitCalls: { repositoryRoot: 0, revParse: 0, currentBranch: 0, defaultBranch: 0, addWorktree: 0 },
+				listed: false,
+			});
+		});
+
 		test('pending worktree session shows source uncommitted changes but defers branch changes until materialization', async () => {
 			class ProvisionalWorktreeAgent extends MockAgent {
 				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
