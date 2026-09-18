@@ -511,6 +511,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				formattedModifications.contextValue = this.contextValue ?? null;
 			}
 			if (modified('comments')) {
+				const currentComments = new Set(this._comments);
+				for (const comment of this._commentsMap.keys()) {
+					if (!currentComments.has(comment)) {
+						this._commentsMap.delete(comment);
+					}
+				}
 				formattedModifications.comments =
 					this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap, this.extensionDescription));
 			}
