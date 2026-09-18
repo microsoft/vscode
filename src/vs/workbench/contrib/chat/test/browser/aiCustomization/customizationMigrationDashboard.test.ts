@@ -121,6 +121,40 @@ suite('CustomizationMigrationDashboard', () => {
 		});
 	});
 
+	test('does not move focus into a completed overview', () => {
+		const { parent, dashboard } = createDashboard();
+		const model = overview();
+		const outside = DOM.append(document.body, DOM.$('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		dashboard.showOverview({
+			...model,
+			scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })),
+		});
+		dashboard.focus();
+		assert.deepStrictEqual({
+			focusRemainedOutside: document.activeElement === outside,
+			checklistContainsFocus: parent.querySelector('.migration-checklist-section')?.contains(document.activeElement),
+		}, {
+			focusRemainedOutside: true,
+			checklistContainsFocus: false,
+		});
+	});
+
+	test('does not restore loading focus into a completed overview', () => {
+		const { parent, dashboard } = createDashboard();
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.focus();
+		dashboard.showOverview({ scopes: [], activity: [] });
+		assert.deepStrictEqual({
+			focus: document.activeElement?.tagName,
+			checklistContainsFocus: parent.querySelector('.migration-checklist-section')?.contains(document.activeElement),
+		}, {
+			focus: 'BODY',
+			checklistContainsFocus: false,
+		});
+	});
+
 	test('skipping and including workspace preserves focus through loading and hides its categories', () => {
 		let model = overview();
 		const { parent, dashboard } = createDashboard({
@@ -173,7 +207,7 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: parent.querySelector('.migration-empty')?.textContent,
 			buttons: parent.querySelectorAll('[role="button"]').length,
 			focus: document.activeElement?.tagName,
-		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'H2' });
+		}, { states: ['Migrated', 'In progress'], progress: '1 of 2 complete', completedDestinations: 0, empty: 'No migrations are needed.', buttons: 0, focus: 'BODY' });
 	});
 
 	test('View Changes expands newest activity and dismissals restore meaningful focus', () => {
