@@ -275,8 +275,8 @@ export class AgentHostTurnTracker extends Disposable {
 
 	markFirstProgress(session: string, turnId: string): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (timing && timing.firstProgressMs === undefined) {
-			timing.firstProgressMs = timing.stopWatch.elapsed();
+		if (timing) {
+			this._markProgress(timing, false);
 		}
 	}
 
@@ -292,10 +292,29 @@ export class AgentHostTurnTracker extends Disposable {
 	 * value; comparing against "something appeared on screen" needs the plain one.
 	 */
 	markFirstSubstantiveProgress(session: string, turnId: string): void {
-		this.markFirstProgress(session, turnId);
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (timing && timing.firstSubstantiveProgressMs === undefined) {
-			timing.firstSubstantiveProgressMs = timing.stopWatch.elapsed();
+		if (timing) {
+			this._markProgress(timing, true);
+		}
+	}
+
+	/**
+	 * Stamps the first-progress metrics from a single clock reading. The turn
+	 * stopwatch has millisecond resolution, so sampling once per event keeps the
+	 * two metrics exactly equal when the same event sets both — rather than
+	 * letting a millisecond boundary between two reads imply a delay that never
+	 * happened.
+	 */
+	private _markProgress(timing: ITurnTiming, substantive: boolean): void {
+		if (timing.firstProgressMs !== undefined && (!substantive || timing.firstSubstantiveProgressMs !== undefined)) {
+			return;
+		}
+		const elapsed = timing.stopWatch.elapsed();
+		if (timing.firstProgressMs === undefined) {
+			timing.firstProgressMs = elapsed;
+		}
+		if (substantive && timing.firstSubstantiveProgressMs === undefined) {
+			timing.firstSubstantiveProgressMs = elapsed;
 		}
 	}
 

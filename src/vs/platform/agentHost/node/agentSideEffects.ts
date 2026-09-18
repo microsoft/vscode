@@ -19,7 +19,7 @@ import { IAgentHostChangesetService } from '../common/agentHostChangesetService.
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { SessionServerToolName } from '../common/serverToolNames.js';
+import { isRenameChatTool } from '../common/serverToolNames.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -850,8 +850,10 @@ export class AgentSideEffects extends Disposable {
 			// request — and the host itself asks for it first via an injected
 			// instruction. Letting it satisfy the substantive measure would make
 			// a turn look fast while the user is still waiting for real output.
+			// Matched by predicate because providers surface host server tools
+			// under different names (Claude prefixes them `mcp__host__`).
 			const isBookkeeping = action.type === ActionType.ChatToolCallStart
-				&& action.toolName === SessionServerToolName.RenameChat;
+				&& isRenameChatTool(action.toolName);
 			if (isBookkeeping) {
 				this._turnTracker.markFirstProgress(sessionKey, turnId);
 			} else {

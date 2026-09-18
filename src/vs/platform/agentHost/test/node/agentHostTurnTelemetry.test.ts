@@ -1224,6 +1224,31 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('the namespaced rename tool Claude surfaces is also treated as bookkeeping', () => {
+		setupSession();
+		startTurn('turn-1');
+
+		// Claude exposes host server tools through its MCP bridge, so the same
+		// tool arrives as `mcp__host__rename_chat` rather than the bare name.
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'call-rename',
+			toolName: 'mcp__host__rename_chat',
+			displayName: 'Rename Chat',
+		});
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			progress: typeof data.timeToFirstProgress,
+			substantive: data.timeToFirstSubstantiveProgress,
+		}, {
+			progress: 'number',
+			substantive: undefined,
+		});
+	});
+
 	test('attributes host pre-send time to each bounded stage up to provider dispatch', async () => {
 		setupSession();
 		startTurn('turn-1');
