@@ -22,20 +22,8 @@ export interface IAICustomizationMcpServerCountService {
 export class AICustomizationMcpServerCountService extends Disposable implements IAICustomizationMcpServerCountService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
-
-	readonly count = derived(this, reader => {
-		this.agentHostCustomizationsChanged.read(reader);
-		this.customizationHarnessService.activeHarness.read(reader);
-		this.customizationHarnessService.availableHarnesses.read(reader);
-		const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
-		return getEffectiveMcpServerCount(
-			this.mcpService.servers.read(reader),
-			this.agentHostCustomizationService.getMcpServers(sessionResource),
-			reader,
-			this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds,
-		);
-	});
+	private readonly agentHostCustomizationsChanged: IObservable<void>;
+	readonly count: IObservable<number>;
 
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
@@ -43,6 +31,19 @@ export class AICustomizationMcpServerCountService extends Disposable implements 
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		super();
+		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
+		this.count = derived(this, reader => {
+			this.agentHostCustomizationsChanged.read(reader);
+			this.customizationHarnessService.activeHarness.read(reader);
+			this.customizationHarnessService.availableHarnesses.read(reader);
+			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
+			return getEffectiveMcpServerCount(
+				this.mcpService.servers.read(reader),
+				this.agentHostCustomizationService.getMcpServers(sessionResource),
+				reader,
+				this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds,
+			);
+		});
 	}
 }
 
