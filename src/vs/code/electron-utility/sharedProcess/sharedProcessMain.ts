@@ -70,6 +70,7 @@ import { UserDataSyncService } from '../../../platform/userDataSync/common/userD
 import { UserDataSyncServiceChannel } from '../../../platform/userDataSync/common/userDataSyncServiceIpc.js';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from '../../../platform/userDataSync/common/userDataSyncStoreService.js';
 import { IUserDataProfileStorageService } from '../../../platform/userDataProfile/common/userDataProfileStorageService.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 import { SharedProcessUserDataProfileStorageService } from '../../../platform/userDataProfile/node/userDataProfileStorageService.js';
 import { ActiveWindowManager } from '../../../platform/windows/node/windowTracker.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
@@ -618,6 +619,7 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 		await sharedProcess.init();
 
 		process.parentPort.postMessage(SharedProcessLifecycle.initDone);
+		markNodeCompileCacheReady();
 	} catch (error) {
 		process.parentPort.postMessage({ error: error.toString() });
 	}
