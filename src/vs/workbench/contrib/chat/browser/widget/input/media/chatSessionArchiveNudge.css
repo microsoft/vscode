@@ -166,7 +166,6 @@
 }
 
 .chat-session-archive-nudge.compact .chat-session-archive-nudge-footer {
-	justify-content: flex-end;
 	max-width: 100%;
-	margin-inline-start: auto;
+	margin-inline-start: 0;
 }

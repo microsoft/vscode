@@ -372,6 +372,7 @@ suite('ChatSessionArchiveNudge', () => {
 				buttonsWrapped: archive.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
 				buttonsOnSameRow: centerY(archive) === centerY(cleanupSettings),
 				buttonsBeforeDismiss: cleanupSettings.getBoundingClientRect().right <= actions.getBoundingClientRect().left,
+				buttonsLeftAligned: archive.getBoundingClientRect().left === content.getBoundingClientRect().left,
 				buttonsRightAligned: footer.getBoundingClientRect().right === content.getBoundingClientRect().right,
 				dismissTopRight: actions.getBoundingClientRect().right === header.getBoundingClientRect().right && actions.getBoundingClientRect().top === header.getBoundingClientRect().top,
 				titleTruncated: title.scrollWidth > title.clientWidth,
@@ -390,7 +391,8 @@ suite('ChatSessionArchiveNudge', () => {
 				buttonsWrapped: width === 360,
 				buttonsOnSameRow: true,
 				buttonsBeforeDismiss: true,
-				buttonsRightAligned: true,
+				buttonsLeftAligned: width === 360,
+				buttonsRightAligned: width === 720,
 				dismissTopRight: true,
 				titleTruncated: false,
 				overflows: false,
@@ -418,6 +420,7 @@ suite('ChatSessionArchiveNudge', () => {
 			container.style.width = `${width}px`;
 			return {
 				wrapped: archive.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+				leftAligned: archive.getBoundingClientRect().left === content.getBoundingClientRect().left,
 				focused: document.activeElement === archive,
 				titleTruncated: title.scrollWidth > title.clientWidth,
 				overflows: widget.domNode.scrollWidth > widget.domNode.clientWidth,
@@ -425,9 +428,9 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 
 		assert.deepStrictEqual(states, [
-			{ wrapped: false, focused: true, titleTruncated: false, overflows: false },
-			{ wrapped: true, focused: true, titleTruncated: false, overflows: false },
-			{ wrapped: false, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: false, leftAligned: false, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: true, leftAligned: true, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: false, leftAligned: false, focused: true, titleTruncated: false, overflows: false },
 		]);
 	});
 
