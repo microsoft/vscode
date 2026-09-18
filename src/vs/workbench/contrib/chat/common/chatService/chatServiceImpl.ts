@@ -1275,10 +1275,10 @@ export class ChatService extends Disposable implements IChatService {
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
 
 		if (options?.queue) {
+			const queued = this.queuePendingRequest(model, sessionResource, request, options);
 			if (transferredMode) {
 				model.inputModel.setState({ mode: transferredMode });
 			}
-			const queued = this.queuePendingRequest(model, sessionResource, request, options);
 			if (!options.pauseQueue) {
 				this.processPendingRequests(sessionResource);
 			}

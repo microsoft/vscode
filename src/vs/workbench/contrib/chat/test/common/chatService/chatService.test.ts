@@ -1933,6 +1933,36 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('does not carry the mode when a queued late send fails to enqueue', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-rejected-queued-mode' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const first = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo: askMode });
+			ChatSendResult.assertSent(first);
+			await first.data.responseCompletePromise;
+			const realModel = service.getSession(realResource) as ChatModel;
+
+			await assert.rejects(service.sendRequest(untitledResource, 'second', {
+				agentId: 'missingQueuedAgent',
+				modeInfo: agentMode,
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			}), /Unknown agent/);
+
+			assert.deepStrictEqual({
+				mode: realModel.inputModel.state.get()?.mode,
+				pendingRequestCount: realModel.getPendingRequests().length,
+			}, {
+				mode: { id: askMode.kind, kind: askMode.kind },
+				pendingRequestCount: 0,
+			});
+		});
+
 		test('two concurrent sends create a single real session and reject the duplicate', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent' });
 			const askMode = builtinModeInfo(ChatModeKind.Ask);
