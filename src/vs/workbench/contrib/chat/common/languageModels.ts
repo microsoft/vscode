@@ -548,6 +548,8 @@ export interface ILanguageModelsGroup {
 /** Read/write access to model-specific configuration, globally or within one conversation. */
 export interface IModelConfigurationAccess {
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	/** Provenance of a default, not a restriction on the user's choice. */
+	isModelConfigurationDefaultManaged?(modelId: string, key: string): boolean;
 	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
 	getModelConfigurationActions(modelId: string): IAction[];
 	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */

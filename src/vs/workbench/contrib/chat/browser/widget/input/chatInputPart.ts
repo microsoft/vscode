@@ -999,6 +999,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			() => this.getModelConfigurationStorageKey(),
 			this.languageModelsService,
 			this.storageService,
+			this.configurationService,
+			this.logService,
 		));
 
 		// Initialize debounced text sync scheduler
@@ -2131,7 +2133,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: mode.kind
 			},
 			selectedModel,
-			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfiguration(selectedModel.identifier) : undefined,
+			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfigurationForPersistence(selectedModel.identifier) : undefined,
 			selectedModelReason: selectedModel ? this._modelSelectionController.selectionReason : undefined,
 			selections: this._inputEditor?.getSelections() || [],
 			permissionLevel: this._currentPermissionLevel.get(),

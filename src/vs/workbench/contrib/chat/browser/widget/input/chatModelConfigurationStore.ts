@@ -8,6 +8,10 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { isAutoModeTier } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { COPILOT_AUTO_TIER_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { createModelConfigurationActions, ILanguageModelsService } from '../../../common/languageModels.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
@@ -22,6 +26,9 @@ import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.
  * supplied by the owner via `getStorageKey` — so newly opened editors in the
  * same scope inherit the latest value.
  *
+ * The experimental managed Auto tier is a transient default overlay, not an
+ * override or a persisted user preference. Explicit/scoped values still win.
+ *
  * Implements {@link IModelConfigurationAccess} so the model picker can route
  * reads/writes through this editor-scoped layer instead of the global
  * {@link ILanguageModelsService}. See issue #320393.
@@ -29,6 +36,8 @@ import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.
 export class ChatModelConfigurationStore extends Disposable implements IModelConfigurationAccess {
 
 	private readonly _overrides = new Map<string, IStringDictionary<unknown>>();
+	private readonly _autoTierDefaultsBlocked = new Set<string>();
+	private readonly _autoTierWarnings = new Set<string>();
 
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -41,8 +50,21 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		private readonly getStorageKey: () => string,
 		private readonly languageModelsService: ILanguageModelsService,
 		private readonly storageService: IStorageService,
+		private readonly configurationService?: IConfigurationService,
+		private readonly logService?: ILogService,
 	) {
 		super();
+
+		if (configurationService) {
+			this._register(configurationService.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(COPILOT_AUTO_TIER_CONFIG)) {
+					this._autoTierWarnings.clear();
+					for (const modelId of this._overrides.keys()) {
+						this._onDidChange.fire(modelId);
+					}
+				}
+			}));
+		}
 
 		// Model providers register asynchronously, so a snapshot can be seeded before
 		// schema defaults (for example the default contextSize) are available. When
@@ -89,18 +111,68 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * The merged result is cached so subsequent reads are O(1).
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
+		const configuration = this.getModelConfigurationForPersistence(modelId);
+		const tier = this._managedAutoTier(modelId);
+		return tier === undefined ? configuration : { ...configuration, tier };
+	}
+
+	/** Keep enterprise defaults out of user preferences and persisted input drafts. */
+	getModelConfigurationForPersistence(modelId: string): IStringDictionary<unknown> | undefined {
 		let override = this._overrides.get(modelId);
 		if (!override) {
 			const bucketEntry = this._readBucket()[modelId];
 			const schemaDefaults = this._schemaDefaults(modelId);
 			const globalConfig = this.languageModelsService.getModelConfiguration(modelId);
+			// Even an empty scoped entry records an explicit reset.
+			if (bucketEntry !== undefined) {
+				this._autoTierDefaultsBlocked.add(modelId);
+			}
 			override = resolveModelConfiguration(bucketEntry, schemaDefaults, globalConfig);
 			this._overrides.set(modelId, override);
+		}
+		if (this._managedAutoTier(modelId) !== undefined) {
+			const { tier: _tier, ...rest } = override;
+			return rest;
 		}
 		return Object.keys(override).length > 0 ? override : undefined;
 	}
 
+	isModelConfigurationDefaultManaged(modelId: string, key: string): boolean {
+		this.getModelConfiguration(modelId);
+		return key === 'tier' && this._managedAutoTier(modelId) !== undefined;
+	}
+
+	private _managedAutoTier(modelId: string): string | undefined {
+		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+		if (metadata?.id !== 'auto' || this._autoTierDefaultsBlocked.has(modelId)) {
+			return undefined;
+		}
+		const tierSchema = metadata.configurationSchema?.properties?.tier;
+		const capturedTier = this._overrides.get(modelId)?.tier;
+		// Global access materializes schema defaults. Defer comparison until the
+		// catalog is available; only a non-default global tier is distinguishable.
+		if (capturedTier !== undefined && capturedTier !== tierSchema?.default) {
+			return undefined;
+		}
+		const value = this.configurationService?.inspect<string>(COPILOT_AUTO_TIER_CONFIG).policyValue;
+		if (value === undefined || value === '') {
+			return undefined;
+		}
+		if (!isAutoModeTier(value) || !tierSchema?.enum?.includes(value)) {
+			if (!this._autoTierWarnings.has(modelId)) {
+				this._autoTierWarnings.add(modelId);
+				this.logService?.warn(`[ChatModelConfigurationStore] Ignoring unsupported managed Auto tier for '${modelId}'; expected a supported efficiency, balance, or intelligence tier.`);
+			}
+			return undefined;
+		}
+		return value;
+	}
+
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
+		this.getModelConfiguration(modelId);
+		if (Object.hasOwn(values, 'tier')) {
+			this._autoTierDefaultsBlocked.add(modelId);
+		}
 		const changed = this._applyLocalModelConfiguration(modelId, values);
 		this._onDidSelectConfiguration.fire(modelId);
 		if (!changed) {
@@ -134,7 +206,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
-		const stored = computeStoredConfiguration(this.getModelConfiguration(modelId) ?? {}, values, schemaDefaults);
+		this.getModelConfiguration(modelId);
+		const stored = computeStoredConfiguration(this._overrides.get(modelId) ?? {}, values, schemaDefaults);
 		const nextOverride = { ...schemaDefaults, ...stored };
 
 		// Skip redundant updates. `restoreModelConfiguration` can be invoked on
@@ -196,6 +269,16 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const filtered = metadata
 			? filterConfigurationToSchema(values, metadata.configurationSchema)
 			: { ...values };
+		this.getModelConfiguration(modelId);
+		if (Object.hasOwn(filtered, 'tier')) {
+			this._autoTierDefaultsBlocked.add(modelId);
+		}
+		// Host history carries effective values without their provenance. Keep
+		// restored Auto configuration session-scoped rather than promoting a
+		// potentially admin-seeded tier into the user's remembered preferences.
+		if (metadata?.id === 'auto' && this.configurationService?.inspect<string>(COPILOT_AUTO_TIER_CONFIG).policyValue !== undefined) {
+			persist = false;
+		}
 		// Restore only seeds this editor's scoped snapshot; unlike a user-made
 		// change it must NOT write the profile-global value, since restoring a
 		// session is not an intentional reconfiguration and runs on every
@@ -210,6 +293,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	clear(): void {
 		this._overrides.clear();
+		this._autoTierDefaultsBlocked.clear();
+		this._autoTierWarnings.clear();
 	}
 
 	private _schemaDefaults(modelId: string): IStringDictionary<unknown> {

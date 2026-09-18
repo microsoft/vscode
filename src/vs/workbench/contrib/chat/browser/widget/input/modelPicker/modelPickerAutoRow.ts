@@ -121,7 +121,10 @@ export class ModelPickerAutoRow extends DisposableStore {
 		const tierDescription = tier?.schema.enumDescriptions?.[selectedIndex];
 		// Auto's own detail stays put; the tier description joins it rather than replacing it.
 		const detail = this._options.autoModel.metadata.detail;
-		const parts = [detail, tierDescription].filter(part => !!part);
+		const managedDefault = tier && this._options.configurationAccess.isModelConfigurationDefaultManaged?.(this._options.autoModel.identifier, tier.key)
+			? localize('chat.modelPicker.autoTierManagedDefault', "Organization default. You can choose another preference.")
+			: undefined;
+		const parts = [detail, tierDescription, managedDefault].filter(part => !!part);
 		this._description.textContent = parts.join(' · ');
 		this._description.classList.toggle('hidden', parts.length === 0);
 	}

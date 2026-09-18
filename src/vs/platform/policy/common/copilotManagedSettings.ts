@@ -104,6 +104,12 @@ export const COPILOT_MODEL_KEY = 'permissions.model';
  */
 export const COPILOT_TOP_LEVEL_MODEL_KEY = 'model';
 
+/** Prototype contract for an Auto routing default; the upstream managed-settings shape is unsettled. */
+export const COPILOT_AUTO_TIER_KEY = 'autoTier';
+
+/** Policy-only delivery slot, not a mandatory model-configuration override. */
+export const COPILOT_AUTO_TIER_CONFIG = 'chat.experimental.defaultAutoTier';
+
 /**
  * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
  * `telemetry` block from the cross-client managed-settings schema (see the CLI

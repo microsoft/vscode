@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_AUTO_TIER_KEY, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -27,6 +27,22 @@ suite('Copilot managed settings projection', () => {
 			type: 'string',
 		},
 	};
+
+	test('provisional Auto tier projects independently of the default model and reports type errors', () => {
+		const definitions = { [COPILOT_AUTO_TIER_KEY]: { type: 'string' as const } };
+		const warnings: string[] = [];
+		const values = projectManagedSettings(normalizeManagedSettings({ model: 'auto', autoTier: 'intelligence' }), definitions);
+		const invalid = projectManagedSettings(normalizeManagedSettings({ autoTier: 42 }), definitions, warning => warnings.push(warning));
+		assert.deepStrictEqual({
+			defaultTier: managedSettingValue(COPILOT_AUTO_TIER_KEY)({ managedSettings: values }),
+			invalid,
+			warnings,
+		}, {
+			defaultTier: 'intelligence',
+			invalid: {},
+			warnings: ['Ignoring managed setting "autoTier": expected string, got number'],
+		});
+	});
 
 	test('collectManagedSettingsDefinitions aggregates declarations across all policies', () => {
 		assert.deepStrictEqual(collectManagedSettingsDefinitions(definitions), {

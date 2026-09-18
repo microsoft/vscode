@@ -26,7 +26,9 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { COPILOT_AUTO_TIER_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -4387,6 +4389,45 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'claude-sonnet-4-20250514', config: { thinkingLevel: 'high', contextSize: 272000 } });
 		}));
+
+		for (const explicitTier of [undefined, 'efficiency']) {
+			test(`passes managed Auto default through AHP creation with explicit tier ${explicitTier}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const modelId = 'agent-host-copilot:auto';
+				const metadata = upcastPartial<ILanguageModelChatMetadata>({
+					id: 'auto',
+					configurationSchema: { properties: { tier: { enum: ['efficiency', 'balance', 'intelligence'], default: 'balance' } } },
+				});
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+					languageModels: new Map([[modelId, metadata]]),
+					languageModelsServiceOverride: {
+						getModelConfiguration: () => ({ tier: 'balance' }),
+						setModelConfiguration: async () => { },
+					},
+				});
+				const configuration = new class extends TestConfigurationService {
+					override inspect<T>(key: string): IConfigurationValue<T> {
+						return { ...super.inspect<T>(key), policyValue: this.getValue<T>(key) };
+					}
+				}({ [COPILOT_AUTO_TIER_CONFIG]: 'intelligence' });
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
+				const store = disposables.add(new ChatModelConfigurationStore(
+					() => 'chat.modelConfiguration.panel.agent-host-copilot',
+					instantiationService.get(ILanguageModelsService), instantiationService.get(IStorageService), configuration,
+				));
+				if (explicitTier) {
+					await store.setModelConfiguration(modelId, { tier: explicitTier });
+				}
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: 'Hi', userSelectedModelId: modelId, modelConfiguration: store.getModelConfiguration(modelId),
+				});
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+
+				assert.deepStrictEqual(agentHostService.createSessionCalls.map(call => call.model), [
+					{ id: 'auto', config: { tier: explicitTier ?? 'intelligence' } },
+				]);
+			}));
+		}
 
 		test('passes model id as-is when no vendor prefix', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
