@@ -19,7 +19,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -98,7 +98,9 @@ import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
@@ -116,6 +118,7 @@ const SESSIONS_HEADER_SECTION_ID = 'sessionsHeader';
 const SESSIONS_HEADER_DEFAULT_HEIGHT = 32;
 const SESSIONS_HEADER_VERTICAL_SPACING = 10;
 const SESSION_SHORTCUT_SECTION_TEMPLATE_ID = 'session-shortcut-section';
+const SESSION_SHOW_MORE_FOLDERS_TEMPLATE_ID = 'session-show-more-folders';
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
 /** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
@@ -448,7 +451,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 					: SessionSectionRenderer.TEMPLATE_ID;
 		}
 		if (isSessionShowMore(element)) {
-			return SessionShowMoreRenderer.TEMPLATE_ID;
+			return element.kind === 'folders' ? SESSION_SHOW_MORE_FOLDERS_TEMPLATE_ID : SessionShowMoreRenderer.TEMPLATE_ID;
 		}
 		if (isSessionPlaceholder(element)) {
 			return SessionPlaceholderRenderer.TEMPLATE_ID;
@@ -471,7 +474,10 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	readonly templateId = SessionsHeaderRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'sessions-list-header-row';
 
-	constructor(private readonly header: HTMLElement) { }
+	constructor(
+		private readonly header: HTMLElement,
+		private readonly layoutHeader: () => void,
+	) { }
 
 	renderTemplate(container: HTMLElement): ISessionsHeaderTemplate {
 		const disposables = new DisposableStore();
@@ -485,6 +491,7 @@ class SessionsHeaderRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionsHeaderTemplate): void {
 		if (isSessionSection(node.element) && node.element.id === SESSIONS_HEADER_SECTION_ID) {
 			template.container.append(this.header);
+			this.layoutHeader();
 		}
 	}
 
@@ -1860,6 +1867,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly automationNewBadgePresentation: IObservable<AutomationsNewBadgeStyle | undefined>,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
+		private readonly customizationsActive: IObservable<boolean>,
 		private readonly menuService: IMenuService,
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
@@ -1951,6 +1959,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		);
 		if (isShortcutSection(element.id)) {
 			template.container.classList.add('session-section-shortcut');
+		}
+		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
+			template.elementDisposables.add(autorun(reader => {
+				template.container.classList.toggle('active', this.customizationsActive.read(reader));
+			}));
 		}
 
 		this.updateChevron(template, node.collapsible, node.collapsed);
@@ -2227,8 +2240,11 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, HTMLElement> {
 	static readonly TEMPLATE_ID = 'session-show-more';
-	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
-	readonly rowClassName = 'session-list-inset-row';
+
+	constructor(
+		readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID,
+		readonly rowClassName = 'session-list-show-more-row',
+	) { }
 
 	renderTemplate(container: HTMLElement): HTMLElement {
 		container.classList.add('session-show-more');
@@ -2888,6 +2904,7 @@ export interface ISessionsListControlOptions {
 	readonly findWidgetContainer?: HTMLElement;
 	readonly sessionsHeader?: HTMLElement;
 	readonly sessionsHeaderContainer?: HTMLElement;
+	readonly layoutSessionsHeader?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -3117,6 +3134,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IEditorService editorService: IEditorService,
 	) {
 		super();
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
@@ -3215,6 +3233,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._sessionRenderer = sessionRenderer;
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
+		const showMoreFoldersRenderer = new SessionShowMoreRenderer(SESSION_SHOW_MORE_FOLDERS_TEMPLATE_ID, 'session-list-show-more-folders-row');
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
 		const chatRenderer = new SessionChatItemRenderer(hoverService, instantiationService, this._sessionsManagementService, this.contextViewService, markdownRendererService, approvalModel, DEFAULT_APPROVAL_ROW_MAX_LINES, item => this.preservePendingOpenFocus(item.session, item.chat), () => this.tree.domFocus(), this.activeGuideSessionIds);
 		this._chatRenderer = chatRenderer;
@@ -3231,6 +3250,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
 				.map(blocked => blocked.session.sessionId)
 		));
+		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -3243,12 +3263,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.automationsNewBadgeState.presentation,
 			this.uriIdentityService,
 			this.customViewService,
+			customizationsActive,
 			this.menuService,
 			templateId,
 			rowClassName,
 		);
-		const sectionRenderer = createSectionRenderer();
-		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-inset-row');
+		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
+		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -3286,11 +3307,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[
 				sessionRenderer,
 				chatRenderer,
-				...(this.options.sessionsHeader ? [new SessionsHeaderRenderer(this.options.sessionsHeader)] : []),
+				...(this.options.sessionsHeader ? [new SessionsHeaderRenderer(this.options.sessionsHeader, () => this.options.layoutSessionsHeader?.())] : []),
 				shortcutSectionRenderer,
 				sectionRenderer,
 				groupRenderer,
 				showMoreRenderer,
+				showMoreFoldersRenderer,
 				placeholderRenderer,
 			],
 			{
@@ -4681,7 +4703,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		if (isSessionSection(element)) {
-			if (element.id === SESSIONS_HEADER_SECTION_ID) {
+			if (element.id === SESSIONS_HEADER_SECTION_ID || isShortcutSection(element.id)) {
 				return;
 			}
 			this.showSectionContextMenu(element, e.anchor);

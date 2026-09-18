@@ -226,6 +226,7 @@ export class SessionsView extends ViewPane {
 			findWidgetContainer,
 			sessionsHeader: headerRow,
 			sessionsHeaderContainer,
+			layoutSessionsHeader: () => this.updateHeaderLayout(),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
