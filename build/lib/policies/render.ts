@@ -9,7 +9,8 @@ export function escapeXml(value: string): string {
 	return value
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;');
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
 }
 
 export function renderADMLString(prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
