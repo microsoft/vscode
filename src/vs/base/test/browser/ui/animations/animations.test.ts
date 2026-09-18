@@ -84,6 +84,10 @@ suite('Animations', () => {
 		disposables.add(toDisposable(() => overlay.remove()));
 		const particles = Array.from(overlay.querySelectorAll<HTMLElement>('.animation-confetti-particle'));
 		const keyframes = (particles[0].getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes();
+		const getTranslateY = (keyframe: ComputedKeyframe | undefined): number | undefined => {
+			const match = /translate\(calc\(-50% [+-] .+?px\), calc\(-50% (?<operator>[+-]) (?<translateY>\d+(?:\.\d+)?)px\)\)/.exec(keyframe?.transform?.toString() ?? '');
+			return match?.groups ? Number(`${match.groups.operator}${match.groups.translateY}`) : undefined;
+		};
 
 		assert.deepStrictEqual({
 			durations: Array.from(new Set(particles.map(particle => particle.getAnimations()[0]?.effect?.getTiming().duration))),
@@ -91,7 +95,9 @@ suite('Animations', () => {
 			fallEasing: keyframes?.[2]?.easing,
 			allParticlesFallConfiguredDistance: particles.every(particle => {
 				const keyframes = (particle.getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes();
-				return keyframes?.at(-1)?.transform?.toString().includes('calc(-50% + 100px)') === true;
+				const apexY = getTranslateY(keyframes?.[2]);
+				const endY = getTranslateY(keyframes?.at(-1));
+				return apexY !== undefined && endY !== undefined && Math.abs(endY - apexY - 100) < 1e-10;
 			}),
 		}, {
 			durations: [1900],

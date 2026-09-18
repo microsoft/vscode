@@ -149,7 +149,7 @@ export function triggerConfettiAnimation(element: HTMLElement, options: IConfett
 		const peakX = Math.cos(angle) * distance;
 		const peakY = Math.sin(angle) * distance;
 		const endX = peakX * 1.4 + (Math.random() - 0.5) * 20;
-		const endY = randomInRange(fallDistance);
+		const endY = peakY + randomInRange(fallDistance);
 		const rotation = (Math.random() - 0.5) * 720;
 		const particleLaunchDuration = randomInRange(launchDuration);
 		const particleFallDuration = randomInRange(fallDuration);
