@@ -238,16 +238,15 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
+		if (this._isMeteredConnectionInitialized && this._meteredConnectionService?.isConnectionMetered) {
+			return;
+		}
+
 		// Buffer events until experiment properties and the initial metered connection state are available.
 		if (!this._isExperimentPropertySet || !this._isMeteredConnectionInitialized) {
 			if (this._pendingEvents.length < TelemetryService.MAX_BUFFER_SIZE) {
 				this._pendingEvents.push({ eventName, eventLevel, data });
 			}
-			return;
-		}
-
-		// Don't send events when the connection is metered
-		if (this._meteredConnectionService?.isConnectionMetered) {
 			return;
 		}
 
