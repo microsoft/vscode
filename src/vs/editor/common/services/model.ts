@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
 import { ILanguageSelection } from '../languages/language.js';
@@ -20,12 +19,6 @@ export interface IModelService {
 	readonly _serviceBrand: undefined;
 
 	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget?: boolean): ITextModel;
-
-	/** Creates a registered in-memory model with an owning reference established before onModelAdded fires. Dispose the reference, not its model. */
-	createSharedModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null): IReference<ITextModel>;
-
-	/** Acquires ownership of a model created by createSharedModel, or returns undefined for other models. */
-	acquireSharedModel(resource: URI): IReference<ITextModel> | undefined;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory, reason?: TextModelEditSource): void;
 

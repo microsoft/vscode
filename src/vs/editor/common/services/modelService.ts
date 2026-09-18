@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
-import { Disposable, DisposableStore, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
 import * as platform from '../../../base/common/platform.js';
@@ -102,7 +102,6 @@ export class ModelService extends Disposable implements IModelService {
 	 * All the models known in the system.
 	 */
 	private readonly _models: { [modelId: string]: ModelData };
-	private readonly _sharedModels = new Map<ITextModel, RefCountedDisposable>();
 	private readonly _disposedModels: Map<string, DisposedModelInfo>;
 	private _disposedModelsHeapSize: number;
 
@@ -450,28 +449,6 @@ export class ModelService extends Disposable implements IModelService {
 		this._onModelAdded.fire(modelData.model);
 
 		return modelData.model;
-	}
-
-	public createSharedModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null): IReference<ITextModel> {
-		const { model } = this._createModelData(value, languageSelection ?? PLAINTEXT_LANGUAGE_ID, undefined, false);
-		const lifetime = new RefCountedDisposable(toDisposable(() => {
-			this._sharedModels.delete(model);
-			model.dispose();
-		}));
-		this._sharedModels.set(model, lifetime);
-		const reference = Object.assign(toDisposable(() => lifetime.release()), { object: model });
-		this._onModelAdded.fire(model);
-		return reference;
-	}
-
-	public acquireSharedModel(resource: URI): IReference<ITextModel> | undefined {
-		const model = this.getModel(resource);
-		const lifetime = model && this._sharedModels.get(model);
-		if (!model || !lifetime) {
-			return undefined;
-		}
-		lifetime.acquire();
-		return Object.assign(toDisposable(() => lifetime.release()), { object: model });
 	}
 
 	public destroyModel(resource: URI): void {
