@@ -15,9 +15,11 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../common/chatService/chatService.js';
-import { ChatSessionStatus } from '../common/chatSessionsService.js';
+import { isSessionInProgressStatus } from '../common/chatSessionsService.js';
 import { EditorChatUsage } from '../common/editorChatUsage.js';
+import { IChatModel } from '../common/model/chatModel.js';
 import { getChatSessionType } from '../common/model/chatUri.js';
+import { IAgentSession } from './agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { localize } from '../../../../nls.js';
 
@@ -26,6 +28,11 @@ type UsageMessage = { kind: 'probe'; id: string; resource: string } | { kind: 'i
 export interface IEditorChatUsageChannel extends IDisposable {
 	readonly onDidReceiveData: Event<UsageMessage>;
 	postData(message: UsageMessage): void;
+}
+
+export function hasOtherEditorSessionInProgress(resource: URI, models: Iterable<IChatModel>, sessions: readonly IAgentSession[]): boolean {
+	return Array.from(models).some(model => !isEqual(model.sessionResource, resource) && model.requestInProgress.get())
+		|| sessions.some(session => !isEqual(session.resource, resource) && isSessionInProgressStatus(session.status));
 }
 
 export class EditorChatUsageContribution extends Disposable {
@@ -45,8 +52,7 @@ export class EditorChatUsageContribution extends Disposable {
 		}
 
 		const hasOtherSession = (resource: URI) =>
-			Array.from(chatService.chatModels.get()).some(model => !isEqual(model.sessionResource, resource) && model.requestInProgress.get())
-			|| agentSessionsService.model.sessions.some(session => !isEqual(session.resource, resource) && session.status === ChatSessionStatus.InProgress);
+			hasOtherEditorSessionInProgress(resource, chatService.chatModels.get(), agentSessionsService.model.sessions);
 		this._register(new EditorChatUsageTracker(
 			this._register(new BroadcastDataChannel<UsageMessage>('vscode.editorChatUsage')),
 			hasOtherSession, chatService.onDidAcceptRequest, storageService, lifecycleService, logService,

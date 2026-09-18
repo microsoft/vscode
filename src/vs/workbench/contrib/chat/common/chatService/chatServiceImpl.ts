@@ -1272,7 +1272,9 @@ export class ChatService extends Disposable implements IChatService {
 			};
 		}
 
-		const startsNewSession = !model.hasRequests && model.getPendingRequests().length === 0;
+		const isEligibleRequest = (request: IChatRequestModel) => !request.isSystemInitiated && !request.isHiddenFromTranscript;
+		const startsNewSession = !model.getRequests().some(isEligibleRequest)
+			&& !model.getPendingRequests().some(pending => isEligibleRequest(pending.request));
 
 		// Internally blank widgets use special sessions with an untitled- path.
 		// We do not want these leaking out to the rest of code. On the first
@@ -1294,8 +1296,8 @@ export class ChatService extends Disposable implements IChatService {
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
 		const isNewSession = startsNewSession && !this._modelsWithAcceptedRequests.has(model);
 		const notifyAccepted = () => {
-			this._modelsWithAcceptedRequests.add(model);
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
+				this._modelsWithAcceptedRequests.add(model);
 				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
 			}
 		};

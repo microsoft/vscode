@@ -299,6 +299,60 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(accepted, [true, false]);
 	});
 
+	for (const excludedKind of ['system', 'hidden'] as const) {
+		for (const historyState of ['completed', 'queued', 'restored'] as const) {
+			test(`first eligible user submission starts a session after a ${historyState} ${excludedKind} request`, async () => {
+				let service = createChatService();
+				let model = startSessionModel(service).object;
+				const accepted: boolean[] = [];
+				testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+				const result = await service.sendRequest(model.sessionResource, 'excluded request', {
+					isSystemInitiated: excludedKind === 'system',
+					hideFromTranscript: excludedKind === 'hidden',
+					queue: historyState === 'queued' ? ChatRequestQueueKind.Queued : undefined,
+					pauseQueue: true,
+				});
+				if (historyState === 'queued') {
+					assert.ok(ChatSendResult.isQueued(result));
+				} else {
+					ChatSendResult.assertSent(result);
+					await result.data.responseCompletePromise;
+				}
+				if (historyState === 'restored') {
+					const data: ISerializableChatData = JSON.parse(JSON.stringify(model));
+					service = createChatService();
+					model = testDisposables.add(service.loadSessionFromData(data)).object;
+					assert.strictEqual(model.getRequests().length, 1);
+					testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+				}
+				for (const message of ['first user request', 'follow-up']) {
+					const queued = await service.sendRequest(model.sessionResource, message, { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+					assert.ok(ChatSendResult.isQueued(queued));
+				}
+				assert.deepStrictEqual(accepted, [true, false]);
+			});
+		}
+	}
+
+	test('restored visible user history is not counted as a new session', async () => {
+		const original = createChatService();
+		const originalModel = startSessionModel(original).object;
+		const first = await original.sendRequest(originalModel.sessionResource, 'first user request');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+
+		const restored = createChatService();
+		const data: ISerializableChatData = JSON.parse(JSON.stringify(originalModel));
+		const model = testDisposables.add(restored.loadSessionFromData(data)).object;
+		assert.strictEqual(model.getRequests().length, 1);
+		const accepted: boolean[] = [];
+		testDisposables.add(restored.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		const followUp = await restored.sendRequest(model.sessionResource, 'follow-up');
+		ChatSendResult.assertSent(followUp);
+		await followUp.data.responseCompletePromise;
+		assert.deepStrictEqual(accepted, [false]);
+	});
+
 	test('retains submitted model configuration for sent, queued and steering requests', async () => {
 		const service = createChatService();
 		const model = testDisposables.add(startSessionModel(service)).object;
