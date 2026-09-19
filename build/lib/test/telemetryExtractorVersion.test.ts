@@ -153,7 +153,7 @@ suite('telemetry extractor version consistency', () => {
 			.filter((event): event is Record<string, unknown> => !!event);
 		assert.strictEqual(declarations.length, 2);
 		const [failure, success] = declarations;
-		const commonFields = Object.keys(failure).filter(field => field in success);
+		const commonFields = Object.keys(failure).filter(field => Object.hasOwn(success, field));
 		assert.deepStrictEqual(
 			Object.fromEntries(commonFields.map(field => [field, failure[field]])),
 			Object.fromEntries(commonFields.map(field => [field, success[field]])),
