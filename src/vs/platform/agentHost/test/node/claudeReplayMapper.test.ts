@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { URI } from '../../../../base/common/uri.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState } from '../../common/state/protocol/state.js';
-import { mapSessionMessagesToTurns, missingPromptPlaceholder, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
+import { mapSessionMessagesToTurns, missingPromptPlaceholder, replaySessionMessages, resolveForkAnchorUuid } from '../../node/claude/claudeReplayMapper.js';
 
 suite('claudeReplayMapper', () => {
 
@@ -449,6 +449,36 @@ suite('claudeReplayMapper', () => {
 		assert.strictEqual(turns.length, 1);
 		assert.strictEqual(turns[0].message.text, missingPromptPlaceholder());
 		assert.strictEqual(turns[0].state, TurnState.Complete);
+	});
+
+	test('replaySessionMessages exposes the attribution index alongside the turns', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'first'),
+			makeAssistantToolUse('a1', 'tu_bash', 'Bash', { command: 'ls' }),
+			makeUserToolResult('r1', 'tu_bash', 'file.txt'),
+			makeAssistantToolUse('a2', 'tu_task', 'Task', { description: 'explore', subagent_type: 'Explore', prompt: 'look around' }),
+			makeUserToolResult('r2', 'tu_task', 'done\nagentId: agent123 (use SendMessage with to: \'agent123\')'),
+			makeAssistantToolUse('a3', 'tu_client_task', 'mcp__client__Task', { description: 'client task' }),
+			makeUserToolResult('r3', 'tu_client_task', 'done'),
+			makeUser('u2', 'second'),
+			makeAssistantToolUse('a4', 'tu_read', 'Read', { file_path: '/tmp/x' }),
+		];
+
+		const { turns, attribution } = replaySessionMessages(messages, session, logService);
+
+		assert.deepStrictEqual(mapSessionMessagesToTurns(messages, session, logService), turns, 'the turns-only wrapper must be a pure view of the same pass');
+		assert.deepStrictEqual({
+			tailTurnId: attribution.tailTurnId,
+			entries: Array.from(attribution.entries.values()),
+		}, {
+			tailTurnId: 'u2',
+			entries: [
+				{ toolUseId: 'tu_bash', turnId: 'u1', toolName: 'Bash', isClientTool: false, parsedInput: { command: 'ls' }, isSubagentSpawn: false, resultSeen: true },
+				{ toolUseId: 'tu_task', turnId: 'u1', toolName: 'Task', isClientTool: false, parsedInput: { description: 'explore', subagent_type: 'Explore', prompt: 'look around' }, isSubagentSpawn: true, resultSeen: true, agentId: 'agent123' },
+				{ toolUseId: 'tu_client_task', turnId: 'u1', toolName: 'Task', isClientTool: true, parsedInput: { description: 'client task' }, isSubagentSpawn: false, resultSeen: true },
+				{ toolUseId: 'tu_read', turnId: 'u2', toolName: 'Read', isClientTool: false, parsedInput: { file_path: '/tmp/x' }, isSubagentSpawn: false, resultSeen: false },
+			],
+		});
 	});
 });
 
