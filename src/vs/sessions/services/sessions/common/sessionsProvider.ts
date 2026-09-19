@@ -39,6 +39,8 @@ export interface IPreparedNewSession {
 export interface ISendRequestOptions {
 	/** The query text to send. */
 	readonly query: string;
+	/** Provider-specific request metadata, separate from the prompt. */
+	readonly metadata?: Record<string, unknown>;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional display title for the new session. */
@@ -53,6 +55,14 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly metadata?: Record<string, unknown>;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
+}
+
+/** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
+export interface ISessionConfigurationSnapshot {
+	/** Selected isolation mode, or undefined when the provider cannot determine it. */
+	readonly isolation?: 'worktree' | 'folder';
+	/** Provider-specific values may contain sensitive data and must not be logged wholesale. */
+	readonly providerConfig: Readonly<Record<string, unknown>>;
 }
 
 /** Provider-owned Automation draft state plus temporary compatibility projections. */
@@ -355,6 +365,9 @@ export interface ISessionsProvider {
 	 */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
+	/** Remove a recorded artifact without changing independent session associations. */
+	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
+
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
@@ -406,6 +419,9 @@ export interface ISessionsProvider {
 	 * @param level The permission level to set.
 	 */
 	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/** Snapshots the draft configuration after pending changes settle, normalizing common properties at the provider boundary. */
+	getNewSessionConfig?(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined>;
 
 	/**
 	 * Set the isolation mode for a session.

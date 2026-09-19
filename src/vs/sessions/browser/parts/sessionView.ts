@@ -7,7 +7,7 @@ import './media/sessionView.css';
 import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
@@ -15,17 +15,18 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -59,7 +60,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _header: SessionHeader;
 	private readonly _groupsView: ChatGroupsView;
-	private readonly _standaloneView = this._register(new MutableDisposable<AbstractChatView>());
+	private readonly _standaloneView = this._register(disposableObservableValue<AbstractChatView | undefined>(this, undefined));
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
@@ -87,6 +88,11 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _isLeafVisible = true;
 
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+	private readonly _isVisibleObs = observableValue(this, true);
+
+	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader)
+		? this._standaloneView.read(reader)?.pickerVisibility.read(reader) ?? noSessionPickerVisibility
+		: noSessionPickerVisibility);
 
 	constructor(
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
@@ -101,6 +107,8 @@ export class SessionView extends Disposable implements ISerializableView {
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
 		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
+		const pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(scopedContextKeyService));
+		this._register(autorun(reader => pickerVisibilityContextKeys.set(this.pickerVisibility.read(reader))));
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
@@ -151,6 +159,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			const session = this._sessionObs.read(reader);
 			const tabsReplaceHeader = this._groupsView.groupCount.read(reader) === 1
 				&& (session?.isCreated.read(reader) ?? false)
+				&& !this._groupsView.showChatAsSessionView.read(reader)
 				&& (session?.shouldShowChatTabs.read(reader) ?? false);
 			this._header.setVisible(!tabsReplaceHeader);
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
@@ -172,10 +181,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._header.setSession(session);
 		if (session && !session.isCreated.get()) {
 			this._groupsView.setSession(undefined, options);
-			let view = this._standaloneView.value;
+			let view = this._standaloneView.get();
 			if (!view || view.kind !== 'newSession') {
 				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
-				this._standaloneView.value = view;
+				this._standaloneView.set(view, undefined);
 			}
 			if (view.element.parentElement !== this._contentContainer) {
 				this._contentContainer.replaceChildren(view.element);
@@ -192,7 +201,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		} else {
 			this._groupsView.setSession(undefined, options);
 			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
-			this._standaloneView.value = view;
+			this._standaloneView.set(view, undefined);
 			this._contentContainer.replaceChildren(view.element);
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
@@ -202,7 +211,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
-		this._standaloneView.clear();
+		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
 		this._groupsView.setSession(session, options);
 		this._layoutChildren();
@@ -247,7 +256,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		// right edge; the chat rows and input center themselves via CSS.
 		const contentHeight = height - barHeight;
 		const contentTop = top + barHeight;
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._standaloneView.get();
 		if (standaloneView) {
 			standaloneView.layout(width, contentHeight, contentTop, left);
 		} else {
@@ -260,7 +269,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	focus(): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._standaloneView.get();
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
@@ -282,19 +291,19 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._currentSession;
 	}
 
-	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
-		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		const standaloneView = this._standaloneView.get();
+		return standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
 	}
 
 	selectNoWorkspace(): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._standaloneView.get();
 		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
 	}
 
-	/** Opens the given chat in a group beside the active one ("open to the side"). */
-	openChatToSide(resource: URI): Promise<void> {
-		return this._groupsView.openChatInNewGroup(resource);
+	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */
+	openChatToSide(resource: URI, referenceChatResource?: URI): Promise<void> {
+		return this._groupsView.openChatInNewGroup(resource, referenceChatResource);
 	}
 
 	/** Places a freshly created chat (e.g. a side chat) into its own group beside the current one. */
@@ -315,24 +324,24 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	prefillInput(text: string): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._standaloneView.get();
 		standaloneView ? standaloneView.prefillInput(text) : this._groupsView.prefillInput(text);
 	}
 
 	sendQuery(text: string): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._standaloneView.get();
 		standaloneView ? standaloneView.sendQuery(text) : this._groupsView.sendQuery(text);
 	}
 
 	submitInput(): Promise<boolean> {
-		return this._standaloneView.value?.submitInput() ?? this._groupsView.submitInput();
+		return this._standaloneView.get()?.submitInput() ?? this._groupsView.submitInput();
 	}
 
 	/**
 	 * Attaches the given resources as context to the active chat group's input.
 	 */
 	attach(uris: URI[]): void {
-		const standaloneView = this._standaloneView.value;
+		const standaloneView = this._standaloneView.get();
 		standaloneView ? standaloneView.attach(uris) : this._groupsView.attach(uris);
 	}
 
@@ -356,7 +365,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._isActive = active;
 		this._applyActiveSessionStyles();
 		this._groupsView.setSessionActive(active);
-		this._standaloneView.value?.setActive(active);
+		this._standaloneView.get()?.setActive(active);
 	}
 
 	/**
@@ -399,8 +408,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		if (visible === wasVisible) {
 			return;
 		}
+		this._isVisibleObs.set(visible, undefined);
 		this._groupsView.setSessionVisible(visible);
-		this._standaloneView.value?.setVisible(visible);
+		this._standaloneView.get()?.setVisible(visible);
 		if (visible) {
 			// Catch up on the layout passes that were skipped while hidden.
 			this._layoutChildren();
@@ -410,5 +420,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _applyActiveSessionStyles(): void {
 		this.element.classList.toggle('modern-ui-editor-tab-group-active', this._isActive);
 		applySessionViewThemeColors(this.element, this.themeService.getColorTheme(), this._isActive);
+	}
+
+	override dispose(): void {
+		this._isVisibleObs.set(false, undefined);
+		super.dispose();
 	}
 }

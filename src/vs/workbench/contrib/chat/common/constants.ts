@@ -52,7 +52,11 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
+	SessionCatalogEnabled = 'chat.agentHost.sessionCatalog.enabled',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
+	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
+	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
+	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -87,6 +91,7 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	PersistentProgress = 'chat.experimental.persistentProgress',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -101,6 +106,7 @@ export enum ChatConfiguration {
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 
@@ -112,8 +118,8 @@ export enum ChatConfiguration {
 	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
+	ExperimentalModePermissionsPicker = 'chat.experimentalModePermissionsPicker',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
@@ -125,6 +131,7 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
+	AgentHostDebugLogsDefaultExportLocation = 'chat.agentHost.debugLogs.defaultExportLocation',
 	EditorPreferCopilotHarness = 'chat.editor.preferCopilotHarness',
 	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
@@ -139,6 +146,8 @@ export enum ChatConfiguration {
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
+
+export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
 
 /**
  * The "kind" of agents for custom agents.
@@ -229,6 +238,15 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum ChatProgressAnimation {
+	Off = 'off',
+	Weave = 'weave',
+	Draw = 'draw',
+	Orbit = 'orbit',
+	Accordion = 'accordion',
+	Dial = 'dial',
 }
 
 export enum CollapsedToolsDisplayMode {

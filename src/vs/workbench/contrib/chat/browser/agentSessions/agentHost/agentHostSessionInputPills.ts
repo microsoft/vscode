@@ -31,6 +31,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
@@ -38,6 +39,7 @@ import { openChatFileChanges } from '../../editorChatResponseFileChangesService.
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Changes,
@@ -67,7 +69,9 @@ const artifactSectionOrder: readonly { readonly type: SessionArtifactType; reado
 
 export interface IAgentHostSessionPillMetadata {
 	readonly pullRequestUrls: readonly string[];
+	readonly pullRequestTitles: ReadonlyMap<string, string>;
 	readonly issueUrls: readonly string[];
+	readonly issueTitles: ReadonlyMap<string, string>;
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly references: readonly ISessionArtifact[];
 }
@@ -111,16 +115,20 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
-	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
-	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)).map(entry => entry.link);
+	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest));
+	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
-	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
-	const issueUrls = dedupeLinks(artifactIssues);
+	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
+	const pullRequestTitles = new Map(artifactPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
+	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
+	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
+		pullRequestTitles,
 		issueUrls,
+		issueTitles,
 		artifacts: remaining.filter(entry => entry.isArtifact),
 		references: remaining.filter(entry => !entry.isArtifact),
 	};
@@ -204,9 +212,19 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function referenceLabel(link: string, kind: 'pullRequest' | 'issue'): string {
+function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
 	const resource = parseUri(link);
 	const number = resource ? githubReferenceNumber(resource, kind) : undefined;
+	if (title) {
+		if (kind === 'pullRequest') {
+			return number
+				? localize('agentHostSessionPills.pullRequest.numberWithTitle', "Pull Request #{0}: {1}", number, title)
+				: title;
+		}
+		return number
+			? localize('agentHostSessionPills.issue.numberWithTitle', "Issue #{0}: {1}", number, title)
+			: title;
+	}
 	if (kind === 'pullRequest') {
 		return number
 			? localize('agentHostSessionPills.pullRequest.number', "Pull Request #{0}", number)
@@ -248,15 +266,26 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
+		@IAgentHostUntitledProvisionalSessionService provisionalSessions: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super();
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
+		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
 			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
-			return resource ? connectionsService.resolveSessionResource(resource) : undefined;
+			if (!resource) {
+				return undefined;
+			}
+			provisionalSessionChanged.read(reader);
+			const provisionalBackend = provisionalSessions.get(resource);
+			if (isUntitledChatSession(resource) && !provisionalBackend) {
+				return undefined;
+			}
+			const resolved = connectionsService.resolveSessionResource(resource);
+			return resolved && provisionalBackend ? { ...resolved, backendSession: provisionalBackend } : resolved;
 		});
 		const sessionStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
@@ -345,12 +374,18 @@ export class AgentHostSessionInputPills extends Disposable {
 				: new Set();
 		});
 
-		const pullRequestSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).pullRequestUrls, 'pullRequest', gitHubState.read(reader)));
+		const pullRequestSections = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', gitHubState.read(reader), currentMetadata.pullRequestTitles);
+		});
 		const pullRequestIcon = derived(this, reader => {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
 			return getHighestPriorityPullRequestIcon(icons) ?? computePullRequestIcon('open');
 		});
-		const issueSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).issueUrls, 'issue'));
+		const issueSections = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', undefined, currentMetadata.issueTitles);
+		});
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
@@ -404,14 +439,15 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>) {
+	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
 				return undefined;
 			}
 			const number = githubReferenceNumber(resource, kind);
-			const label = referenceLabel(link, kind);
+			const title = titles?.get(linkKey(link));
+			const label = referenceLabel(link, kind, title);
 			const pullRequestState = kind === 'pullRequest'
 				&& gitHubState?.pullRequestState
 				&& gitHubState.pullRequestStateUrl
@@ -433,6 +469,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					run: () => this._clipboardService.writeText(resource.toString(true)),
 				})],
 				...getChatPillResourceLocation(resource, label),
+				...(title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
 				open: () => this._openExternal(resource),
 			};
 		}).filter(isDefined);

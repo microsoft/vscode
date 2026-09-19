@@ -5,7 +5,7 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import type { ModelCallTurnCorrelationOutcome } from './modelCallTurnCorrelation.js';
+import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
 	readonly ahCorrelationOutcome: ModelCallTurnCorrelationOutcome | 'sessionNotFound' | 'activeTurnFallback' | 'noActiveTurn';
@@ -13,6 +13,22 @@ export interface ICopilotModelCallCorrelationTelemetry {
 	readonly ahActiveRootTurnIdAtResponse?: string;
 	readonly ahSessionDisposedDuringWait?: boolean;
 }
+
+type ModelCallTurnCorrelatedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	turnId: string;
+	mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>;
+};
+
+type ModelCallTurnCorrelatedClassification = {
+	owner: 'amunger';
+	comment: 'Records exact model-call ownership independently of response telemetry arrival. Deduplicated by SDK session and call ID; the first owner is retained and a later conflicting owner is emitted with mappingStatus conflict so consumers can exclude it, not dropped here.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session ID matching sdk_session_id on forwarded response events.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Call identifier from model completion; join only by exact ID, never by time. Message fallback IDs may have no corresponding SDK response.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host-remapped turn owning the completed model call.' };
+	mappingStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether ownership was recorded, arrived after forwarding, or conflicts with an owner retained in the bounded cache.' };
+};
 
 /* __GDPR__FRAGMENT__
 	"CopilotSdkForwardedTelemetry": {
@@ -61,6 +77,7 @@ export interface ICopilotModelCallCorrelationTelemetry {
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
 		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model response, or the active host turn on the fallback path." },
+		"usageStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Availability of finite nonnegative input, output, and cache-read counters on this event: known, partial, or notReported. Not a guarantee of delivery completeness." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
@@ -104,6 +121,11 @@ export interface ICopilotModelCallCorrelationTelemetry {
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
 		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model failure, or the active host turn on the fallback path." },
+		"usageStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Availability of finite nonnegative input, output, and cache-read counters on this event: known, partial, or notReported. Missing usage on an error is not zero usage." },
+		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
+		"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported input tokens, when available on a failed response.", "isMeasurement": true },
+		"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported cache-read tokens, when available on a failed response.", "isMeasurement": true },
+		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported output tokens, when available on a failed response.", "isMeasurement": true },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
 		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
@@ -224,6 +246,12 @@ export class CopilotGitHubTelemetryForwarder {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
+	recordModelCallTurnCorrelation(sdkSessionId: string, modelCallId: string, turnId: string, mappingStatus: Exclude<ModelCallTurnCorrelationRecordStatus, 'duplicate'>): void {
+		this._telemetryService.publicLog2<ModelCallTurnCorrelatedEvent, ModelCallTurnCorrelatedClassification>('agentHost.modelCallTurnCorrelated', {
+			sdkSessionId, modelCallId, turnId, mappingStatus,
+		});
+	}
+
 	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry): void {
 		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
 			return;
@@ -263,6 +291,9 @@ export class CopilotGitHubTelemetryForwarder {
 					}
 				}
 			}
+			const knownCounters = [data.promptTokenCount, data.completionTokens, data.promptCacheTokenCount]
+				.filter(value => typeof value === 'number' && Number.isFinite(value) && value >= 0).length;
+			data.usageStatus = knownCounters === 3 ? 'known' : knownCounters > 0 ? 'partial' : 'notReported';
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
 			} else {

@@ -105,6 +105,7 @@ function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enab
 		agents: observableValue('agents', Array.from({ length: agents }, (_, index) => ({ uri: URI.joinPath(uri, 'agents', `agent-${index}.agent.md`), name: `agent-${index}` }))),
 		instructions: observableValue('instructions', []),
 		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),
+		automations: observableValue('automations', []),
 	} as unknown as IAgentPlugin;
 }
 

@@ -18,7 +18,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -32,14 +32,15 @@ import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, ty
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -85,7 +86,7 @@ import type { Implementation } from '../../common/state/protocol/common/commands
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -105,6 +106,15 @@ class TestClientIdentityTelemetryService implements ITelemetryService {
 	publicLogError2(): void { }
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
+}
+
+const workspaceTrustEnablementService: IWorkspaceTrustEnablementService = { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => true };
+
+class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagementService>() {
+	override onDidChangeTrust = Event.None;
+	override onDidChangeTrustedFolders = Event.None;
+	trustedUris: URI[] = [];
+	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
 interface ITestRootConfigNotificationParams {
@@ -189,6 +199,10 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireExtensionNotification(message: JsonRpcNotification): void {
+		this._onMessage.fire(message as ProtocolMessage);
 	}
 
 	fireExtensionRequest(id: number, method: string, params: Record<string, unknown>): void {
@@ -345,7 +359,11 @@ suite('AgentHostProtocolClient', () => {
 		const trusted = new Set((config?.trusted ?? []).map(uri => uri.toString()));
 		const requests: URI[] = [];
 		const grants: URI[] = [];
-		const management = new class extends mock<IWorkspaceTrustManagementService>() {
+		const management = new class extends TestWorkspaceTrustManagementService {
+			override getTrustedUris(): URI[] {
+				return [...trusted].map(uri => URI.parse(uri));
+			}
+
 			override async getUriTrustInfo(uri: URI) {
 				return { uri, trusted: trusted.has(uri.toString()) };
 			}
@@ -374,7 +392,7 @@ suite('AgentHostProtocolClient', () => {
 		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
 			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
 			: undefined;
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrust.management, workspaceTrust.request));
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request));
 		return { client, transport, configurationService };
 	}
 
@@ -395,6 +413,151 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('Dev Container facade is capability gated for old and malformed hosts', async () => {
+		const supported: boolean[] = [];
+		for (const meta of [undefined, { 'vscode.devContainers': 'true' }, { 'vscode.devContainers': false }, getAgentHostExtensionInitializeResultMeta(true, true)]) {
+			const { client, transport } = createClient();
+			assert.strictEqual(client.devContainerService, undefined);
+			await connectClient(client, transport, meta);
+			supported.push(client.devContainerService !== undefined);
+		}
+		assert.deepStrictEqual(supported, [false, false, false, true]);
+	});
+
+	test('Dev Container facade uses the parent transport and validates notifications', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+		const service = client.devContainerService;
+		assert.ok(service);
+		const output: string[] = [];
+		const frames: string[] = [];
+		const closed: string[] = [];
+		const closeStates: AgentHostClientState[] = [];
+		disposables.add(service.onDidOutput(event => output.push(event.data)));
+		disposables.add(service.onDidRelayMessage(event => frames.push(event.data)));
+		disposables.add(service.onDidCloseConnection(id => {
+			closed.push(id);
+			closeStates.push(client.connectionState);
+		}));
+		const docker = service.isDockerAvailable();
+		await flushMicrotasks();
+		const dockerRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.strictEqual(dockerRequest.method, DevContainerIsDockerAvailableExtensionMethod);
+		transport.fireMessage({ jsonrpc: '2.0', id: dockerRequest.id, result: true });
+		assert.strictEqual(await docker, true);
+		const config = { connectionId: 'container', workspaceFolder: '/repo', name: 'Project' };
+		const connecting = service.connect(config);
+		await flushMicrotasks();
+		const connectRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.deepStrictEqual({ method: connectRequest.method, params: connectRequest.params }, { method: DevContainerConnectExtensionMethod, params: config });
+		const result = { connectionId: config.connectionId, address: 'devcontainer:test', name: config.name, remoteWorkspaceFolder: '/workspaces/project', hostWorkspaceFolder: '/repo' };
+		transport.fireMessage({ jsonrpc: '2.0', id: connectRequest.id, result });
+		assert.deepStrictEqual(await connecting, result);
+		for (const [method, params] of [
+			[DevContainerOutputNotification, { connectionId: 'container', data: 'output' }],
+			[DevContainerRelayMessageNotification, { connectionId: 'container', data: 'frame' }],
+			[DevContainerRelayMessageNotification, { connectionId: 'other-client', data: 'ignored' }],
+			[DevContainerRelayMessageNotification, { connectionId: 'container', data: 1 }],
+		] as const) {
+			transport.fireExtensionNotification({ jsonrpc: '2.0', method, params });
+		}
+		const sending = service.relaySend('container', 'outbound frame');
+		await flushMicrotasks();
+		const sendRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.deepStrictEqual({ method: sendRequest.method, params: sendRequest.params }, { method: DevContainerRelaySendExtensionMethod, params: { connectionId: 'container', data: 'outbound frame' } });
+		transport.fireMessage({ jsonrpc: '2.0', id: sendRequest.id, result: null });
+		await sending;
+		client.dispose();
+		assert.deepStrictEqual({ output, frames, closed, closeStates }, { output: ['output'], frames: ['frame'], closed: ['container'], closeStates: [AgentHostClientState.Closed] });
+	});
+
+	test('Dev Container pending launches close with their parent', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+		const service = client.devContainerService;
+		assert.ok(service);
+		const closed: string[] = [];
+		disposables.add(service.onDidCloseConnection(id => closed.push(id)));
+		const connecting = service.connect({ connectionId: 'pending', workspaceFolder: '/repo', name: 'Project' });
+		await flushMicrotasks();
+		const rejected = assert.rejects(connecting);
+		client.dispose();
+		await rejected;
+		assert.deepStrictEqual(closed, ['pending']);
+		assert.strictEqual(client.devContainerService, undefined);
+		await assert.rejects(service.isDockerAvailable());
+	});
+
+	test('Dev Container facade rejects malformed host responses', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+		const service = client.devContainerService;
+		assert.ok(service);
+		const docker = service.isDockerAvailable();
+		await flushMicrotasks();
+		const dockerRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: dockerRequest.id, result: 'true' });
+		await assert.rejects(docker, /Invalid Dev Container Docker availability response/);
+		for (const result of [
+			null,
+			{ connectionId: 'other', address: 'address', name: 'Project', remoteWorkspaceFolder: '/repo' },
+			{ connectionId: 'container', address: 'address', name: 'Project', remoteWorkspaceFolder: '/repo', hostWorkspaceFolder: 42 },
+			{ connectionId: 'container', address: 'address', name: 'Project', remoteWorkspaceFolder: '/repo', hostWorkspaceFolder: '' },
+		]) {
+			const connecting = service.connect({ connectionId: 'container', workspaceFolder: '/repo', name: 'Project' });
+			await flushMicrotasks();
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result });
+			await assert.rejects(connecting, /Invalid Dev Container connection response/);
+		}
+	});
+
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234', 'vscode-remote://ssh-remote+test'] as const) {
+		test(`workspace trust forwards only the target host's trusted roots (${String(identity)})`, async () => {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trustService = new TestWorkspaceTrustManagementService();
+			trustService.trustedUris = [
+				URI.file('/local/trusted'),
+				toAgentHostUri(URI.file('/remote/trusted'), agentHostAuthority('test.example:1234')),
+				toAgentHostUri(URI.file('/other/trusted'), agentHostAuthority('other.example:1234')),
+				URI.parse('vscode-remote://ssh-remote+test/ssh/trusted'),
+				URI.parse('vscode-remote://ssh-remote+other/other/trusted'),
+			];
+			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
+			await connectClient(client, transport);
+			const path = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? '/local/trusted' : identity === 'test.example:1234' ? '/remote/trusted' : '/ssh/trusted';
+			assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [URI.file(path).toString()] });
+		});
+	}
+
+	test('workspace trust sends current grants and revocations, not workspace configuration', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const trustService = new TestWorkspaceTrustManagementService();
+		const changed = disposables.add(new Emitter<void>());
+		trustService.onDidChangeTrustedFolders = changed.event;
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
+		await connectClient(client, transport);
+		const states = [findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey)];
+		for (const trustedUris of [[URI.file('/repo')], []]) {
+			transport.sentMessages.length = 0;
+			trustService.trustedUris = trustedUris;
+			changed.fire();
+			states.push(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey));
+		}
+		assert.deepStrictEqual(states, [
+			{ enabled: true, trustedUris: [] },
+			{ enabled: true, trustedUris: [URI.file('/repo').toString()] },
+			{ enabled: true, trustedUris: [] },
+		]);
+	});
+
+	test('workspace trust forwards explicit disablement from the enablement service', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request));
+		await connectClient(client, transport);
+		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
+	});
 
 	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
@@ -926,6 +1089,30 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(closeCount, 1);
 	});
 
+	test('records late close details without repeating the protocol close', async () => {
+		const transport = disposables.add(new class extends TestProtocolTransport {
+			readonly closeDetailsEmitter = this._register(new Emitter<ITransportCloseDetails>());
+			readonly onDidCloseDetails = this.closeDetailsEmitter.event;
+		}());
+		const { client } = createClient(transport);
+		await connectClient(client, transport);
+		let closeCount = 0;
+		const diagnostics: IConnectionDiagnosticEvent[] = [];
+		disposables.add(client.onDidClose(() => closeCount++));
+		disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
+		transport.fireClose();
+		transport.closeDetailsEmitter.fire({ code: 4001, reason: 'token=private', wasClean: false });
+		assert.deepStrictEqual({
+			closeCount,
+			state: client.connectionState,
+			details: diagnostics.filter(event => event.phase === 'transport.closeDetails').map(event => event.detail),
+		}, {
+			closeCount: 1,
+			state: AgentHostClientState.Closed,
+			details: ['code=4001; wasClean=false; reason=token=[redacted]'],
+		});
+	});
+
 	test('rejects pending requests on dispose', async () => {
 		const { client } = createClient();
 		const resultPromise = client.resourceList(URI.file('/workspace'));
@@ -1228,6 +1415,7 @@ suite('AgentHostProtocolClient', () => {
 			createPermissionService(),
 			configurationService,
 			NullTelemetryService,
+			workspaceTrustEnablementService,
 			workspaceTrust.management,
 			workspaceTrust.request,
 		));
@@ -1606,6 +1794,28 @@ suite('AgentHostProtocolClient', () => {
 			path: '/tmp/agent-host-debug.zip',
 			entries: [{ path: 'agenthost.log', size: 2048 }],
 		});
+	});
+
+	test('removeSessionArtifact sends the VS Code extension request', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.removeSessionArtifact(session, 'artifact-1');
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/removeSessionArtifact',
+			params: { session: session.toString(), artifactId: 'artifact-1' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+		await resultPromise;
+	});
+
+	test('removeSessionArtifact propagates unsupported host errors', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.removeSessionArtifact(URI.parse('copilotcli:/session-1'), 'artifact-1');
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+		await assertRemoteProtocolError(resultPromise, error);
 	});
 
 	test('getSessionStateFile maps the returned host resource', async () => {
@@ -2485,12 +2695,12 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports };
 		}
 
-		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>): Promise<void> {
+		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>, meta?: Record<string, unknown>): Promise<void> {
 			transport.connectDeferred.complete();
 			while (findRequest(transport, 'initialize') === undefined) {
 				await Promise.resolve();
@@ -2498,14 +2708,55 @@ suite('AgentHostProtocolClient', () => {
 			const init = findRequest(transport, 'initialize')!;
 			transport.fireMessage({
 				jsonrpc: '2.0', id: init.id,
-				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [] },
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [], _meta: meta },
 			});
 			await connectPromise;
 		}
 
+		test('Dev Container facade survives parent reconnection and closes its old relay', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			await completeHandshake(transports[0], client.connect(), getAgentHostExtensionInitializeResultMeta(true, true));
+			const service = client.devContainerService;
+			assert.ok(service);
+			const config = { connectionId: 'container', workspaceFolder: '/repo', name: 'Project' };
+			const result = { connectionId: config.connectionId, address: 'devcontainer:test', name: config.name, remoteWorkspaceFolder: '/workspaces/project' };
+			const connecting = service.connect(config);
+			const initialRequest = await waitForRequestAtWithin(transports[0], DevContainerConnectExtensionMethod, 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialRequest.id, result });
+			await connecting;
+
+			let retry: Promise<typeof result> | undefined;
+			const closed: { id: string; state: AgentHostClientState }[] = [];
+			const relayCloseListener = disposables.add(Event.once(service.onDidRelayClose)(id => {
+				closed.push({ id, state: client.connectionState });
+				retry = service.connect(config);
+			}));
+			transports[0].fireClose();
+			assert.strictEqual(client.devContainerService, service);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			assert.strictEqual(findRequest(replacement, DevContainerConnectExtensionMethod), undefined);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			const containerRequest = await waitForRequestAtWithin(replacement, DevContainerConnectExtensionMethod, 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: containerRequest.id, result });
+			assert.ok(retry);
+			assert.deepStrictEqual({ result: await retry, closed, sameFacade: client.devContainerService === service }, {
+				result,
+				closed: [{ id: config.connectionId, state: AgentHostClientState.Reconnecting }],
+				sameFacade: true,
+			});
+			relayCloseListener.dispose();
+			client.dispose();
+			assert.strictEqual(client.devContainerService, undefined);
+		});
+
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new Error('initial transport failed'));
 			await assert.rejects(connectPromise, /initial transport failed/);
@@ -2532,9 +2783,15 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
+				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
+				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
+				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
+				transportFailure: 'initial transport failed',
+				handshakeMode: 'mode=freshInitialize',
+				retrySucceeded: true,
 			});
 		});
 
@@ -2799,6 +3056,7 @@ suite('AgentHostProtocolClient', () => {
 				});
 
 				await flushMicrotasks();
+				assert.deepStrictEqual(findRootConfigValue(reconnectTransport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [] });
 				client.dispose();
 			});
 		});

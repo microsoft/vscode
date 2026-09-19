@@ -171,6 +171,28 @@ suite('ModelCard', () => {
 		return background.getContrastRatio(readColor());
 	}
 
+	test('cards and hovers use the declared context window with a legacy fallback', () => {
+		const results = [
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 50_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 0, maxOutputTokens: 0, maxContextWindowTokens: 100_000 },
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000 },
+			{ maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 0 },
+		].map(limits => {
+			const model = createModel({ ...limits, configurationSchema: undefined });
+			const { card } = createCard({}, { model });
+			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			return [
+				card.element.querySelector('.chat-model-card-section-value')?.textContent,
+				hover.element.querySelector('.chat-model-hover-context-value')?.textContent,
+			];
+		});
+
+		assert.deepStrictEqual(results, [['100K', '100K'], ['100K', '100K'], ['100K', '100K'], ['120K', '120K'], [undefined, undefined]]);
+	});
+
 	for (const theme of [
 		{ name: 'Dark', className: 'vs-dark', foreground: '#cccccc', background: '#1f1f1f', description: '#9d9d9d', warning: '#cca700' },
 		{ name: 'Light', className: 'vs', foreground: '#3b3b3b', background: '#ffffff', description: '#3b3b3b', warning: '#bf8803' },
@@ -489,6 +511,67 @@ suite('ModelCard', () => {
 			accepted: 0,
 			name: 'Fast Model',
 			changes: [['navigation', 'effort', 'medium', 'high']],
+		});
+	});
+
+	test('queued configuration changes use the original model schema and latest saved values', async () => {
+		const started = new DeferredPromise<void>();
+		const saved = new DeferredPromise<void>();
+		const standard = createModel();
+		const fast = {
+			...createModel({
+				name: 'Fast Model',
+				configurationSchema: {
+					properties: {
+						fastEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], default: 'high' },
+					},
+				},
+			}),
+			identifier: 'copilot/test-model-fast',
+		};
+		const configurations = new Map<string, IStringDictionary<unknown>>([
+			[standard.identifier, { effort: 'medium' }],
+			[fast.identifier, { fastEffort: 'low' }],
+		]);
+		const writes: { modelId: string; values: IStringDictionary<unknown> }[] = [];
+		const result = createCard({}, {
+			model: standard,
+			configurationAccess: {
+				getModelConfiguration: modelId => configurations.get(modelId),
+				setModelConfiguration: async (modelId, values) => {
+					writes.push({ modelId, values });
+					if (writes.length === 1) {
+						await started.complete();
+						await saved.p;
+					}
+					configurations.set(modelId, { ...configurations.get(modelId), ...values });
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const options = element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]');
+		options[0].click();
+		await started.p;
+		options[2].click();
+		result.update({ model: fast });
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			writes,
+			changes: result.changes,
+			standardConfiguration: configurations.get(standard.identifier),
+			fastConfiguration: configurations.get(fast.identifier),
+			selectedModels: result.selectedModels,
+		}, {
+			writes: [
+				{ modelId: standard.identifier, values: { effort: 'low' } },
+				{ modelId: standard.identifier, values: { effort: 'high' } },
+			],
+			changes: [['navigation', 'effort', 'medium', 'low'], ['navigation', 'effort', 'low', 'high']],
+			standardConfiguration: { effort: 'high' },
+			fastConfiguration: { fastEffort: 'low' },
+			selectedModels: [],
 		});
 	});
 

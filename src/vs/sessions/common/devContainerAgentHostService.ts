@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../base/common/cancellation.js';
+import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
@@ -26,12 +27,14 @@ export interface IDevContainerAgentHostConnection {
 	readonly transportFactory: () => IProtocolTransport;
 	readonly transportDisposable?: IDisposable;
 	readonly workspaceUri: URI;
+	/** Native source path reported by the host that launched the container. */
+	readonly hostWorkspaceFolder?: string;
 	readonly defaultDirectory?: string;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
 export interface IDevContainerAgentHostConnector {
-	/** Whether the workspace has a supported configuration and Docker is available. */
+	/** Whether the workspace has a supported configuration and Docker is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection>;
 }
@@ -46,10 +49,11 @@ export interface IDevContainerAgentHostTarget {
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
-/** Coordinates Dev Container connectors with persistent remote Sessions providers. */
+/** Coordinates local, SSH, Tunnel, and WSL source workspaces with persistent container-backed Sessions providers. */
 export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidChangeAvailability: Event<void>;
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;

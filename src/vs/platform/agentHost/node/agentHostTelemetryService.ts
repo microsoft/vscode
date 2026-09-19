@@ -252,7 +252,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalTelemetry = verifyMicrosoftInternalDomain(productService.msftInternalDomains ?? []);
 
 	const appenders: ITelemetryAppender[] = [
-		disposables.add(new TelemetryLogAppender('', false, loggerService, environmentService, productService)),
+		disposables.add(new TelemetryLogAppender({ prefix: '', loggerId: 'agentHostTelemetry' }, false, loggerService, environmentService, productService)),
 	];
 	const loggingOnly = isLoggingOnly(productService, environmentService);
 	if (!loggingOnly && productService.aiConfig?.ariaKey) {

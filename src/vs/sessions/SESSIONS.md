@@ -111,11 +111,19 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
+Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
+
+The form also supports requesting creation in the originating session's main chat through the normal send lifecycle, without invoking programmatic PR creation. The provider validates the same prepared identity without regenerating details before the message is sent. That message contains the PR details and GitHub merge instructions; submission choices travel separately as provider-owned request metadata. A host chat contribution applies Agent Merge choices only after the creation turn is admitted and while it is still active, so monitoring cannot capture the old branch during client-side request preparation. The Changes contribution remembers form options and the last-used submission method across sessions in profile storage; remembering choices does not itself change session configuration or retain PR content.
+
 Turn-level file changes route through `IChatResponseFileChangesService`. The editor workbench opens its standard multi-diff presentation; the Agents Window registers `SessionsChatResponseFileChangesService` to select its canonical Changes editor. Providers expose the data but do not choose the presentation.
 
 ### Artifacts, references, and customizations
 
 Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
+
+Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
+
+GitHub issue and pull-request references promoted into dedicated pills retain their optional recorded-reference ID. Presentation code uses that ID for per-item removal and never infers record identity from a title or URL.
 
 ## Provider contract
 
@@ -186,13 +194,15 @@ user chooses a workspace and session type
 
 On first send, the provider creates or selects the chat, sends the request, and commits the session. Providers may preserve the draft facade or notify the management service through the separate replacement lifecycle. Consumers follow that lifecycle rather than assuming one strategy or a replacement field on a catalog event.
 
+Providers may expose an `ISessionConfigurationSnapshot` of resolved draft configuration. Providers normalize common properties, such as isolation, and retain the full provider-specific values separately in `providerConfig`. Management captures the snapshot before draft preparation or replacement and includes it in the successful first-request notification without interpreting provider values. Consumers use the typed common properties without knowing provider keys; the full snapshot is not a telemetry payload.
+
 ### Existing session
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
 
 ### Multiple chats
 
-Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state.
+Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
 
 ## State propagation
 

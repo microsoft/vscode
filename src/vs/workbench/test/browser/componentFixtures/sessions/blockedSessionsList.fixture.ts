@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IChat, IGitHubInfo, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -134,6 +134,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		override readonly isRead: IObservable<boolean> = constObservable<boolean>(true);
 		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsDelete: true });
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable<ISessionChangesSummary | undefined>(options.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable<IMarkdownString | undefined>(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable<readonly IChat[]>(chats);

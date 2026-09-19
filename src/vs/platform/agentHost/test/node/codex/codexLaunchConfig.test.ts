@@ -83,7 +83,7 @@ suite('CodexLaunchConfig', () => {
 		});
 	});
 
-	test('uses platform-supported profiles without path-specific exceptions', () => {
+	test('keeps the Linux sandbox bootstrap visible while denying shared temp access on macOS', () => {
 		const linuxProfile = codexPermissionProfileOverrides('linux')[1];
 		const macProfile = codexPermissionProfileOverrides('darwin')[1];
 		const windowsProfiles = codexPermissionProfileOverrides('win32');
@@ -94,7 +94,7 @@ suite('CodexLaunchConfig', () => {
 			windows: windowsProfiles,
 			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
 		}, {
-			linux: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			linux: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read" }, network = { enabled = false } }',
 			mac: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
 			windows: [
 				'default_permissions="vscode-workspace"',
@@ -102,7 +102,7 @@ suite('CodexLaunchConfig', () => {
 				'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
 				'permissions.vscode-workspace-read-only={ extends = ":read-only" }',
 			],
-			temp: [[true, true], [true, true], [false, false]],
+			temp: [[true, false], [true, true], [false, false]],
 		});
 	});
 

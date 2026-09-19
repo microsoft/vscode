@@ -11,15 +11,18 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -44,6 +47,7 @@ function devContainerAddress(workspaceUri: URI): string {
 }
 
 class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() implements IDisposable {
+	override configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	private readonly _onDidChangeConnections = new Emitter<void>();
 	override readonly onDidChangeConnections = this._onDidChangeConnections.event;
 	private _connections: IRemoteAgentHostConnectionInfo[] = [];
@@ -187,6 +191,10 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 	provider: TestProvider | undefined;
 	publishSessionOnCreate = false;
+
+	constructor(...args: [IInstantiationService, IRemoteAgentHostService, ISessionsProvidersService, IStorageService]) {
+		super(...args, new class extends mock<IWorkspaceTrustRequestService>() { }());
+	}
 
 	protected override _createProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
 		this.provider = new TestProvider(config);
@@ -459,6 +467,100 @@ suite('Dev Container Agent Host Service', () => {
 			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
 		});
 	});
+
+	test('restores remote container source identities without merging identical paths on different hosts', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sources = ['ssh:first', 'ssh:second', 'tunnel:first', 'wsl:Ubuntu', 'wsl:Fedora'].map(address => URI.from({
+			scheme: AGENT_HOST_SCHEME,
+			authority: agentHostAuthority(address),
+			path: '/source',
+		}));
+		storageService.store('devContainerAgentHost.connections', JSON.stringify(sources.map(workspace => ({
+			workspaceUri: workspace.toString(),
+			name: 'Remote Dev Container',
+		}))), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+
+		assert.deepStrictEqual(providersService.getProviders().map(provider => ({
+			id: provider.id,
+			status: provider instanceof TestProvider ? provider.status : undefined,
+			remoteWorktree: provider instanceof TestProvider && !!provider.config.resolveDevContainerWorktreeConnection,
+			worktreeScope: provider instanceof TestProvider ? provider.config.devContainerWorktreeScope : undefined,
+		})), sources.map(source => ({
+			id: `agenthost-${agentHostAuthority(devContainerAddress(source))}`,
+			status: RemoteAgentHostConnectionStatus.disconnected,
+			remoteWorktree: true,
+			worktreeScope: getComparisonKey(URI.file('/source')),
+		})));
+	});
+
+	test('restores host-native worktree scopes without losing Windows or UNC URI identity', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const nativeWorkspaces = [
+			URI.from({ scheme: Schemas.file, path: '/c:/Worktrees/project' }),
+			URI.from({ scheme: Schemas.file, authority: 'server', path: '/share/project' }),
+		];
+		const sources = nativeWorkspaces.map(workspace => toAgentHostUri(workspace, agentHostAuthority('ssh:windows')));
+		storageService.store('devContainerAgentHost.connections', JSON.stringify(sources.map(workspace => ({
+			workspaceUri: workspace.toString(),
+			name: 'Windows Dev Container',
+		}))), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+		assert.deepStrictEqual(providersService.getProviders().map(provider => provider instanceof TestProvider ? {
+			id: provider.id,
+			scope: provider.config.devContainerWorktreeScope,
+		} : undefined), nativeWorkspaces.map((workspace, index) => ({
+			id: `agenthost-${agentHostAuthority(devContainerAddress(sources[index]))}`,
+			scope: getComparisonKey(workspace),
+		})));
+	});
+
+	for (const { entry, hostAuthority } of [
+		{ entry: { name: 'Server', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:server', hostName: 'server', sshConfigHost: 'server' } }, hostAuthority: 'ssh-remote+server' },
+		{ entry: { name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } }, hostAuthority: 'wsl+Ubuntu' },
+	] satisfies { entry: IRemoteAgentHostEntry; hostAuthority: string }[]) {
+		test(`stages the source host authority and worktree owner for ${entry.connection.type} containers`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			remoteService.configuredEntries = [entry];
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, store.add(new TestSessionsProvidersService()), store.add(new InMemoryStorageService())));
+			const source = URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(getEntryAddress(entry)), path: '/project' });
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				createConnection: async (_workspaceUri, address) => ({
+					address,
+					name: 'Project Dev Container',
+					hostWorkspaceFolder: '/native/project',
+					transportFactory: () => undefined as never,
+					workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces/project' }),
+				}),
+			}));
+			const target = await service.connect(source, CancellationToken.None);
+			assert.deepStrictEqual({
+				connection: remoteService.stagedEntry?.connection,
+				remoteWorktree: !!service.provider?.config.resolveDevContainerWorktreeConnection,
+				worktreeScope: service.provider?.config.devContainerWorktreeScope,
+			}, {
+				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority },
+				remoteWorktree: true,
+				worktreeScope: getComparisonKey(URI.file('/project')),
+			});
+			await target.release();
+		});
+	}
 
 	test('disconnect forces teardown while a connection lease is held', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

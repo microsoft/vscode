@@ -19,10 +19,10 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
@@ -39,16 +39,28 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
 
+function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const folders = workspaceContextService.getWorkspace().folders;
+	if (folders.length <= 1) {
+		return folders[0]?.uri;
+	}
+	const resource = EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	return resource ? workspaceContextService.getWorkspaceFolder(resource)?.uri : undefined;
+}
+
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
 	await nativeHostService.openAgentsWindow({
-		folderUri: workspaceContextService.getWorkspace().folders[0]?.uri,
+		folderUri: getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri,
 		source,
 	});
 }
@@ -169,9 +181,14 @@ export class OpenAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents; source?: AgentsWindowOpenSource }) {
+	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-		await nativeHostService.openAgentsWindow({ ...args, source: args?.source ?? AgentsWindowOpenSource.CommandPalette });
+		const folderUri = !args?.folderUri && !args?.sessionResource ? getInvokingWorkspaceFolder(accessor) : undefined;
+		await nativeHostService.openAgentsWindow({
+			...args,
+			...(folderUri ? { folderUri, folderUriIsDefault: true } : undefined),
+			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
+		});
 	}
 }
 
@@ -233,7 +250,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		// back to forwarding the workspace folder so the agents window scopes its
 		// new-session composer to it.
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
-		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({
 			folderUri: !hasRealSession && folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
 			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,

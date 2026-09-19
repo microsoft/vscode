@@ -144,6 +144,8 @@ class TestConfigurationService implements IAgentConfigurationService {
 	}
 
 	updateSessionConfig(): void { }
+	getSessionSandboxPolicy(): undefined { return undefined; }
+	setSessionSandboxPolicy(): void { }
 
 	getSessionConfigValues(): Record<string, unknown> | undefined {
 		return undefined;
@@ -306,7 +308,7 @@ suite('AgentHostChangesetOperationService', () => {
 	});
 
 	for (const isolation of ['folder', 'worktree', undefined] as const) {
-		test(`implicit ${isolation ?? 'unresolved'} summary interest refreshes Session Changes operations once`, () => {
+		test(`implicit ${isolation ?? 'unresolved'} summary interest refreshes selected changeset operations once`, () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const sessionKey = 'agent:/session';
 			stateManager.createSession({
@@ -316,7 +318,7 @@ suite('AgentHostChangesetOperationService', () => {
 			stateManager.setSessionConfig(sessionKey, {
 				schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: isolation },
 			});
-			const changesetUri = buildSessionChangesetUri(sessionKey);
+			const changesetUri = isolation === 'worktree' ? buildBranchChangesetUri(sessionKey) : buildSessionChangesetUri(sessionKey);
 			stateManager.registerChangeset(changesetUri);
 			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 			subscriptions.addSubscription(sessionKey, sessionKey);
@@ -376,8 +378,7 @@ suite('AgentHostChangesetOperationService', () => {
 			}
 		}));
 
-		// A non-suppressed changeset with no resolvable git state must still defer
-		// (early return) — clearing is scoped to the suppressed turn/compare kinds.
+		// No cached operations need clearing while initial Git state is unresolved.
 		service.updateOperations(sessionKey, changesetUri);
 
 		assert.deepStrictEqual(dispatched, []);
@@ -398,10 +399,7 @@ suite('AgentHostChangesetOperationService', () => {
 			}
 		}));
 
-		// Multi-root, but the changeset is uncommitted (not turn/compare) so it is
-		// NOT suppressed. With no resolvable git state it must defer like any other
-		// non-suppressed changeset — the []-clear is scoped to suppressed kinds only,
-		// even in a multi-root session.
+		// Uncommitted changes are not suppressed and have no cached operations to clear.
 		service.updateOperations(sessionKey, changesetUri);
 
 		assert.deepStrictEqual(dispatched, []);

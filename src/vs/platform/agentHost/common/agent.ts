@@ -233,6 +233,26 @@ export type AgentProvider = string;
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
+/** Provider-observed records, not an assertion that every network call reported usage. */
+export interface IAgentTokenUsageSummary {
+	readonly model?: string;
+	readonly reasoningEffort?: string;
+	readonly usageScope: 'direct-model' | 'compaction';
+	readonly usageStatus: 'known' | 'partial' | 'notReported';
+	readonly usageRecordCount: number;
+	readonly inputKnownRecordCount: number;
+	readonly outputKnownRecordCount: number;
+	readonly cacheKnownRecordCount: number;
+	readonly knownInputTokens?: number;
+	readonly knownOutputTokens?: number;
+	readonly knownCacheReadTokens?: number;
+}
+
+/** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
+export interface IAgentTurnTokenUsage {
+	readonly summaries: readonly IAgentTokenUsageSummary[];
+}
+
 export type IAgentTurnDiagnosticSnapshot = {
 	readonly state: 'available';
 	readonly providerCallState: AgentTurnProviderCallState;
@@ -840,6 +860,7 @@ export interface IAgentModelInfo {
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentModelCallCompletedSignal
+	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -873,6 +894,27 @@ export interface IAgentModelCallCompletedSignal {
 	readonly turnId: string;
 	/** Stable provider message or response identifier used to suppress duplicate notifications. */
 	readonly modelCallId: string;
+	/** If set, route the model call to the subagent session belonging to this tool call. */
+	readonly parentToolCallId?: string;
+}
+
+export type AgentModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+/** Reports the final lifecycle outcome of one dispatched model-call attempt. */
+export interface IAgentModelCallFinishedSignal {
+	readonly kind: 'model_call_finished';
+	/** Target chat channel URI. For inner subagent calls this is the parent chat channel. */
+	readonly resource: URI;
+	/** Host turn identifier owning this model-call attempt. */
+	readonly turnId: string;
+	/** Stable SDK event identifier used to suppress duplicate notifications. */
+	readonly modelCallId: string;
+	/** Monotonic provider-dispatch duration in milliseconds. */
+	readonly dispatchDurationMs: number;
+	readonly outcome: AgentModelCallFinishedOutcome;
+	/** Present only for accepted successful responses. */
+	readonly containsBuiltInFileEditRequest?: boolean;
+	readonly editClassifierVersion: number;
 	/** If set, route the model call to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
@@ -1113,6 +1155,16 @@ export interface IAgentChatAdoptionResult {
 	readonly eligible: boolean;
 	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
 	readonly native?: boolean;
+	/** Host-owned list-visible values recovered from the predecessor format. */
+	readonly listVisible?: ({
+		readonly title: string;
+		readonly titleSource: 'user' | 'agent' | 'auto';
+	} | {
+		readonly title?: undefined;
+		readonly titleSource?: undefined;
+	}) & {
+		readonly isRead?: boolean;
+	};
 	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
 	readonly worktree?: IAgentAdoptedWorktree;
 	/** Diagnostic reason behind {@link adopted}. */
@@ -1178,6 +1230,9 @@ export interface IAgent {
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
+
+	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
+	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;

@@ -9,17 +9,21 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT, ChatSessionArchiveNudge, IChatSessionArchiveNudgeOptions } from '../../../../browser/widget/input/chatSessionArchiveNudge.js';
+import '../../../../../../browser/media/style.css';
 
 suite('ChatSessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,13 +39,16 @@ suite('ChatSessionArchiveNudge', () => {
 		};
 	}
 
-	function createServices(assignmentService: IWorkbenchAssignmentService = new NullWorkbenchAssignmentService(), wording = ChatSessionArchiveActionWording.Archive) {
+	function createServices(assignmentService: IWorkbenchAssignmentService = new NullWorkbenchAssignmentService(), wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
 		const errors: string[] = [];
 		const warnings: string[] = [];
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		const configurationService = new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return reducedMotion; }
+		}());
 		instantiationService.stub(IWorkbenchAssignmentService, assignmentService);
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override warn(message: string): void {
@@ -72,8 +79,8 @@ suite('ChatSessionArchiveNudge', () => {
 		return container;
 	}
 
-	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive) {
-		const { instantiationService, configurationService, errors, warnings } = createServices(assignmentService, wording);
+	function createWidget(overrides?: Partial<IChatSessionArchiveNudgeOptions>, assignmentService?: IWorkbenchAssignmentService, wording = ChatSessionArchiveActionWording.Archive, reducedMotion = false) {
+		const { instantiationService, configurationService, errors, warnings } = createServices(assignmentService, wording, reducedMotion);
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
@@ -97,6 +104,23 @@ suite('ChatSessionArchiveNudge', () => {
 		target.dispatchEvent(keydown);
 		target.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, shiftKey, bubbles: true, cancelable: true }));
 		return keydown;
+	}
+
+	for (const wording of [ChatSessionArchiveActionWording.Archive, ChatSessionArchiveActionWording.MarkAsDone]) {
+		test(`uses the primary button treatment for ${wording}`, () => {
+			const { archive, cleanupSettings } = createWidget(undefined, undefined, wording);
+			assert.deepStrictEqual({
+				archiveSecondary: archive.classList.contains('secondary'),
+				archiveBackground: archive.style.backgroundColor,
+				cleanupSecondary: cleanupSettings.classList.contains('secondary'),
+				cleanupBackground: cleanupSettings.style.backgroundColor,
+			}, {
+				archiveSecondary: false,
+				archiveBackground: defaultButtonStyles.buttonBackground,
+				cleanupSecondary: true,
+				cleanupBackground: defaultButtonStyles.buttonSecondaryBackground,
+			});
+		});
 	}
 
 	test('explains reversible archiving without suggesting folder cleanup', () => {
@@ -139,6 +163,26 @@ suite('ChatSessionArchiveNudge', () => {
 			dismissLabel: 'Dismiss Archive Suggestion',
 			groupLabel: widget.domNode.querySelector('h3')?.id,
 		});
+	});
+
+	test('shows confetti when marking a merged pull request session as done', async () => {
+		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+
+		archive.click();
+		const animation = document.body.querySelector('.animation-overlay');
+		animation?.remove();
+
+		assert.ok(animation);
+	});
+
+	test('does not show confetti when reduced motion is enabled', async () => {
+		const { archive, configurationService } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+
+		archive.click();
+
+		assert.strictEqual(document.body.querySelector('.animation-overlay'), null);
 	});
 
 	test('opens automatic cleanup settings and reports failures', async () => {
@@ -190,13 +234,42 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	}
 
-	test('uses the purple theme color for the merged icon', async () => {
-		const { widget } = createWidget();
+	test('keeps the merged icon purple in the workbench without recoloring other icons', async () => {
+		const refetch = store.add(new Emitter<void>());
+		let iconTreatment: string | undefined;
+		const { widget, container, dismiss } = createWidget(undefined, createAssignmentService(name =>
+			name === CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT ? iconTreatment : undefined, refetch.event));
+		container.classList.add('monaco-workbench');
 		widget.domNode.style.setProperty('--vscode-charts-purple', '#a371f7');
+		widget.domNode.style.setProperty('--vscode-icon-foreground', '#cccccc');
+		await timeout(0);
+		const workbenchIconRule = [...document.styleSheets, ...document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.find(rule => rule instanceof CSSStyleRule && rule.selectorText === '.monaco-workbench .codicon');
+		assert.ok(workbenchIconRule);
+		// Load the real workbench icon rule last to exercise the product's stylesheet order.
+		dom.append(container, dom.$('style')).textContent = workbenchIconRule.cssText;
 		await timeout(0);
 		const icon = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-icon')!;
+		const colors = () => ({
+			icon: dom.getWindow(icon).getComputedStyle(icon).color,
+			dismiss: dom.getWindow(dismiss).getComputedStyle(dismiss).color,
+		});
+		const merged = colors();
+		iconTreatment = 'archive';
+		refetch.fire();
+		await timeout(0);
+		const alternate = colors();
+		iconTreatment = undefined;
+		refetch.fire();
+		await timeout(0);
 
-		assert.strictEqual(dom.getWindow(icon).getComputedStyle(icon).color, 'rgb(163, 113, 247)');
+		assert.deepStrictEqual({ merged, alternate, restored: colors() }, {
+			merged: { icon: 'rgb(163, 113, 247)', dismiss: 'rgb(204, 204, 204)' },
+			alternate: { icon: 'rgb(204, 204, 204)', dismiss: 'rgb(204, 204, 204)' },
+			restored: { icon: 'rgb(163, 113, 247)', dismiss: 'rgb(204, 204, 204)' },
+		});
 	});
 
 	for (const width of [360, 720]) {
@@ -268,6 +341,135 @@ suite('ChatSessionArchiveNudge', () => {
 			button: 'Mark as Done',
 			dismiss: 'Dismiss Mark as Done Suggestion',
 			archiveWording: false,
+		});
+	});
+
+	for (const width of [360, 720]) {
+		test(`wraps compact buttons as needed while keeping dismiss top right at width ${width}`, () => {
+			const { widget, archive, cleanupSettings, container } = createWidget({ compact: true, hasWorktree: true }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+			container.style.width = `${width}px`;
+			widget.domNode.style.setProperty('--vscode-codiconFontSize', '16px');
+			widget.domNode.style.setProperty('--vscode-spacing-size80', '8px');
+			widget.domNode.style.setProperty('--vscode-spacing-size120', '12px');
+			const title = widget.domNode.querySelector<HTMLElement>('h3')!;
+			const header = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-header')!;
+			const body = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-body')!;
+			const footer = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-footer')!;
+			const content = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-content')!;
+			const actions = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-actions')!;
+			const centerY = (element: HTMLElement) => {
+				const bounds = element.getBoundingClientRect();
+				return Math.round(bounds.top + bounds.height / 2);
+			};
+			const compactHeight = widget.domNode.getBoundingClientRect().height;
+			const layout = {
+				compact: widget.domNode.classList.contains('compact'),
+				heading: title.textContent,
+				bodyDisplay: dom.getWindow(body).getComputedStyle(body).display,
+				buttons: [archive.textContent, cleanupSettings.textContent],
+				actionOrder: Array.from(header.querySelectorAll('.monaco-button, .action-label')).map(element => element.textContent || element.getAttribute('aria-label')),
+				footerInContent: footer.parentElement === content,
+				buttonsWrapped: archive.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+				buttonsOnSameRow: centerY(archive) === centerY(cleanupSettings),
+				buttonsBeforeDismiss: cleanupSettings.getBoundingClientRect().right <= actions.getBoundingClientRect().left,
+				buttonsLeftAligned: archive.getBoundingClientRect().left === content.getBoundingClientRect().left,
+				buttonsRightAligned: footer.getBoundingClientRect().right === content.getBoundingClientRect().right,
+				dismissTopRight: actions.getBoundingClientRect().right === header.getBoundingClientRect().right && actions.getBoundingClientRect().top === header.getBoundingClientRect().top,
+				titleTruncated: title.scrollWidth > title.clientWidth,
+				overflows: widget.domNode.scrollWidth > widget.domNode.clientWidth,
+				titleOverflow: dom.getWindow(title).getComputedStyle(title).textOverflow,
+			};
+			widget.setOptions(options({ hasWorktree: true }));
+
+			assert.deepStrictEqual({ ...layout, shorter: compactHeight < widget.domNode.getBoundingClientRect().height }, {
+				compact: true,
+				heading: 'PR merged. Mark this session as done?',
+				bodyDisplay: 'none',
+				buttons: ['Mark as Done', 'Configure'],
+				actionOrder: ['Mark as Done', 'Configure', 'Dismiss Mark as Done Suggestion'],
+				footerInContent: true,
+				buttonsWrapped: width === 360,
+				buttonsOnSameRow: true,
+				buttonsBeforeDismiss: true,
+				buttonsLeftAligned: width === 360,
+				buttonsRightAligned: width === 720,
+				dismissTopRight: true,
+				titleTruncated: false,
+				overflows: false,
+				titleOverflow: 'ellipsis',
+				shorter: true,
+			});
+		});
+	}
+
+	test('wraps compact buttons at their content-based fit threshold without losing focus', () => {
+		const { widget, archive, container } = createWidget({ compact: true }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		container.style.width = '720px';
+		widget.domNode.style.setProperty('--vscode-codiconFontSize', '16px');
+		widget.domNode.style.setProperty('--vscode-spacing-size80', '8px');
+		widget.domNode.style.setProperty('--vscode-spacing-size120', '12px');
+		const title = widget.domNode.querySelector<HTMLElement>('h3')!;
+		const content = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-content')!;
+		const footer = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-footer')!;
+		const range = document.createRange();
+		range.selectNodeContents(title);
+		const fitWidth = container.getBoundingClientRect().width - content.getBoundingClientRect().width
+			+ 16 + 8 + range.getBoundingClientRect().width + 8 + footer.getBoundingClientRect().width;
+		archive.focus();
+		const states = [Math.ceil(fitWidth) + 1, Math.floor(fitWidth) - 1, 720].map(width => {
+			container.style.width = `${width}px`;
+			return {
+				wrapped: archive.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+				leftAligned: archive.getBoundingClientRect().left === content.getBoundingClientRect().left,
+				focused: document.activeElement === archive,
+				titleTruncated: title.scrollWidth > title.clientWidth,
+				overflows: widget.domNode.scrollWidth > widget.domNode.clientWidth,
+			};
+		});
+
+		assert.deepStrictEqual(states, [
+			{ wrapped: false, leftAligned: false, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: true, leftAligned: true, focused: true, titleTruncated: false, overflows: false },
+			{ wrapped: false, leftAligned: false, focused: true, titleTruncated: false, overflows: false },
+		]);
+	});
+
+	test('preserves compact controls, focus, and callbacks across updates', async () => {
+		const calls: string[] = [];
+		const callbacks = {
+			onArchive: async () => { calls.push('done'); },
+			onOpenCleanupSettings: async () => { calls.push('configure'); },
+			onDismiss: () => { calls.push('dismiss'); },
+		};
+		const { widget, archive, cleanupSettings, dismiss } = createWidget({ compact: true, ...callbacks }, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		archive.focus();
+		widget.setOptions(options({ compact: true, pullRequestCount: 2, ...callbacks }));
+		const sameFocusedControl = document.activeElement === archive && widget.domNode.querySelector('.monaco-button') === archive;
+		pressKey(archive, 'Enter', 13);
+		await timeout(0);
+		cleanupSettings.focus();
+		pressKey(cleanupSettings, ' ', 32);
+		await timeout(0);
+		dismiss.focus();
+		pressKey(dismiss, 'Tab', 9);
+		pressKey(dismiss, 'Enter', 13);
+		archive.focus();
+		widget.setOptions(options());
+
+		assert.deepStrictEqual({
+			sameFocusedControl,
+			calls,
+			expandedFocus: document.activeElement === archive,
+			expandedFooter: archive.parentElement?.parentElement === widget.domNode,
+			expandedConfigureLabel: cleanupSettings.textContent,
+			bodyHidden: widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-body')!.hidden,
+		}, {
+			sameFocusedControl: true,
+			calls: ['done', 'configure', 'dismiss'],
+			expandedFocus: true,
+			expandedFooter: true,
+			expandedConfigureLabel: 'Configure Automatic Cleanup',
+			bodyHidden: false,
 		});
 	});
 
