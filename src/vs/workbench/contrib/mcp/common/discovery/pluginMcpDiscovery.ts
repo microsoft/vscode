@@ -12,6 +12,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { interpolateMcpPluginRoot, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import {
 	IAgentPlugin,
 	IAgentPluginMcpServerDefinition,
@@ -84,7 +85,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			scope: StorageScope.PROFILE,
 			trustBehavior: McpServerTrust.Kind.Trusted,
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
-				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
+				defs.map(d => this._toServerDefinition(collectionId, plugin, d)).filter(isDefined)),
 			order: McpCollectionSortOrder.Plugin,
 			presentation: {
 				origin: manifestURI,
@@ -94,8 +95,19 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 	private _toServerDefinition(
 		collectionId: string,
-		{ name, configuration, defaultCwd }: IAgentPluginMcpServerDefinition,
+		plugin: IAgentPlugin,
+		definition: IAgentPluginMcpServerDefinition,
 	): McpServerDefinition | undefined {
+		const { name, defaultCwd } = definition;
+		let configuration = definition.configuration;
+		if (plugin.format === PluginFormat.AgentPlugin) {
+			configuration = interpolateMcpPluginRoot(
+				definition,
+				plugin.uri.fsPath,
+				['${PLUGIN_ROOT}', '${PLUGIN_DATA}'],
+				['PLUGIN_ROOT', 'PLUGIN_DATA']
+			).configuration;
+		}
 		const launch = McpServerLaunch.fromServerConfiguration(configuration);
 		if (!launch) {
 			return undefined;
