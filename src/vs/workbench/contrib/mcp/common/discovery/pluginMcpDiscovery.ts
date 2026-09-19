@@ -31,6 +31,36 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
  */
 export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 
+export function toPluginMcpServerDefinition(
+	collectionId: string,
+	plugin: Pick<IAgentPlugin, 'format' | 'uri'>,
+	definition: IAgentPluginMcpServerDefinition,
+): McpServerDefinition | undefined {
+	const { name, defaultCwd } = definition;
+	let configuration = definition.configuration;
+	if (plugin.format === PluginFormat.AgentPlugin) {
+		configuration = interpolateMcpPluginRoot(
+			definition,
+			plugin.uri.fsPath,
+			['${PLUGIN_ROOT}', '${PLUGIN_DATA}'],
+			['PLUGIN_ROOT', 'PLUGIN_DATA']
+		).configuration;
+	}
+	const launch = McpServerLaunch.fromServerConfiguration(configuration);
+	if (!launch) {
+		return undefined;
+	}
+
+	return {
+		id: `${collectionId}.${name}`,
+		label: name,
+		launch,
+		defaultCwd,
+		variableReplacement: { target: ConfigurationTarget.USER },
+		cacheNonce: String(hash(launch)),
+	};
+}
+
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
@@ -98,28 +128,6 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		plugin: IAgentPlugin,
 		definition: IAgentPluginMcpServerDefinition,
 	): McpServerDefinition | undefined {
-		const { name, defaultCwd } = definition;
-		let configuration = definition.configuration;
-		if (plugin.format === PluginFormat.AgentPlugin) {
-			configuration = interpolateMcpPluginRoot(
-				definition,
-				plugin.uri.fsPath,
-				['${PLUGIN_ROOT}', '${PLUGIN_DATA}'],
-				['PLUGIN_ROOT', 'PLUGIN_DATA']
-			).configuration;
-		}
-		const launch = McpServerLaunch.fromServerConfiguration(configuration);
-		if (!launch) {
-			return undefined;
-		}
-
-		return {
-			id: `${collectionId}.${name}`,
-			label: name,
-			launch,
-			defaultCwd,
-			variableReplacement: { target: ConfigurationTarget.USER },
-			cacheNonce: String(hash(launch)),
-		};
+		return toPluginMcpServerDefinition(collectionId, plugin, definition);
 	}
 }
