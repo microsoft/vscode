@@ -5,6 +5,9 @@
 
 import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -44,6 +47,22 @@ export class ClaudeFileEditObserver extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 
 	/**
+	 * The directories Claude Code may write plan documents to. Native
+	 * (BYO-Anthropic) sessions inherit `CLAUDE_CONFIG_DIR` from the agent
+	 * host's environment (see `buildSubprocessEnv`), relocating plans to
+	 * `$CLAUDE_CONFIG_DIR/plans`; proxied sessions strip that variable and
+	 * use the `~/.claude/plans` default. Both locations are accepted since
+	 * the observer does not know the session's transport.
+	 */
+	private readonly _planDirUris: readonly URI[];
+	/** Plan-file writes staged at `tool_use` time, awaiting their `tool_result`. */
+	private readonly _pendingPlanFiles = new Map<string, URI>();
+	/** Most recent successfully-completed plan-file write, if any. */
+	private _lastPlanFileUri: URI | undefined;
+
+	get lastPlanFileUri(): URI | undefined { return this._lastPlanFileUri; }
+
+	/**
 	 * Maps SDK `tool_use_id` → file path + raw tool input + model
 	 * captured when the SDK yields the assistant `tool_use` block in
 	 * {@link observeAssistant}. Consumed (and removed) by
@@ -62,8 +81,14 @@ export class ClaudeFileEditObserver extends Disposable {
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
+		const configDir = process.env['CLAUDE_CONFIG_DIR'];
+		this._planDirUris = [
+			...(configDir ? [URI.joinPath(URI.file(configDir), 'plans')] : []),
+			URI.joinPath(environmentService.userHome, '.claude', 'plans'),
+		];
 		// Own the DB reference for this observer's lifetime so
 		// {@link FileEditTracker.takeCompletedEdit}'s `storeFileEdit` write
 		// has a live database. Disposed first — ahead of any owning
@@ -97,6 +122,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
+			this._stagePlanFileCandidate(block.id, filePath);
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext });
 			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
@@ -129,6 +155,16 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.delete(block.tool_use_id);
+			const planCandidate = this._pendingPlanFiles.get(block.tool_use_id);
+			if (planCandidate) {
+				this._pendingPlanFiles.delete(block.tool_use_id);
+				// Promote only when the write actually completed; a denied or
+				// failed write must not surface a stale or nonexistent plan,
+				// and a failed candidate is never retained.
+				if (block.is_error !== true) {
+					this._lastPlanFileUri = planCandidate;
+				}
+			}
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
 				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext);
@@ -138,6 +174,26 @@ export class ClaudeFileEditObserver extends Disposable {
 			} catch (err) {
 				this._logService.warn(`[ClaudeFileEditObserver] file edit tracking failed for ${tracked.filePath}: ${err}`);
 			}
+		}
+	}
+
+	/**
+	 * Stage a plan-file write (a `.md` directly inside `~/.claude/plans/`)
+	 * so the `ExitPlanMode` review can surface the plan document. The SDK
+	 * no longer carries the plan text on the `ExitPlanMode` input; the
+	 * plan-file write observed on the message stream is the only reliable
+	 * signal. The candidate is promoted to {@link lastPlanFileUri} by
+	 * {@link observeUser} once its `tool_result` confirms the write
+	 * succeeded.
+	 */
+	private _stagePlanFileCandidate(toolUseId: string, filePath: string): void {
+		if (!filePath.toLowerCase().endsWith('.md')) {
+			return;
+		}
+		const candidate = URI.file(filePath);
+		const parent = URI.joinPath(candidate, '..');
+		if (this._planDirUris.some(dir => extUriBiasedIgnorePathCase.isEqual(parent, dir))) {
+			this._pendingPlanFiles.set(toolUseId, candidate);
 		}
 	}
 

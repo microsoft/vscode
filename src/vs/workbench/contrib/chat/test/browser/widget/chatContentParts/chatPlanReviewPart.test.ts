@@ -9,6 +9,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { resetShownWarnings } from '../../../../common/chatPermissionWarnings.js';
 import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -1140,6 +1141,41 @@ suite('ChatPlanReviewPart', () => {
 			assert.deepStrictEqual(lastSubmitResult, { action: 'Interactive', rejected: false });
 		});
 	});
+	suite('Bypass Approvals confirmation dialog', () => {
+		teardown(() => resetShownWarnings());
+
+		test('shows the shared warning for bypass permission level and proceeds on confirm', async () => {
+			resetShownWarnings();
+			// Default TestDialogService runs the first button (Enable -> true)
+			createWidget(createMockReview({
+				actions: [{ label: 'Approve & Bypass Approvals', default: true, permissionLevel: 'bypass' }]
+			}));
+
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Bypass'));
+			approveButton!.click();
+
+			await tick();
+
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Approve & Bypass Approvals', rejected: false });
+		});
+
+		test('cancels bypass when the warning is dismissed', async () => {
+			resetShownWarnings();
+			const dialogService = new TestDialogService(undefined, { result: false });
+			createWidget(createMockReview({
+				actions: [{ label: 'Approve & Bypass Approvals', default: true, permissionLevel: 'bypass' }]
+			}), dialogService);
+
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Bypass'));
+			approveButton!.click();
+
+			await tick();
+
+			assert.strictEqual(lastSubmitResult, undefined, 'should not submit when the warning is cancelled');
+			assert.ok(!widget.domNode.classList.contains('chat-plan-review-used'), 'should not mark as used');
+		});
+	});
+
 
 	suite('Used / submitted state', () => {
 		test('marks widget as used when review.isUsed is true', () => {

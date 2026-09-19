@@ -288,6 +288,9 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
 
+	/** Most recent plan-file write observed on the message stream. */
+	get lastPlanFileUri(): URI | undefined { return this._router.lastPlanFileUri; }
+
 	/**
 	 * Whether a turn is currently in flight or queued. False between turns (the
 	 * warm query parks with a drained queue). Used by non-destructive idle
