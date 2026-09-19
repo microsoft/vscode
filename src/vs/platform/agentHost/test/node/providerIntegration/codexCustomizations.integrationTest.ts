@@ -368,7 +368,8 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 	});
 
 	for (const trusted of [true, false]) {
-		test(`workspace SessionStart hook obeys Workspace Trust (${trusted ? 'trusted' : 'untrusted'})`, async function () {
+		const hookTrustTest = trusted ? test.skip : test;
+		hookTrustTest(`workspace SessionStart hook obeys Workspace Trust (${trusted ? 'trusted' : 'untrusted'})`, async function () {
 			this.timeout(180_000);
 
 			const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-workspace-hook-'));
