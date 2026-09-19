@@ -100,6 +100,7 @@ suite('ConfiguredAgentPluginDiscovery', () => {
 				}
 			},
 			new NullLogService(),
+			undefined,
 		));
 	}
 

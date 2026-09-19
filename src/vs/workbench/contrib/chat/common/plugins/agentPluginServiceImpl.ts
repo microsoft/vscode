@@ -9,6 +9,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { stringHash } from '../../../../../base/common/hash.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -47,6 +48,7 @@ import {
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
@@ -261,6 +263,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		protected readonly _pathService: IPathService,
 		protected readonly _logService: ILogService,
 		protected readonly _workspaceContextService: IWorkspaceContextService,
+		protected readonly _userDataProfileService: IUserDataProfileService | undefined,
 	) {
 		super();
 	}
@@ -479,6 +482,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const plugin: PluginEntry = {
 			uri,
+			dataDir: this._userDataProfileService
+				? joinPath(this._userDataProfileService.currentProfile.globalStorageHome, 'agentPlugins', 'data', (stringHash(uri.toString(), 0) >>> 0).toString(16))
+				: undefined,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			version: pluginVersion,
@@ -642,8 +648,9 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
+		@IUserDataProfileService userDataProfileService?: IUserDataProfileService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
 		// Enterprise-managed plugin-ID entries (delivered via the `ChatEnabledPlugins` policy).
 		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
@@ -816,8 +823,9 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -902,9 +910,10 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IDialogService private readonly _dialogService: IDialogService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -1102,8 +1111,9 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, userDataProfileService);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {

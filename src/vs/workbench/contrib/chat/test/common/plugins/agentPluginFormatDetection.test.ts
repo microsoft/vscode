@@ -42,7 +42,7 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 		logService: ILogService,
 		workspaceContextService: IWorkspaceContextService,
 	) {
-		super(fileService, pathService, logService, workspaceContextService);
+		super(fileService, pathService, logService, workspaceContextService, undefined);
 	}
 
 	start(enablementModel: IEnablementModel): void {
