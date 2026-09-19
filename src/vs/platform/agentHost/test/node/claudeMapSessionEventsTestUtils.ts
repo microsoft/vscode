@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage, SDKUserMessageReplay } from '@anthropic-ai/claude-agent-sdk';
 
 // Beta event-stream type aliases. The `Anthropic` namespace re-exports
 // these from `@anthropic-ai/sdk/resources/beta/messages.js`, but
@@ -301,5 +301,28 @@ export function makeUserToolResultMessage(
 		isSynthetic: true,
 		uuid: TEST_UUID,
 		session_id: sessionId,
+	};
+}
+
+/**
+ * The `isReplay` twin of {@link makeUserToolResultMessage}: transcript history the
+ * SDK re-emits on resume, which must never be re-attributed as a live tool_result.
+ */
+export function makeReplayedUserToolResultMessage(
+	sessionId: string,
+	toolUseId: string,
+	content: string,
+): SDKUserMessageReplay {
+	return {
+		type: 'user',
+		message: {
+			role: 'user',
+			content: [{ type: 'tool_result', tool_use_id: toolUseId, content }],
+		},
+		parent_tool_use_id: null,
+		isSynthetic: true,
+		uuid: TEST_UUID,
+		session_id: sessionId,
+		isReplay: true,
 	};
 }
