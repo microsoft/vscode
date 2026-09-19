@@ -1428,7 +1428,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * so the next {@link send} pre-flight reloads SDK plugins.
 	 */
 	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[], customizations: readonly ClientPluginCustomization[]): void {
-		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
+		this.clientCustomizationsDiff.adoptSyncedCustomizations(clientId, synced);
 		const pluginEnablement = new Map<string, ClientPluginCustomization>();
 		const childEnablement = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
 		for (const customization of customizations) {

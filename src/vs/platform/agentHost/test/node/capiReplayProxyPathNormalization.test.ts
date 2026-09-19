@@ -17,11 +17,11 @@ suite('CapiReplayProxy path normalization', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function assertCopiedPluginPathReplay(pathStyle: typeof posix): Promise<void> {
+	async function assertCopiedPluginPathReplay(pathStyle: typeof posix, runtimeScoped: boolean): Promise<void> {
 		const testDirectory = mkdtempSync(join(tmpdir(), 'capi-replay-plugin-normalization-'));
 		const fixturePath = join(testDirectory, 'capture.yaml');
 		const homeDir = pathStyle.join(testDirectory, 'home');
-		const pluginFile = (directory: string) => pathStyle.join(homeDir, 'user-data', 'agentPlugins', directory, '1', 'reference.txt');
+		const pluginFile = (directory: string, runtime = 'runtime') => pathStyle.join(homeDir, 'user-data', 'agentPlugins', ...(runtimeScoped ? ['runtimes', runtime] : []), directory, '1', 'reference.txt');
 		const request = (path: string) => JSON.stringify({
 			model: 'claude-opus-5',
 			system: 'system',
@@ -48,9 +48,9 @@ suite('CapiReplayProxy path normalization', () => {
 			try {
 				const url = await replay.start();
 				const paths: string[] = [];
-				for (const directory of ['first-copy', 'second-copy']) {
+				for (const [runtime, directory] of [['first-runtime', 'first-copy'], ['second-runtime', 'second-copy']]) {
 					replay.resetForReplay(fixturePath);
-					const response = await fetch(`${url}/v1/messages`, { method: 'POST', body: request(pluginFile(directory)) });
+					const response = await fetch(`${url}/v1/messages`, { method: 'POST', body: request(pluginFile(directory, runtime)) });
 					const message = aggregateAnthropicSse(await response.text());
 					const block = message?.content[0];
 					assert.ok(block?.type === 'tool_use' && typeof block.input === 'object' && block.input !== null);
@@ -59,7 +59,7 @@ suite('CapiReplayProxy path normalization', () => {
 					paths.push(pathStyle.normalize(path));
 					replay.assertNoReplayMismatches();
 				}
-				assert.deepStrictEqual(paths, [pluginFile('first-copy'), pluginFile('second-copy')]);
+				assert.deepStrictEqual(paths, [pluginFile('first-copy', 'first-runtime'), pluginFile('second-copy', 'second-runtime')]);
 			} finally {
 				await replay.stop();
 			}
@@ -70,8 +70,10 @@ suite('CapiReplayProxy path normalization', () => {
 	}
 
 	test('binds copied plugin paths from live requests and resets bindings between fixtures', async () => {
-		await assertCopiedPluginPathReplay(posix);
-		await assertCopiedPluginPathReplay(win32);
+		await assertCopiedPluginPathReplay(posix, false);
+		await assertCopiedPluginPathReplay(win32, false);
+		await assertCopiedPluginPathReplay(posix, true);
+		await assertCopiedPluginPathReplay(win32, true);
 	});
 
 	test('normalizes compacted shell output paths and rebinds them from live requests', async () => {

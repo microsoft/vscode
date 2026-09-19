@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -109,6 +109,8 @@ export class SessionClientCustomizationsModel {
 export class SessionClientCustomizationsDiff extends Disposable {
 
 	readonly model: SessionClientCustomizationsModel = new SessionClientCustomizationsModel();
+	/** Superseded paths stay leased because the current SDK turn may still reference its prior snapshot. */
+	private readonly _leases = this._register(new DisposableStore());
 
 	private _dirty = false;
 	private _appliedPluginPaths: readonly URI[] = [];
@@ -139,6 +141,15 @@ export class SessionClientCustomizationsDiff extends Disposable {
 
 	get hasDifference(): boolean {
 		return this._dirty;
+	}
+
+	adoptSyncedCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
+		for (const item of synced) {
+			if (item.lease) {
+				this._leases.add(item.lease);
+			}
+		}
+		this.model.setSyncedCustomizations(clientId, synced);
 	}
 
 	hasDifferenceFrom(pluginPaths: readonly URI[]): boolean {

@@ -322,4 +322,18 @@ suite('codexClientCustomizations', () => {
 			emptyAfter: store.isEmpty(),
 		}, { hasBefore: true, toggledOff: true, toggledOffAgain: false, removed: true, emptyAfter: true });
 	});
+
+	test('disposes plugin leases with the session store', () => {
+		const store = new CodexClientCustomizationStore();
+		let disposed = false;
+		const item = plugin('p1', '/plugins/p1', parsed());
+		store.setClient('c1', [{
+			...item,
+			synced: { ...item.synced, lease: { dispose: () => disposed = true } },
+		}]);
+
+		store.dispose();
+
+		assert.strictEqual(disposed, true);
+	});
 });

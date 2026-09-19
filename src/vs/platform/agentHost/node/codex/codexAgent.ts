@@ -6266,7 +6266,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * chat-release (idle eviction) path.
 	 */
 	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string, deleteManagedWorkingDirectory: boolean): Promise<void> {
+		const hadClientCustomizations = !session.clientCustomizations.isEmpty();
 		session.disposed = true;
+		session.clientCustomizations.dispose();
 		this._workingDirectoryMutations.get(session)?.updated.cancel();
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
@@ -6276,7 +6278,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionMcpDiscoveries.delete(sessionId);
 		// If the session contributed client-plugin skills, drop them from the
 		// process-global skill-root union now that it is gone.
-		if (!session.clientCustomizations.isEmpty()) {
+		if (hadClientCustomizations) {
 			void this._refreshSkillExtraRoots();
 		}
 		// Remove the managed temp folder created for a session that had no
@@ -7334,11 +7336,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			},
 		);
 		if (session.disposed || options?.isCurrent?.() === false) {
+			this._disposeSyncedCustomizations(synced);
 			return;
 		}
 		const inputs = new Map(customizations.map(customization => [customization.uri, customization]));
 		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, item, inputs.get(item.customization.uri))));
 		if (session.disposed || options?.isCurrent?.() === false) {
+			this._disposeSyncedCustomizations(synced);
 			return;
 		}
 		const previousIds = session.clientCustomizations.toCustomizations().map(customization => customization.id);
@@ -7351,6 +7355,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		await this._refreshSkillExtraRoots();
 		await this._reconcileMaterializedCustomizations(session);
+	}
+
+	private _disposeSyncedCustomizations(customizations: readonly ISyncedCustomization[]): void {
+		for (const customization of customizations) {
+			customization.lease?.dispose();
+		}
 	}
 
 	private async _removeClientCustomizations(session: ICodexSession, clientId: string, inputs: readonly ClientPluginCustomization[]): Promise<void> {
@@ -8192,6 +8202,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _clearRuntimeState(): void {
 		for (const s of this._sessions.values()) {
 			s.disposed = true;
+			s.clientCustomizations.dispose();
 			this._workingDirectoryMutations.get(s)?.updated.cancel();
 			if (s.prewarmTimer) {
 				clearTimeout(s.prewarmTimer);
@@ -8204,6 +8215,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		for (const subagent of this._subagentsByThreadId.values()) {
 			subagent.session.disposed = true;
+			subagent.session.clientCustomizations.dispose();
 			if (subagent.session.prewarmTimer) {
 				clearTimeout(subagent.session.prewarmTimer);
 				subagent.session.prewarmTimer = undefined;

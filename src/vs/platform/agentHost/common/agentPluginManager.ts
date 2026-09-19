@@ -5,6 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { ClientPluginCustomization, PluginCustomization } from './state/sessionState.js';
 
 export const IAgentPluginManager = createDecorator<IAgentPluginManager>('agentPluginManager');
@@ -17,6 +18,8 @@ export interface ISyncedCustomization {
 	readonly customization: PluginCustomization;
 	/** Local plugin directory URI, defined when the sync was successful. */
 	readonly pluginDir?: URI;
+	/** Keeps {@link pluginDir} readable. Owners must dispose it with their session. */
+	readonly lease?: IDisposable;
 }
 
 /**
@@ -30,7 +33,7 @@ export interface IAgentPluginManager {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Root directory under which all agent plugin data is materialized.
+	 * Runtime-isolated directory under which this host's plugin data is materialized.
 	 * Exposed so other host-side components can carve out sibling
 	 * directories for their own bundles (e.g. session-discovered
 	 * customizations) without having to thread `userDataPath` separately.
