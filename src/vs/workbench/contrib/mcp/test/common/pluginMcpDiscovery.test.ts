@@ -17,14 +17,16 @@ suite('PluginMcpDiscovery', () => {
 
 	test('interpolates AgentPlugin MCP definitions before creating the launch', () => {
 		const pluginUri = URI.file('/plugins/example');
+		const pluginDataUri = URI.file('/plugin-data/example');
 		const definition: IMcpServerDefinition = {
 			name: 'example',
 			uri: URI.joinPath(pluginUri, '.mcp.json'),
 			configuration: {
 				type: McpServerType.LOCAL,
-				command: '${PLUGIN_ROOT}/server.py',
+				command: './server.py',
 				args: ['--data', '${PLUGIN_DATA}'],
 				env: { CUSTOM_ROOT: '${PLUGIN_ROOT}' },
+				cwd: '${PLUGIN_DATA}/work',
 			},
 			customization: {
 				type: CustomizationType.McpServer,
@@ -35,16 +37,16 @@ suite('PluginMcpDiscovery', () => {
 			},
 		};
 
-		const server = toPluginMcpServerDefinition('plugin:', { format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
+		const server = toPluginMcpServerDefinition('plugin:', { dataDir: pluginDataUri, format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
 		assert.deepStrictEqual(server?.launch, {
 			type: LaunchTransportType.Stdio,
-			command: `${pluginUri.fsPath}/server.py`,
-			args: ['--data', pluginUri.fsPath],
-			cwd: undefined,
+			command: './server.py',
+			args: ['--data', pluginDataUri.fsPath],
+			cwd: URI.joinPath(pluginDataUri, 'work').fsPath,
 			env: {
 				CUSTOM_ROOT: pluginUri.fsPath,
 				PLUGIN_ROOT: pluginUri.fsPath,
-				PLUGIN_DATA: pluginUri.fsPath,
+				PLUGIN_DATA: pluginDataUri.fsPath,
 			},
 			envFile: undefined,
 			sandbox: undefined,
@@ -69,5 +71,30 @@ suite('PluginMcpDiscovery', () => {
 		const server = toPluginMcpServerDefinition('plugin:', { format: PluginFormat.Copilot, uri: pluginUri }, definition);
 		assert.ok(server?.launch.type === LaunchTransportType.Stdio);
 		assert.strictEqual(server.launch.command, '${PLUGIN_ROOT}/server.py');
+	});
+
+	test('does not interpolate AgentPlugin HTTP URLs or headers', () => {
+		const pluginUri = URI.file('/plugins/example');
+		const definition: IMcpServerDefinition = {
+			name: 'remote',
+			uri: URI.joinPath(pluginUri, 'mcp.json'),
+			configuration: {
+				type: McpServerType.REMOTE,
+				url: 'https://example.test/${PLUGIN_ROOT}',
+				headers: { 'X-Plugin': '${PLUGIN_DATA}' },
+			},
+			customization: {
+				type: CustomizationType.McpServer,
+				id: 'remote',
+				uri: URI.joinPath(pluginUri, 'mcp.json').toString(),
+				name: 'remote',
+				state: { kind: McpServerStatus.Stopped },
+			},
+		};
+
+		const server = toPluginMcpServerDefinition('plugin:', { format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
+		assert.ok(server?.launch.type === LaunchTransportType.HTTP);
+		assert.strictEqual(server.launch.uri.toString(true), 'https://example.test/${PLUGIN_ROOT}');
+		assert.deepStrictEqual(server.launch.headers, [['X-Plugin', '${PLUGIN_DATA}']]);
 	});
 });
