@@ -702,16 +702,8 @@
 	/* For the scroll down button */
 }
 
-.chat-transcript-progress-controls {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: var(--vscode-spacing-size80);
-}
-
 .chat-transcript-progress-controls[hidden],
-.chat-transcript-progress-output[hidden],
-.chat-transcript-progress-controls > .monaco-button[hidden] {
+.chat-transcript-progress-output[hidden] {
 	display: none;
 }
 
@@ -723,11 +715,6 @@
 
 .chat-transcript-progress-output > .chat-terminal-output-container {
 	border-radius: var(--vscode-cornerRadius-medium);
-}
-
-.chat-transcript-progress-controls > .monaco-button {
-	width: auto;
-	pointer-events: auto;
 }
 
 .hc-black .interactive-request,

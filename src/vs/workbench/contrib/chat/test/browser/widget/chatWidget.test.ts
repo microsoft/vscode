@@ -34,6 +34,7 @@ import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } 
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatTerminalToolOutputSection } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 suite('ChatWidget', () => {
 
@@ -90,16 +91,18 @@ suite('ChatWidget', () => {
 			return { domNode: dom.$('.progress-container', undefined, element!), dispose: () => { } };
 		});
 		const widgetStore = store.add(new DisposableStore());
+		const contextKeyService = store.add(new MockContextKeyService());
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
 			_store: widgetStore,
 			container,
 			listContainer: dom.append(container, dom.$('.interactive-list')),
 			transcriptProgressPart: store.add(new MutableDisposable<DisposableStore>()),
 			instantiationService,
-			contextKeyService: store.add(new MockContextKeyService()),
+			contextKeyService,
+			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
 			updateChatViewVisibility: () => { },
 		}) as ChatWidget;
-		return { widget, container, instantiationService, sections, widgetStore };
+		return { widget, container, instantiationService, sections, widgetStore, contextKeyService };
 	}
 
 	test('transcript progress streams through the terminal output section without replacing controls or announcing it', async () => {
@@ -138,34 +141,31 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('transcript progress cancel uses the latest callback and hides when omitted', () => {
-		const { widget, container } = createTranscriptProgressWidget();
+	test('transcript progress cancellation uses the latest callback without a separate button', () => {
+		const { widget, container, contextKeyService } = createTranscriptProgressWidget();
 		const calls: string[] = [];
 		widget.setTranscriptProgress('Building', undefined, { onCancel: () => calls.push('old') });
-		const button = container.querySelector<HTMLElement>('.monaco-button')!;
-		button.focus();
 		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => calls.push('new') });
-		const remainedFocused = mainWindow.document.activeElement === button;
-		button.click();
-		widget.setTranscriptProgress('Started', undefined, { complete: true });
-		button.click();
+		const active = contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key);
+		const cancelled = widget.cancelTranscriptProgress();
+		widget.setTranscriptProgress('Started', undefined, { complete: true, onCancel: () => calls.push('completed') });
 
 		assert.deepStrictEqual({
 			calls,
-			remainedFocused,
-			sameButton: container.querySelector('.monaco-button') === button,
-			hidden: button.hidden,
+			active,
+			cancelled,
+			completedActive: widget.isTranscriptProgressActive,
+			completedContext: contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key),
+			cancelCompleted: widget.cancelTranscriptProgress(),
+			customButton: !!container.querySelector('.monaco-button'),
 			complete: !!container.querySelector('.show-checkmarks'),
-		}, { calls: ['new'], remainedFocused: true, sameButton: true, hidden: true, complete: true });
+		}, { calls: ['new'], active: true, cancelled: true, completedActive: false, completedContext: false, cancelCompleted: false, customButton: false, complete: true });
 	});
 
-	test('transcript progress focus prefers cancel, then output, and ignores hidden controls', async () => {
+	test('transcript progress focus targets output and ignores hidden output', async () => {
 		const { widget, container } = createTranscriptProgressWidget();
 		const beforeProgress = widget.focusTranscriptProgress();
 		widget.setTranscriptProgress('Building', undefined, { output: 'output', onCancel: () => { } });
-		const withCancel = widget.focusTranscriptProgress();
-		const cancelFocused = mainWindow.document.activeElement === container.querySelector('.monaco-button');
-		widget.setTranscriptProgress('Building', undefined, { output: 'output' });
 		await timeout(0);
 		const withOutput = widget.focusTranscriptProgress();
 		const outputFocused = mainWindow.document.activeElement === container.querySelector('.chat-terminal-output-container');
@@ -175,21 +175,50 @@ suite('ChatWidget', () => {
 
 		assert.deepStrictEqual({
 			beforeProgress,
-			withCancel,
-			cancelFocused,
 			withOutput,
 			outputFocused,
 			withoutControls,
 			afterProgress: widget.focusTranscriptProgress(),
 		}, {
 			beforeProgress: false,
-			withCancel: true,
-			cancelFocused: true,
 			withOutput: true,
 			outputFocused: true,
 			withoutControls: false,
 			afterProgress: false,
 		});
+	});
+
+	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
+		const { widget } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		assert.deepStrictEqual(await Promise.all([
+			widget.acceptInput('follow up'),
+			widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Queued }),
+			widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering }),
+			widget.acceptInput(undefined, { cancelCurrentRequest: true }),
+		]), [undefined, undefined, undefined, undefined]);
+	});
+
+	test('transcript progress context is independent of request context and clears with its callback', () => {
+		const { widget, contextKeyService } = createTranscriptProgressWidget();
+		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		const hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		const states: boolean[] = [];
+		const record = () => states.push(widget.isTranscriptProgressActive && !!contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key));
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		record();
+		requestInProgress.set(true);
+		hasActiveRequest.set(true);
+		record();
+		requestInProgress.set(false);
+		hasActiveRequest.set(false);
+		record();
+		widget.setTranscriptProgress('Starting');
+		record();
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress(undefined);
+		record();
+		assert.deepStrictEqual(states, [true, true, true, false, false]);
 	});
 
 	test('transcript progress coalesces and serializes output rendering', async () => {

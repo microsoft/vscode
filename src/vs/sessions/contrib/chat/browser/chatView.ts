@@ -48,7 +48,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
-import { ISessionsChatViewStateService } from './chatViewStateService.js';
+import { ISessionPreparationInput, ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
@@ -206,6 +206,7 @@ export class ChatView extends AbstractChatView {
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	private _historyKey: string | undefined;
+	private _restoringPreparationInput = false;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
@@ -287,6 +288,8 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._register(this._widget.inputEditor.onDidChangeModelContent(() => this._savePreparationInput()));
+		this._register(this._widget.attachmentModel.onDidChange(() => this._savePreparationInput()));
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
@@ -484,7 +487,10 @@ export class ChatView extends AbstractChatView {
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full || session?.isNewSessionRequestInProgress?.read(reader) === true);
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+			if (session && session.status.read(reader) !== SessionStatus.Untitled && isEqual(this._modelRef.value?.object.sessionResource, resource)) {
+				this.viewStateService.clearPreparationInput(resource);
+			}
 		});
 
 		// Skip loading if we're already showing this chat
@@ -527,12 +533,18 @@ export class ChatView extends AbstractChatView {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
 		if (previousChatResource) {
-			this._clearCurrentChat(previousSession, previousChatResource);
+			this._restoringPreparationInput = true;
+			try {
+				this._clearCurrentChat(previousSession, previousChatResource);
+			} finally {
+				this._restoringPreparationInput = false;
+			}
 		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 		this._setLoading(true);
+		this._restorePreparationInput(this.viewStateService.getPreparationInput(resource));
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
@@ -555,10 +567,22 @@ export class ChatView extends AbstractChatView {
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
-			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+			const preparationInput = this.viewStateService.getPreparationInput(resource);
+			this._restoringPreparationInput = true;
+			try {
+				if (preparationInput) {
+					ref.object.inputModel.setState(preparationInput);
+				}
+				setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+			} finally {
+				this._restoringPreparationInput = false;
+			}
 			const widgetViewState = this.viewStateService.get(resource);
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
+			}
+			if (session && session.status.get() !== SessionStatus.Untitled) {
+				this.viewStateService.clearPreparationInput(resource);
 			}
 			this._setLoading(false);
 			if (session) {
@@ -597,6 +621,36 @@ export class ChatView extends AbstractChatView {
 		const resource = this._widget.viewModel?.sessionResource;
 		if (resource) {
 			this.viewStateService.set(resource, this._widget.getViewState());
+		}
+	}
+
+	private _savePreparationInput(): void {
+		const resource = this._currentChatResource;
+		const session = this._currentSessionObs.get();
+		const preparing = session?.status.get() === SessionStatus.Untitled && session.isNewSessionRequestInProgress?.get();
+		if (!resource || this._restoringPreparationInput || (!preparing && !this.viewStateService.getPreparationInput(resource))) {
+			return;
+		}
+		const input = this._widget.getInputState();
+		if (input) {
+			const { inputText, attachments, selections } = input;
+			this.viewStateService.setPreparationInput(resource, { inputText, attachments: [...attachments], selections });
+		}
+	}
+
+	private _restorePreparationInput(input: ISessionPreparationInput | undefined): void {
+		if (!input) {
+			return;
+		}
+		this._restoringPreparationInput = true;
+		try {
+			this._widget.setInput(input.inputText);
+			this._widget.attachmentModel.clearAndSetContext(...input.attachments);
+			if (input.selections?.length) {
+				this._widget.inputEditor.setSelections(input.selections);
+			}
+		} finally {
+			this._restoringPreparationInput = false;
 		}
 	}
 
@@ -755,13 +809,6 @@ export class ChatView extends AbstractChatView {
 	//#endregion
 
 	override focus(): void {
-		if (this._currentSessionObs.get()?.isNewSessionRequestInProgress?.get()) {
-			if (!this._widget.focusTranscriptProgress()) {
-				this.element.tabIndex = -1;
-				this.element.focus();
-			}
-			return;
-		}
 		this._widget.focusInput();
 	}
 

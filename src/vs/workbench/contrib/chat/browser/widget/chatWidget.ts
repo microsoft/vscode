@@ -8,7 +8,6 @@ import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, Throttler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -51,7 +50,6 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -393,7 +391,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		readonly output: HTMLElement;
 		readonly outputSection: MutableDisposable<ChatTerminalToolOutputSection>;
 		readonly outputUpdate: MutableDisposable<Throttler>;
-		readonly cancelButton: Button;
 		outputText: string;
 		message?: string;
 		complete?: boolean;
@@ -401,6 +398,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private transcriptProgressActive = false;
+	private readonly transcriptProgressActiveContext: IContextKey<boolean>;
 	private transcriptContext: HTMLElement | undefined;
 	private readonly transcriptContextPart = this._register(new MutableDisposable<ChatAttachmentsContentPart>());
 	private transcriptContextValue: IChatRequestTranscriptContextVariableEntry | undefined;
@@ -703,6 +701,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 		this.hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
+		this.transcriptProgressActiveContext = ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService);
 
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
@@ -1537,10 +1536,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const outputUpdate = this._register(new MutableDisposable<Throttler>());
 			const outputContext = this._register(this.contextKeyService.createScoped(output));
 			ChatContextKeys.inChatTerminalToolOutput.bindTo(outputContext).set(true);
-			const cancelButton = this._register(new Button(controls, { ...defaultButtonStyles, secondary: true }));
-			cancelButton.label = localize('chat.transcriptProgress.cancel', "Cancel");
-			this._register(cancelButton.onDidClick(() => this.transcriptProgress?.onCancel?.()));
-			this.transcriptProgress = { container, status, content, controls, output, outputSection, outputUpdate, outputText: '', cancelButton };
+			this.transcriptProgress = { container, status, content, controls, output, outputSection, outputUpdate, outputText: '' };
 		}
 		const progress = this.transcriptProgress;
 		if (message !== progress.message || options?.complete !== progress.complete) {
@@ -1563,10 +1559,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			progress.status.setAttribute('aria-label', ariaLabel ?? '');
 		}
 		progress.container.hidden = message === undefined;
-		progress.onCancel = message === undefined ? undefined : options?.onCancel;
-		progress.cancelButton.element.hidden = !progress.onCancel;
+		progress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
+		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
 		progress.output.hidden = message === undefined || !options?.output;
-		progress.controls.hidden = progress.output.hidden && !progress.onCancel;
+		progress.controls.hidden = progress.output.hidden;
 		progress.outputText = message === undefined ? '' : options?.output ?? '';
 		if (progress.output.hidden) {
 			progress.outputUpdate.clear();
@@ -1605,10 +1601,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!progress || progress.container.hidden) {
 			return false;
 		}
-		if (!progress.cancelButton.element.hidden) {
-			progress.cancelButton.focus();
-			return true;
-		}
 		if (!progress.output.hidden) {
 			const section = progress.outputSection.value;
 			section?.focus();
@@ -1628,6 +1620,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return true;
 		}
 		return false;
+	}
+
+	get isTranscriptProgressActive(): boolean {
+		return !!this.transcriptProgress?.onCancel;
+	}
+
+	cancelTranscriptProgress(): boolean {
+		const onCancel = this.transcriptProgress?.onCancel;
+		if (!onCancel) {
+			return false;
+		}
+		onCancel();
+		return true;
 	}
 
 	getTranscriptProgressOutput(): { provideContent: () => string; focus: () => void } | undefined {
@@ -3175,7 +3180,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly || this.input.hasPendingProgrammaticModelSelection) {
+		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
 			return undefined;
 		}
 
@@ -3193,7 +3198,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async rerunLastRequest(): Promise<void> {
-		if (this._readOnly || !this.viewModel) {
+		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel) {
 			return;
 		}
 
@@ -3346,6 +3351,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
+		if (this.isTranscriptProgressActive) {
+			return undefined;
+		}
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;

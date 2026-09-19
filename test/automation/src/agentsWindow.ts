@@ -20,6 +20,7 @@ const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .mon
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
+const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
@@ -122,6 +123,31 @@ export class AgentsWindow {
 		const page = this.code.driver.currentPage;
 		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden]) .chat-terminal-output-container.expanded .xterm-screen`).waitFor({ state: 'visible', timeout: 30_000 });
 		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+		await page.locator(ACTIVE_SESSION_INPUT_EDITOR).waitFor({ state: 'visible' });
+		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+	}
+
+	async draftFollowUpDuringPreparation(prompt: string): Promise<void> {
+		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
+		const page = this.code.driver.currentPage;
+		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+		await page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).waitFor({ state: 'hidden' });
+	}
+
+	async waitForFollowUpDraft(prompt: string): Promise<void> {
+		await this.code.waitForTextContent(`${ACTIVE_SESSION_INPUT_EDITOR} .view-lines`, undefined, text => text.replace(/\u00a0/g, ' ') === prompt);
+	}
+
+	async cancelSessionPreparation(originalPrompt: string): Promise<void> {
+		await this.code.waitAndClick(ACTIVE_SESSION_STOP_BUTTON_ENABLED);
+		await this.waitForNewSessionView();
+		await this.code.waitForTextContent(`${NEW_CHAT_EDITOR} .view-lines`, undefined, text => text.replace(/\u00a0/g, ' ') === originalPrompt);
+	}
+
+	async retrySessionPreparation(): Promise<void> {
+		await this.code.driver.currentPage.locator(SEND_BUTTON_ENABLED).click();
+		await this.code.driver.currentPage.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
 	}
 
 	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
