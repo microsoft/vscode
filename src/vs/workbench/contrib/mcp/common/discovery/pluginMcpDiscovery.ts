@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hash } from '../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
@@ -43,11 +43,12 @@ export async function toPluginMcpServerDefinition(
 	const { name, defaultCwd } = definition;
 	let configuration = definition.configuration;
 	if (plugin.format === PluginFormat.AgentPlugin) {
-		if (configuration.type === McpServerType.LOCAL && plugin.dataDir && fileService) {
-			await fileService.createFolder(plugin.dataDir);
+		const dataDir = plugin.dataDir?.get();
+		if (configuration.type === McpServerType.LOCAL && fileService && dataDir) {
+			await fileService.createFolder(dataDir);
 		}
 
-		const resolvedConfiguration = resolveAgentPluginMcpConfiguration(configuration, plugin.uri.fsPath, plugin.dataDir?.fsPath);
+		const resolvedConfiguration = resolveAgentPluginMcpConfiguration(configuration, plugin.uri.fsPath, dataDir?.fsPath);
 		if (!resolvedConfiguration) {
 			return undefined;
 		}
@@ -147,10 +148,16 @@ function resolveAgentPluginCwd(cwd: string | undefined, pluginRoot: string, plug
 	return resolved;
 }
 
+class CollectionEntry extends MutableDisposable<IDisposable> {
+	constructor(public readonly dataDirKey: string | undefined) {
+		super();
+	}
+}
+
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
-	private readonly _collections = this._register(new DisposableResourceMap());
+	private readonly _collections = this._register(new DisposableResourceMap<CollectionEntry>());
 
 	constructor(
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
@@ -175,8 +182,14 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 				seen.add(plugin.uri);
 
+				const dataDirKey = plugin.dataDir?.read(reader)?.toString();
+				const existing = this._collections.get(plugin.uri);
+				if (existing && existing.dataDirKey !== dataDirKey) {
+					this._collections.deleteAndDispose(plugin.uri);
+				}
+
 				if (!this._collections.has(plugin.uri)) {
-					const collectionDisposable = new MutableDisposable();
+					const collectionDisposable = new CollectionEntry(dataDirKey);
 					this._collections.set(plugin.uri, collectionDisposable);
 
 					this.createCollectionState(plugin, servers[0].uri).then(disposable => {

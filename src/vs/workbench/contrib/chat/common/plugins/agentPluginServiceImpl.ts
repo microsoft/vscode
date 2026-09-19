@@ -49,6 +49,7 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
@@ -258,6 +259,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	private _discoverVersion = 0;
 	protected _enablementModel!: IEnablementModel;
 
+	private readonly _currentProfile: IObservable<IUserDataProfile> | undefined;
+
 	constructor(
 		protected readonly _fileService: IFileService,
 		protected readonly _pathService: IPathService,
@@ -266,6 +269,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		protected readonly _userDataProfileService: IUserDataProfileService | undefined,
 	) {
 		super();
+		this._currentProfile = this._userDataProfileService
+			? observableFromEvent(this, this._userDataProfileService.onDidChangeCurrentProfile, () => this._userDataProfileService!.currentProfile)
+			: undefined;
 	}
 
 	public abstract start(enablementModel: IEnablementModel): void;
@@ -480,11 +486,13 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			? initialManifest.name.trim()
 			: undefined;
 
+		const dataDir = this._currentProfile
+			? derived(reader => joinPath(this._currentProfile!.read(reader).globalStorageHome, 'agentPlugins', 'data', (stringHash(uri.toString(), 0) >>> 0).toString(16)))
+			: undefined;
+
 		const plugin: PluginEntry = {
 			uri,
-			dataDir: this._userDataProfileService
-				? joinPath(this._userDataProfileService.currentProfile.globalStorageHome, 'agentPlugins', 'data', (stringHash(uri.toString(), 0) >>> 0).toString(16))
-				: undefined,
+			dataDir,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			version: pluginVersion,

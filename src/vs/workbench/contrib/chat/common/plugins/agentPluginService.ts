@@ -38,7 +38,7 @@ export interface IAgentPluginAutomation {
 export interface IAgentPlugin {
 	readonly uri: URI;
 	/** Persistent data directory used for `${PLUGIN_DATA}` in Agent Plugin MCP configurations. */
-	readonly dataDir?: URI;
+	readonly dataDir?: IObservable<URI | undefined>;
 	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */
 	readonly label: string;

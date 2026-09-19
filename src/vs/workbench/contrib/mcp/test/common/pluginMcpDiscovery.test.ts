@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PluginFormat, type IMcpServerDefinition } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -38,7 +39,7 @@ suite('PluginMcpDiscovery', () => {
 			},
 		};
 
-		const server = await toPluginMcpServerDefinition('plugin:', { dataDir: pluginDataUri, format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
+		const server = await toPluginMcpServerDefinition('plugin:', { dataDir: constObservable(pluginDataUri), format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
 		assert.deepStrictEqual(server?.launch, {
 			type: LaunchTransportType.Stdio,
 			command: './server.py',
