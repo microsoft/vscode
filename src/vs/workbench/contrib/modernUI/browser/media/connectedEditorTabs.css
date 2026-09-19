@@ -144,7 +144,7 @@
 	--modern-ui-connected-tab-top-inset: var(--vscode-spacing-size60);
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.two-tab-bars > .tabs-and-actions-container:not(:first-child) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.two-tab-bars > .tabs-and-actions-container:not(.wrapping):not(:first-child) {
 	--modern-ui-connected-tab-gutter: calc(var(--vscode-spacing-size60) + var(--vscode-strokeThickness));
 	--modern-ui-connected-tab-top-inset: var(--vscode-spacing-size20);
 }
@@ -162,9 +162,6 @@
 	--modern-ui-editor-tab-unfocused-active-border-top: var(--modern-ui-connected-tab-border);
 	--modern-ui-editor-tab-active-border: transparent;
 	--modern-ui-editor-tab-unfocused-active-border: transparent;
-	top: calc(-1 * var(--modern-ui-connected-tab-top-inset));
-	inset-inline: 0;
-	bottom: calc(-1 * var(--modern-ui-connected-tab-gutter) - var(--vscode-strokeThickness));
 	z-index: 1;
 	background-color: var(--modern-ui-connected-tab-surface);
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
@@ -178,7 +175,7 @@
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
 	content: '';
 	position: absolute;
-	bottom: 0;
+	bottom: calc(-1 * var(--vscode-strokeThickness));
 	width: var(--modern-ui-connected-tab-shoulder-radius);
 	height: var(--modern-ui-connected-tab-shoulder-radius);
 	box-sizing: border-box;
@@ -208,7 +205,7 @@
 	position: absolute;
 	top: calc(-1 * var(--modern-ui-connected-tab-top-inset));
 	inset-inline: 0;
-	bottom: calc(-1 * var(--modern-ui-connected-tab-gutter) - var(--vscode-strokeThickness));
+	bottom: calc(-1 * var(--modern-ui-connected-tab-gutter));
 	z-index: 8;
 	pointer-events: none;
 }
@@ -391,8 +388,7 @@
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .connected-tab-right-clipped > .tab-connected-overflow-right {
 	position: absolute;
-	/* Match the ordinary fill's inner border edge, not its reserved bottom stroke. */
-	inset: 0 0 var(--vscode-strokeThickness);
+	inset: 0 0;
 	z-index: 1;
 }
 
