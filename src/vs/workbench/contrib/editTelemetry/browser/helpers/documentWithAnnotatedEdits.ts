@@ -102,11 +102,21 @@ export abstract class EditSourceBase {
 				return this._cache.get(new ExternalEditSource());
 			case 'inlineCompletionPartialAccept':
 			case 'inlineCompletionAccept': {
+				// Only classify as AI when an extension actually provided the
+				// completion. Built-in providers such as SuggestInlineCompletions
+				// have no $extensionId and should not trigger AI
+				// attribution (e.g. the Co-authored-by trailer). Empty or
+				// whitespace-only $extensionId values are also treated as absent.
+				const rawExtensionId = '$extensionId' in data ? data.$extensionId : undefined;
+				const extensionId = typeof rawExtensionId === 'string' ? rawExtensionId.trim() : undefined;
+				if (!extensionId) {
+					return this._cache.get(new IdeEditSource('suggest'));
+				}
 				const type = 'type' in data ? data.type : undefined;
 				if ('$nes' in data && data.$nes) {
-					return this._cache.get(new InlineSuggestEditSource('nes', data.$extensionId ?? '', data.$providerId ?? '', type));
+					return this._cache.get(new InlineSuggestEditSource('nes', extensionId, data.$providerId ?? '', type));
 				}
-				return this._cache.get(new InlineSuggestEditSource('completion', data.$extensionId ?? '', data.$providerId ?? '', type));
+				return this._cache.get(new InlineSuggestEditSource('completion', extensionId, data.$providerId ?? '', type));
 			}
 			case 'snippet':
 				return this._cache.get(new IdeEditSource('suggest'));
