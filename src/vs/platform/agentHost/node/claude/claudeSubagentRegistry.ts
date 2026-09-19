@@ -52,6 +52,11 @@ export const SUBAGENT_ID_SUFFIX_REGEX = /^\s*agentId:\s+([a-z0-9]+)\b/im;
  *     `subagent_completed` signals.
  */
 export class SubagentSpawn {
+	/**
+	 * Whether the live stream observed this spawn in flight. A record created
+	 * only to cache a resolved agentId stays `false`.
+	 */
+	inFlight = false;
 	background = false;
 	subagentType: string | undefined;
 	description: string | undefined;
@@ -134,19 +139,15 @@ export class SubagentRegistry extends Disposable {
 	}
 
 	/**
-	 * Insert a spawn (or return the existing one) for `toolUseId`.
-	 * Any fields supplied in `init` are written to the spawn under
-	 * first-writer-wins semantics (see {@link ISubagentSpawnInit}).
-	 * Idempotent so live writes (canUseTool / strategy resolution /
-	 * transcript priming / canonical assistant) can converge on the
-	 * same record.
+	 * Insert a spawn (or return the existing one) for `toolUseId` and mark it in
+	 * flight. Any fields supplied in `init` are written to the spawn under
+	 * first-writer-wins semantics (see {@link ISubagentSpawnInit}), so the live
+	 * writers (canUseTool / canonical assistant / stream mapper) converge on one
+	 * record.
 	 */
 	recordSpawn(toolUseId: string, init?: ISubagentSpawnInit): SubagentSpawn {
-		let spawn = this._spawns.get(toolUseId);
-		if (!spawn) {
-			spawn = new SubagentSpawn(toolUseId);
-			this._spawns.set(toolUseId, spawn);
-		}
+		const spawn = this._ensureSpawn(toolUseId);
+		spawn.inFlight = true;
 		if (init?.agentId !== undefined) {
 			spawn.setAgentId(init.agentId);
 		}
@@ -171,6 +172,15 @@ export class SubagentRegistry extends Disposable {
 		this._evictInnerEdgesFor(toolUseId);
 	}
 
+	/**
+	 * Record a resolved agentId for a Task without claiming it is in flight.
+	 * Replay priming and the resolver cache use this so the entry outlives the
+	 * turn-end drain, which exists to clear spawns this process saw start.
+	 */
+	cacheAgentId(toolUseId: string, agentId: string): void {
+		this._ensureSpawn(toolUseId).setAgentId(agentId);
+	}
+
 	/** Mapper records the parent of an inner `tool_use` block when an inner subagent message arrives. */
 	noteInnerTool(innerToolUseId: string, parentToolUseId: string): void {
 		this._innerToParent.set(innerToolUseId, parentToolUseId);
@@ -188,11 +198,13 @@ export class SubagentRegistry extends Disposable {
 	 * turns by design (their completion arrives later via
 	 * `system.task_notification`). Inner-edge entries pointing at
 	 * drained spawns are evicted too. Caller logs each returned orphan.
+	 * Cache-only records (see {@link cacheAgentId}) never started here, so they
+	 * survive as well.
 	 */
 	drainForegroundSpawns(): readonly SubagentSpawn[] {
 		const drained: SubagentSpawn[] = [];
 		for (const spawn of this._spawns.values()) {
-			if (!spawn.background) {
+			if (spawn.inFlight && !spawn.background) {
 				drained.push(spawn);
 			}
 		}
@@ -206,12 +218,21 @@ export class SubagentRegistry extends Disposable {
 	/**
 	 * Replay-path bulk populate: scan a parent transcript for the
 	 * SDK's synthetic `agentId: <hex>` suffix on Task/Agent tool_result
-	 * text blocks and record each `(toolUseId, agentId)` pair. Idempotent.
+	 * text blocks and cache each `(toolUseId, agentId)` pair. Idempotent.
 	 */
 	primeFromTranscript(transcript: readonly Turn[]): void {
 		for (const [toolCallId, agentId] of scanTranscriptForAgentIds(transcript)) {
-			this.recordSpawn(toolCallId, { agentId });
+			this.cacheAgentId(toolCallId, agentId);
 		}
+	}
+
+	private _ensureSpawn(toolUseId: string): SubagentSpawn {
+		let spawn = this._spawns.get(toolUseId);
+		if (!spawn) {
+			spawn = new SubagentSpawn(toolUseId);
+			this._spawns.set(toolUseId, spawn);
+		}
+		return spawn;
 	}
 
 	private _evictInnerEdgesFor(parentToolUseId: string): void {
