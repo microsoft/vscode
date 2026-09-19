@@ -5373,6 +5373,21 @@
               "advanced"
             ]
           },
+          "github.copilot.chat.otel.captureIdentity": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null,
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureIdentity"
+            },
+            "markdownDescription": "Capture the authenticated Copilot account name, operating system username, and machine hostname in OpenTelemetry. **Contains personally identifying data.** Independent of content capture. `null` means no personal preference (off by default). `COPILOT_OTEL_CAPTURE_IDENTITY` overrides personal settings; explicit enterprise policy overrides both. Enabling requires window reload; an effective denial applies immediately to subsequent exports.",
+            "tags": [
+              "advanced"
+            ]
+          },
           "github.copilot.chat.otel.serviceName": {
             "type": "string",
             "default": "",

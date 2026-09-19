@@ -277,6 +277,14 @@ src/vs/platform/otel/
 
 `OTEL_EXPORTER_OTLP_HEADERS` flows via env inheritance only. `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, and `OTEL_RESOURCE_ATTRIBUTES` are not translated from the local `chat.agentHost.otel.*` settings, but **enterprise managed settings (policy)** can set them on the spawned host: the renderer forwards the resolved policy to the starter, and managed values win over inherited env.
 
+The shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
+`telemetry.capture.identity` for the legacy Local extension's policy reference.
+Its hidden `chat.agentHost.otel.captureIdentity` delivery slot is not translated
+into environment variables: the native Copilot runtime owns managed identity
+enforcement. The content-capture shorthand does not enable identity. See the
+[Local harness documentation](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md#governed-identity-capture)
+for the extension-host implementation.
+
 `readAgentHostOTelEnv()` ([node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts)) is the inverse: it reads `process.env` inside the agent host and produces the `ResolvedConfig` that drives mode selection and outbound forwarding.
 
 ## OTLP/HTTP Forwarder Conventions
