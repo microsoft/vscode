@@ -408,16 +408,20 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	override focus(): void {
-		super.focus();
-		this.tree.domFocus();
+    if (!this.tree || !this.tree.getInput()) {
+        return super.focus();
+    }
 
-		if (this.tree.getFocusedPart() === AbstractTreePart.Tree) {
-			const focused = this.tree.getFocus();
-			if (focused.length === 1 && this._autoReveal) {
-				this.tree.reveal(focused[0], 0.5);
-			}
-		}
-	}
+    super.focus();
+    this.tree.domFocus();
+
+    if (this.tree.getFocusedPart() === AbstractTreePart.Tree) {
+        const focused = this.tree.getFocus();
+        if (focused.length === 1 && this._autoReveal) {
+            this.tree.reveal(focused[0], 0.5);
+        }
+    }
+}
 
 	hasFocus(): boolean {
 		return DOM.isAncestorOfActiveElement(this.container);
