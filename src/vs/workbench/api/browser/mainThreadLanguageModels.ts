@@ -55,6 +55,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
+	private readonly _newSessionDefaultInvalidation = new Emitter<string>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
 	private readonly _pendingCancelCTS = new DisposableMap<number, RequestCancellationTokenSource>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
@@ -88,6 +89,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	dispose(): void {
 		this._lmProviderChange.dispose();
+		this._newSessionDefaultInvalidation.dispose();
 		this._providerRegistrations.dispose();
 		this._pendingProgress.clear();
 		this._pendingCancelCTS.dispose();
@@ -99,6 +101,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const disposables = new DisposableStore();
 		try {
 			disposables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
+				refreshNewSessionDefault: () => this._proxy.$refreshNewSessionDefault(vendor),
+				onDidInvalidateNewSessionDefault: Event.map(Event.filter(this._newSessionDefaultInvalidation.event, changedVendor => changedVendor === vendor, disposables), () => undefined),
 				onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, disposables) as unknown as Event<void>,
 				provideLanguageModelChatInfo: async (options, token) => {
 					const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
@@ -177,6 +181,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	$onLMProviderChange(vendor: string): void {
 		this._lmProviderChange.fire({ vendor });
+	}
+
+	$invalidateNewSessionDefault(vendor: string): void {
+		if (this._providerRegistrations.has(vendor)) {
+			this._newSessionDefaultInvalidation.fire(vendor);
+		}
 	}
 
 	async $reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void> {

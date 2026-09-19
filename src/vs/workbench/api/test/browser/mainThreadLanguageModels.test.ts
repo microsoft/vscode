@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -24,6 +24,35 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 suite('MainThreadLanguageModels', function () {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('bridges transient new session decisions and account invalidation separately from the model catalog', async () => {
+		let provider: ILanguageModelChatProvider | undefined;
+		let invalidations = 0;
+		const proxy: Partial<ExtHostLanguageModelsShape> = {
+			$refreshNewSessionDefault: async () => ({ variant: 'control', assignmentContext: 'fixture-auto-default:control' }),
+		};
+		const service = new class extends mock<ILanguageModelsService>() {
+			override onDidChangeLanguageModels = Event.None;
+			override getLanguageModelIds() { return []; }
+			override registerLanguageModelProvider(_vendor: string, value: ILanguageModelChatProvider) {
+				provider = value;
+				return Disposable.None;
+			}
+		};
+		const bridge = disposables.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol(proxy), service, new NullLogService(), TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(), new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+		bridge.$registerLanguageModelProvider('copilot');
+		disposables.add(provider!.onDidInvalidateNewSessionDefault!(() => invalidations++));
+		const decision = await provider!.refreshNewSessionDefault!();
+		bridge.$invalidateNewSessionDefault('copilot');
+		assert.deepStrictEqual({ decision, invalidations }, {
+			decision: { variant: 'control', assignmentContext: 'fixture-auto-default:control' }, invalidations: 1,
+		});
+	});
 
 	test('bridges onDidChangeLanguageModels to $onChatModelsChange when the model id set changes', async () => {
 		const store = disposables.add(new DisposableStore());
