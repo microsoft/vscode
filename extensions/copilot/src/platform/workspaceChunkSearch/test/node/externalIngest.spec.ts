@@ -24,8 +24,11 @@ import { GithubRequestOptions, IGithubApiFetcherService } from '../../../github/
 import { ISearchService } from '../../../search/common/searchService';
 import { createPlatformServices, TestingServiceCollection } from '../../../test/node/services';
 import { IWorkspaceService, NullWorkspaceService } from '../../../workspace/common/workspaceService';
-import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
+import { ExternalIngestClient, ExternalIngestFile, ExternalIngestFileSet, ExternalIngestRequestError, ExternalIngestUpdateIndexResult, IExternalIngestClient } from '../../node/codeSearch/externalIngestClient';
 import { ExternalIngestIndex } from '../../node/codeSearch/externalIngestIndex';
+import { StrategySearchSizing, WorkspaceChunkQueryWithEmbeddings } from '../../common/workspaceChunkSearch';
+import { IChatEndpoint } from '../../../networking/common/networking';
+import { Embedding, EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 
 const emptyProgressCb: (message: string) => void = () => { };
 const testTelemetryInfo = new TelemetryCorrelationId('externalIngest.spec.ts');
@@ -33,6 +36,11 @@ const testTelemetryInfo = new TelemetryCorrelationId('externalIngest.spec.ts');
 function createMockExternalIngestClient(options?: {
 	canIngestPathAndSize?: (filePath: string, size: number) => boolean;
 	canIngestDocument?: (filePath: string, data: Uint8Array) => boolean;
+	/**
+	 * Overrides the result of `searchFilesets`. Invoked with the 1-based index of the
+	 * current search call so tests can vary behavior across the retry (e.g. throw twice).
+	 */
+	onSearchFilesets?: (callCount: number) => Promise<undefined>;
 }): IExternalIngestClient & {
 	get ingestedFiles(): readonly ExternalIngestFile[];
 	get searchCalls(): Array<{ filesetName: string; prompt: string }>;
@@ -59,6 +67,9 @@ function createMockExternalIngestClient(options?: {
 		},
 		async searchFilesets(filesetName: string, prompt: string, _limit: number, _callTracker: CallTracker, _token: CancellationToken): Promise<undefined> {
 			searchCalls.push({ filesetName, prompt });
+			if (options?.onSearchFilesets) {
+				return options.onSearchFilesets(searchCalls.length);
+			}
 			return undefined;
 		},
 		canIngestPathAndSize(filePath: string, size: number): boolean {
@@ -569,6 +580,81 @@ suite('ExternalIngestIndex', () => {
 		assert.strictEqual(mockFs.countReadFileCalls(file2), 2, 'Changed file should be re-read');
 		assert.strictEqual(mockFs.countReadFileCalls(file1), 1, 'Unchanged file1 should not be re-read');
 		assert.strictEqual(mockFs.countReadFileCalls(file3), 1, 'Unchanged file3 should not be re-read');
+	});
+});
+
+suite('ExternalIngestIndex search 404 handling', () => {
+	const disposables = new DisposableStore();
+	let testingServiceCollection: TestingServiceCollection;
+
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		testingServiceCollection = disposables.add(createPlatformServices());
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		disposables.clear();
+	});
+
+	const sizing: StrategySearchSizing = {
+		endpoint: new (mock<IChatEndpoint>())(),
+		tokenBudget: undefined,
+		maxResultCountHint: 10,
+	};
+
+	const query: WorkspaceChunkQueryWithEmbeddings = {
+		queryText: 'find the thing',
+		resolveQueryEmbeddings: async (): Promise<Embedding> => ({ type: EmbeddingType.text3small_512, value: [0] }),
+	};
+
+	function createRequestError(status: number): ExternalIngestRequestError {
+		return new ExternalIngestRequestError(`POST external-embeddings-code-search failed with status ${status}`, { status } as Response);
+	}
+
+	function setupIndex(clientOptions: Parameters<typeof createMockExternalIngestClient>[0]): { index: ExternalIngestIndex; mockClient: ReturnType<typeof createMockExternalIngestClient> } {
+		const workspaceRoot = URI.file('/workspace');
+		const mockFs = new MockFileSystem(new ResourceMap<MockFileEntry>());
+		const mockClient = createMockExternalIngestClient(clientOptions);
+
+		testingServiceCollection.set(IFileSystemService, mockFs);
+		testingServiceCollection.set(IWorkspaceService, new MockWorkspaceService([workspaceRoot]));
+		testingServiceCollection.set(ISearchService, mockFs);
+
+		const accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+		const instantiationService = accessor.get(IInstantiationService);
+		const index = disposables.add(instantiationService.createInstance(ExternalIngestIndex, mockClient, []));
+		return { index, mockClient };
+	}
+
+	/**
+	 * Drives `search` to completion while flushing the fake 2s retry-backoff timer so the
+	 * test never waits on real wall-clock time.
+	 */
+	function runSearch(index: ExternalIngestIndex): Promise<readonly unknown[] | undefined> {
+		// Attach handlers to the search promise synchronously (via Promise.all) before flushing the
+		// fake timers, so a rejection surfacing during the flush is not reported as an unhandled rejection.
+		const promise = index.search(sizing, query, testTelemetryInfo, CancellationToken.None);
+		return Promise.all([vi.runAllTimersAsync(), promise]).then(([, result]) => result);
+	}
+
+	test('returns index-not-ready (undefined) when the fileset is still not ready (404) after the retry', async () => {
+		const { index, mockClient } = setupIndex({
+			onSearchFilesets: async () => { throw createRequestError(404); },
+		});
+
+		const result = await runSearch(index);
+
+		assert.deepStrictEqual({ result, searchCallCount: mockClient.searchCalls.length }, { result: undefined, searchCallCount: 2 });
+	});
+
+	test('rethrows when the retry fails with a non-404 error so the catch does not broaden silently', async () => {
+		const { index, mockClient } = setupIndex({
+			onSearchFilesets: async (callCount) => { throw createRequestError(callCount === 1 ? 404 : 500); },
+		});
+
+		await assert.rejects(runSearch(index), (err: Error) => err instanceof ExternalIngestRequestError && err.response.status === 500);
+		assert.strictEqual(mockClient.searchCalls.length, 2, 'The retry should have been attempted after the first 404');
 	});
 });
 

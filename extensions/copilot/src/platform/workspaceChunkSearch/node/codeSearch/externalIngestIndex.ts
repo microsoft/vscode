@@ -44,6 +44,14 @@ import { WorkspaceFolderIdMap } from './workspaceFolderIdMap';
 
 const debug = false;
 
+/**
+ * Internal sentinel returned by the fileset search when the server-side index is not yet ready
+ * (a persistent 404 after the single retry). It is deliberately distinct from an empty successful
+ * result so callers can preserve their remote code-search fallback instead of treating "not ready"
+ * as a definitive empty answer.
+ */
+const IndexNotReady = Symbol('ExternalIngestIndex.IndexNotReady');
+
 const enum ShouldIngestState {
 	/** File is tracked but we haven't yet determined if it should be ingested */
 	Undetermined = 0,
@@ -486,12 +494,28 @@ export class ExternalIngestIndex extends Disposable {
 							// On the first index or a large workspace, there might be a slight delay on the service
 							// before the index is actually ready. Workaround by retrying just once after a short delay.
 							await raceCancellationError(timeout(2000), token);
-							return await this._client.searchFilesets(filesetName, resolvedQuery, sizing.maxResultCountHint, callTracker, token);
+							try {
+								return await this._client.searchFilesets(filesetName, resolvedQuery, sizing.maxResultCountHint, callTracker, token);
+							} catch (retryErr) {
+								if (retryErr instanceof ExternalIngestRequestError && retryErr.response.status === 404) {
+									// The index is still not ready server side. This is an expected transient state
+									// (not an error we can act on). Signal "index not ready" so the caller keeps
+									// its remote code-search fallback instead of treating it as a definitive empty
+									// result (which would drop remote hits for locally changed files).
+									this._logService.warn(`ExternalIngestIndex: Fileset '${filesetName}' not ready (404) after retry, index unavailable`);
+									return IndexNotReady;
+								}
+								throw retryErr;
+							}
 						}
 						throw err;
 					}
 				})(),
 				token);
+
+			if (searchResult === IndexNotReady) {
+				return undefined;
+			}
 
 			if (!searchResult || !searchResult.results) {
 				return [];
