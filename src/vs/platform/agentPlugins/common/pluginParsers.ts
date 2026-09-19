@@ -1302,8 +1302,8 @@ export function parseMcpServerDefinitionMap(
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
+		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 		if (formatConfig.format !== PluginFormat.AgentPlugin) {
-			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
 		definitions.push(def);
