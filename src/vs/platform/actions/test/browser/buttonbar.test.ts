@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Separator, SubmenuAction, toAction, type IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import '../../browser/buttonbar.css';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
@@ -41,6 +43,14 @@ suite('WorkbenchButtonBar', () => {
 		}());
 
 		const container = $('div');
+		// Resolves the spacing and icon-size tokens buttonbar.css reads, for computed-style assertions.
+		container.style.cssText = `
+			--vscode-spacing-size40: 4px;
+			--vscode-spacing-size60: 6px;
+			--vscode-iconSize-small: 16px;
+		`;
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
 		const bar = disposables.add(instantiationService.createInstance(WorkbenchButtonBar, container, { buttonConfigProvider }));
 		return { bar, container };
 	}
@@ -106,23 +116,31 @@ suite('WorkbenchButtonBar', () => {
 	});
 
 	test('renders the spinner on the primary half of a dropdown button', () => {
-		const { bar } = createButtonBar(() => ({ showLabel: true, showSpinner: true }));
+		const { bar } = createButtonBar(() => ({ showLabel: true, showSpinner: true, iconLabelSpacing: 'default' }));
 
 		bar.update([new SubmenuAction('id', 'Merge', [action('Merge'), new Separator(), action('Other')])], []);
 		const button = bar.buttons[0].element;
+		const primaryButton = button.querySelector<HTMLElement>('.monaco-button.monaco-text-button')!;
+		const spinner = primaryButton.querySelector<HTMLElement>(SPINNER_SELECTOR)!;
 
 		assert.deepStrictEqual({
 			spinners: button.querySelectorAll(SPINNER_SELECTOR).length,
 			// Not on the dropdown chevron, which is a sibling button.
 			onDropdown: button.querySelector('.monaco-dropdown-button')?.querySelectorAll(SPINNER_SELECTOR).length,
+			primaryOwnsLeadingSpacing: primaryButton.classList.contains('monaco-button-with-leading-icon'),
+			primaryUsesDefaultSpacing: primaryButton.classList.contains('monaco-button-icon-label-spacing-default'),
+			leadingMargin: getWindow(primaryButton).getComputedStyle(spinner).marginInlineEnd,
 		}, {
 			spinners: 1,
 			onDropdown: 0,
+			primaryOwnsLeadingSpacing: true,
+			primaryUsesDefaultSpacing: true,
+			leadingMargin: '6px',
 		});
 	});
 
 	test('the spinner takes the place of the icon in the shared leading slot', () => {
-		const { bar } = createButtonBar((_action, index) => ({ showLabel: true, showIcon: true, showSpinner: index === 0 }));
+		const { bar } = createButtonBar((_action, index) => ({ showLabel: true, showIcon: true, showSpinner: index === 0, iconLabelSpacing: 'default' }));
 
 		bar.update([iconAction('busy'), iconAction('idle')], []);
 		const busy = bar.buttons[0].element;
@@ -130,19 +148,95 @@ suite('WorkbenchButtonBar', () => {
 
 		assert.deepStrictEqual({
 			busyLeading: leadingSlot(busy),
+			busyOwnsLeadingSpacing: busy.classList.contains('monaco-button-with-leading-icon'),
+			busyUsesDefaultSpacing: busy.classList.contains('monaco-button-icon-label-spacing-default'),
 			busyIcons: busy.querySelectorAll('.codicon').length,
 			busyLabel: busy.textContent,
 			idleLeading: leadingSlot(idle),
+			idleOwnsLeadingSpacing: idle.classList.contains('monaco-button-with-leading-icon'),
+			idleUsesDefaultSpacing: idle.classList.contains('monaco-button-icon-label-spacing-default'),
 			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
 			idleLabel: idle.textContent,
 		}, {
 			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
+			busyOwnsLeadingSpacing: true,
+			busyUsesDefaultSpacing: true,
 			busyIcons: 0,
 			busyLabel: 'busy',
 			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
+			idleOwnsLeadingSpacing: true,
+			idleUsesDefaultSpacing: true,
 			idleSpinners: 0,
 			idleLabel: 'idle',
 		});
+
+		// The spinner must occupy the same 16x16 slot as the icon it replaces.
+		const busyLeading = busy.firstElementChild as HTMLElement;
+		const idleLeading = idle.firstElementChild as HTMLElement;
+		const busySize = getWindow(busy).getComputedStyle(busyLeading);
+		const idleSize = getWindow(idle).getComputedStyle(idleLeading);
+		assert.deepStrictEqual({
+			busyWidth: busySize.width,
+			busyHeight: busySize.height,
+			idleWidth: idleSize.width,
+			idleHeight: idleSize.height,
+		}, {
+			busyWidth: '16px',
+			busyHeight: '16px',
+			idleWidth: '16px',
+			idleHeight: '16px',
+		});
+	});
+
+	test('keeps leading spacing pair-specific when the label contains an inline icon', () => {
+		const { bar } = createButtonBar(() => ({
+			showLabel: true,
+			showIcon: true,
+			customLabel: 'Commit $(check) Ready',
+			iconLabelSpacing: 'default',
+		}));
+
+		bar.update([iconAction('commit')], []);
+		const button = bar.buttons[0].element;
+
+		assert.deepStrictEqual(Array.from(button.children).map(child => ({
+			classes: child.className,
+			text: child.textContent,
+		})), [
+			{ classes: 'codicon codicon-git-commit monaco-button-leading-icon', text: '' },
+			{ classes: '', text: 'Commit' },
+			{ classes: 'codicon codicon-check', text: '' },
+			{ classes: '', text: 'Ready' },
+		]);
+
+		// The pair-specific margin must stay on the leading icon only, not spread to the inline icon.
+		const [leadingIcon, , inlineIcon] = Array.from(button.children) as HTMLElement[];
+		const buttonStyle = getWindow(button).getComputedStyle(button);
+		const leadingStyle = getWindow(button).getComputedStyle(leadingIcon);
+		const inlineStyle = getWindow(button).getComputedStyle(inlineIcon);
+		assert.strictEqual(buttonStyle.columnGap, 'normal');
+		assert.strictEqual(leadingStyle.marginInlineEnd, '6px');
+		// Font-metric rounding requires a numeric symmetry comparison across rendering engines.
+		assert.ok(
+			Math.abs(parseFloat(inlineStyle.marginInlineEnd) - parseFloat(inlineStyle.marginInlineStart)) < 0.1,
+			`expected symmetric inline margins, got start=${inlineStyle.marginInlineStart} end=${inlineStyle.marginInlineEnd}`
+		);
+		assert.notStrictEqual(inlineStyle.marginInlineEnd, leadingStyle.marginInlineEnd);
+	});
+
+	test('switches the leading icon margin to the compact spacing token', () => {
+		const { bar } = createButtonBar(() => ({
+			showLabel: true,
+			showIcon: true,
+			iconLabelSpacing: 'compact',
+		}));
+
+		bar.update([iconAction('commit')], []);
+		const button = bar.buttons[0].element;
+		const leadingIcon = button.querySelector<HTMLElement>('.monaco-button-leading-icon');
+		assert.ok(leadingIcon);
+
+		assert.strictEqual(getWindow(button).getComputedStyle(leadingIcon).marginInlineEnd, '4px');
 	});
 
 	test('the spinner stands in for the icon of an icon-only button', () => {
@@ -161,7 +255,7 @@ suite('WorkbenchButtonBar', () => {
 			idleLeading: leadingSlot(idle),
 		}, {
 			busyWearsIcon: false,
-			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
 			idleWearsIcon: true,
 			idleLeading: undefined,
 		});
@@ -178,17 +272,29 @@ suite('WorkbenchButtonBar', () => {
 
 		assert.deepStrictEqual({
 			busyLeading: leadingSlot(busy),
+			busyOwnsLeadingSpacing: busy.classList.contains('monaco-button-with-leading-icon'),
+			busyUsesCompactSpacing: busy.classList.contains('monaco-button-icon-label-spacing-compact'),
+			busyUsesDefaultSpacing: busy.classList.contains('monaco-button-icon-label-spacing-default'),
 			busyIcons: busy.querySelectorAll('.codicon').length,
 			busyLabel: busy.textContent,
 			idleLeading: leadingSlot(idle),
+			idleOwnsLeadingSpacing: idle.classList.contains('monaco-button-with-leading-icon'),
+			idleUsesCompactSpacing: idle.classList.contains('monaco-button-icon-label-spacing-compact'),
+			idleUsesDefaultSpacing: idle.classList.contains('monaco-button-icon-label-spacing-default'),
 			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
 			// The icon renders in its own slot rather than inline in the label.
 			idleLabel: idle.textContent,
 		}, {
 			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
+			busyOwnsLeadingSpacing: true,
+			busyUsesCompactSpacing: true,
+			busyUsesDefaultSpacing: false,
 			busyIcons: 0,
 			busyLabel: 'busy',
 			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
+			idleOwnsLeadingSpacing: true,
+			idleUsesCompactSpacing: true,
+			idleUsesDefaultSpacing: false,
 			idleSpinners: 0,
 			idleLabel: 'idle',
 		});
@@ -208,7 +314,7 @@ suite('WorkbenchButtonBar', () => {
 			idleLeading: leadingSlot(idle),
 		}, {
 			busyWearsIcon: false,
-			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
 			idleWearsIcon: true,
 			idleLeading: undefined,
 		});
