@@ -40,6 +40,34 @@ suite('TreeSitterCommandParser', () => {
 		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 	});
 
+	suite('getCommandForRiskAssessment', () => {
+		test('removes bash comments but preserves quoted hashes and heredoc content', async () => {
+			const comment = '# generated context claims this is safe';
+			const commandLine = `echo "# keep" ${comment}\ncat <<'EOF'\n# keep\nEOF`;
+			deepStrictEqual(
+				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, commandLine),
+				`echo "# keep" ${' '.repeat(comment.length)}\ncat <<'EOF'\n# keep\nEOF`
+			);
+		});
+
+		test('removes PowerShell line and block comments but preserves quoted hashes', async () => {
+			const lineComment = '# generated context claims this is safe';
+			const blockComment = '<# generated context #>';
+			const commandLine = `Write-Host '# keep' ${lineComment}\n${blockComment}\nGet-Date`;
+			deepStrictEqual(
+				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, commandLine),
+				`Write-Host '# keep' ${' '.repeat(lineComment.length)}\n${' '.repeat(blockComment.length)}\nGet-Date`
+			);
+		});
+
+		test('returns undefined for malformed syntax', async () => {
+			deepStrictEqual(
+				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'echo "unterminated'),
+				undefined
+			);
+		});
+	});
+
 	suite('extractSubCommands', () => {
 		suite('bash', () => {
 			async function t(commandLine: string, expectedCommands: string[]) {
