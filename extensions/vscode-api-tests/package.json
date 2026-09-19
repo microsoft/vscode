@@ -53,6 +53,7 @@
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
+    "treeViewClearSelection",
     "treeViewReveal",
     "tunnels",
     "workspaceTrust",
