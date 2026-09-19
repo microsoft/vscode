@@ -23,7 +23,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -252,6 +252,7 @@ interface IRenderOptions {
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
+	readonly showConfetti?: boolean;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
@@ -404,8 +405,8 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 		},
 	});
-	if (options.archiveOnboarding) {
-		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+	if (options.archiveOnboarding || options.showConfetti) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding ?? ChatSessionArchiveActionWording.MarkAsDone).archive;
 		const archiveAction = instantiationService.createInstance(MenuItemAction, {
 			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
 		}, undefined, undefined, undefined, undefined);
@@ -458,6 +459,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.showUnreadInCollapsedSections !== undefined) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, options.showUnreadInCollapsedSections);
 	}
+	if (options.showConfetti) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	// Phone layout is driven by both a CSS class (visual) and a context key (row
@@ -471,9 +475,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
-	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
-	if (options.archiveOnboarding) {
+	const hasPreviewSpace = !!(options.archiveOnboarding || options.showConfetti);
+	container.style.width = `${hasPreviewSpace ? width + 420 : width}px`;
+	container.style.height = hasPreviewSpace ? '420px' : options.phone ? '260px' : '220px';
+	if (hasPreviewSpace) {
 		container.style.position = 'relative';
 	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
@@ -545,6 +550,10 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			advanceOnTargetClick: step.advanceOnTargetClick,
 			hideNext: step.hideNext,
 		});
+	}
+	if (options.showConfetti) {
+		listHost.style.width = `${width}px`;
+		disposableStore.add(list.revealArchiveAction(sessions[0]));
 	}
 
 	if (options.showAutomations) {
@@ -676,6 +685,13 @@ const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Confetti: defineComponentFixture({
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'confetti', title: 'Finish confetti animation fixture', workspace: 'vscode', minutesAgo: 1 }],
+			showConfetti: true,
+			reducedMotion: false,
+		}),
+	}),
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],

@@ -23,6 +23,34 @@ const confettiColors = [
 ];
 
 /**
+ * Defines a range used to vary a confetti animation value.
+ */
+export interface IConfettiAnimationRange {
+	readonly min: number;
+	readonly max: number;
+}
+
+/**
+ * Controls the timing and vertical travel of a confetti burst.
+ */
+export interface IConfettiAnimationOptions {
+	/** Time particles take to reach their apex, in milliseconds. */
+	readonly launchDuration?: IConfettiAnimationRange;
+	/** Time particles take to fall from their apex, in milliseconds. */
+	readonly fallDuration?: IConfettiAnimationRange;
+	/** Final downward travel range in pixels. */
+	readonly fallDistance?: IConfettiAnimationRange;
+}
+
+const defaultConfettiLaunchDuration = { min: 280, max: 380 };
+const defaultConfettiFallDuration = { min: 1700, max: 2100 };
+const defaultConfettiFallDistance = { min: 90, max: 130 };
+
+function randomInRange(range: IConfettiAnimationRange): number {
+	return range.min + Math.random() * (range.max - range.min);
+}
+
+/**
  * Creates a fixed-positioned overlay centered on the given element.
  */
 function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number; cy: number } {
@@ -98,8 +126,11 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
 /**
  * Confetti: colorful particles burst upward from the element center and fall.
  */
-export function triggerConfettiAnimation(element: HTMLElement) {
+export function triggerConfettiAnimation(element: HTMLElement, options: IConfettiAnimationOptions = {}) {
 	const { overlay, cx, cy } = createOverlay(element);
+	const launchDuration = options.launchDuration ?? defaultConfettiLaunchDuration;
+	const fallDuration = options.fallDuration ?? defaultConfettiFallDuration;
+	const fallDistance = options.fallDistance ?? defaultConfettiFallDistance;
 
 	// Element bounce
 	bounceElement(element, {
@@ -118,8 +149,13 @@ export function triggerConfettiAnimation(element: HTMLElement) {
 		const peakX = Math.cos(angle) * distance;
 		const peakY = Math.sin(angle) * distance;
 		const endX = peakX * 1.4 + (Math.random() - 0.5) * 20;
-		const endY = 25 + Math.random() * 30;
+		const endY = peakY + randomInRange(fallDistance);
 		const rotation = (Math.random() - 0.5) * 720;
+		const particleLaunchDuration = randomInRange(launchDuration);
+		const particleFallDuration = randomInRange(fallDuration);
+		const particleDuration = particleLaunchDuration + particleFallDuration;
+		const launchMidpointOffset = particleLaunchDuration * 0.4 / particleDuration;
+		const apexOffset = particleLaunchDuration / particleDuration;
 
 		const part = dom.$('.animation-particle.animation-confetti-particle');
 		part.style.position = 'absolute';
@@ -131,21 +167,21 @@ export function triggerConfettiAnimation(element: HTMLElement) {
 		part.style.top = `${cy}px`;
 		overlay.appendChild(part);
 
-		part.animate([
-			{ opacity: 0, transform: 'translate(-50%, -50%) scale(0) rotate(0deg)' },
-			{ opacity: 1, transform: `translate(calc(-50% + ${peakX * 0.35}px), calc(-50% + ${peakY * 0.55}px)) scale(1) rotate(${rotation * 0.2}deg)`, offset: 0.15 },
-			{ opacity: 1, transform: `translate(calc(-50% + ${peakX}px), calc(-50% + ${peakY}px)) rotate(${rotation * 0.5}deg)`, offset: 0.45 },
-			{ opacity: 0.9, transform: `translate(calc(-50% + ${endX * 0.9}px), calc(-50% + ${endY * 0.35}px)) rotate(${rotation * 0.8}deg)`, offset: 0.75 },
+		const keyframes: Keyframe[] = [
+			{ opacity: 0, transform: 'translate(-50%, -50%) scale(0) rotate(0deg)', easing: 'cubic-bezier(0.15, 0.75, 0.25, 1)' },
+			{ opacity: 1, transform: `translate(calc(-50% + ${peakX * 0.35}px), calc(-50% + ${peakY * 0.55}px)) scale(1) rotate(${rotation * 0.2}deg)`, offset: launchMidpointOffset, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' },
+			{ opacity: 1, transform: `translate(calc(-50% + ${peakX}px), calc(-50% + ${peakY}px)) rotate(${rotation * 0.5}deg)`, offset: apexOffset, easing: 'linear' },
 			{ opacity: 0, transform: `translate(calc(-50% + ${endX}px), calc(-50% + ${endY}px)) rotate(${rotation}deg)` },
-		], {
-			duration: 900 + Math.random() * 400,
+		];
+
+		part.animate(keyframes, {
+			duration: particleDuration,
 			delay: Math.random() * 100,
-			easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
 			fill: 'both',
 		});
 	}
 
-	cleanupOverlay(overlay, 2000);
+	cleanupOverlay(overlay, launchDuration.max + fallDuration.max + 200);
 }
 
 /**
