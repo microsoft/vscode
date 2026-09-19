@@ -1171,6 +1171,12 @@ export interface IAgentChatAdoptionResult {
 	readonly reason?: AgentChatAdoptionReason;
 }
 
+/** Identifies the client that submitted a pending message. */
+export interface IAgentPendingMessageSender {
+	readonly clientId: string | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1215,7 +1221,7 @@ export interface IAgent {
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
 	/** Optional steering hook for providers that can accept messages during an active turn. */
-	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void;
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
