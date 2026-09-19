@@ -447,6 +447,42 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('remembered Copilot session yields to Local when Copilot harness is neither default nor preferred', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+			[ChatConfiguration.EditorPreferCopilotHarness]: false,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+
+		storeUserSelectedSessionType(storageService, SessionType.AgentHostCopilot);
+
+		assert.deepStrictEqual({
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
+			resolved: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		}, {
+			computed: localChatSessionType,
+			resolved: localChatSessionType,
+		});
+	});
+
+	test('remembered Claude session is preserved even when Copilot harness is disabled', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+			[ChatConfiguration.EditorPreferCopilotHarness]: false,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+
+		storeUserSelectedSessionType(storageService, SessionType.AgentHostClaude);
+
+		assert.deepStrictEqual({
+			resolved: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		}, {
+			resolved: SessionType.AgentHostClaude,
+		});
+	});
+
 	test('new chat from a local session preserves local even when the agent host default is Copilot', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
