@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { stringHash } from '../../../../../base/common/hash.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { getAgentPluginDataDirName, PluginFormat, type IMcpServerDefinition } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { toPluginMcpServerDefinition } from '../../common/discovery/pluginMcpDiscovery.js';
@@ -150,7 +149,7 @@ suite('PluginMcpDiscovery', () => {
 			globalStorageHome: remoteGlobalStorageHome,
 			os: OperatingSystem.Linux,
 		};
-		const dataDir = URI.joinPath(remoteGlobalStorageHome, 'agentPlugins', 'data', (stringHash(pluginUri.toString(), 0) >>> 0).toString(16));
+		const dataDir = URI.joinPath(remoteGlobalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(pluginUri));
 
 		const server = await toPluginMcpServerDefinition('plugin:', {
 			dataDir: constObservable(URI.file('C:/client-only/plugin-data')),
