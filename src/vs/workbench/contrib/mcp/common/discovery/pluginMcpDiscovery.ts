@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hash } from '../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../base/common/observable.js';
+import { isAbsolute, join, normalize, relative, sep } from '../../../../../base/common/path.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { McpServerType, type IMcpServerConfiguration, type IMcpStdioServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import {
 	IAgentPlugin,
 	IAgentPluginMcpServerDefinition,
@@ -21,6 +24,7 @@ import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 
 /**
  * Prefix used for the {@link McpCollectionDefinition.id | collection id} of
@@ -30,6 +34,119 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
  */
 export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 
+export async function toPluginMcpServerDefinition(
+	collectionId: string,
+	plugin: Pick<IAgentPlugin, 'dataDir' | 'format' | 'uri'>,
+	definition: IAgentPluginMcpServerDefinition,
+	fileService?: IFileService,
+): Promise<McpServerDefinition | undefined> {
+	const { name, defaultCwd } = definition;
+	let configuration = definition.configuration;
+	if (plugin.format === PluginFormat.AgentPlugin) {
+		if (configuration.type === McpServerType.LOCAL && plugin.dataDir && fileService) {
+			await fileService.createFolder(plugin.dataDir);
+		}
+
+		const resolvedConfiguration = resolveAgentPluginMcpConfiguration(configuration, plugin.uri.fsPath, plugin.dataDir?.fsPath);
+		if (!resolvedConfiguration) {
+			return undefined;
+		}
+		configuration = resolvedConfiguration;
+	}
+	const launch = McpServerLaunch.fromServerConfiguration(configuration);
+	if (!launch) {
+		return undefined;
+	}
+
+	return {
+		id: `${collectionId}.${name}`,
+		label: name,
+		launch,
+		defaultCwd,
+		variableReplacement: { target: ConfigurationTarget.USER },
+		cacheNonce: String(hash(launch)),
+	};
+}
+
+function resolveAgentPluginMcpConfiguration(
+	configuration: IMcpServerConfiguration,
+	pluginRoot: string,
+	pluginData: string | undefined,
+): IMcpServerConfiguration | undefined {
+	if (configuration.type !== McpServerType.LOCAL) {
+		return configuration;
+	}
+
+	const replace = (value: string): string | undefined => {
+		if (value.includes('${PLUGIN_DATA}') && !pluginData) {
+			return undefined;
+		}
+		return value
+			.replaceAll('${PLUGIN_ROOT}', pluginRoot)
+			.replaceAll('${PLUGIN_DATA}', pluginData ?? '');
+	};
+	const args = configuration.args?.map(replace);
+	if (args?.some(arg => arg === undefined)) {
+		return undefined;
+	}
+	const env = { ...(configuration.env ?? {}) };
+	const cwd = resolveAgentPluginCwd(configuration.cwd, pluginRoot, pluginData);
+	if (cwd === undefined) {
+		return undefined;
+	}
+	const local: IMcpStdioServerConfiguration = {
+		...configuration,
+		cwd,
+		args: args as string[] | undefined,
+		env,
+	};
+	for (const [key, value] of Object.entries(env)) {
+		if (typeof value === 'string') {
+			const replaced = replace(value);
+			if (replaced === undefined) {
+				return undefined;
+			}
+			env[key] = replaced;
+		}
+	}
+	if (pluginData) {
+		env.PLUGIN_DATA = pluginData;
+	}
+	env.PLUGIN_ROOT = pluginRoot;
+	return local;
+}
+
+function resolveAgentPluginCwd(cwd: string | undefined, pluginRoot: string, pluginData: string | undefined): string | undefined {
+	if (cwd === undefined) {
+		return pluginRoot;
+	}
+
+	let root: string;
+	let relativePath: string;
+	if (cwd.startsWith('./')) {
+		root = pluginRoot;
+		relativePath = cwd.slice(2);
+	} else if (cwd === '${PLUGIN_ROOT}' || cwd.startsWith('${PLUGIN_ROOT}/')) {
+		root = pluginRoot;
+		relativePath = cwd.slice('${PLUGIN_ROOT}'.length).replace(/^\//, '');
+	} else if (pluginData && (cwd === '${PLUGIN_DATA}' || cwd.startsWith('${PLUGIN_DATA}/'))) {
+		root = pluginData;
+		relativePath = cwd.slice('${PLUGIN_DATA}'.length).replace(/^\//, '');
+	} else {
+		return undefined;
+	}
+
+	if (relativePath.includes('\\')) {
+		return undefined;
+	}
+	const resolved = normalize(join(root, relativePath));
+	const relativeToRoot = relative(normalize(root), resolved);
+	if (isAbsolute(relativeToRoot) || relativeToRoot === '..' || relativeToRoot.startsWith(`..${sep}`)) {
+		return undefined;
+	}
+	return resolved;
+}
+
 export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
@@ -38,6 +155,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	constructor(
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 	}
@@ -57,11 +175,17 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 				seen.add(plugin.uri);
 
-				let collectionState = this._collections.get(plugin.uri);
-				if (!collectionState) {
-					// note: all plugin servers are currently defined in the same file
-					collectionState = this.createCollectionState(plugin, servers[0].uri);
-					this._collections.set(plugin.uri, collectionState);
+				if (!this._collections.has(plugin.uri)) {
+					const collectionDisposable = new MutableDisposable();
+					this._collections.set(plugin.uri, collectionDisposable);
+
+					this.createCollectionState(plugin, servers[0].uri).then(disposable => {
+						if (this._collections.get(plugin.uri) === collectionDisposable) {
+							collectionDisposable.value = disposable;
+						} else {
+							disposable.dispose();
+						}
+					});
 				}
 			}
 
@@ -73,8 +197,15 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		}));
 	}
 
-	private createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
+	private async createCollectionState(plugin: IAgentPlugin, manifestURI: URI) {
 		const collectionId = `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${plugin.uri}`;
+		const defsObservableValue = plugin.mcpServerDefinitions.get();
+		const serverDefinitions = await Promise.all(
+			defsObservableValue.map(async d => toPluginMcpServerDefinition(collectionId, plugin, d, this._fileService))
+		);
+
+		const validDefinitions = serverDefinitions.filter(isDefined);
+
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
 			provenance: McpCollectionProvenance.Plugin,
@@ -83,8 +214,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			configTarget: ConfigurationTarget.USER,
 			scope: StorageScope.PROFILE,
 			trustBehavior: McpServerTrust.Kind.Trusted,
-			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
-				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
+			serverDefinitions: constObservable(validDefinitions),
 			order: McpCollectionSortOrder.Plugin,
 			presentation: {
 				origin: manifestURI,
@@ -92,22 +222,4 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		});
 	}
 
-	private _toServerDefinition(
-		collectionId: string,
-		{ name, configuration, defaultCwd }: IAgentPluginMcpServerDefinition,
-	): McpServerDefinition | undefined {
-		const launch = McpServerLaunch.fromServerConfiguration(configuration);
-		if (!launch) {
-			return undefined;
-		}
-
-		return {
-			id: `${collectionId}.${name}`,
-			label: name,
-			launch,
-			defaultCwd,
-			variableReplacement: { target: ConfigurationTarget.USER },
-			cacheNonce: String(hash(launch)),
-		};
-	}
 }
