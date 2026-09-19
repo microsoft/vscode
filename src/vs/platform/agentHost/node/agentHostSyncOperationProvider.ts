@@ -39,8 +39,8 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 			return undefined;
 		}
 
-		// No upstream branch
-		if (!gitState?.upstreamBranchName) {
+		// No syncable upstream: none, unknown (legacy state), or one the handler cannot sync (`.`)
+		if (!gitState?.upstreamBranchName || !gitState.upstreamRemote || gitState.upstreamRemote === '.') {
 			return undefined;
 		}
 

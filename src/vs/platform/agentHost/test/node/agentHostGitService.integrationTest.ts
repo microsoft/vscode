@@ -27,7 +27,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { CheckoutBlockedByLocalChangesError } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, GitRefType } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -120,11 +120,78 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			githubHeadOwner: result?.githubHeadOwner,
 			githubRepo: result?.githubRepo,
 			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRemote: result?.upstreamRemote,
 		}, {
 			githubOwner: 'base-owner',
 			githubHeadOwner: 'fork-owner',
 			githubRepo: 'repo',
 			upstreamBranchName: 'fork/feature',
+			upstreamRemote: 'fork',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports an unsyncable upstream remote when the upstream is a local branch', async () => {
+		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
+		cp.execFileSync('git', ['branch', 'feature/base'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'topic'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '--set-upstream-to', 'feature/base'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+		const branch = await svc!.getBranch(URI.file(dir), 'topic');
+
+		assert.deepStrictEqual({
+			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRemote: result?.upstreamRemote,
+			githubHeadOwner: result?.githubHeadOwner,
+			branchUpstream: branch?.kind === GitRefType.Head ? branch.upstream : 'no branch',
+		}, {
+			upstreamBranchName: 'feature/base',
+			upstreamRemote: '.',
+			githubHeadOwner: undefined,
+			branchUpstream: undefined,
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports no syncable remote when a fetch refspec keeps the tracking ref outside refs/remotes', async () => {
+		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
+		cp.execFileSync('git', ['config', 'remote.origin.fetch', '+refs/heads/*:refs/custom/origin/*'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/custom/origin/feature', 'HEAD'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.remote', 'origin'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.merge', 'refs/heads/feature'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+		const branch = await svc!.getBranch(URI.file(dir), 'feature');
+
+		assert.deepStrictEqual({
+			hasUpstream: result?.upstreamBranchName !== undefined,
+			upstreamRemote: result?.upstreamRemote,
+			branchUpstream: branch?.kind === GitRefType.Head ? branch.upstream : 'no branch',
+		}, {
+			hasUpstream: true,
+			upstreamRemote: '.',
+			branchUpstream: undefined,
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the full upstream remote name when it contains a slash', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['remote', 'add', 'my/fork', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/my/fork/feature', 'HEAD'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', '--set-upstream-to', 'my/fork/feature'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+		const branch = await svc!.getBranch(URI.file(dir), 'feature');
+
+		assert.deepStrictEqual({
+			upstreamBranchName: result?.upstreamBranchName,
+			upstreamRemote: result?.upstreamRemote,
+			branchUpstream: branch?.kind === GitRefType.Head ? branch.upstream : undefined,
+		}, {
+			upstreamBranchName: 'my/fork/feature',
+			upstreamRemote: 'my/fork',
+			branchUpstream: { ref: 'refs/remotes/my/fork/feature', name: 'my/fork/feature', remote: 'my/fork' },
 		});
 	});
 
