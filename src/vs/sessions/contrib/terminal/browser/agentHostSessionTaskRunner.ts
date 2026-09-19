@@ -14,9 +14,9 @@ import { TerminalExitReason } from '../../../../platform/terminal/common/termina
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalGroupService, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionTaskRunner } from '../../chat/browser/sessionTaskRunner.js';
+import { ISessionTaskRunner, ISessionTaskRunOptions } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
-import { ITaskEntry, ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
+import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget, TaskStorageTarget } from '../../chat/browser/sessionsTasksService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
@@ -56,8 +56,8 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		return this._isSessionRemoteHostAvailable(session) && this._getAddress(session) !== undefined;
 	}
 
-	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
-		if (!this._isSessionRemoteHostAvailable(session)) {
+	async runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
+		if (options?.token?.isCancellationRequested || !this._isSessionRemoteHostAvailable(session)) {
 			return undefined;
 		}
 		const address = this._getAddress(session);
@@ -66,9 +66,8 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		}
 
 		const allTasks = await this._sessionsTasksService.getAllTasks(session);
-		const byLabel = new Map<string, ITaskEntry>();
-		for (const entry of allTasks) {
-			byLabel.set(entry.task.label, entry.task);
+		if (options?.token?.isCancellationRequested) {
+			return undefined;
 		}
 
 		const cwd = this._getCwd(session);
@@ -76,15 +75,18 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			// Local host shares the renderer's OS, so use it to pick OS-specific
 			// overrides; remote host OS is unknown, so fall back to the default.
 			targetOS: address === LOCAL_AGENT_HOST_ADDRESS ? osToTaskTargetOS(OS) : undefined,
-			lookup: label => byLabel.get(label),
+			lookup: this._createTaskLookup(allTasks, options),
 			resolveVariables: this._createVariableResolver(address, cwd),
 		});
 		if (!command) {
 			this._logService.trace(`${LOG_PREFIX} Skipping task '${task.label}' — no command could be resolved.`);
 			return undefined;
 		}
+		if (options?.token?.isCancellationRequested) {
+			return undefined;
+		}
 
-		if (!this._isSessionRemoteHostAvailable(session)) {
+		if (!this._isSessionRemoteHostAvailable(session) || options?.token?.isCancellationRequested) {
 			return undefined;
 		}
 		const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
@@ -96,13 +98,54 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 
+		const handle = toDisposable(() => {
+			instance.dispose(TerminalExitReason.User);
+		});
+		const cancellationListener = options?.token?.onCancellationRequested(() => handle.dispose());
+		if (options?.token?.isCancellationRequested) {
+			cancellationListener?.dispose();
+			handle.dispose();
+			return undefined;
+		}
+
 		this._terminalService.setActiveInstance(instance);
 		await this._terminalGroupService.showPanel(true);
+		if (options?.token?.isCancellationRequested) {
+			cancellationListener?.dispose();
+			handle.dispose();
+			return undefined;
+		}
 		await instance.sendText(command, /*shouldExecute*/ true);
 
 		return toDisposable(() => {
-			instance.dispose(TerminalExitReason.User);
+			cancellationListener?.dispose();
+			handle.dispose();
 		});
+	}
+
+	private _createTaskLookup(tasks: readonly ISessionTaskWithTarget[], options: ISessionTaskRunOptions | undefined): (label: string) => ITaskEntry | undefined {
+		if (!options?.taskTarget) {
+			const byLabel = new Map<string, ITaskEntry>();
+			for (const entry of tasks) {
+				byLabel.set(entry.task.label, entry.task);
+			}
+			return label => byLabel.get(label);
+		}
+
+		const byTarget = new Map<TaskStorageTarget, Map<string, ITaskEntry>>([
+			['workspace', new Map()],
+			['user', new Map()],
+		]);
+		for (const entry of tasks) {
+			byTarget.get(entry.target)!.set(entry.task.label, entry.task);
+		}
+
+		const primary = byTarget.get(options.taskTarget)!;
+		const secondaryTarget: TaskStorageTarget = options.taskTarget === 'workspace' ? 'user' : 'workspace';
+		const secondary = options.allowWorkspaceTaskDependencies === false && secondaryTarget === 'workspace'
+			? undefined
+			: byTarget.get(secondaryTarget);
+		return label => primary.get(label) ?? secondary?.get(label);
 	}
 
 	private _getAddress(session: ISession): string | undefined {

@@ -236,6 +236,16 @@ suite('resolveTaskCommand', () => {
 		const task: ITaskEntry = { label: 'run', type: 'shell', command: 'echo', args: ['${workspaceFolder}'] };
 		assert.strictEqual(await resolveTaskCommand(task), 'echo \'${workspaceFolder}\'');
 	});
+
+	test('rejects unsupported object dependencies', async () => {
+		const task: ITaskEntry = {
+			label: 'run',
+			type: 'shell',
+			command: 'echo run',
+			dependsOn: { type: 'npm', script: 'prepare' },
+		};
+		assert.strictEqual(await resolveTaskCommand(task, { lookup: () => undefined }), undefined);
+	});
 });
 
 suite('osToTaskTargetOS', () => {
