@@ -44,7 +44,7 @@ import { SearchWidget } from '../../search/browser/searchWidget.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { getOutOfWorkspaceEditorResources } from '../../search/common/search.js';
 import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchModel.js';
-import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
+import { InSearchEditor, SearchContextLinesMode, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
 import type { SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -521,6 +521,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		return {
 			isCaseSensitive: this.queryEditorWidget.searchInput?.getCaseSensitive() ?? false,
 			contextLines: this.queryEditorWidget.getContextLines(),
+			contextLinesMode: this.queryEditorWidget.getContextLinesMode(),
 			filesToExclude: this.inputPatternExcludes.getValue(),
 			filesToInclude: this.inputPatternIncludes.getValue(),
 			query: this.queryEditorWidget.searchInput?.getValue() ?? '',
@@ -630,7 +631,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller?.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit, startConfig.contextLinesMode);
 		const { resultsModel } = await input.resolveModels();
 		this.updatingModelForSearch = true;
 		this.modelService.updateModel(resultsModel, results.text);
@@ -698,7 +699,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput?.setCaseSensitive(config.isCaseSensitive); }
 		if (config.isRegexp !== undefined) { this.queryEditorWidget.searchInput?.setRegex(config.isRegexp); }
 		if (config.matchWholeWord !== undefined) { this.queryEditorWidget.searchInput?.setWholeWords(config.matchWholeWord); }
-		if (config.contextLines !== undefined) { this.queryEditorWidget.setContextLines(config.contextLines); }
+		if (config.contextLines !== undefined) { this.queryEditorWidget.setContextLines(config.contextLines, config.contextLinesMode ?? SearchContextLinesMode.Surrounding); }
 		if (config.filesToExclude !== undefined) { this.inputPatternExcludes.setValue(config.filesToExclude); }
 		if (config.filesToInclude !== undefined) { this.inputPatternIncludes.setValue(config.filesToInclude); }
 		if (config.onlyOpenEditors !== undefined) { this.inputPatternIncludes.setOnlySearchInOpenEditors(config.onlyOpenEditors); }

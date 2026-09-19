@@ -74,9 +74,19 @@
 }
 
 .search-editor .search-widget .context-lines-input {
-	margin-left: 5px;
-	margin-right: 2px;
+	margin-left: 6px;
 	max-width: 50px;
+}
+
+.search-editor .search-widget .context-lines-mode {
+	align-self: stretch;
+	margin-left: 2px;
+	margin-right: 2px;
+	width: 22px;
+}
+
+.search-editor .search-widget .context-lines-mode .monaco-action-bar {
+	height: 100%;
 }
 
 .search-editor .search-widget .context-lines-input input[type=number]::-webkit-inner-spin-button {
