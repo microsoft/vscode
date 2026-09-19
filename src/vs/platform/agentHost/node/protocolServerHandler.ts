@@ -43,6 +43,7 @@ import {
 	JSON_RPC_INTERNAL_ERROR,
 	JsonRpcErrorCodes,
 	ProtocolError,
+	SubscriptionCancelledError,
 	type AhpServerNotification,
 	type InitializeParams,
 	type JsonRpcResponse,
@@ -112,6 +113,9 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 }
 
 function shouldLogFailedRequest(method: string, params: unknown, err: unknown): boolean {
+	if (err instanceof SubscriptionCancelledError) {
+		return false;
+	}
 	if (!(err instanceof ProtocolError) || err.code !== AhpErrorCodes.NotFound || !isFileResourceRead(method, params)) {
 		return true;
 	}
@@ -796,7 +800,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
 		}
 		if (isActive && !isActive()) {
-			throw new Error(`Subscription cancelled: ${channel}`);
+			throw new SubscriptionCancelledError(channel);
 		}
 		const snapshot = this._stateManager.getSnapshot(channel);
 		if (!snapshot) {
@@ -1002,7 +1006,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
-					throw new Error(`Subscription cancelled: ${key}`);
+					throw new SubscriptionCancelledError(key);
 				}
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
@@ -1542,7 +1546,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
-					throw new Error(`Subscription cancelled: ${params.channel}`);
+					throw new SubscriptionCancelledError(params.channel);
 				}
 				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
@@ -1554,6 +1558,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			} catch (err) {
 				if (!pendingSubscription.active && client.subscriptions.get(classified.uri) === pendingSubscription) {
 					client.subscriptions.delete(classified.uri);
+				}
+				if (err instanceof SubscriptionCancelledError) {
+					this._logService.info(`[ProtocolServer] Subscribe cancelled: ${params.channel}`);
+					throw err;
 				}
 				if (err instanceof ProtocolError) {
 					throw err;
