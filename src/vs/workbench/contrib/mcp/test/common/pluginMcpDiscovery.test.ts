@@ -11,6 +11,7 @@ import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTyp
 import { CustomizationType, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { toPluginMcpServerDefinition } from '../../common/discovery/pluginMcpDiscovery.js';
 import { McpServerTransportType as LaunchTransportType } from '../../common/mcpTypes.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 
 suite('PluginMcpDiscovery', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -96,5 +97,38 @@ suite('PluginMcpDiscovery', () => {
 		assert.ok(server?.launch.type === LaunchTransportType.HTTP);
 		assert.strictEqual(server.launch.uri.toString(true), 'https://example.test/${PLUGIN_ROOT}');
 		assert.deepStrictEqual(server.launch.headers, [['X-Plugin', '${PLUGIN_DATA}']]);
+	});
+
+	test('creates plugin dataDir on file system when resolving MCP server definition', async () => {
+		let createdFolderUri: URI | undefined;
+
+		const fileService = {
+			createFolder: async (resource: URI) => {
+				createdFolderUri = resource;
+				return {} as unknown as ReturnType<IFileService['createFolder']>;
+			}
+		} as unknown as IFileService;
+
+		const targetDataDir = URI.file('/test/user/globalStorage/agentPlugins/data/a1b2c3d4');
+
+		const plugin: Parameters<typeof toPluginMcpServerDefinition>[1] = {
+			format: PluginFormat.AgentPlugin,
+			uri: URI.file('/test/plugins/my-plugin'),
+			dataDir: targetDataDir,
+		} as unknown as Parameters<typeof toPluginMcpServerDefinition>[1];
+
+		const definition: Parameters<typeof toPluginMcpServerDefinition>[2] = {
+			name: 'test-server',
+			configuration: {
+				type: 'stdio',
+				command: 'node',
+				args: ['${PLUGIN_DATA}/index.js'],
+			},
+		} as unknown as Parameters<typeof toPluginMcpServerDefinition>[2];
+
+		const result = await toPluginMcpServerDefinition('collection-1', plugin, definition, fileService);
+
+		assert.ok(result);
+		assert.strictEqual(createdFolderUri?.toString(), targetDataDir.toString());
 	});
 });
