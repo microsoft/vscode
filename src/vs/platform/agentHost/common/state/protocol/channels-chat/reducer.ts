@@ -355,8 +355,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 			// If this turn was auto-started from a pending message, remove it
 			if (action.queuedMessageId) {
-				if (next.steeringMessage?.id === action.queuedMessageId) {
-					next = { ...next, steeringMessage: undefined };
+				if (next.steeringMessages) {
+					const filtered = next.steeringMessages.filter(m => m.id !== action.queuedMessageId);
+					next = { ...next, steeringMessages: filtered.length > 0 ? filtered : undefined };
 				}
 				if (next.queuedMessages) {
 					const filtered = next.queuedMessages.filter(m => m.id !== action.queuedMessageId);
@@ -840,7 +841,14 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatPendingMessageSet: {
 			const entry: PendingMessage = { id: action.id, message: action.message };
 			if (action.kind === PendingMessageKind.Steering) {
-				return { ...state, steeringMessage: entry };
+				const existing = state.steeringMessages ?? [];
+				const idx = existing.findIndex(m => m.id === action.id);
+				if (idx >= 0) {
+					const updated = [...existing];
+					updated[idx] = entry;
+					return { ...state, steeringMessages: updated };
+				}
+				return { ...state, steeringMessages: [...existing, entry] };
 			}
 			const existing = state.queuedMessages ?? [];
 			const idx = existing.findIndex(m => m.id === action.id);
@@ -854,10 +862,14 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		case ActionType.ChatPendingMessageRemoved: {
 			if (action.kind === PendingMessageKind.Steering) {
-				if (!state.steeringMessage || state.steeringMessage.id !== action.id) {
+				const existing = state.steeringMessages;
+				if (!existing) {
 					return state;
 				}
-				return { ...state, steeringMessage: undefined };
+				const filtered = existing.filter(m => m.id !== action.id);
+				return filtered.length === existing.length
+					? state
+					: { ...state, steeringMessages: filtered.length > 0 ? filtered : undefined };
 			}
 			const existing = state.queuedMessages;
 			if (!existing) {
