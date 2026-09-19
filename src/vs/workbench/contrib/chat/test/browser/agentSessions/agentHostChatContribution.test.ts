@@ -37,6 +37,8 @@ import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } fr
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -4165,6 +4167,22 @@ suite('AgentHostChatContribution', () => {
 				message: action.message,
 				configWrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionConfigChanged),
 			}, { message: { text: 'Hello', origin: { kind: MessageKind.User }, _meta: metadata }, configWrites: [] });
+		}));
+
+		test('marks an initial remote delegation prompt as agent-authored without changing target permissions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const metadata = toRemoteSessionMessageMetadata({
+				session: 'remote-original-copilot:/source', chat: 'remote-original-copilot:/source#original-chat',
+			}, 'source-turn');
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Delegated task', metadata });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			const action = agentHostService.turnActions[0].action;
+			assert.ok(action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual({
+				message: action.message,
+				configWrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionConfigChanged),
+			}, { message: { text: 'Delegated task', origin: { kind: MessageKind.Agent }, _meta: metadata }, configWrites: [] });
 		}));
 
 		test('requests backend session for provider-owned new resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -12860,6 +12878,56 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('round-trips queued agent message provenance without rewriting it as a user message', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'remote-agent-message');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(), provider: 'copilot', title: 'Test',
+					status: SessionStatus.InProgress, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeTurn: createActiveTurn('active-turn', { text: 'Working', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/remote-agent-message' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const pendingRequests: IChatPendingRequest[] = [];
+			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				pendingRequests.length = 0;
+				for (const remote of requests) {
+					pendingRequests.push({
+						request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] }, variableData: remote.variableData }),
+						kind: remote.kind,
+						sendOptions: { metadata: remote.metadata },
+					});
+				}
+				chatModel.firePendingRequestsChanged();
+			};
+			chatService.setSession(sessionResource, chatModel.model);
+			agentHostService.dispatchedActions.length = 0;
+			const metadata = toAgentMessageDelegationMeta({
+				sourceSession: 'remote-origin-copilot:/origin',
+				sourceChat: buildChatUri('remote-origin-copilot:/origin', 'original-chat'),
+			});
+			agentHostService.fireAction({
+				channel: buildDefaultChatUri(backendSession),
+				action: {
+					type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'remote-message',
+					message: { text: 'Agent findings', origin: { kind: MessageKind.Agent }, _meta: metadata },
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+			chatModel.firePendingRequestsChanged();
+			assert.deepStrictEqual({
+				projected: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].metadata,
+				stored: pendingRequests[0].sendOptions.metadata,
+				rewrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet),
+			}, { projected: metadata, stored: metadata, rewrites: [] });
+		});
+
 		test('hydrates queued messages from the protocol instead of clearing them when attaching', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 
@@ -14316,6 +14384,32 @@ suite('AgentHostChatContribution', () => {
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
 			assert.strictEqual(activeClientActions.length, 1);
 			assert.strictEqual(activeClientActions[0].channel, sessionResource.toString());
+		});
+
+		test('preparing background client tools claims the client without starting a turn', async () => {
+			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
+			disposables.add(seedActiveClient('agent-host-copilot', {
+				customizations: constObservable([]),
+				tools: constObservable([{ name: 'send_remote_message' }]),
+			}));
+			const sessionResource = AgentSession.uri('copilot', 'background-reply');
+			agentHostService.sessionStates.set(sessionResource.toString(), {
+				...createSessionState({
+					resource: sessionResource.toString(), provider: 'copilot', title: 'Background',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const, agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+			}));
+			const chat = disposables.add(await handler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			assert.ok(chat.prepareForClientTools);
+			await chat.prepareForClientTools(CancellationToken.None);
+			assert.deepStrictEqual(agentHostService.dispatchedActions
+				.filter(action => action.action.type === ActionType.SessionActiveClientSet || action.action.type === ActionType.ChatTurnStarted)
+				.map(action => action.action.type), [ActionType.SessionActiveClientSet]);
 		});
 
 		test('does not claim another client session while reconciling scope changes', async () => {

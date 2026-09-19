@@ -438,6 +438,8 @@ export interface IChatSession extends IDisposable {
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly isReadOnly?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+	/** Claims this client's tools before an approved background request is queued directly on the host. */
+	prepareForClientTools?: (token: CancellationToken) => Promise<void>;
 
 	/**
 	 * Event fired when the server initiates a new request (e.g. from a consumed

@@ -2436,11 +2436,14 @@ export class ChatService extends Disposable implements IChatService {
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
 			const local = existingById.get(remote.id);
+			const sendOptions = equals(local?.sendOptions.metadata, remote.metadata)
+				? local?.sendOptions ?? {}
+				: { ...local?.sendOptions, metadata: remote.metadata };
 			const modelId = remote.modelId ?? local?.request.modelId;
 			const modelConfiguration = remote.modelId !== undefined ? remote.modelConfiguration : local?.request.modelConfiguration;
 			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)
 				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)) {
-				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
+				return local.kind === remote.kind && local.sendOptions === sendOptions ? local : { ...local, kind: remote.kind, sendOptions };
 			}
 			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
 			const requestModel = new ChatRequestModel({
@@ -2457,7 +2460,7 @@ export class ChatService extends Disposable implements IChatService {
 				request: requestModel,
 				kind: remote.kind,
 				sendOptions: {
-					...local?.sendOptions,
+					...sendOptions,
 					...(modelId !== undefined ? { userSelectedModelId: modelId, userSelectedModelConfiguration: modelConfiguration } : {}),
 				},
 			};

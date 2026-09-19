@@ -1931,6 +1931,7 @@ export interface IRemotePendingRequest {
 	readonly modelId?: string;
 	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
+	readonly metadata?: Record<string, unknown>;
 }
 
 export interface IChatSendRequestOptions {

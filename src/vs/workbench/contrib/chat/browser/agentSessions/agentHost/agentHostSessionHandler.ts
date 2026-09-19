@@ -38,9 +38,10 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isWorktreeUnderRepository } from '../../../../../../platform/agentHost/common/worktreePaths.js';
+import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -364,9 +365,9 @@ function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number 
 	return { startedAt, duration: endedAt !== undefined ? Math.max(0, endedAt - startedAt) : undefined };
 }
 
-function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata?: Record<string, unknown>): Message {
+function requestMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata?: Record<string, unknown>): Message {
 	return {
-		text, origin: { kind: MessageKind.User },
+		text, origin: { kind: readAgentMessageDelegationMeta({ _meta: metadata }) ? MessageKind.Agent : MessageKind.User },
 		...(attachments?.length ? { attachments: [...attachments] } : {}),
 		...(metadata ? { _meta: metadata } : {}),
 	};
@@ -721,6 +722,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly forkSession: IChatSession['forkSession'];
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
+	prepareForClientTools: IChatSession['prepareForClientTools'];
 
 	constructor(
 		readonly sessionResource: URI,
@@ -1731,6 +1733,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._activeSessions.set(sessionResource, session);
 		this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
+		session.prepareForClientTools = token => this._ensureActiveClient(sessionResource, resolvedSession, token);
 
 		if (!isNewSession) {
 			// Only wire up pending-message/draft sync once the chat URI has been
@@ -2156,7 +2159,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const snapshot: IPendingSnapshot = {
 				id: p.request.id,
 				message: {
-					...userOriginMessage(p.request.message.text, attachments, p.sendOptions.metadata),
+					...requestMessage(p.request.message.text, attachments, p.sendOptions.metadata),
 					...(model ? { model } : {}),
 				},
 			};
@@ -2249,6 +2252,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			kind,
 			message: pending.message.text,
 			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
+			...(pending.message._meta ? { metadata: pending.message._meta } : {}),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
 		});
@@ -3138,7 +3142,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			startedAt: new Date().toISOString(),
 			message: withMessageHiddenFromTranscript({
-				...userOriginMessage(request.message, messageAttachments, request.metadata),
+				...requestMessage(request.message, messageAttachments, request.metadata),
 				...(selectedModel ? { model: selectedModel } : {}),
 				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
 			}, request.hideFromTranscript),
@@ -6221,69 +6225,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (state?.workingDirectories === undefined) {
 				state = await this._readEagerlyCreatedSessionState(backendSession, token) ?? state;
 			}
-			// A workspace-less session (quick chat) runs only in an internal scratch
-			// dir that is not a user workspace; never gate trust on it.
-			if (state && readSessionWorkspaceless(state._meta)) {
-				return undefined;
-			}
-			const dirs = state?.workingDirectories;
-			if (state && dirs !== undefined) {
-				// Inherit trust for a VS Code-created worktree from the trusted base
-				// repository so the gate does not prompt for it. Done here (the gate
-				// already read the state) so `_ensureFoldersTrusted` short-circuits.
-				await this._inheritWorktreeTrust(state);
-				return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+			if (state && (readSessionWorkspaceless(state._meta) || state.workingDirectories !== undefined)) {
+				return resolveAgentHostSessionTrustFolders(state, this._workspaceTrustManagementService);
 			}
 		}
 		return this._resolveRequestedWorkingDirectories(sessionResource) ?? [];
-	}
-
-	/**
-	 * Grants (and persists) trust for a worktree-isolated session's VS Code-created
-	 * worktree when the base repository the user already trusts is trusted, so the
-	 * trust gate does not prompt for the worktree.
-	 *
-	 * This lives in the handler because `_invokeAgent` is the only universal
-	 * chokepoint every turn passes through — follow-up turns bypass the sessions
-	 * open gate ({@link ISessionsService.canOpenSession}). Protocol `SessionState`
-	 * does not carry the sessions layer's `gitRepository.workTreeUri`, so
-	 * eligibility uses the isolation config plus a structural guard: only a strict
-	 * descendant of the repository's `.worktrees` sibling
-	 * ({@link isWorktreeUnderRepository}) can inherit trust — a trusted base URI is
-	 * never enough on its own, and the shared `<repo>.worktrees` container is
-	 * excluded so a grant can never cascade to every worktree. Mirrors the
-	 * sessions-layer `ensureSessionWorktreesTrusted`; kept separate because
-	 * `workbench` must not import `sessions`.
-	 */
-	private async _inheritWorktreeTrust(state: SessionState): Promise<void> {
-		if (state.config?.values[SessionConfigKey.Isolation] !== 'worktree') {
-			return;
-		}
-		const repositoryRootRaw = state.project?.uri;
-		if (!repositoryRootRaw) {
-			return;
-		}
-		const repositoryRoot = typeof repositoryRootRaw === 'string' ? URI.parse(repositoryRootRaw) : repositoryRootRaw;
-		// Keep only individual worktrees under `<repo>.worktrees` (never the shared
-		// container itself), so a trusted base repo grants trust for exactly this
-		// session's worktree and not for every sibling worktree.
-		const worktreeFolders = (state.workingDirectories ?? [])
-			.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory)
-			.filter(folder => isWorktreeUnderRepository(folder, repositoryRoot));
-		if (worktreeFolders.length === 0) {
-			return;
-		}
-		const [repoTrust, ...folderTrusts] = await Promise.all([
-			this._workspaceTrustManagementService.getUriTrustInfo(repositoryRoot),
-			...worktreeFolders.map(folder => this._workspaceTrustManagementService.getUriTrustInfo(folder)),
-		]);
-		if (!repoTrust.trusted) {
-			return;
-		}
-		const untrusted = worktreeFolders.filter((_, index) => !folderTrusts[index].trusted);
-		if (untrusted.length > 0) {
-			await this._workspaceTrustManagementService.setUrisTrust(untrusted, true);
-		}
 	}
 
 	/**
