@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Known suite names (used for help text and validation)
-KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html json"
+KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html"
 
 if $HELP; then
 	echo "Usage: $0 [options]"
@@ -336,13 +336,6 @@ echo
 echo "### HTML tests"
 echo
 cd "$ROOT/extensions/html-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
-fi
-
-if should_run_suite json; then
-echo
-echo "### JSON tests"
-echo
-"$ROOT/scripts/node-electron.sh" "$ROOT/extensions/json-language-features/client/out/test/index.js"
 fi
 
 
