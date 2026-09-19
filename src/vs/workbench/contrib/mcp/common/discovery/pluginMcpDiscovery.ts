@@ -43,7 +43,7 @@ export async function toPluginMcpServerDefinition(
 	const { name, defaultCwd } = definition;
 	let configuration = definition.configuration;
 	if (plugin.format === PluginFormat.AgentPlugin) {
-		if (plugin.dataDir && fileService) {
+		if (configuration.type === McpServerType.LOCAL && plugin.dataDir && fileService) {
 			await fileService.createFolder(plugin.dataDir);
 		}
 
