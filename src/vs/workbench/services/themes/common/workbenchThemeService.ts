@@ -507,6 +507,7 @@ export interface ISemanticTokenColorizationSetting {
 	underline?: boolean;
 	strikethrough?: boolean;
 	italic?: boolean;
+	fontFamily?: string;
 }
 
 export interface ExtensionData {

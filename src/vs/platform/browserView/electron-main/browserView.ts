@@ -1073,10 +1073,9 @@ export class BrowserView extends Disposable {
 		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
 		this._onDidClose.fire();
 
-		// Electron clears the view's webContents before emitting destroyed.
-		const webContents = this._view.webContents;
-		if (webContents && !webContents.isDestroyed()) {
-			webContents.close({ waitForBeforeUnload: false });
+		// Clean up the view and all its event listeners
+		if (!this._view.webContents.isDestroyed()) {
+			this._view.webContents.close({ waitForBeforeUnload: false });
 		}
 
 		super.dispose();
