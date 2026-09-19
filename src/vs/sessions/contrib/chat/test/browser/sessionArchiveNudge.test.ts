@@ -664,6 +664,87 @@ suite('SessionArchiveNudge', () => {
 		}]);
 	});
 
+	test('shows the compact nudge only after three successful uses and remembers across reloads', async () => {
+		const sessions = Array.from({ length: 5 }, (_, index) => createSession(`session-${index}`));
+		const context = setup(sessions);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const compact: (boolean | undefined)[] = [];
+		for (const session of sessions) {
+			context.current.set(session, undefined);
+			const nudge = context.createNudge();
+			compact.push(nudge.options.get()?.compact);
+			await nudge.options.get()!.onArchive();
+			nudge.dispose();
+			context.reloadService();
+		}
+
+		assert.deepStrictEqual({
+			compact,
+			archiveCount: context.storage.getNumber('sessions.archiveNudge.archiveCount', StorageScope.PROFILE),
+		}, {
+			compact: [false, false, false, true, true],
+			archiveCount: 3,
+		});
+	});
+
+	test('does not count impressions, dismissals, or archiving outside the nudge', () => {
+		const sessions = Array.from({ length: 4 }, (_, index) => createSession(`session-${index}`));
+		const context = setup(sessions);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		for (const session of sessions.slice(0, 3)) {
+			context.current.set(session, undefined);
+			nudge.markShown();
+			nudge.options.get()!.onDismiss();
+			session.isArchived.set(true, undefined);
+			context.archived.fire(session);
+		}
+		context.current.set(sessions[3], undefined);
+
+		assert.strictEqual(nudge.options.get()?.compact, false);
+	});
+
+	test('compacts the next nudge when archiving switches sessions before completing', async () => {
+		const sessions = Array.from({ length: 4 }, (_, index) => createSession(`session-${index}`));
+		const context = setup(sessions);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		store.add(context.archived.event(session => {
+			const index = sessions.findIndex(candidate => candidate === session);
+			context.current.set(sessions[index + 1], undefined);
+		}));
+		const compact = [nudge.options.get()?.compact];
+		for (let index = 0; index < 3; index++) {
+			await nudge.options.get()!.onArchive();
+			compact.push(nudge.options.get()?.compact);
+		}
+
+		assert.deepStrictEqual(compact, [false, false, false, true]);
+	});
+
+	for (const failure of ['error', 'noop'] as const) {
+		test(`does not count unsuccessful uses toward compact mode (${failure})`, async () => {
+			const sessions = Array.from({ length: 4 }, (_, index) => createSession(`session-${index}`));
+			const context = setup(sessions);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			for (const session of sessions.slice(0, 2)) {
+				context.current.set(session, undefined);
+				await nudge.options.get()!.onArchive();
+			}
+			context.current.set(sessions[2], undefined);
+			if (failure === 'error') {
+				context.setArchiveError(new Error('Archive failed'));
+			} else {
+				context.setArchiveNoop();
+			}
+			await assert.rejects(nudge.options.get()!.onArchive(), failure === 'error' ? /Archive failed/ : /could not be updated/);
+			context.current.set(sessions[3], undefined);
+
+			assert.strictEqual(nudge.options.get()?.compact, false);
+		});
+	}
+
 	test('keeps the nudge available after an archive error and rejects a stale action', async () => {
 		const session = createSession();
 		const context = setup([session]);
