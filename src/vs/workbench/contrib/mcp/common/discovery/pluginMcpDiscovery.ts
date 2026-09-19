@@ -42,7 +42,7 @@ export { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 
 export async function toPluginMcpServerDefinition(
 	collectionId: string,
-	plugin: Pick<IAgentPlugin, 'dataDir' | 'format' | 'uri'>,
+	plugin: Pick<IAgentPlugin, 'dataDir' | 'dataDirId' | 'format' | 'uri'>,
 	definition: IAgentPluginMcpServerDefinition,
 	fileService?: IFileService,
 	remoteEnvironment?: Pick<IRemoteAgentEnvironment, 'globalStorageHome' | 'os'>,
@@ -51,7 +51,7 @@ export async function toPluginMcpServerDefinition(
 	let configuration = definition.configuration;
 	if (plugin.format === PluginFormat.AgentPlugin) {
 		const dataDir = remoteEnvironment
-			? URI.joinPath(remoteEnvironment.globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(plugin.uri))
+			? URI.joinPath(remoteEnvironment.globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(plugin.dataDirId ?? plugin.uri.toString()))
 			: plugin.dataDir?.get();
 		if (configuration.type === McpServerType.LOCAL && fileService && dataDir) {
 			await fileService.createFolder(dataDir);

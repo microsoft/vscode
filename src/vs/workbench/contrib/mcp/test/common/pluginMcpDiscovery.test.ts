@@ -149,9 +149,11 @@ suite('PluginMcpDiscovery', () => {
 			globalStorageHome: remoteGlobalStorageHome,
 			os: OperatingSystem.Linux,
 		};
-		const dataDir = URI.joinPath(remoteGlobalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(pluginUri));
+		const dataDirId = 'marketplace:github.com/example/plugin';
+		const dataDir = URI.joinPath(remoteGlobalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(dataDirId));
 
 		const server = await toPluginMcpServerDefinition('plugin:', {
+			dataDirId,
 			dataDir: constObservable(URI.file('C:/client-only/plugin-data')),
 			format: PluginFormat.AgentPlugin,
 			uri: pluginUri,
@@ -192,6 +194,53 @@ suite('PluginMcpDiscovery', () => {
 				envFile: undefined,
 				sandbox: undefined,
 			},
+		});
+	});
+
+	test('preserves remote plugin dataDir across installation updates', async () => {
+		const remoteGlobalStorageHome = URI.parse('vscode-remote://ssh-remote+linux/home/test/.vscode-server/data/User/globalStorage');
+		const remoteEnvironment: Pick<IRemoteAgentEnvironment, 'globalStorageHome' | 'os'> = {
+			globalStorageHome: remoteGlobalStorageHome,
+			os: OperatingSystem.Linux,
+		};
+		const dataDirId = 'marketplace:github.com/example/plugin';
+		const createdFolderUris: URI[] = [];
+		const fileService = {
+			createFolder: async (resource: URI) => {
+				createdFolderUris.push(resource);
+				return {} as ReturnType<IFileService['createFolder']>;
+			}
+		} as IFileService;
+		const definition: IMcpServerDefinition = {
+			name: 'example',
+			uri: URI.file('/plugins/example/mcp.json'),
+			configuration: { type: McpServerType.LOCAL, command: 'node', args: ['${PLUGIN_DATA}/server.js'] },
+			customization: {
+				type: CustomizationType.McpServer,
+				id: 'example',
+				uri: 'file:///plugins/example/mcp.json',
+				name: 'example',
+				state: { kind: McpServerStatus.Stopped },
+			},
+		};
+
+		const pluginUris = [
+			URI.parse('vscode-remote://ssh-remote+linux/home/test/plugins/github.com/example/plugin/sha_old'),
+			URI.parse('vscode-remote://ssh-remote+linux/home/test/plugins/github.com/example/plugin/sha_new'),
+		];
+		const servers = await Promise.all(pluginUris.map(uri => toPluginMcpServerDefinition('plugin:', {
+			dataDirId,
+			format: PluginFormat.AgentPlugin,
+			uri,
+		}, definition, fileService, remoteEnvironment)));
+
+		const expectedDataDir = URI.joinPath(remoteGlobalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(dataDirId));
+		assert.deepStrictEqual({
+			createdFolderUris: createdFolderUris.map(uri => uri.toString()),
+			pluginDataPaths: servers.map(server => server?.launch.type === LaunchTransportType.Stdio ? server.launch.env?.PLUGIN_DATA : undefined),
+		}, {
+			createdFolderUris: [expectedDataDir.toString(), expectedDataDir.toString()],
+			pluginDataPaths: [expectedDataDir.path, expectedDataDir.path],
 		});
 	});
 });

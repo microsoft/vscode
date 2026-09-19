@@ -19,9 +19,9 @@ import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDef
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
-export function getAgentPluginDataDirName(uri: URI): string {
+export function getAgentPluginDataDirName(identity: string): string {
 	const sha = new StringSHA1();
-	sha.update(uri.toString());
+	sha.update(identity);
 	return sha.digest();
 }
 

@@ -235,6 +235,8 @@ interface IPluginManifest {
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	/** Stable identity for persistent plugin data. */
+	readonly dataDirId?: string;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
 	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
@@ -308,7 +310,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.dataDirId, source.repositoryUri, source.remove, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -338,7 +340,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, dataDirId: string | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -487,11 +489,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			: undefined;
 
 		const dataDir = this._currentProfile
-			? derived(reader => joinPath(this._currentProfile!.read(reader).globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(uri)))
+			? derived(reader => joinPath(this._currentProfile!.read(reader).globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(dataDirId ?? uri.toString())))
 			: undefined;
 
 		const plugin: PluginEntry = {
 			uri,
+			dataDirId,
 			dataDir,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
@@ -735,9 +738,11 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			return;
 		}
 
+		const fromMarketplace = this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
 		sources.push({
 			uri: stat.resource,
-			fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
+			fromMarketplace,
+			dataDirId: fromMarketplace && getMarketplacePluginDataDirId(fromMarketplace),
 			remove,
 		});
 	}
@@ -869,6 +874,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
+				dataDirId: getMarketplacePluginDataDirId(entry.plugin),
 				repositoryUri,
 				remove: async () => {
 					this._enablementModel.remove(stat.resource.toString());
@@ -1108,7 +1114,7 @@ const epPlugins = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<I
 
 export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
-	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string }>();
+	private readonly _extensionPlugins = new Map<string, { uri: URI; when: ContextKeyExpression | undefined; extensionId: string; path: string }>();
 	private readonly _whenKeys = new Set<string>();
 
 	constructor(
@@ -1152,7 +1158,7 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 							continue;
 						}
 					}
-					this._extensionPlugins.set(extensionPluginKey(ext.description.identifier, raw.path), { uri: pluginUri, when: whenExpr, extensionId: ext.description.identifier.value });
+					this._extensionPlugins.set(extensionPluginKey(ext.description.identifier, raw.path), { uri: pluginUri, when: whenExpr, extensionId: ext.description.identifier.value, path: raw.path });
 				}
 			}
 			for (const ext of delta.removed) {
@@ -1198,6 +1204,7 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: undefined,
+				dataDirId: `extension:${entry.extensionId}/${entry.path}`,
 				remove: () => this._promptUninstallExtension(entry.extensionId),
 			});
 		}
@@ -1218,6 +1225,10 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 
 function extensionPluginKey(extensionId: ExtensionIdentifier, path: string): string {
 	return `${extensionId.value}/${path}`;
+}
+
+function getMarketplacePluginDataDirId(plugin: IMarketplacePlugin): string {
+	return `marketplace:${plugin.marketplaceReference.canonicalId}/${plugin.name}`;
 }
 
 class ChatPluginsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
