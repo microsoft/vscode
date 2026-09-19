@@ -7,6 +7,7 @@ import { rejects, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -199,7 +200,7 @@ suite('RichExecuteStrategy', () => {
 		strictEqual(result.additionalInformation, 'Command exited with code 1');
 	});
 
-	test('throws "The terminal was closed" when instance is already disposed before execute()', async () => {
+	test('rejects with a CancellationError when instance is already disposed before execute()', async () => {
 		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
 		const instance = {
 			xtermReadyPromise: Promise.resolve({}),
@@ -223,7 +224,57 @@ suite('RichExecuteStrategy', () => {
 
 		await rejects(
 			() => strategy.execute('echo hello', CancellationToken.None),
-			/The terminal was closed/
+			isCancellationError
+		);
+	});
+
+	test('rejects with a CancellationError when the terminal is disposed mid-command', async () => {
+		const onCommandFinishedEmitter = new Emitter<{ getOutput(): string; exitCode: number }>();
+		const onDisposedEmitter = new Emitter<ITerminalInstance>();
+
+		const marker = {
+			line: 0,
+			dispose: () => { },
+			onDispose: Event.None,
+		};
+		const xterm = {
+			raw: {
+				registerMarker: () => marker,
+				buffer: {
+					active: {},
+					alternate: {},
+					onBufferChange: () => toDisposable(() => { }),
+				},
+				getContentsAsText: () => '',
+			}
+		};
+		const instance = {
+			xtermReadyPromise: Promise.resolve(xterm),
+			onData: Event.None,
+			onDisposed: onDisposedEmitter.event,
+			onExit: Event.None,
+			isDisposed: false,
+			exitCode: undefined,
+			runCommand: () => {
+				// Simulate the terminal being disposed after the command has been
+				// dispatched, so the disposal race resolves the post-execution branch.
+				queueMicrotask(() => onDisposedEmitter.fire(instance));
+			},
+		} as unknown as ITerminalInstance;
+		const commandDetection = {
+			onCommandFinished: onCommandFinishedEmitter.event,
+		} as unknown as ICommandDetectionCapability;
+		const strategy = store.add(new RichExecuteStrategy(
+			instance,
+			commandDetection,
+			false,
+			new TestConfigurationService(),
+			createLogService(),
+		));
+
+		await rejects(
+			() => strategy.execute('echo hello', CancellationToken.None),
+			isCancellationError
 		);
 	});
 });
