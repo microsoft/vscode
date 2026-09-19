@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationType, type AgentCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { agentHostAgentPickerStorageKey, resolveAgentHostAgent, resolveAgentHostAgentToInitialize } from '../../../../../../platform/agentHost/common/customAgents.js';
 
 suite('agentHostAgentPicker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,6 +52,26 @@ suite('agentHostAgentPicker', () => {
 		test('returns undefined for an empty agent list', () => {
 			assert.strictEqual(resolveAgentHostAgent([], 'agent://a', 'agent://a'), undefined);
 			assert.strictEqual(resolveAgentHostAgent([], undefined, undefined), undefined);
+		});
+	});
+
+	suite('resolveAgentHostAgentToInitialize', () => {
+		test('seeds an untitled session from the stored agent', () => {
+			assert.deepStrictEqual(resolveAgentHostAgentToInitialize(
+				agents,
+				undefined,
+				beta.uri,
+				true,
+			), beta);
+		});
+
+		test('preserves a running session selection while its agent is temporarily unavailable', () => {
+			assert.strictEqual(resolveAgentHostAgentToInitialize(
+				[alpha],
+				beta.uri,
+				undefined,
+				false,
+			), undefined);
 		});
 	});
 });
