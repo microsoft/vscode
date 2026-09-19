@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals } from '../../common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals, isPlatformOverrideProperty } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 
@@ -38,6 +38,24 @@ suite('ConfigurationRegistry', () => {
 
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 1, b: 2 });
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['[lang]'].default, { a: 2, c: 3 });
+	});
+
+	test('platform override properties', () => {
+		assert.deepStrictEqual({
+			windows: isPlatformOverrideProperty('windows'),
+			mac: isPlatformOverrideProperty('osx'),
+			linux: isPlatformOverrideProperty('linux'),
+			bracketed: isPlatformOverrideProperty('[windows]'),
+			whitespace: isPlatformOverrideProperty(' windows '),
+			language: isPlatformOverrideProperty('[typescript]')
+		}, {
+			windows: true,
+			mac: true,
+			linux: true,
+			bracketed: false,
+			whitespace: false,
+			language: false
+		});
 	});
 
 	test('configuration override defaults - prevent overriding default value', async () => {

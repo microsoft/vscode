@@ -9,7 +9,9 @@ import { JSONVisitor, parse, visit } from '../../../base/common/json.js';
 import { applyEdits, setProperty, withFormatting } from '../../../base/common/jsonEdit.js';
 import { Edit, FormattingOptions, getEOL } from '../../../base/common/jsonFormatter.js';
 import * as objects from '../../../base/common/objects.js';
+import { isObject } from '../../../base/common/types.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { isPlatformOverrideProperty } from '../../configuration/common/configurationRegistry.js';
 import * as contentUtil from './content.js';
 import { getDisallowedIgnoredSettings, IConflictSetting } from './userDataSync.js';
 
@@ -57,6 +59,52 @@ function getIgnoredSettingsFromContent(settingsContent: string): string[] {
 	return parsed ? parsed['settingsSync.ignoredSettings'] || parsed['sync.ignoredSettings'] || [] : [];
 }
 
+function platformOverrideIdentifierFromProperty(key: string): string | undefined {
+	return isPlatformOverrideProperty(key) ? key : undefined;
+}
+
+function findPlatformOverrideProperty(settings: IStringDictionary<any>, key: string): string | undefined {
+	const identifier = platformOverrideIdentifierFromProperty(key);
+	if (!identifier) {
+		return undefined;
+	}
+	return Object.prototype.hasOwnProperty.call(settings, identifier) ? identifier : undefined;
+}
+
+function settingProperty(settings: IStringDictionary<any>, key: string): string {
+	return findPlatformOverrideProperty(settings, key) ?? key;
+}
+
+function settingProperties(settings: IStringDictionary<any>, key: string): string[] {
+	const identifier = platformOverrideIdentifierFromProperty(key);
+	return identifier
+		? Object.keys(settings).filter(candidate => platformOverrideIdentifierFromProperty(candidate) === identifier)
+		: [key];
+}
+
+function withoutIgnoredSettings(key: string, value: any, ignoredSettings: Set<string>): any {
+	if (!platformOverrideIdentifierFromProperty(key) || !isObject(value)) {
+		return value;
+	}
+
+	const result: IStringDictionary<any> = { ...value };
+	for (const ignoredSetting of ignoredSettings) {
+		delete result[ignoredSetting];
+	}
+	return result;
+}
+
+function isIgnoredSetting(key: string, value: any, ignoredSettings: Set<string>, other: IStringDictionary<any>): boolean {
+	if (ignoredSettings.has(key)) {
+		return true;
+	}
+	if (platformOverrideIdentifierFromProperty(key) && isObject(value)) {
+		const keys = Object.keys(value);
+		return keys.length > 0 && keys.every(key => ignoredSettings.has(key)) && !findPlatformOverrideProperty(other, key);
+	}
+	return false;
+}
+
 export function removeComments(content: string, formattingOptions: FormattingOptions): string {
 	const source = parse(content) || {};
 	let result = '{}';
@@ -97,6 +145,44 @@ export function updateIgnoredSettings(targetContent: string, sourceContent: stri
 
 		settingsToAdd.sort((a, b) => a.startOffset - b.startOffset);
 		settingsToAdd.forEach(s => targetContent = addSetting(s.setting!.key, sourceContent, targetContent, formattingOptions));
+
+		const sourcePlatformProperties = new Map<string, string[]>();
+		const targetPlatformProperties = new Map<string, string[]>();
+		for (const key of Object.keys(source)) {
+			const identifier = platformOverrideIdentifierFromProperty(key);
+			if (identifier) {
+				sourcePlatformProperties.set(identifier, [...sourcePlatformProperties.get(identifier) ?? [], key]);
+			}
+		}
+		for (const key of Object.keys(target)) {
+			const identifier = platformOverrideIdentifierFromProperty(key);
+			if (identifier) {
+				targetPlatformProperties.set(identifier, [...targetPlatformProperties.get(identifier) ?? [], key]);
+			}
+		}
+		for (const identifier of distinct([...sourcePlatformProperties.keys(), ...targetPlatformProperties.keys()])) {
+			const sourceProperties = sourcePlatformProperties.get(identifier) ?? [];
+			const targetProperties = targetPlatformProperties.get(identifier) ?? [];
+			const propertiesToUpdate = targetProperties.length ? targetProperties : sourceProperties;
+			for (const platformOverrideProperty of propertiesToUpdate) {
+				const sourcePlatformProperty = sourceProperties[0];
+				const sourcePlatform: IStringDictionary<any> = sourcePlatformProperty && isObject(source[sourcePlatformProperty]) ? source[sourcePlatformProperty] : {};
+				const targetPlatform: IStringDictionary<any> = isObject(target[platformOverrideProperty]) ? target[platformOverrideProperty] : {};
+				const targetHasIgnoredSetting = Object.keys(targetPlatform).some(key => ignoredSettings.includes(key));
+				for (const key of ignoredSettings) {
+					const sourceValue = sourcePlatform[key];
+					const targetValue = targetPlatform[key];
+					if (!objects.equals(sourceValue, targetValue)) {
+						targetContent = contentUtil.edit(targetContent, [platformOverrideProperty, key], sourceValue, formattingOptions);
+					}
+				}
+
+				const updatedTarget = parse(targetContent);
+				if (!sourcePlatformProperty && targetHasIgnoredSetting && isObject(updatedTarget?.[platformOverrideProperty]) && Object.keys(updatedTarget[platformOverrideProperty]).length === 0) {
+					targetContent = contentUtil.edit(targetContent, [platformOverrideProperty], undefined, formattingOptions);
+				}
+			}
+		}
 	}
 	return targetContent;
 }
@@ -131,9 +217,12 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	/* remote and local has changed */
 	let localContent = originalLocalContent;
 	let remoteContent = originalRemoteContent;
-	const local = parse(originalLocalContent);
-	const remote = parse(originalRemoteContent);
+	({ localContent, remoteContent } = mergePlatformOverrideSettings(localContent, remoteContent, baseContent, ignoredSettings, formattingOptions));
+	const local = parse(localContent);
+	const remote = parse(remoteContent);
 	const base = baseContent ? parse(baseContent) : null;
+	const rawLocal = local;
+	const rawRemote = remote;
 
 	const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
 	const localToRemote = compare(local, remote, ignored);
@@ -146,8 +235,8 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 		handledConflicts.add(conflictKey);
 		const resolvedConflict = resolvedConflicts.filter(({ key }) => key === conflictKey)[0];
 		if (resolvedConflict) {
-			localContent = contentUtil.edit(localContent, [conflictKey], resolvedConflict.value, formattingOptions);
-			remoteContent = contentUtil.edit(remoteContent, [conflictKey], resolvedConflict.value, formattingOptions);
+			localContent = contentUtil.edit(localContent, [settingProperty(rawLocal, conflictKey)], resolvedConflict.value, formattingOptions);
+			remoteContent = contentUtil.edit(remoteContent, [settingProperty(rawRemote, conflictKey)], resolvedConflict.value, formattingOptions);
 		} else {
 			conflicts.set(conflictKey, { key: conflictKey, localValue: local[conflictKey], remoteValue: remote[conflictKey] });
 		}
@@ -161,7 +250,9 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 		}
 		// Also remove in remote
 		else {
-			remoteContent = contentUtil.edit(remoteContent, [key], undefined, formattingOptions);
+			for (const property of settingProperties(rawRemote, key)) {
+				remoteContent = contentUtil.edit(remoteContent, [property], undefined, formattingOptions);
+			}
 		}
 	}
 
@@ -176,7 +267,9 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 		}
 		// Also remove in locals
 		else {
-			localContent = contentUtil.edit(localContent, [key], undefined, formattingOptions);
+			for (const property of settingProperties(rawLocal, key)) {
+				localContent = contentUtil.edit(localContent, [property], undefined, formattingOptions);
+			}
 		}
 	}
 
@@ -192,7 +285,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 				handleConflict(key);
 			}
 		} else {
-			remoteContent = contentUtil.edit(remoteContent, [key], local[key], formattingOptions);
+			remoteContent = contentUtil.edit(remoteContent, [settingProperty(rawRemote, key)], local[key], formattingOptions);
 		}
 	}
 
@@ -208,7 +301,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 				handleConflict(key);
 			}
 		} else {
-			localContent = contentUtil.edit(localContent, [key], remote[key], formattingOptions);
+			localContent = contentUtil.edit(localContent, [settingProperty(rawLocal, key)], remote[key], formattingOptions);
 		}
 	}
 
@@ -224,7 +317,16 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 				handleConflict(key);
 			}
 		} else {
-			remoteContent = addSetting(key, localContent, remoteContent, formattingOptions);
+			const remoteKey = findPlatformOverrideProperty(rawRemote, key);
+			if (remoteKey && isObject(local[key])) {
+				const value = withoutIgnoredSettings(key, local[key], ignored);
+				for (const setting of Object.keys(value)) {
+					remoteContent = contentUtil.edit(remoteContent, [remoteKey, setting], value[setting], formattingOptions);
+				}
+			} else if (!Object.prototype.hasOwnProperty.call(remote, key)) {
+				const localKey = settingProperty(rawLocal, key);
+				remoteContent = addSetting(localKey, localContent, remoteContent, formattingOptions);
+			}
 		}
 	}
 
@@ -240,14 +342,65 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 				handleConflict(key);
 			}
 		} else {
-			localContent = addSetting(key, remoteContent, localContent, formattingOptions);
+			const localKey = findPlatformOverrideProperty(rawLocal, key);
+			if (localKey && isObject(remote[key])) {
+				const value = withoutIgnoredSettings(key, remote[key], ignored);
+				for (const setting of Object.keys(value)) {
+					localContent = contentUtil.edit(localContent, [localKey, setting], value[setting], formattingOptions);
+				}
+			} else if (!Object.prototype.hasOwnProperty.call(local, key)) {
+				const remoteKey = settingProperty(rawRemote, key);
+				localContent = addSetting(remoteKey, remoteContent, localContent, formattingOptions);
+			}
 		}
 	}
+
+	// Ignored settings are local to each client, including when nested inside a platform override.
+	localContent = updateIgnoredSettings(localContent, originalLocalContent, ignoredSettings, formattingOptions);
+	remoteContent = updateIgnoredSettings(remoteContent, originalRemoteContent, ignoredSettings, formattingOptions);
 
 	const hasConflicts = conflicts.size > 0 || !areSame(localContent, remoteContent, ignoredSettings);
 	const hasLocalChanged = hasConflicts || !areSame(localContent, originalLocalContent, []);
 	const hasRemoteChanged = hasConflicts || !areSame(remoteContent, originalRemoteContent, []);
 	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: [...conflicts.values()], hasConflicts };
+}
+
+function mergePlatformOverrideSettings(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[], formattingOptions: FormattingOptions): { localContent: string; remoteContent: string } {
+	if (!baseContent) {
+		return { localContent, remoteContent };
+	}
+
+	const local = parse(localContent);
+	const remote = parse(remoteContent);
+	const base = parse(baseContent);
+	const ignored = new Set(ignoredSettings);
+	for (const platform of distinct([...Object.keys(local), ...Object.keys(remote), ...Object.keys(base)]).filter(isPlatformOverrideProperty)) {
+		const localPlatform = local[platform];
+		const remotePlatform = remote[platform];
+		const basePlatform = base[platform];
+		if (!isObject(localPlatform) || !isObject(remotePlatform) || !isObject(basePlatform)) {
+			continue;
+		}
+
+		for (const key of distinct([...Object.keys(localPlatform), ...Object.keys(remotePlatform), ...Object.keys(basePlatform)])) {
+			if (ignored.has(key)) {
+				continue;
+			}
+
+			const baseHasKey = Object.prototype.hasOwnProperty.call(basePlatform, key);
+			const localHasKey = Object.prototype.hasOwnProperty.call(localPlatform, key);
+			const remoteHasKey = Object.prototype.hasOwnProperty.call(remotePlatform, key);
+			const localChanged = baseHasKey !== localHasKey || !objects.equals(basePlatform[key], localPlatform[key]);
+			const remoteChanged = baseHasKey !== remoteHasKey || !objects.equals(basePlatform[key], remotePlatform[key]);
+			if (localChanged && !remoteChanged) {
+				remoteContent = contentUtil.edit(remoteContent, [platform, key], localHasKey ? localPlatform[key] : undefined, formattingOptions);
+			} else if (remoteChanged && !localChanged) {
+				localContent = contentUtil.edit(localContent, [platform, key], remoteHasKey ? remotePlatform[key] : undefined, formattingOptions);
+			}
+		}
+	}
+
+	return { localContent, remoteContent };
 }
 
 function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
@@ -258,8 +411,8 @@ function areSame(localContent: string, remoteContent: string, ignoredSettings: s
 	const local = parse(localContent);
 	const remote = parse(remoteContent);
 	const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
-	const localTree = parseSettings(localContent).filter(node => !(node.setting && ignored.has(node.setting.key)));
-	const remoteTree = parseSettings(remoteContent).filter(node => !(node.setting && ignored.has(node.setting.key)));
+	const localTree = parseSettings(localContent).filter(node => !(node.setting && isIgnoredSetting(node.setting.key, local[node.setting.key], ignored, remote)));
+	const remoteTree = parseSettings(remoteContent).filter(node => !(node.setting && isIgnoredSetting(node.setting.key, remote[node.setting.key], ignored, local)));
 
 	if (localTree.length !== remoteTree.length) {
 		return false;
@@ -269,10 +422,15 @@ function areSame(localContent: string, remoteContent: string, ignoredSettings: s
 		const localNode = localTree[index];
 		const remoteNode = remoteTree[index];
 		if (localNode.setting && remoteNode.setting) {
-			if (localNode.setting.key !== remoteNode.setting.key) {
+			const localIdentifier = platformOverrideIdentifierFromProperty(localNode.setting.key);
+			const remoteIdentifier = platformOverrideIdentifierFromProperty(remoteNode.setting.key);
+			if (localNode.setting.key !== remoteNode.setting.key && (!localIdentifier || localIdentifier !== remoteIdentifier)) {
 				return false;
 			}
-			if (!objects.equals(local[localNode.setting.key], remote[localNode.setting.key])) {
+			if (!objects.equals(
+				withoutIgnoredSettings(localNode.setting.key, local[localNode.setting.key], ignored),
+				withoutIgnoredSettings(remoteNode.setting.key, remote[remoteNode.setting.key], ignored)
+			)) {
 				return false;
 			}
 		} else if (!localNode.setting && !remoteNode.setting) {
@@ -296,8 +454,8 @@ export function isEmpty(content: string): boolean {
 }
 
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
-	const fromKeys = from ? Object.keys(from).filter(key => !ignored.has(key)) : [];
-	const toKeys = Object.keys(to).filter(key => !ignored.has(key));
+	const fromKeys = from ? Object.keys(from).filter(key => !isIgnoredSetting(key, from[key], ignored, to)) : [];
+	const toKeys = Object.keys(to).filter(key => !isIgnoredSetting(key, to[key], ignored, from ?? {}));
 	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
@@ -307,8 +465,8 @@ function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>
 			if (removed.has(key)) {
 				continue;
 			}
-			const value1 = from[key];
-			const value2 = to[key];
+			const value1 = withoutIgnoredSettings(key, from[key], ignored);
+			const value2 = withoutIgnoredSettings(key, to[key], ignored);
 			if (!objects.equals(value1, value2)) {
 				updated.add(key);
 			}
