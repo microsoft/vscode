@@ -766,7 +766,9 @@ export class CodeApplication extends Disposable {
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
-			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
+			const meteredConnectionService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
+			meteredConnectionService.setTelemetryService(accessor.get(ITelemetryService));
+			meteredConnectionService.start();
 		});
 
 		// Auth Handler
@@ -1235,7 +1237,7 @@ export class CodeApplication extends Disposable {
 		services.set(IGlobalKeybindingsMainService, new SyncDescriptor(GlobalKeybindingsMainService, [globalShortcut]));
 
 		// Metered Connection
-		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
+		const meteredConnectionService = this._register(new MeteredConnectionMainService(undefined, this.configurationService, this.logService));
 		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
@@ -1300,7 +1302,7 @@ export class CodeApplication extends Disposable {
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
-			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
+			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true, meteredConnectionService };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config], false));
 		} else {

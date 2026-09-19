@@ -3,72 +3,116 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { Client as TelemetryClient } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILoggerService } from '../../log/common/log.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from '../common/telemetry.js';
 import { TelemetryAppenderClient } from '../common/telemetryIpc.js';
 import { TelemetryLogAppender } from '../common/telemetryLogAppender.js';
 import { TelemetryService } from '../common/telemetryService.js';
 
-export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
+interface ICustomTelemetryServiceEntry {
+	readonly service: ITelemetryService;
+	readonly client: TelemetryClient;
+	readonly appender: TelemetryAppenderClient;
+}
+
+export class CustomEndpointTelemetryService extends Disposable implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	private customTelemetryServices = new Map<string, ITelemetryService>();
+	private readonly customTelemetryServices = new Map<string, ICustomTelemetryServiceEntry>();
+	private readonly customTelemetryDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IProductService private readonly productService: IProductService
-	) { }
+		@IProductService private readonly productService: IProductService,
+		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
+	) {
+		super();
+		this._register(meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+			for (const { client, appender } of this.customTelemetryServices.values()) {
+				if (client.isConnected) {
+					void appender.setIsConnectionMetered(isMetered);
+				}
+			}
+		}));
+	}
+
+	protected createTelemetryClient(args: string[]): TelemetryClient {
+		return new TelemetryClient(
+			FileAccess.asFileUri('bootstrap-fork').fsPath,
+			{
+				serverName: 'Debug Telemetry',
+				timeout: 1000 * 60 * 5,
+				args,
+				env: {
+					ELECTRON_RUN_AS_NODE: 1,
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_ESM_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
+				}
+			}
+		);
+	}
 
 	private getCustomTelemetryService(endpoint: ITelemetryEndpoint): ITelemetryService {
-		if (!this.customTelemetryServices.has(endpoint.id)) {
+		let entry = this.customTelemetryServices.get(endpoint.id);
+		if (!entry) {
+			const disposables = new DisposableStore();
+			this.customTelemetryDisposables.set(endpoint.id, disposables);
+			const serviceDisposables = disposables.add(new DisposableStore());
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
 			telemetryInfo['common.vscodemachineid'] = this.telemetryService.machineId;
 			telemetryInfo['common.vscodesessionid'] = this.telemetryService.sessionId;
-			const args = [endpoint.id, JSON.stringify(telemetryInfo), endpoint.aiKey];
-			const client = new TelemetryClient(
-				FileAccess.asFileUri('bootstrap-fork').fsPath,
-				{
-					serverName: 'Debug Telemetry',
-					timeout: 1000 * 60 * 5,
-					args,
-					env: {
-						ELECTRON_RUN_AS_NODE: 1,
-						VSCODE_PIPE_LOGGING: 'true',
-						VSCODE_ESM_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
-					}
-				}
-			);
+			const args = [endpoint.id, JSON.stringify(telemetryInfo), endpoint.aiKey, String(this.meteredConnectionService.isConnectionMetered)];
+			const client = disposables.add(this.createTelemetryClient(args));
 
 			const channel = client.getChannel('telemetryAppender');
+			const appender = new TelemetryAppenderClient(channel);
 			const appenders = [
-				new TelemetryAppenderClient(channel),
-				new TelemetryLogAppender(`[${endpoint.id}] `, false, this.loggerService, this.environmentService, this.productService),
+				appender,
+				disposables.add(new TelemetryLogAppender(`[${endpoint.id}] `, false, this.loggerService, this.environmentService, this.productService)),
 			];
 
-			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
+			const service = serviceDisposables.add(new TelemetryService({
 				appenders,
-				sendErrorTelemetry: endpoint.sendErrorTelemetry
+				sendErrorTelemetry: endpoint.sendErrorTelemetry,
+				meteredConnectionService: this.meteredConnectionService,
 			}, this.configurationService, this.productService));
+			entry = { service, client, appender };
+			this.customTelemetryServices.set(endpoint.id, entry);
 		}
 
-		return this.customTelemetryServices.get(endpoint.id)!;
+		return entry.service;
 	}
 
-	publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData) {
+	async publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (this._store.isDisposed || this.meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
 		customTelemetryService.publicLog(eventName, data);
 	}
 
-	publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData) {
+	async publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (this._store.isDisposed || this.meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
 		customTelemetryService.publicLogError(errorEventName, data);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.customTelemetryServices.clear();
 	}
 }

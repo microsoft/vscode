@@ -38,7 +38,10 @@ class TestMeteredConnectionService extends Disposable implements IMeteredConnect
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
 
-	constructor(public isConnectionMetered: boolean) {
+	constructor(
+		public isConnectionMetered: boolean,
+		readonly whenInitialized: Promise<void> = Promise.resolve(),
+	) {
 		super();
 	}
 
@@ -51,6 +54,7 @@ class TestMeteredConnectionService extends Disposable implements IMeteredConnect
 const unmeteredConnectionService: IMeteredConnectionService = {
 	_serviceBrand: undefined,
 	isConnectionMetered: false,
+	whenInitialized: Promise.resolve(),
 	onDidChangeIsConnectionMetered: Event.None,
 };
 
@@ -784,6 +788,41 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		assert.strictEqual(fetchCount, 1);
 	});
 
+	test('periodic update checking waits for metered connection initialization', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const initialized = new DeferredPromise<void>();
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(false, initialized.p));
+		let fetchCount = 0;
+		const service = createService({
+			meteredConnectionService,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					return false;
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin'),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		assert.strictEqual(fetchCount, 0);
+
+		initialized.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.strictEqual(fetchCount, 1);
+	});
+
 	test('defers an overdue check until queued updates are acknowledged', async () => {
 		const updateCheckInterval = 24 * 60 * 60 * 1000;
 		const clock = sinon.useFakeTimers({ now: updateCheckInterval + 1 });
@@ -988,6 +1027,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 
 		assert.ok(runIdle);
 		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
 		await timeout(0);
 		assert.deepStrictEqual(fetched, [deferredRef.canonicalId]);
 
