@@ -120,7 +120,7 @@ class SessionSummaryNotifier extends Disposable {
 
 	constructor(
 		private readonly _getSummary: (session: string) => SessionSummary | undefined,
-		private readonly _emit: (session: string, changes: SessionSummaryChanges) => void,
+		private readonly _emit: (session: string, changes: SessionSummaryChanges, previous: SessionSummary) => void,
 	) {
 		super();
 	}
@@ -144,7 +144,7 @@ class SessionSummaryNotifier extends Disposable {
 			return false;
 		}
 		this._lastNotified.set(session, { ...lastNotified, ...changes });
-		this._emit(session, changes);
+		this._emit(session, changes, lastNotified);
 		return true;
 	}
 
@@ -212,7 +212,7 @@ class SessionSummaryNotifier extends Disposable {
 		this._lastNotified.set(session, current);
 
 		if (Object.keys(changes).length > 0) {
-			this._emit(session, changes);
+			this._emit(session, changes, lastNotified);
 		}
 	}
 }
@@ -311,8 +311,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
-	private readonly _onDidChangeSessionSummary = this._register(new Emitter<{ session: string; changes: SessionSummaryChangedParams['changes'] }>());
-	readonly onDidChangeSessionSummary: Event<{ session: string; changes: SessionSummaryChangedParams['changes'] }> = this._onDidChangeSessionSummary.event;
+	private readonly _onDidChangeSessionSummary = this._register(new Emitter<{ session: string; changes: SessionSummaryChangedParams['changes']; previous: SessionSummary }>());
+	readonly onDidChangeSessionSummary: Event<{ session: string; changes: SessionSummaryChangedParams['changes']; previous: SessionSummary }> = this._onDidChangeSessionSummary.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -341,12 +341,12 @@ export class AgentHostStateManager extends Disposable {
 				const entry = this._sessionStates.get(session);
 				return entry ? this._toSummary(session, entry) : undefined;
 			},
-			(session, changes) => this._emitSessionSummaryChanged(session, changes),
+			(session, changes, previous) => this._emitSessionSummaryChanged(session, changes, previous),
 		));
 	}
 
-	private _emitSessionSummaryChanged(session: string, changes: SessionSummaryChangedParams['changes']): void {
-		this._onDidChangeSessionSummary.fire({ session, changes });
+	private _emitSessionSummaryChanged(session: string, changes: SessionSummaryChangedParams['changes'], previous: SessionSummary): void {
+		this._onDidChangeSessionSummary.fire({ session, changes, previous });
 		if (this._publishedSessionSummaries.has(session)) {
 			this._onDidEmitNotification.fire({
 				type: 'root/sessionSummaryChanged',
@@ -862,7 +862,11 @@ export class AgentHostStateManager extends Disposable {
 		// summary see the resolved working directory. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories };
+		const workingDirectoriesChanged = !equals(entry.state.workingDirectories, summary.workingDirectories);
+		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories, _meta: summary._meta };
+		if (workingDirectoriesChanged) {
+			this._onDidChangeSessionWorkingDirectories.fire({ session: key });
+		}
 		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
@@ -900,7 +904,7 @@ export class AgentHostStateManager extends Disposable {
 			return;
 		}
 		this._summaryNotifier.announce(session, { ...announced, title });
-		this._emitSessionSummaryChanged(session, { title });
+		this._emitSessionSummaryChanged(session, { title }, announced);
 	}
 
 	/** Removes a surfaced session without affecting a live session. */

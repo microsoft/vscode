@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/changesActions.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -392,13 +398,41 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	}
 }
 
+const NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperation.';
+
+class CommitActionViewItem extends MenuEntryActionViewItem {
+
+	override render(container: HTMLElement): void {
+		this.options.icon = false;
+		this.options.label = true;
+		container.classList.add('changes-commit-action');
+		super.render(container);
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const icon = this._commandAction.item.icon;
+			const iconElement = icon && ThemeIcon.isThemeIcon(icon) ? renderIcon(icon) : undefined;
+			iconElement?.setAttribute('aria-hidden', 'true');
+			dom.reset(this.label, ...(iconElement ? [iconElement] : []), dom.$('span.changes-commit-label', undefined, this._commandAction.label));
+		}
+	}
+}
+
 export class NewSessionUncommittedChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperationsAction';
 
 	constructor(
 		@ISessionsService sessionsService: ISessionsService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
+
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderLayout, `${NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
+			return action instanceof MenuItemAction
+				? instantiationService.createInstance(CommitActionViewItem, action, options)
+				: undefined;
+		}));
 
 		this._register(autorun(reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
@@ -425,7 +459,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: `workbench.contrib.sessions.newSessionUncommittedChangesetOperation.${operation.id}`,
+							id: `${NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
 							title: operation.label,
 							tooltip: operation.description,
 							icon: operation.icon,

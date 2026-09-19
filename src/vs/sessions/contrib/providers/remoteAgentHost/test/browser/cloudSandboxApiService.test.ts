@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -47,6 +48,19 @@ interface ITestSetup {
 	readonly concurrency: { max: number; current: number };
 }
 
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+	readonly errors: (string | Error)[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+
+	override error(error: string | Error, ..._args: unknown[]): void {
+		this.errors.push(error);
+	}
+}
+
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, options: {
 	readonly tasks: readonly unknown[];
 	/** Repository id -> response, or 'error' to fail the lookup. */
@@ -61,6 +75,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly retryAfterSeconds?: number;
 	/** Suspend every task-detail response by this many ms, so overlapping fetches are observable. */
 	readonly taskFetchDelayMs?: number;
+	readonly requestError?: Error;
+	readonly logService?: ILogService;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const concurrency = { max: 0, current: 0 };
@@ -75,6 +91,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: { url?: string }): Promise<IRequestContext> {
+			if (options.requestError) {
+				throw options.requestError;
+			}
 			const url = opts.url ?? '';
 			requestedUrls.push(url);
 			const repoMatch = url.match(/\/repositories\/(\d+)$/);
@@ -126,7 +145,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly onDidChangeSessions = Event.None;
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
 	}());
@@ -156,6 +175,46 @@ suite('CloudSandboxApiService repository resolution', () => {
 				repoName: 'osortega/simple-server',
 				updatedAt: undefined,
 			}],
+		});
+	});
+
+	test('propagates task-list cancellation without error logging', async () => {
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [],
+			repositories: new Map(),
+			requestError: new CancellationError(),
+			logService,
+		});
+
+		await assert.rejects(() => service.listSessions(CancellationToken.None), error => isCancellationError(error));
+		assert.deepStrictEqual({
+			cancelledTraces: logService.traces.filter(message => message.includes(' -> cancelled')).length,
+			errors: logService.errors,
+		}, {
+			cancelledTraces: 1,
+			errors: [],
+		});
+	});
+
+	test('normalizes a transport failure after cancellation without error logging', async () => {
+		const logService = new TestLogService();
+		const cancellation = store.add(new CancellationTokenSource());
+		cancellation.cancel();
+		const { service } = createService(store, {
+			tasks: [],
+			repositories: new Map(),
+			requestError: new Error('transport stopped'),
+			logService,
+		});
+
+		await assert.rejects(() => service.listSessions(cancellation.token), error => isCancellationError(error));
+		assert.deepStrictEqual({
+			cancelledTraces: logService.traces.filter(message => message.includes(' -> cancelled')).length,
+			errors: logService.errors,
+		}, {
+			cancelledTraces: 1,
+			errors: [],
 		});
 	});
 

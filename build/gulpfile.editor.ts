@@ -20,6 +20,7 @@ import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
 const root = path.dirname(import.meta.dirname);
+const standaloneEnumsPath = path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts');
 const sha1 = getVersion(root);
 const semver = monacoPackage.version;
 const headerVersion = semver + '(' + sha1 + ')';
@@ -226,7 +227,18 @@ task.task('editor-distro',
 task.task('monacodts', task.define('monacodts', () => {
 	const result = monacoapi.execute();
 	fs.writeFileSync(result.filePath, result.content);
-	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	fs.writeFileSync(standaloneEnumsPath, result.enums);
+	return Promise.resolve(true);
+}));
+
+task.task('monacodts-check', task.define('monacodts-check', () => {
+	const result = monacoapi.execute();
+	const currentEnums = fs.readFileSync(standaloneEnumsPath).toString();
+	const normalizedCurrentEnums = currentEnums.replace(/\r\n/g, '\n');
+	const normalizedGeneratedEnums = result.enums.replace(/\r\n/g, '\n');
+	if (!result.isTheSame || normalizedCurrentEnums !== normalizedGeneratedEnums) {
+		throw new Error('Monaco declarations are no longer up to date. Run `npm run gulp monacodts` and commit the generated files.');
+	}
 	return Promise.resolve(true);
 }));
 

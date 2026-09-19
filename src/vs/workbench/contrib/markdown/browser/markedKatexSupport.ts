@@ -226,7 +226,6 @@ const trustedMathMlTags = Object.freeze([
 	'radialgradient',
 	'rect',
 	'stop',
-	'style',
 	'switch',
 	'symbol',
 	'text',
@@ -237,4 +236,3 @@ const trustedMathMlTags = Object.freeze([
 	'view',
 	'vkern',
 ]);
-

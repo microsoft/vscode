@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/customViewGridPart.css';
-import { $, isAncestorOfActiveElement } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getWindow, isAncestorOfActiveElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -97,6 +97,15 @@ export class CustomViewNode extends Disposable {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
+		}));
+		this._register(addDisposableListener(scrollContent, EventType.SCROLL, () => {
+			this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop });
+		}));
+		const focusScrollSync = this._register(new MutableDisposable());
+		this._register(addDisposableListener(scrollContent, EventType.FOCUS_IN, () => {
+			focusScrollSync.value = scheduleAtNextAnimationFrame(getWindow(scrollContent), () => {
+				this._scrollable.setScrollPosition({ scrollTop: scrollContent.scrollTop });
+			});
 		}));
 		this._scrollable.getDomNode().classList.add('custom-view-body');
 		this.element.appendChild(this._scrollable.getDomNode());

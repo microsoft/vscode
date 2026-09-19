@@ -96,7 +96,7 @@ function renderSuggestWidget(options: SuggestFixtureOptions): void {
 	editor.setModel(textModel);
 	const position = { lineNumber: options.cursorLine, column: options.cursorColumn };
 	editor.setPosition(position);
-	editor.focus();
+	options.focus(editor);
 
 	const controller = SuggestController.get(editor)!;
 	const widget = controller.widget.value;

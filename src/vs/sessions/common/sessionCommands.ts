@@ -31,6 +31,12 @@ export const MARK_SESSION_UNREAD_COMMAND_ID = 'sessionsViewPane.markUnread';
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 
+/** Copies a browser link to an Agent Host session. Registered in `agentHostSessionBranchActions.ts`. */
+export const COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID = 'sessions.copyAgentHostSessionLink';
+
+/** Copies a browser link to an Agent Host chat. Registered in `agentHostSessionBranchActions.ts`. */
+export const COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID = 'sessions.copyAgentHostChatLink';
+
 /** Focuses the active session. Registered in `sessionsActions.ts`. */
 export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 

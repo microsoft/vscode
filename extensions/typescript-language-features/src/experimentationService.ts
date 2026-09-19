@@ -9,7 +9,7 @@ import * as tas from 'vscode-tas-client';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 
 interface ExperimentTypes {
-	suggestNativePreview: boolean;
+	suggestTS7IfNoPlugins: boolean;
 }
 
 export class ExperimentationService {

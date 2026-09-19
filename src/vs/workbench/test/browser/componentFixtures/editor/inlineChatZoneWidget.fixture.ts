@@ -55,6 +55,9 @@ import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widge
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -157,7 +160,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine },
 });
 
-function renderInlineChatZoneWidget({ container, disposableStore, theme }: ComponentFixtureContext, showTerminationCard: boolean): void {
+function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }: ComponentFixtureContext, showTerminationCard: boolean): void {
 	container.style.width = '600px';
 	container.style.height = '700px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
@@ -286,6 +289,8 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override readonly onDidNotification = Event.None;
 				override readonly rootState: IAgentSubscription<RootState> = {
 					value: undefined,
 					verifiedValue: undefined,
@@ -294,6 +299,8 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 					onDidApplyAction: Event.None,
 				};
 			}());
+			reg.defineInstance(IRemoteAgentHostService, new NullRemoteAgentHostService());
+			reg.define(IAgentHostConnectionsService, AgentHostConnectionsService);
 			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
 				override get() { return undefined; }
@@ -431,7 +438,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	));
 
 	editor.setModel(textModel);
-	editor.focus();
+	focus(editor);
 
 	const zoneWidget = disposableStore.add(instantiationService.createInstance(
 		InlineChatZoneWidget,

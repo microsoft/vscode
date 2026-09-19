@@ -16,6 +16,8 @@ import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequ
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
 class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -45,6 +47,7 @@ const nullGitStateService: IAgentHostGitStateService = {
 	onDidRefreshSessionGitState: Event.None,
 	onDidChangeSessionGitHubState: Event.None,
 	async refreshSessionGitState() { },
+	getMaterializedWorktreeMeta() { return undefined; },
 	async resolveSessionBaseBranchName() { return undefined; },
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },
@@ -57,6 +60,7 @@ const nullPullRequestStatusService: IAgentHostPullRequestStatusService = {
 	getPullRequestStatus() { return undefined; },
 	markPullRequestMerged() { },
 	async refresh() { },
+	async resolveForLifecycle() { return undefined; },
 	dispose() { },
 };
 
@@ -73,6 +77,7 @@ suite('AgentHostContributions', () => {
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
 			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+			[ISessionDataService, createNullSessionDataService()],
 			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

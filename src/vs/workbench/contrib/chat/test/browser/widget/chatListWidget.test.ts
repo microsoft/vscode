@@ -22,7 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService } from '../../../browser/chat.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions } from '../../../browser/widget/chatListWidget.js';
+import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -38,6 +38,7 @@ import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
+import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
 import '../../../browser/widget/media/chat.css';
 
 function nextFrame(): Promise<void> {
@@ -65,6 +66,49 @@ async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Pro
 suite('ChatListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('identifies transcript background context menu targets', () => {
+		const row = mainWindow.document.createElement('div');
+		row.className = 'monaco-list-row';
+		const rowGutter = mainWindow.document.createElement('div');
+		rowGutter.className = 'monaco-tl-row';
+		row.appendChild(rowGutter);
+		const content = mainWindow.document.createElement('div');
+		content.className = 'interactive-item-container';
+		row.appendChild(content);
+		const contentChild = mainWindow.document.createElement('div');
+		content.appendChild(contentChild);
+		const katexContainer = mainWindow.document.createElement('span');
+		katexContainer.className = katexContainerClassName;
+		content.appendChild(katexContainer);
+		const svg = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		katexContainer.appendChild(svg);
+		const svgPath = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		svg.appendChild(svgPath);
+		const scrollbar = mainWindow.document.createElement('div');
+		scrollbar.className = 'scrollbar';
+
+		assert.deepStrictEqual({
+			row: isChatBackgroundContextMenuTarget(row),
+			rowGutter: isChatBackgroundContextMenuTarget(rowGutter),
+			content: isChatBackgroundContextMenuTarget(content),
+			contentChild: isChatBackgroundContextMenuTarget(contentChild),
+			svgPath: getChatContextMenuTargetContext(svgPath),
+			scrollbar: isChatBackgroundContextMenuTarget(scrollbar),
+			missing: isChatBackgroundContextMenuTarget(undefined),
+		}, {
+			row: true,
+			rowGutter: true,
+			content: false,
+			contentChild: false,
+			svgPath: {
+				isKatexElement: true,
+				isBackground: false,
+			},
+			scrollbar: false,
+			missing: false,
+		});
+	});
+
 	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -73,7 +117,6 @@ suite('ChatListWidget', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -321,6 +364,37 @@ suite('ChatListWidget', () => {
 			overflows: true,
 			paddingAdded: 30,
 			atBottom: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('keeps request content tabbable when the transcript root is removed from the tab order', async () => {
+		const { disposables, model, container, widget } = createWidget({ tabIndex: -1 });
+		const text = 'question';
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const transcriptRoot = container.querySelector<HTMLElement>('.monaco-list');
+		const requestContent = container.querySelector<HTMLElement>('.interactive-request .chat-markdown-part');
+		assert.ok(transcriptRoot);
+		assert.ok(requestContent);
+		widget.focus();
+
+		assert.deepStrictEqual({
+			transcriptTabIndex: transcriptRoot.tabIndex,
+			requestTabIndex: requestContent.tabIndex,
+			programmaticallyFocused: mainWindow.document.activeElement === transcriptRoot,
+		}, {
+			transcriptTabIndex: -1,
+			requestTabIndex: 0,
+			programmaticallyFocused: true,
 		});
 
 		disposables.dispose();
