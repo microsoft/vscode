@@ -507,6 +507,25 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.deleteTurn('nonexistent'); // should not throw
 		});
+
+		test('hasConversationTurns tracks persisted and local turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.createTurn('turn-1');
+			const afterTurn = await db.hasConversationTurns();
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+			await db.insertLocalTurn({ turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
+			const afterLocalTurn = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterTurn, afterDeleteAll, afterLocalTurn }, {
+				empty: false,
+				afterTurn: true,
+				afterDeleteAll: false,
+				afterLocalTurn: true,
+			});
+		});
 	});
 
 	// ---- Turn event ids -------------------------------------------------
