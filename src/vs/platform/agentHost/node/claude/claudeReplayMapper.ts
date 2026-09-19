@@ -22,6 +22,7 @@ import {
 	type ToolResultContent,
 	type Turn,
 } from '../../common/state/protocol/state.js';
+import { SUBAGENT_ID_SUFFIX_REGEX } from './claudeSubagentRegistry.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
@@ -436,7 +437,9 @@ class ReplayBuilder {
 			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
 			.join('\n');
-		if (isSubagent) {
+		// The SDK stamps an agentId only once a subagent exists; a denial never gets one.
+		const spawned = !isError || SUBAGENT_ID_SUFFIX_REGEX.test(resultText);
+		if (isSubagent && spawned) {
 			content.push({
 				type: ToolResultContentType.Subagent,
 				resource: buildSubagentSessionUri(this._session.toString(), previousState.toolCallId),
