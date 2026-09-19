@@ -16,6 +16,40 @@ export function escapeIcons(text: string): string {
 	return text.replace(escapeIconsRegex, (match, escaped) => escaped ? match : `\\${match}`);
 }
 
+/**
+ * Escapes icon syntax in arbitrary text and adjusts the highlights accordingly. Icons split
+ * by a highlight boundary are left as is, since highlighted labels never render them as icons.
+ */
+export function escapeIconsWithHighlights(text: string, highlights: readonly IMatch[]): { text: string; highlights: IMatch[] } {
+	if (text.indexOf(iconStartMarker) === -1) {
+		return { text, highlights: [...highlights] };
+	}
+
+	const insertions: number[] = [];
+	for (const match of text.matchAll(iconsRegex)) {
+		const start = match.index;
+		const end = start + match[0].length;
+		const isSplit = highlights.some(h => h.start !== h.end && ((h.start > start && h.start < end) || (h.end > start && h.end < end)));
+		if (!isSplit) {
+			insertions.push(start);
+		}
+	}
+
+	let escaped = '';
+	let last = 0;
+	for (const offset of insertions) {
+		escaped += text.substring(last, offset) + '\\';
+		last = offset;
+	}
+	escaped += text.substring(last);
+
+	const adjust = (offset: number) => offset + insertions.filter(insertion => insertion < offset).length;
+	return {
+		text: escaped,
+		highlights: highlights.map(h => ({ start: adjust(h.start), end: adjust(h.end) }))
+	};
+}
+
 const markdownEscapedIconsRegex = new RegExp(`\\\\${iconsRegex.source}`, 'g');
 export function markdownEscapeEscapedIcons(text: string): string {
 	// Need to add an extra \ for escaping in markdown
