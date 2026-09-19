@@ -35,7 +35,7 @@ const maxSessionSpawnDepth = 3;
 const maxCreatedSessions = 25;
 const maxCreatedChats = 25;
 
-/** Process-wide backstop against runaway `send_message` fan-out. */
+/** Per-originating-turn backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 50;
 
 const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
@@ -1511,7 +1511,7 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 export function createSessionServerToolGroup(accessor?: ISessionServerToolAccessor): IServerToolGroup {
 	let createdSessionCount = 0;
 	let createdChatCount = 0;
-	let sentMessageCount = 0;
+	const sentMessageCountsBySourceChat = new Map<ProtocolURI, { readonly turnId: string | undefined; count: number }>();
 	const group: IServerToolGroup = {
 		definitions: sessionServerToolDefinitions,
 		// Remove after 2026-10-26; self-mapped because its arguments differ from create_session.
@@ -1586,12 +1586,22 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
-					if (sentMessageCount >= maxSentMessages) {
-						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
+					let sentMessages = sentMessageCountsBySourceChat.get(currentChannel);
+					if (!sentMessages || sentMessages.turnId !== context.turnId) {
+						sentMessages = { turnId: context.turnId, count: 0 };
+						sentMessageCountsBySourceChat.set(currentChannel, sentMessages);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
-					sentMessageCount++;
-					return result;
+					if (sentMessages.count >= maxSentMessages) {
+						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in one turn.`);
+					}
+					// Reserve before awaiting and keep this turn's record for any refund.
+					sentMessages.count++;
+					try {
+						return await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
+					} catch (error) {
+						sentMessages.count--;
+						throw error;
+					}
 				}
 				case SessionServerToolName.GetSessionContext:
 					return applyGetSessionContextTool(accessor, rawArgs);

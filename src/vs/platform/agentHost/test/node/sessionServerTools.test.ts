@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -48,7 +48,7 @@ import {
 
 suite('SessionServerTools', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
@@ -1837,6 +1837,200 @@ suite('SessionServerTools', () => {
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
 		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
+	});
+
+	test('send_message allows 50 successful sends in one source turn and rejects the next', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let promptCount = 0;
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s2', SessionStatus.Idle, workspace)],
+			onPrompt: () => { promptCount++; },
+		}));
+		const context = executionContext('copilot:/s1');
+
+		for (let i = 0; i < 50; i++) {
+			await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: `message ${i}` });
+		}
+		await assert.rejects(
+			async () => group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'one too many' }),
+			/Refusing to send more than 50 messages from server tools in one turn/,
+		);
+
+		assert.strictEqual(promptCount, 50);
+		store.dispose();
+	});
+
+	test('send_message reserves capacity for parallel sends in one source turn', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		let promptCount = 0;
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s2', SessionStatus.Idle, workspace)],
+			onPrompt: () => { promptCount++; },
+		}));
+		const context = executionContext('copilot:/s1');
+
+		const results = await Promise.allSettled(Array.from({ length: 51 }, (_, index) =>
+			group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: `message ${index}` })));
+
+		assert.deepStrictEqual({
+			promptCount,
+			successfulSends: results.filter(result => result.status === 'fulfilled').length,
+			errors: results.filter(result => result.status === 'rejected').map(result => result.reason),
+		}, {
+			promptCount: 50,
+			successfulSends: 50,
+			errors: [new Error('Refusing to send more than 50 messages from server tools in one turn.')],
+		});
+		await assert.rejects(
+			async () => group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'still at capacity' }),
+			/more than 50 messages/,
+		);
+	});
+
+	test('send_message refunds failed parallel sends', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const failure = new Error('Failed to send');
+		let promptCount = 0;
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s2', SessionStatus.Idle, workspace)],
+			startPrompt: async (_session, _chat, prompt) => {
+				if (prompt === 'fails') {
+					throw failure;
+				}
+				promptCount++;
+			},
+		}));
+		const context = executionContext('copilot:/s1');
+
+		const results = await Promise.allSettled(Array.from({ length: 50 }, (_, index) =>
+			group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: index === 0 ? 'fails' : `message ${index}` })));
+		await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'replacement for failed send' });
+		await assert.rejects(
+			async () => group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'one too many' }),
+			/more than 50 messages/,
+		);
+
+		assert.deepStrictEqual({
+			promptCount,
+			successfulParallelSends: results.filter(result => result.status === 'fulfilled').length,
+			errors: results.filter(result => result.status === 'rejected').map(result => result.reason),
+		}, {
+			promptCount: 50,
+			successfulParallelSends: 49,
+			errors: [failure],
+		});
+	});
+
+	for (const failEarlierSend of [false, true]) {
+		test(`send_message ${failEarlierSend ? 'failure' : 'completion'} from an earlier turn does not change the current turn allowance`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const earlierSendStarted = new DeferredPromise<void>();
+			const finishEarlierSend = new DeferredPromise<void>();
+			const failure = new Error('Failed to send');
+			let promptCount = 0;
+			const group = createSessionServerToolGroup(createAccessor({
+				listSessions: async () => [sessionMeta('s2', SessionStatus.Idle, workspace)],
+				startPrompt: async (_session, _chat, prompt) => {
+					if (prompt === 'earlier turn') {
+						await earlierSendStarted.complete();
+						await finishEarlierSend.p;
+						if (failEarlierSend) {
+							throw failure;
+						}
+					}
+					promptCount++;
+				},
+			}));
+			const context = executionContext('copilot:/s1');
+			const earlierSend = Promise.allSettled([
+				group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'earlier turn' }),
+			]);
+			await earlierSendStarted.p;
+
+			const currentTurn = { ...context, turnId: 'turn-2' };
+			for (let i = 0; i < 49; i++) {
+				await group.execute(stateManager, currentTurn, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: `message ${i}` });
+			}
+			await finishEarlierSend.complete();
+			const [earlierResult] = await earlierSend;
+			await group.execute(stateManager, currentTurn, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'last allowed' });
+			await assert.rejects(
+				async () => group.execute(stateManager, currentTurn, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'one too many' }),
+				/more than 50 messages/,
+			);
+
+			assert.deepStrictEqual({ earlierResult, promptCount }, {
+				earlierResult: failEarlierSend
+					? { status: 'rejected', reason: failure }
+					: { status: 'fulfilled', value: 'Message sent (agent-host-session://copilot/s2).' },
+				promptCount: failEarlierSend ? 50 : 51,
+			});
+		});
+	}
+
+	test('send_message gives later turns and other source chats independent allowances', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const delegations: (IAgentMessageDelegationMeta | undefined)[] = [];
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s2', SessionStatus.Idle, workspace)],
+			onPrompt: (_session, _chat, _prompt, delegation) => { delegations.push(delegation); },
+		}));
+		const firstTurn = executionContext('copilot:/s1');
+
+		for (let i = 0; i < 50; i++) {
+			await group.execute(stateManager, firstTurn, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: `message ${i}` });
+		}
+		await group.execute(stateManager, { ...firstTurn, turnId: 'turn-2' }, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'later turn' });
+		await group.execute(stateManager, { ...firstTurn, chatUri: buildChatUri('copilot:/s1', 'peer') }, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'other chat' });
+
+		assert.deepStrictEqual(delegations.slice(-2), [
+			{
+				sourceSession: 'copilot:/s1',
+				sourceChat: buildDefaultChatUri('copilot:/s1'),
+				sourceTurnId: 'turn-2',
+			},
+			{
+				sourceSession: 'copilot:/s1',
+				sourceChat: buildChatUri('copilot:/s1', 'peer'),
+				sourceTurnId: 'turn-1',
+			},
+		]);
+		store.dispose();
+	});
+
+	test('failed send_message calls do not consume the source turn allowance', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		let failNextPrompt = true;
+		let promptCount = 0;
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s2', SessionStatus.Idle, workspace)],
+			startPrompt: async () => {
+				if (failNextPrompt) {
+					failNextPrompt = false;
+					throw new Error('Failed to send');
+				}
+				promptCount++;
+			},
+		}));
+		const context = executionContext('copilot:/s1');
+
+		await assert.rejects(
+			async () => group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'fails' }),
+			/Failed to send/,
+		);
+		for (let i = 0; i < 50; i++) {
+			await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: `message ${i}` });
+		}
+		await assert.rejects(
+			async () => group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: 'copilot:/s2', message: 'one too many' }),
+			/Refusing to send more than 50 messages from server tools in one turn/,
+		);
+
+		assert.strictEqual(promptCount, 50);
+		store.dispose();
 	});
 
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
