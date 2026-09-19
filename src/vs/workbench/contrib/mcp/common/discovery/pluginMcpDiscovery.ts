@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { hash, stringHash } from '../../../../../base/common/hash.js';
+import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -15,7 +15,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { getAgentPluginDataDirName, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration, type IMcpStdioServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import {
 	IAgentPlugin,
@@ -51,7 +51,7 @@ export async function toPluginMcpServerDefinition(
 	let configuration = definition.configuration;
 	if (plugin.format === PluginFormat.AgentPlugin) {
 		const dataDir = remoteEnvironment
-			? URI.joinPath(remoteEnvironment.globalStorageHome, 'agentPlugins', 'data', (stringHash(plugin.uri.toString(), 0) >>> 0).toString(16))
+			? URI.joinPath(remoteEnvironment.globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(plugin.uri))
 			: plugin.dataDir?.get();
 		if (configuration.type === McpServerType.LOCAL && fileService && dataDir) {
 			await fileService.createFolder(dataDir);

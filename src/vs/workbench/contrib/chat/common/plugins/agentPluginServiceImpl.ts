@@ -9,7 +9,6 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { stringHash } from '../../../../../base/common/hash.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -41,6 +40,7 @@ import {
 	readPluginMcpServers,
 	parseMcpServerDefinitionMap,
 	detectPluginFormat,
+	getAgentPluginDataDirName,
 	type PluginComponent,
 	type IPluginFormatConfig,
 	type IParsedHookGroup,
@@ -487,7 +487,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			: undefined;
 
 		const dataDir = this._currentProfile
-			? derived(reader => joinPath(this._currentProfile!.read(reader).globalStorageHome, 'agentPlugins', 'data', (stringHash(uri.toString(), 0) >>> 0).toString(16)))
+			? derived(reader => joinPath(this._currentProfile!.read(reader).globalStorageHome, 'agentPlugins', 'data', getAgentPluginDataDirName(uri)))
 			: undefined;
 
 		const plugin: PluginEntry = {
