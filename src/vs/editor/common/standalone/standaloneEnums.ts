@@ -335,6 +335,7 @@ export enum EditorOption {
 	inertialScroll = 158,
 	inlayHints = 159,
 	wrapOnEscapedLineFeeds = 160,
+	rtlAutoDetect = 161,
 	wordWrapIndicator = 161,
 	effectiveCursorStyle = 162,
 	editorClassName = 163,
@@ -348,6 +349,7 @@ export enum EditorOption {
 	effectiveEditContext = 171,
 	scrollOnMiddleClick = 172,
 	effectiveAllowVariableFonts = 173,
+	doubleClickSelectsBlock = 174
 	doubleClickSelectsBlock = 174,
 	fullwidthCharacterWidth = 175,
 	effectiveFullwidthCharacterWidth = 176

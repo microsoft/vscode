@@ -3737,6 +3737,11 @@ declare namespace monaco.editor {
 		 */
 		doubleClickSelectsBlock?: boolean;
 		/**
+		 * Controls whether lines containing RTL text are rendered with RTL direction automatically.
+		 * Defaults to false.
+		 */
+		rtlAutoDetect?: boolean;
+		/**
 		 * Controls if the editor should allow to move selections via drag and drop.
 		 * Defaults to false.
 		 */
@@ -5257,6 +5262,7 @@ declare namespace monaco.editor {
 		inertialScroll = 158,
 		inlayHints = 159,
 		wrapOnEscapedLineFeeds = 160,
+		rtlAutoDetect = 161,
 		wordWrapIndicator = 161,
 		effectiveCursorStyle = 162,
 		editorClassName = 163,
@@ -5270,6 +5276,7 @@ declare namespace monaco.editor {
 		effectiveEditContext = 171,
 		scrollOnMiddleClick = 172,
 		effectiveAllowVariableFonts = 173,
+		doubleClickSelectsBlock = 174
 		doubleClickSelectsBlock = 174,
 		fullwidthCharacterWidth = 175,
 		effectiveFullwidthCharacterWidth = 176
@@ -5446,6 +5453,7 @@ declare namespace monaco.editor {
 		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, 'auto' | 'always' | 'never'>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
+		rtlAutoDetect: IEditorOption<EditorOption.rtlAutoDetect, boolean>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
