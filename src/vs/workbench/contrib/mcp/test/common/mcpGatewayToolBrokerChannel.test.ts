@@ -373,7 +373,7 @@ function createServer(
 		connectionState,
 		enablement: observableValue(owner, ContributionEnablementState.EnabledProfile),
 		serverMetadata: observableValue(owner, undefined),
-		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined }),
+		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined, blockedByPolicy: false }),
 		showOutput: async () => { },
 		start: async () => {
 			startCalls++;
@@ -412,7 +412,7 @@ function createNeverStartingServer(
 		connectionState,
 		enablement: observableValue(owner, ContributionEnablementState.EnabledProfile),
 		serverMetadata: observableValue(owner, undefined),
-		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined }),
+		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined, blockedByPolicy: false }),
 		showOutput: async () => { },
 		start: async () => {
 			startCalls++;

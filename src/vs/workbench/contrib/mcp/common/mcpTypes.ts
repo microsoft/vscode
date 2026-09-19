@@ -474,7 +474,7 @@ export interface IMcpServer extends IDisposable {
 	 * Full definition as it exists in the MCP registry. Unlike the references
 	 * in `collection` and `definition`, this may change over time.
 	 */
-	readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
+	readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined; blockedByPolicy: boolean }>;
 
 	showOutput(preserveFocus?: boolean): Promise<void>;
 	/**

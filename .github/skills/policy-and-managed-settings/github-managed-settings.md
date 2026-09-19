@@ -62,7 +62,20 @@ The schema is **nested**, whereas the VS Code bag is **flattened** to dot-paths 
 > - `extraKnownMarketplaces`: the schema permits source kinds `github` / `git` /
 >   `directory`, but the VS Code normalizer only accepts `github` and `git` — `directory` (and any other kind) is dropped with a warning (`managedSettings.ts` `normalizeExtraKnownMarketplaces`; `IExtraKnownMarketplaceEntry` in `base/common/managedSettings.ts` only types `github`/`git`).
 >
-> Note every **structured** key — `enabledPlugins`, `extraKnownMarketplaces`, `strictKnownMarketplaces` — is declared on its policy as **`{ type: 'string' }`**: the object/array value is carried as a JSON string in the bag and parsed back on read (see [Structured settings](#structured-objectarray-settings)). The *setting's* own `type` is the real shape — e.g. `chat.plugins.strictMarketplaces` is `['array', 'null']`, modeling the schema's array allowlist; only the bag-carrying type is `'string'`. That `'string'` is **required, not cosmetic**: `type` is a required field whose only allowed values are `'string' | 'number' | 'boolean'`, so omitting it or declaring `'object'` / `'array'` is a *compile* error; declaring `'number'` / `'boolean'` compiles but then fails projection validation at *runtime* (the JSON-string bag value flunks `typeof value === type`), so the key is dropped and silently never applies.
+> Note every purely **structured** key — `enabledPlugins`, `extraKnownMarketplaces`,
+> `strictKnownMarketplaces` — is declared on its policy as **`{ type: 'string' }`**: the
+> object/array value is carried as a JSON string in the bag and parsed back on read (see
+> [Structured settings](#structured-objectarray-settings)). The *setting's* own `type` is
+> the real shape — e.g. `chat.plugins.strictMarketplaces` is `['array', 'null']`, modeling
+> the schema's array allowlist; only the bag-carrying type is `'string'`. That `'string'` is
+> **required, not cosmetic**: `type` is a required field whose only allowed values are
+> `'string' | 'number' | 'boolean'`, so omitting it or declaring `'object'` / `'array'` is a
+> *compile* error; declaring `'number'` / `'boolean'` compiles but then fails projection
+> validation at *runtime* (the JSON-string bag value flunks `typeof value === type`), so the key
+> is dropped and silently never applies. A hybrid schema field that accepts both a scalar and a
+> structured value declares the transported scalar union instead, for example
+> `{ type: ['boolean', 'string'] }`; its normalizer preserves booleans and carries the structured
+> form as canonical JSON.
 
 Note the schema's `x-composition` describes the **server/runtime** layering across enterprise/org/user. Inside VS Code the bag has already been collapsed to a single projected `ManagedSettingsData` before a `policy.value()` callback ever sees it.
 

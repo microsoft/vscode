@@ -185,11 +185,32 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 The managed customization controls are complementary:
 
 - `strictKnownMarketplaces` restricts which marketplace sources may provide plugins.
-- `strictPluginOnlyCustomization` blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers. Eligible plugin contributions remain available.
+- `strictPluginOnlyCustomization: true` blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers. Eligible plugin contributions remain available.
 - `allowManagedMcpServersOnly` makes the managed MCP allowlist authoritative; lower-layer allow entries cannot broaden it and deny entries remain restrictive.
 - `allowManagedHooksOnly` permits plugin hooks only when managed `enabledPlugins` force-enables the plugin. User/workspace hooks and hooks from otherwise user-enabled plugins do not load.
 
-`strictPluginOnlyCustomization` does not replace strict marketplace enforcement. Hardened deployments apply both controls when plugin source and standalone customization provenance must both be constrained.
+`strictPluginOnlyCustomization` also accepts an array that blocks only the named standalone surfaces:
+
+```json
+{
+  "strictPluginOnlyCustomization": ["skills", "agents", "hooks", "mcp"]
+}
+```
+
+| Selector | Standalone sources blocked |
+|----------|----------------------------|
+| `skills` | Skills |
+| `agents` | Custom agents |
+| `hooks` | Hook files and hooks embedded in standalone agents |
+| `mcp` | MCP servers |
+
+An empty array blocks nothing. This is blocklist behavior, unlike allowlist controls such as `strictKnownMarketplaces`, where an empty array blocks every source. Arrays containing an unknown or malformed selector fail closed as a full lockdown rather than applying only their valid entries.
+
+Instructions remain blocked by boolean `true` only; a selective rules/instructions mapping is not currently defined. Therefore `["skills", "agents", "hooks", "mcp"]` is not equivalent to `true`.
+
+The controls compose independently. `strictPluginOnlyCustomization` does not replace `strictKnownMarketplaces`, and selecting `hooks` or `mcp` does not make plugin hooks or MCP allowlists enterprise-managed. Hardened deployments combine it with `strictKnownMarketplaces`, `allowManagedHooksOnly`, or `allowManagedMcpServersOnly` according to the provenance they need to constrain.
+
+Selective values require a client version that supports the array contract. The managed-settings service must continue sending boolean `true`, or return `client_update_required`, to older clients; administrators should not replace a native boolean policy with the JSON-array string until their fleet supports it. Future selectors likewise require a managed-schema minimum-client-version update because older clients intentionally treat unknown selectors as a full lockdown.
 
 ### Storage (ApplicationScope, MachineTarget)
 | Key | Description |

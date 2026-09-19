@@ -140,6 +140,7 @@ suite('Workbench - MCP - McpService', () => {
 			launch: { type: McpServerTransportType.HTTP, uri, headers: [] },
 			cacheNonce: 'a',
 		});
+
 		mcpService.updateCollectedServers();
 
 		const server = mcpService.servers.get()[0];
@@ -175,5 +176,39 @@ suite('Workbench - MCP - McpService', () => {
 		mcpService.updateCollectedServers();
 
 		assert.strictEqual(stopStub.callCount, 1);
+	});
+
+	test('does not stop a running server while its collection is refreshed', async () => {
+		const { mcpService, registry } = createMcpService();
+		let transport: TestMcpMessageTransport | undefined;
+		registry.makeTestTransport = () => {
+			transport = new TestMcpMessageTransport();
+			transport.setResponder('tools/list', message => ({
+				jsonrpc: MCP.JSONRPC_VERSION,
+				id: (message as MCP.JSONRPCRequest).id,
+				result: { tools: [] }
+			}));
+			return transport;
+		};
+
+		const collection = registry.collections.get()[0];
+		mcpService.updateCollectedServers();
+		const server = mcpService.servers.get()[0];
+		await server.start({ promptType: 'never', errorOnUserInteraction: true });
+		await waitForState(server.connectionState, state => state.state === McpConnectionState.Kind.Running);
+
+		registry.collections.set([], undefined);
+		registry.collections.set([{ ...collection }], undefined);
+		mcpService.updateCollectedServers();
+
+		assert.deepStrictEqual({
+			sameServer: mcpService.servers.get()[0] === server,
+			connectionState: server.connectionState.get().state,
+			transportState: transport?.state.get().state,
+		}, {
+			sameServer: true,
+			connectionState: McpConnectionState.Kind.Running,
+			transportState: McpConnectionState.Kind.Running,
+		});
 	});
 });

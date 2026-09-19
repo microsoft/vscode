@@ -12,7 +12,7 @@ import { LogLevel, NullLogger } from '../../../../../platform/log/common/log.js'
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IMcpHostDelegate, IMcpMessageTransport, IMcpRegistry, IMcpResolveConnectionOptions } from '../../common/mcpRegistryTypes.js';
+import { IMcpHostDelegate, IMcpMessageTransport, IMcpRegistry, IMcpResolvedServerDefinition, IMcpResolveConnectionOptions } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
@@ -195,11 +195,11 @@ export class TestMcpRegistry implements IMcpRegistry {
 	collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
 		return observableValue<string>(this, `mcp-${collection.id}-`);
 	}
-	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
+	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<IMcpResolvedServerDefinition> {
 		const collectionObs = this.collections.map(cols => cols.find(c => c.id === collectionRef.id));
 		return collectionObs.map((collection, reader) => {
 			const server = collection?.serverDefinitions.read(reader).find(s => s.id === definitionRef.id);
-			return { collection, server };
+			return { collection, server, blockedByPolicy: false };
 		});
 	}
 	discoverCollections(): Promise<McpCollectionDefinition[]> {
