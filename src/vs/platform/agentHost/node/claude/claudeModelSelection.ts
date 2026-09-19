@@ -165,6 +165,63 @@ export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], nati
 }
 
 /**
+ * A model's context-window limits as the Claude Agent SDK reports them on a
+ * `result` (`modelUsage[model].contextWindow` / `.maxOutputTokens`).
+ */
+export interface IClaudeModelLimits {
+	readonly contextWindow: number;
+	readonly maxOutputTokens: number;
+}
+
+/**
+ * Fill in the token limits of native (BYO-Anthropic) models from limits the
+ * SDK reported at run time, keyed by {@link toSdkModelId}-normalized model id.
+ *
+ * The SDK's `supportedModels()` catalog carries no context window, so a native
+ * model is published without limits and the context-usage widget, which needs
+ * a denominator, stays hidden for it. Every turn's `result` reports the
+ * serving model's window and output cap, so the agent records those and
+ * re-publishes the catalog through this helper. Copilot-routed models already
+ * carry CAPI's limits and are left untouched, as is a native model with no
+ * observation yet.
+ *
+ * Consumers derive the total window as `maxPromptTokens + maxOutputTokens`
+ * (the context-usage widget and the language model provider), so the prompt
+ * limit is published as the window minus the output cap. An observation
+ * without a usable cap publishes the whole window as the prompt limit and
+ * `maxOutputTokens: 0` so the sum still equals the window.
+ *
+ * The SDK catalog names most models by alias (`sonnet`, `haiku`) and only
+ * carries the concrete id in `resolvedModel`, while `modelUsage` keys by the
+ * concrete id. `aliases` maps a normalized alias to its normalized resolved id
+ * so those rows still find their observation.
+ */
+export function applyObservedNativeModelLimits(models: readonly IAgentModelInfo[], limits: ReadonlyMap<string, IClaudeModelLimits>, aliases: ReadonlyMap<string, string> = new Map()): IAgentModelInfo[] {
+	if (limits.size === 0) {
+		return [...models];
+	}
+	return models.map(model => {
+		const parsed = parseClaudeModelSelection({ id: model.id });
+		if (parsed.provider !== CLAUDE_PROVIDER_ANTHROPIC) {
+			return model;
+		}
+		const key = toSdkModelId(parsed.modelId);
+		const resolvedKey = aliases.get(key);
+		const observed = limits.get(key) ?? (resolvedKey !== undefined ? limits.get(resolvedKey) : undefined);
+		if (!observed) {
+			return model;
+		}
+		const hasOutputCap = observed.maxOutputTokens > 0 && observed.maxOutputTokens < observed.contextWindow;
+		return {
+			...model,
+			maxContextWindow: observed.contextWindow,
+			maxPromptTokens: hasOutputCap ? observed.contextWindow - observed.maxOutputTokens : observed.contextWindow,
+			maxOutputTokens: hasOutputCap ? observed.maxOutputTokens : 0,
+		};
+	});
+}
+
+/**
  * Re-id each model with its provider-qualified selection id and stamp the
  * transport/group vendor token into `_meta`, leaving {@link IAgentModelInfo.provider}
  * (the routing owner) and every other field intact.

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Query, SDKControlGetContextUsageResponse, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -18,21 +18,26 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ActionType, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
-import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
+import { ClaudeSdkPipeline, IRematerializer, type IClaudeObservedModelLimits } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { makeContextUsageResponse } from './claudeContextUsageTestUtils.js';
+import { makeModelUsage, makeResultError, makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
 
 // ===== Test doubles =====
 
 /**
  * `WarmQuery` stub that records `query()` calls and async-dispose count.
- * Tests in this file deliberately do NOT drive the consumer loop — they
+ * Most tests in this file deliberately do NOT drive the consumer loop — they
  * exercise the synchronous lifecycle surface (abort, dispose, rebind
- * gating). Driving the SDK message stream end-to-end is covered by
- * `claudeAgent.test.ts`.
+ * gating). The exceptions script a single turn through {@link ScriptedWarmQuery}
+ * to observe the post-`result` signal order. Driving the SDK message stream
+ * end-to-end is covered by `claudeAgent.test.ts`.
  *
  * `query()` returns a stub `Query` whose async iterator immediately
  * resolves done. That keeps the pipeline's consumer loop from hanging
@@ -53,8 +58,8 @@ class FakeWarmQuery implements WarmQuery {
 
 class ImmediatelyDoneQuery implements Query {
 	[Symbol.asyncIterator](): this { return this; }
-	async next(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
-	async return(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
+	async next(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
+	async return(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
 	async throw(err: unknown): Promise<IteratorResult<never, void>> { throw err; }
 	async setModel(): Promise<void> { /* not exercised here */ }
 	async applyFlagSettings(_settings: Parameters<Query['applyFlagSettings']>[0]): Promise<void> { /* not exercised here */ }
@@ -75,7 +80,7 @@ class ImmediatelyDoneQuery implements Query {
 	supportedModels(): never { throw new Error('not modeled'); }
 	supportedAgents(): never { throw new Error('not modeled'); }
 	mcpServerStatus(): never { throw new Error('not modeled'); }
-	getContextUsage(): never { throw new Error('not modeled'); }
+	getContextUsage(): Promise<SDKControlGetContextUsageResponse> { throw new Error('not modeled'); }
 	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('not modeled'); }
 	reloadPlugins(): never { throw new Error('not modeled'); }
 	accountInfo(): never { throw new Error('not modeled'); }
@@ -180,10 +185,116 @@ class ControllableWarmQuery extends FakeWarmQuery {
 	}
 }
 
+/**
+ * A {@link Query} that behaves like a live SDK stream: at the start of each
+ * turn (before the first message and after every `result`) it pulls a prompt
+ * off the pipeline's prompt iterable (so the queue marks it in-flight), then
+ * yields the scripted messages, and parks once they run out until abort or
+ * until its {@link ScriptedWarmQuery} is disposed (a real dispose ends the
+ * stream). `getContextUsage` is scripted and every call is recorded.
+ */
+class ScriptedQuery extends ImmediatelyDoneQuery {
+	readonly contextUsageCalls: Array<Parameters<Query['getContextUsage']>[0]> = [];
+	private _index = 0;
+	private _needsPrompt = true;
+	private _promptIterator: AsyncIterator<SDKUserMessage> | undefined;
+	private readonly _ended = new DeferredPromise<void>();
+
+	constructor(
+		private readonly _prompt: AsyncIterable<SDKUserMessage>,
+		private readonly _messages: readonly SDKMessage[],
+		private readonly _contextUsage: () => Promise<SDKControlGetContextUsageResponse>,
+		private readonly _signal: AbortSignal,
+	) { super(); }
+
+	override async next(): Promise<IteratorResult<SDKMessage, void>> {
+		const done: IteratorResult<SDKMessage, void> = { done: true, value: undefined };
+		if (this._needsPrompt) {
+			this._needsPrompt = false;
+			this._promptIterator ??= this._prompt[Symbol.asyncIterator]();
+			// A disposed subprocess ends its stream even while the SDK is
+			// waiting on the prompt iterable, so the pull must not outlive it.
+			// A `{ done: true }` result from the prompt iterable itself (queue
+			// torn down without yielding anything) is likewise not a pull.
+			const pulled = await Promise.race([this._promptIterator.next().then(r => !r.done), this._ended.p.then(() => false)]);
+			if (!pulled) {
+				return done;
+			}
+		}
+		if (this._index < this._messages.length) {
+			const value = this._messages[this._index++];
+			this._needsPrompt = value.type === 'result';
+			return { done: false, value };
+		}
+		if (this._signal.aborted || this._ended.isSettled) {
+			return done;
+		}
+		return new Promise<IteratorResult<SDKMessage, void>>(resolve => {
+			// Whichever settles first must remove the other's listener: an
+			// abort listener left registered after `_ended` resolves (or vice
+			// versa) would leak for the query's remaining lifetime.
+			const onAbort = () => { resolve(done); };
+			this._signal.addEventListener('abort', onAbort, { once: true });
+			void this._ended.p.then(() => {
+				this._signal.removeEventListener('abort', onAbort);
+				resolve(done);
+			});
+		});
+	}
+
+	/** Ends the stream, as disposing the owning warm subprocess does. */
+	end(): void {
+		void this._ended.complete();
+	}
+
+	override getContextUsage(opts?: Parameters<Query['getContextUsage']>[0]): Promise<SDKControlGetContextUsageResponse> {
+		this.contextUsageCalls.push(opts);
+		return this._contextUsage();
+	}
+}
+
+/** {@link WarmQuery} that hands out {@link ScriptedQuery} instances bound to the pipeline's abort signal. */
+class ScriptedWarmQuery extends FakeWarmQuery {
+	readonly queries: ScriptedQuery[] = [];
+	/** Set by the {@link createPipeline} factory callback before the first `query()`. */
+	signal: AbortSignal = new AbortController().signal;
+
+	constructor(
+		private readonly _messages: readonly SDKMessage[],
+		private readonly _contextUsage: () => Promise<SDKControlGetContextUsageResponse>,
+	) { super(); }
+
+	override query(prompt: string | AsyncIterable<SDKUserMessage>): Query {
+		this.queryCallCount++;
+		if (typeof prompt === 'string') {
+			throw new Error('ScriptedWarmQuery expects the pipeline prompt iterable');
+		}
+		const q = new ScriptedQuery(prompt, this._messages, this._contextUsage, this.signal);
+		this.queries.push(q);
+		return q;
+	}
+
+	override async [Symbol.asyncDispose](): Promise<void> {
+		await super[Symbol.asyncDispose]();
+		for (const q of this.queries) {
+			q.end();
+		}
+	}
+}
+
 // ===== Harness =====
 
+/**
+ * Test-only subclass exposing a setter for the protected
+ * `_contextUsageTimeoutMs`, so tests that need a short timeout don't reach
+ * for an `as unknown as { ... }` cast on the production class.
+ */
+class TestClaudeSdkPipeline extends ClaudeSdkPipeline {
+	setContextUsageTimeoutMs(ms: number): void { this._contextUsageTimeoutMs = ms; }
+}
+
 interface IPipelineHarness {
-	readonly pipeline: ClaudeSdkPipeline;
+	readonly pipeline: TestClaudeSdkPipeline;
 	readonly warm: FakeWarmQuery;
 	readonly controller: AbortController;
 }
@@ -209,7 +320,7 @@ function createPipeline(
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
 	const pipeline = disposables.add(inst.createInstance(
-		ClaudeSdkPipeline,
+		TestClaudeSdkPipeline,
 		'sess-1',
 		URI.parse(buildDefaultChatUri('claude:/sess-1')),
 		URI.parse('claude:/sess-1'),
@@ -560,6 +671,321 @@ suite('ClaudeSdkPipeline', () => {
 			assert.strictEqual(warm.asyncDisposeCount, 1);
 			store.dispose();
 		});
+	});
+
+	suite('context usage enrichment', () => {
+
+		/** The base `ChatUsage` {@link makeResultWithUsage} yields absent any enrichment. */
+		const baseUsage = { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' };
+
+		function makeResultWithUsage(): SDKResultSuccess {
+			const result = makeResultSuccess('sess-1');
+			result.usage.input_tokens = 12;
+			result.usage.output_tokens = 34;
+			result.usage.cache_read_input_tokens = 5;
+			result.modelUsage = {
+				'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, contextWindow: 200_000, maxOutputTokens: 8192 }),
+			};
+			return result;
+		}
+
+		function usageActionsOf(signals: AgentSignal[]): ChatUsageAction[] {
+			return signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatUsage ? [s.action] : []);
+		}
+
+		function actionTypesOf(signals: AgentSignal[]): string[] {
+			return signals.flatMap(s => s.kind === 'action' ? [s.action.type] : []);
+		}
+
+		test('emits exactly one ChatUsage, enriched with _meta.contextAttribution, before ChatTurnComplete', async () => {
+			const contextUsage = makeContextUsageResponse({
+				totalTokens: 5_000,
+				apiUsage: { input_tokens: 4_000, cache_creation_input_tokens: 500, cache_read_input_tokens: 500, output_tokens: 34 },
+				systemPromptSections: [{ name: 'Identity', tokens: 1_000 }],
+				systemTools: [{ name: 'Read', tokens: 400 }],
+			});
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => contextUsage);
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{
+					actions: actionTypesOf(signals),
+					contextUsageCalls: warm.queries[0].contextUsageCalls,
+					usage: usageActionsOf(signals).map(a => a.usage),
+				},
+				{
+					actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete],
+					contextUsageCalls: [{ detail: 'summary' }],
+					usage: [{
+						inputTokens: 5_000,
+						outputTokens: 34,
+						cacheReadTokens: 5,
+						model: 'claude-test',
+						_meta: {
+							contextAttribution: {
+								totalTokens: 5_000,
+								compactions: { count: 0 },
+								entries: [
+									{ kind: 'system', id: 'system-prompt', label: 'System Prompt', tokens: 1_000 },
+									{ kind: 'toolDefinition', id: 'tool:Read', label: 'Read', tokens: 400 },
+								],
+							},
+						},
+					}],
+				},
+			);
+		});
+
+		test('one success result produces exactly one ChatUsage whether or not enrichment succeeds', async () => {
+			// The workbench counts a second usage report with different prompt
+			// tokens as another model call and adds its completion tokens again,
+			// so the mapper emits nothing for results and the pipeline emits once:
+			// enriched when the SDK answers, the base report otherwise.
+			const runTurn = async (contextUsage: () => Promise<SDKControlGetContextUsageResponse>) => {
+				const warm = new ScriptedWarmQuery([makeResultWithUsage()], contextUsage);
+				const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+				const signals: AgentSignal[] = [];
+				disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+				await pipeline.send(makePrompt('p1'), 'turn-1');
+				const usage = usageActionsOf(signals);
+				return { usageCount: usage.length, inputTokens: usage.map(a => a.usage.inputTokens) };
+			};
+
+			assert.deepStrictEqual(
+				{
+					enriched: await runTurn(async () => makeContextUsageResponse({ totalTokens: 5_000, apiUsage: { input_tokens: 5_000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 34 } })),
+					fallback: await runTurn(async () => { throw new Error('control request failed'); }),
+				},
+				{
+					enriched: { usageCount: 1, inputTokens: [5_000] },
+					fallback: { usageCount: 1, inputTokens: [12] },
+				},
+			);
+		});
+
+		test('a success result flagged is_error reports usage before the ChatError that ends the turn', async () => {
+			// The proxy relays an upstream failure as a success result with
+			// `is_error: true`, which the mapper turns into `ChatError`. The chat
+			// reducer ends the active turn on `ChatError` and applies `ChatUsage`
+			// only to the active turn, so the usage must be emitted first or the
+			// failed turn loses its token / credit data.
+			const result = makeResultWithUsage();
+			result.is_error = true;
+			result.result = 'upstream failed';
+			const warm = new ScriptedWarmQuery([result], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), inputTokens: usageActionsOf(signals).map(a => a.usage.inputTokens) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatError, ActionType.ChatTurnComplete], inputTokens: [12] },
+			);
+		});
+
+		test('every result reports the model limits it observed, and only a success result fetches context usage', async () => {
+			// A turn that ends in an error result still names the serving model's
+			// window in `modelUsage`; the limits feed the native catalog on any
+			// subtype while enrichment stays success-only.
+			const failed = makeResultError('sess-1', ['boom']);
+			failed.modelUsage = { 'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, contextWindow: 200_000, maxOutputTokens: 8192 }) };
+			const warm = new ScriptedWarmQuery([makeResultWithUsage(), failed], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const observedLimits: IClaudeObservedModelLimits[] = [];
+			disposables.add(pipeline.onDidObserveModelLimits(l => observedLimits.push(l)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+			await pipeline.send(makePrompt('p2'), 'turn-2');
+
+			assert.deepStrictEqual(
+				{ observedLimits, contextUsageCalls: warm.queries[0].contextUsageCalls.length },
+				{
+					observedLimits: [
+						{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 },
+						{ model: 'claude-test', contextWindow: 200_000, maxOutputTokens: 8192 },
+					],
+					contextUsageCalls: 1,
+				},
+			);
+		});
+
+		test('a getContextUsage that answers without a usable total falls back to the base ChatUsage', async () => {
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => makeContextUsageResponse({ totalTokens: 0 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage] },
+			);
+		});
+
+		test('a report without apiUsage keeps the base prompt count and still attaches the breakdown', async () => {
+			// `totalTokens` may already include the response's output tokens, and
+			// the widget adds `outputTokens` on top, so it is never used as the
+			// prompt count. Without `apiUsage` the base `input_tokens` stands.
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				usageActionsOf(signals).map(a => a.usage),
+				[{ ...baseUsage, _meta: { contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } } }],
+			);
+		});
+
+		test('a breakdown that arrives after the pipeline was aborted emits no ChatUsage for the cancelled turn', async () => {
+			// The turn already ended when `abort` failed the queue; the reducer
+			// would ignore the report, and the session's credit enrichment reads
+			// per-turn state the next `send` resets, so a late report could carry
+			// another turn's credits. Nothing is emitted.
+			const abortHook: { run?: () => void } = {};
+			const reached = new DeferredPromise<void>();
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => {
+				abortHook.run?.();
+				const response = makeContextUsageResponse({ totalTokens: 5_000 });
+				reached.complete();
+				return response;
+			});
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			abortHook.run = () => pipeline.abort();
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			// `send` rejects the moment `abort` fails the queue, before the loop
+			// iteration that awaited the breakdown resumes and emits the report.
+			await pipeline.send(makePrompt('p1'), 'turn-1').catch(() => { /* aborted mid-turn */ });
+			// Deterministic handoff: the getContextUsage callback completes
+			// `reached` right before resolving, then the enrichment path still
+			// needs a few more microtask turns (raceTimeout, the aborted-query
+			// check) before it decides whether to fire.
+			await reached.p;
+			await flushMicrotasks();
+
+			assert.deepStrictEqual(actionTypesOf(signals), []);
+		});
+
+		test('a failing getContextUsage falls back to the base ChatUsage and still completes the turn', async () => {
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => { throw new Error('control request failed'); });
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage] },
+			);
+		});
+
+		test('apiUsage, when present, is preferred over totalTokens for inputTokens (additive with outputTokens, no double count)', async () => {
+			// `totalTokens` for `detail: 'summary'` is derived from the last
+			// response's usage and may already include that response's output
+			// tokens; reporting it as `inputTokens` would double-count them
+			// against `outputTokens`. `apiUsage` is the last API call's actual
+			// prompt size and is additive with `outputTokens`.
+			const contextUsage = makeContextUsageResponse({
+				totalTokens: 5_000,
+				apiUsage: { input_tokens: 4_000, cache_creation_input_tokens: 500, cache_read_input_tokens: 300, output_tokens: 200 },
+			});
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => contextUsage);
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				usageActionsOf(signals).map(a => a.usage),
+				[{
+					inputTokens: 4_800,
+					outputTokens: 34,
+					cacheReadTokens: 5,
+					model: 'claude-test',
+					_meta: { contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } },
+				}],
+			);
+		});
+
+		test('an abort + rebind while getContextUsage is pending does not let the stale pass settle the post-rebind turn', async () => {
+			// Regression: abort -> failAll -> re-send -> `_rebindQuery` rebinds a
+			// fresh query while THIS pass is still suspended inside
+			// `_emitResultUsage`, awaiting `getContextUsage` for turn-1's result.
+			// Without the guard right after `_emitResultUsage`, the stale pass
+			// would resume once `getContextUsage` answers: `settleHead()` finds
+			// nothing (failAll already cleared the queue), and the stale pass
+			// loops around and pulls from the prompt iterable again, which is
+			// shared across queries (the queue survives rebinds), stealing
+			// turn-2's prompt entry off that SAME queue and then ending, leaving
+			// the new query parked forever waiting for a prompt that never comes
+			// (the test would hang). With the guard, the stale pass returns
+			// instead of routing/settling once `_query` has moved on, so turn-2
+			// completes exactly once, driven by the new query.
+			const held = new DeferredPromise<SDKControlGetContextUsageResponse>();
+			const reached = new DeferredPromise<void>();
+			const warm1 = new ScriptedWarmQuery([makeResultWithUsage()], () => { reached.complete(); return held.p; });
+			const { pipeline } = createPipeline(disposables, signal => { warm1.signal = signal; return warm1; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			const p1 = pipeline.send(makePrompt('p1'), 'turn-1');
+			p1.catch(() => { /* expected: failed by abort */ });
+			// Let the loop reach the result message and call getContextUsage.
+			await reached.p;
+			assert.strictEqual(warm1.queries[0].contextUsageCalls.length, 1, 'turn-1 stuck awaiting getContextUsage');
+
+			pipeline.abort();
+
+			let warm2!: ScriptedWarmQuery;
+			pipeline.attachRematerializer(async () => {
+				const ctl = new AbortController();
+				warm2 = new ScriptedWarmQuery([makeResultWithUsage()], async () => makeContextUsageResponse({ totalTokens: 5_000 }));
+				warm2.signal = ctl.signal;
+				return { warm: warm2, abortController: ctl };
+			});
+			const p2 = pipeline.send(makePrompt('p2'), 'turn-2');
+
+			// Release the held getContextUsage so the stale turn-1 pass resumes.
+			held.complete(makeContextUsageResponse({ totalTokens: 1_000 }));
+
+			await p2;
+			await flushMicrotasks();
+
+			const turnCompletes = signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete);
+			assert.deepStrictEqual(
+				turnCompletes.map(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete ? s.action.turnId : undefined),
+				['turn-2'],
+			);
+		});
+
+		test('a getContextUsage that never answers is bounded by the timeout and does not hang the turn', async () => {
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], () => new Promise<SDKControlGetContextUsageResponse>(() => { /* never resolves */ }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			pipeline.setContextUsageTimeoutMs(5);
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(
+				{ actions: actionTypesOf(signals), usage: usageActionsOf(signals).map(a => a.usage) },
+				{ actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete], usage: [baseUsage] },
+			);
+		});
+
 	});
 
 	suite('CancellationError plumbing', () => {

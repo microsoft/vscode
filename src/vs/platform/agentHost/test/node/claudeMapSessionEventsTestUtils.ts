@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelUsage, SDKAssistantMessage, SDKPartialAssistantMessage, SDKResultError, SDKResultSuccess, SDKSystemMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 // Beta event-stream type aliases. The `Anthropic` namespace re-exports
 // these from `@anthropic-ai/sdk/resources/beta/messages.js`, but
@@ -84,6 +84,27 @@ export function makeResultSuccess(sessionId: string): SDKResultSuccess {
 		permission_denials: [],
 		uuid: TEST_UUID,
 		session_id: sessionId,
+	};
+}
+
+/**
+ * Builds a `result.modelUsage` entry with every required field zeroed except
+ * the ones the caller overrides. Most tests only care about a handful of
+ * fields (`inputTokens` / `outputTokens` / `cacheReadInputTokens` /
+ * `contextWindow` / `maxOutputTokens`); the rest exist only to satisfy the
+ * SDK's `ModelUsage` type.
+ */
+export function makeModelUsage(overrides: Partial<ModelUsage> = {}): ModelUsage {
+	return {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadInputTokens: 0,
+		cacheCreationInputTokens: 0,
+		webSearchRequests: 0,
+		costUSD: 0,
+		contextWindow: 0,
+		maxOutputTokens: 0,
+		...overrides,
 	};
 }
 
