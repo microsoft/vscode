@@ -518,6 +518,30 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({ wrapped, upper, unwrapped }, { wrapped: [true, false], upper: { inset: '-2px', shoulder: 'none' }, unwrapped: [false, false] });
 	});
 
+	test('connected wrapped last tab adds its shoulder to the editor actions margin', async () => {
+		const group = connectedGroup();
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+
+		await layoutConnectedGroup(group, 150);
+		const tabsAndActionsContainer = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+		const tabsContainer = container.querySelector<HTMLElement>('.tabs-container')!;
+		tabsContainer.style.setProperty('--last-tab-margin-right', '17px');
+		tabsContainer.style.setProperty('--modern-ui-connected-tab-shoulder-radius', '5px');
+		const lastTab = tabsContainer.querySelector<HTMLElement>('.tab:last-child')!;
+
+		assert.deepStrictEqual({
+			wrapping: tabsAndActionsContainer.classList.contains('wrapping'),
+			active: lastTab.classList.contains('active'),
+			margin: mainWindow.getComputedStyle(lastTab).marginRight,
+		}, {
+			wrapping: true,
+			active: false,
+			margin: '22px',
+		});
+	});
+
 	test('selected wrapped tabs and focused actions use the document surface on every row', async () => {
 		const group = connectedGroup();
 		const root = group.closest('.monaco-workbench')!;
