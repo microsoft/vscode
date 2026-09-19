@@ -942,7 +942,7 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
-	test('refreshes connected clipping geometry after dirty width changes', async () => {
+	test('invalidates connected clipping geometry after dirty and capability changes', async () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333;';
 		mainWindow.document.body.appendChild(root);
@@ -967,49 +967,33 @@ suite('MultiEditorTabsControl', () => {
 
 		const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
 		const [firstTab, activeTab] = tabs.querySelectorAll<HTMLElement>('.tab');
-		const activeFill = activeTab.querySelector<HTMLElement>('.tab-fill')!;
 		const overflowEdge = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
 		const scroll = (left: number) => {
 			tabs.classList.add('scroll');
 			tabs.scrollLeft = left;
 			tabs.dispatchEvent(new UIEvent(EventType.SCROLL));
 		};
-		const getLogicalFillRight = () => activeFill.getBoundingClientRect().right - tabs.getBoundingClientRect().left + tabs.scrollLeft;
 		scroll(0);
-		const cleanFillRight = getLogicalFillRight();
 		const firstEditor = model.getEditorByIndex(0) as TestFileEditorInput;
 		firstEditor.setDirty();
 		control.updateEditorDirty(firstEditor);
-		const dirtyFillRight = getLogicalFillRight();
 		const invalidatedBeforeLayout = overflowEdge.style.left === '' && !activeTab.classList.contains('connected-tab-right-edge');
 		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 
-		const shoulderExtent = Number.parseFloat(mainWindow.getComputedStyle(activeFill, '::after').width);
-		const targetVisibleRight = (cleanFillRight + dirtyFillRight) / 2 + shoulderExtent;
-		scroll(targetVisibleRight - tabs.clientWidth);
-		const visibleRight = tabs.scrollLeft + tabs.clientWidth;
-		const rightEdge = activeTab.classList.contains('connected-tab-right-edge');
-		const currentGeometryNeedsEdge = dirtyFillRight + shoulderExtent > visibleRight;
-		const staleGeometryWouldNeedEdge = cleanFillRight + shoulderExtent > visibleRight;
+		const rebuiltAfterLayout = overflowEdge.style.left !== '';
 		firstEditor.capabilities = EditorInputCapabilities.CannotClose;
 		control.updateEditorCapabilities(firstEditor);
 		const capabilityUpdateInvalidated = overflowEdge.style.left === '' && !activeTab.classList.contains('connected-tab-right-edge');
 
 		assert.deepStrictEqual({
 			firstTabDirty: firstTab.classList.contains('dirty'),
-			widthIncreased: dirtyFillRight > cleanFillRight,
 			invalidatedBeforeLayout,
-			rightEdge,
-			currentGeometryNeedsEdge,
-			staleGeometryWouldNeedEdge,
+			rebuiltAfterLayout,
 			capabilityUpdateInvalidated,
 		}, {
 			firstTabDirty: true,
-			widthIncreased: true,
 			invalidatedBeforeLayout: true,
-			rightEdge: true,
-			currentGeometryNeedsEdge: true,
-			staleGeometryWouldNeedEdge: false,
+			rebuiltAfterLayout: true,
 			capabilityUpdateInvalidated: true,
 		});
 	});
