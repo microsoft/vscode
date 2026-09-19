@@ -859,7 +859,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
-		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+		if (this.controllerOwnsArchivedState(session)) {
 			return Boolean(session.archived);
 		}
 		return this.resolveStateEntry(session)?.archived ?? Boolean(session.archived);
@@ -874,7 +874,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+		if (this.controllerOwnsArchivedState(session)) {
 			this.chatSessionsService.setChatSessionItemArchived(session.resource, archived);
 			return;
 		}
@@ -888,6 +888,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._onDidChangeSessions.fire();
+	}
+
+	private controllerOwnsArchivedState(session: IInternalAgentSessionData): boolean {
+		// GitHub cloud sessions advertise a setter before their backend supports archiving.
+		return session.providerType !== AgentSessionProviders.Cloud
+			&& this.chatSessionsService.canSetChatSessionItemArchived(session.resource);
 	}
 
 	private isPinned(session: IInternalAgentSessionData): boolean {

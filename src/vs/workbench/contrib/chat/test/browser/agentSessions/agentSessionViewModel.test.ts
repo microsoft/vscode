@@ -1502,6 +1502,30 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('should track cloud session archived state locally', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', {
+					resource: URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' }),
+					archived: false,
+				});
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(AgentSessionProviders.Cloud, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					archived: true,
+					archiveUpdates: [],
+				});
+			});
+		});
+
 		test('should fire archive state changes only for effective provider transitions', async () => {
 			return runWithFakedTimers({}, async () => {
 				const item = makeSimpleSessionItem('session-1', { archived: false });
