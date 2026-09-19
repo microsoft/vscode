@@ -374,10 +374,6 @@
 	pointer-events: auto;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-actions::before {
-	content: none;
-}
-
 /* Terminal shoulders turn inside the available slot rather than being cut off. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(:last-child, .last-in-row, .connected-tab-right-edge) > :is(.tab-fill, .tab-connected-edge) {
 	right: var(--modern-ui-connected-tab-shoulder-radius);
