@@ -395,7 +395,7 @@ suite('MultiEditorTabsControl', () => {
 			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 		};
 		const results = [];
-		for (const { width, from } of [{ width: 240, from: 3 }, { width: 167, from: 0 }, { width: 120, from: 0 }]) {
+		for (const { width, from } of [{ width: 240, from: 3 }, { width: 172, from: 0 }, { width: 120, from: 0 }]) {
 			await reveal(from, width);
 			await reveal(1, width);
 			const tab = container.querySelector<HTMLElement>('.tab.active')!;
@@ -418,7 +418,7 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			results: [
 				{ width: 240, leftShoulderVisible: true, rightShoulderVisible: true },
-				{ width: 167, leftShoulderVisible: true, rightShoulderVisible: true },
+				{ width: 172, leftShoulderVisible: true, rightShoulderVisible: true },
 				{ width: 120, leftShoulderVisible: true, rightShoulderVisible: false },
 			],
 			firstTabFlush: true,
@@ -472,7 +472,7 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, [4, 3, 2].map(count => ({
 			clampedBeforeLayout: true,
 			activeIndex: count - 1,
-			scrollLeft: count * 160 - 200,
+			scrollLeft: count * 160 - 200 + 5,
 			fillLeft: (count - 1) * 160,
 			hidden: false,
 			fillDisplay: 'block',
