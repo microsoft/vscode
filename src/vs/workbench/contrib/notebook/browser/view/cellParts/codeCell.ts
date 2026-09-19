@@ -851,6 +851,12 @@ export class CodeCellLayout {
 		if (!this._enabled) {
 			return;
 		}
+		// Resolve by identity (same lookup as the throwing `getCellViewScrollTop` path) so a stale cell
+		// re-entrantly reaching this relayout mid-mutation short-circuits before `Invalid index -1`.
+		const cellIndex = this.notebookEditor.getViewModel()?.getCellIndex(this.viewCell);
+		if (cellIndex === undefined || cellIndex === -1) {
+			return;
+		}
 		const element = this.templateData.editorPart;
 		if (this.viewCell.isInputCollapsed) {
 			element.style.top = '';
