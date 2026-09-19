@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { arch } from '../../../../base/common/process.js';
@@ -22,7 +22,7 @@ import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platf
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IMcpSandboxConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from './mcpTypes.js';
+import { IMcpPotentialSandboxBlock, mcpUriToFsPath, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from './mcpTypes.js';
 
 
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
@@ -54,14 +54,7 @@ type SandboxLaunchDetails = {
 };
 
 export function mcpDefaultCwdToFsPath(resource: URI, os: OperatingSystem): string {
-	let value = resource.scheme === Schemas.file && resource.authority ? `//${resource.authority}${resource.path}` : resource.path;
-	if (os === OperatingSystem.Windows) {
-		if (/^\/[a-zA-Z]:/.test(value)) {
-			value = value.slice(1);
-		}
-		value = value.replace(/\//g, '\\');
-	}
-	return value;
+	return mcpUriToFsPath(resource, os);
 }
 
 export function resolveMcpServerSandboxWorkingDirectory(cwd: string | undefined, defaultCwd: URI | undefined, userHome: URI | undefined, os: OperatingSystem): string | undefined {

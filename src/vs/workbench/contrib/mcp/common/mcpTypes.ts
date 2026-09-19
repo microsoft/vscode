@@ -13,6 +13,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { IIterativePager } from '../../../../base/common/paging.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -36,8 +37,20 @@ import { ExternalDiscoverySource, IMcpServerSamplingConfiguration } from './mcpC
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from '../../../../base/common/uriTemplate.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
+
+export function mcpUriToFsPath(resource: URI, os: OperatingSystem): string {
+	let value = resource.scheme === Schemas.file && resource.authority ? `//${resource.authority}${resource.path}` : resource.path;
+	if (os === OperatingSystem.Windows) {
+		if (/^\/[a-zA-Z]:/.test(value)) {
+			value = value.slice(1);
+		}
+		value = value.replace(/\//g, '\\');
+	}
+	return value;
+}
 
 /**
  * Prefix of the collection id used for MCP servers configured via the various
