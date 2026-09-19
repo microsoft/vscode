@@ -15,7 +15,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName, isClaudeFileEditTool } from './claudeToolDisplay.js';
 import { claudeToolDenialCode } from './claudeToolDenial.js';
-import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
+import { ClaudeToolCallRegistry, type ISubagentSpawnLookup } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
 /**
@@ -178,8 +178,8 @@ export class ClaudeMapperState {
 	 * here; the mapper drives that drain via
 	 * `registry.drainForegroundSpawns()` from {@link mapResult}.
 	 */
-	clearPendingToolCalls(logService: ILogService): void {
-		this.toolCalls.clearPending(logService);
+	clearPendingToolCalls(logService: ILogService, subagents?: ISubagentSpawnLookup): void {
+		this.toolCalls.clearPending(logService, subagents);
 	}
 }
 
@@ -510,7 +510,7 @@ function mapResult(
 	// when the protocol Turn is truly done (queue fully drained vs an
 	// intermediate result during a steering preempt — CONTEXT.md M10);
 	// the mapper does not have that state.
-	state.clearPendingToolCalls(logService);
+	state.clearPendingToolCalls(logService, registry);
 	// Phase 12 — drain orphaned subagent-spawning entries (foreground
 	// only; background entries survive across turns by design). The
 	// registry owns this state; the mapper drives the drain at turn end.
