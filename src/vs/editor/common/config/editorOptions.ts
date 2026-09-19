@@ -647,6 +647,11 @@ export interface IEditorOptions {
 	 */
 	selectionHighlightMaxLength?: number;
 	/**
+	 * Match case when selecting or highlighting occurrences of selected text, independently of Find.
+	 * Defaults to false; an empty selection starts a whole-word, case-sensitive search.
+	 */
+	selectionMatchCase?: boolean;
+	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
 	 * 'off' disables occurrence highlighting
@@ -5959,6 +5964,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectionHighlightMaxLength,
 	selectionHighlightMultiline,
+	selectionMatchCase,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -6704,6 +6710,10 @@ export const EditorOptions = {
 	selectionHighlightMultiline: register(new EditorBooleanOption(
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
 		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
+	)),
+	selectionMatchCase: register(new EditorBooleanOption(
+		EditorOption.selectionMatchCase, 'selectionMatchCase', false,
+		{ markdownDescription: nls.localize('selectionMatchCase', "Controls whether selecting and highlighting occurrences of selected text is case-sensitive. Non-empty selections match substrings, not just whole words. An empty selection starts a whole-word, case-sensitive search.") }
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
