@@ -25,7 +25,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
-		if (originalLines.length <= 1 && equals(originalLines, modifiedLines, (a, b) => a === b)) {
+		if (equals(originalLines, modifiedLines, (a, b) => a === b)) {
 			return new LinesDiff([], [], false);
 		}
 
