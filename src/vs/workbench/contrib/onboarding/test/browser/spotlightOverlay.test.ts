@@ -92,6 +92,59 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('callout is keyboard-reachable and exposes the current title and description', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
+		const steps = [
+			{ title: 'First title', description: 'Plain description' },
+			{ title: 'Second title', description: new MarkdownString('**Markdown** description') },
+		];
+
+		const snapshots = steps.map(step => {
+			overlay.show(target, content({ ...step, stepIndex: 0, stepCount: 1, canGoBack: false, isLastStep: true }));
+			const next = getButtons(container).at(-1)!;
+			const primaryFocused = mainWindow.document.activeElement === next;
+			next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+
+			return {
+				primaryFocused,
+				calloutFocused: mainWindow.document.activeElement === callout,
+				tabIndex: callout.tabIndex,
+				role: callout.getAttribute('role'),
+				title: mainWindow.document.getElementById(callout.getAttribute('aria-labelledby')!)?.textContent,
+				description: mainWindow.document.getElementById(callout.getAttribute('aria-describedby')!)?.textContent,
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, steps.map(step => ({
+			primaryFocused: true,
+			calloutFocused: true,
+			tabIndex: 0,
+			role: 'dialog',
+			title: step.title,
+			description: typeof step.description === 'string' ? step.description : 'Markdown description',
+		})));
+	});
+
+	test('focus trap includes the callout in both directions', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		overlay.show(target, content());
+
+		const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
+		const [skip, back, next] = getButtons(container);
+		const focused: (Element | null)[] = [];
+		for (const shiftKey of [false, false, false, false, true, true, true, true]) {
+			mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey, bubbles: true, cancelable: true }));
+			focused.push(mainWindow.document.activeElement);
+		}
+
+		assert.deepStrictEqual(focused, [callout, skip, back, next, back, skip, callout, next]);
+	});
+
 	test('vertical placement centers the callout over the target', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
@@ -350,19 +403,20 @@ suite('SpotlightOverlay', () => {
 		target.tabIndex = 0;
 
 		overlay.show(target, content(), { hideNext: true });
-		const [skip, , next] = getButtons(container);
+		const [, , next] = getButtons(container);
+		const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
 		const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true });
 		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
 		target.dispatchEvent(event);
 
 		assert.deepStrictEqual({
 			nextHidden: next.style.display === 'none',
-			ariaModal: container.getElementsByClassName('spotlight-callout')[0].getAttribute('aria-modal'),
+			ariaModal: callout.getAttribute('aria-modal'),
 			activeElement: mainWindow.document.activeElement,
 		}, {
 			nextHidden: true,
 			ariaModal: 'false',
-			activeElement: skip,
+			activeElement: callout,
 		});
 	});
 
@@ -391,16 +445,14 @@ suite('SpotlightOverlay', () => {
 		const link = callout.getElementsByTagName('a')[0] as HTMLAnchorElement | undefined;
 		assert.ok(link, 'expected a link to be rendered from the markdown description');
 
-		// With the link focused, Shift+Tab should cycle to the last button (Next),
-		// proving the link participates in the trap rather than being skipped.
 		link!.focus();
-		const event = new KeyboardEvent('keydown', { shiftKey: true, bubbles: true, cancelable: true });
-		// The KeyboardEvent constructor does not honor `keyCode` from the init dict
-		// in all engines, so set it explicitly (StandardKeyboardEvent reads keyCode).
-		Object.defineProperty(event, 'keyCode', { get: () => 9 /* Tab */ });
-		callout.dispatchEvent(event);
+		const focused: (Element | null)[] = [];
+		for (const shiftKey of [true, true, false, false]) {
+			callout.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey, bubbles: true, cancelable: true }));
+			focused.push(mainWindow.document.activeElement);
+		}
 
-		assert.strictEqual(mainWindow.document.activeElement, getButtons(container).at(-1));
+		assert.deepStrictEqual(focused, [callout, getButtons(container).at(-1), callout, link]);
 	});
 
 	test('dispose removes the overlay from the DOM', () => {
