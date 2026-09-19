@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute } from '../../../../base/common/path.js';
 import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -284,6 +285,13 @@ export class RunTestTool implements IToolImpl {
 
 		const firstWorkspaceFolder = this._workspaceContextService.getWorkspace().folders.at(0)?.uri;
 		const uris = params.files.map(f => {
+			// Resolve file paths against the remote workspace URI so comparisons against test
+			// item URIs work correctly in environments such as WSL, SSH, and dev containers
+			// where URI.file(path) would produce a local file:// URI (#275268).
+			if (firstWorkspaceFolder && firstWorkspaceFolder.scheme !== Schemas.file) {
+				return this._uriIdentityService.extUri.resolvePath(firstWorkspaceFolder, f);
+			}
+
 			if (isAbsolute(f)) {
 				return URI.file(f);
 			} else if (firstWorkspaceFolder) {
