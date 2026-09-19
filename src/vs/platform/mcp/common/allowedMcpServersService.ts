@@ -7,6 +7,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { hasConfigurationVariable } from '../../configuration/common/configurationVariables.js';
 import { Emitter } from '../../../base/common/event.js';
 import { hasKey, isString } from '../../../base/common/types.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
@@ -33,10 +34,14 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	}
 
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
-		return this.isServerAllowed(this.toIdentity(mcpServer));
+		return this.checkServerAllowed(this.toIdentity(mcpServer), 'definition');
 	}
 
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString {
+		return this.checkServerAllowed(identity, 'resolved');
+	}
+
+	private checkServerAllowed(identity: IMcpServerIdentity, phase: 'definition' | 'resolved'): true | IMarkdownString {
 		if (this.configurationService.getValue(mcpAccessConfig) === McpAccessValue.None) {
 			const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${mcpAccessConfig}` }).toString();
 			return new MarkdownString(nls.localize('mcp servers are not allowed', "Model Context Protocol servers are disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink));
@@ -49,7 +54,10 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		const denylist = managedOnly
 			? this.getAllConfiguredMatchers(mcpDeniedServersConfig)
 			: getMcpServerMatchers(this.configurationService.getValue(mcpDeniedServersConfig));
-		switch (this.checkServerAllowedAtCurrentResolution(allowlist, denylist, identity)) {
+		const result = phase === 'definition'
+			? this.checkServerAllowedBeforeResolution(allowlist, denylist, identity)
+			: checkMcpServerAllowed(allowlist, denylist, identity);
+		switch (result) {
 			case McpServerAllowResult.Denied:
 				return new MarkdownString(nls.localize('mcp server is denied', "This Model Context Protocol server is blocked by your organization's policy. Please contact your administrator for more information."));
 			case McpServerAllowResult.NotAllowed:
@@ -59,8 +67,8 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		return true;
 	}
 
-	private checkServerAllowedAtCurrentResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
-		if (!identity.url?.includes('${')) {
+	private checkServerAllowedBeforeResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
+		if (!identity.url || !hasConfigurationVariable(identity.url)) {
 			return checkMcpServerAllowed(allowlist, denylist, identity);
 		}
 

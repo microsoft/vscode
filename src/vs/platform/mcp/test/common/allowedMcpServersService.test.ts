@@ -65,6 +65,118 @@ suite('AllowedMcpServersService', () => {
 		assert.strictEqual(service.isServerAllowed({ name: 's', url: 'https://api.trusted.example.com/mcp' }), true);
 	});
 
+	suite('URL policy resolution', () => {
+		test('preliminary checks do not defer incomplete variable markers', () => {
+			const service = createService({
+				[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
+				[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
+			});
+			const fragments = ['${', '${input:host', '${outer{inner}'];
+			assert.deepStrictEqual(
+				fragments.map(fragment => ['trusted.example', 'blocked.example', 'other.example'].map(host => service.isAllowed({
+					name: 'server',
+					config: { type: McpServerType.REMOTE, url: `https://${host}/mcp#${fragment}` }
+				}) === true)),
+				fragments.map(() => [true, false, false])
+			);
+		});
+
+		test('preliminary checks preserve balanced and nested variable deferral', () => {
+			const service = createService({
+				[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
+				[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
+			});
+			const variables = ['${input:host}', '${input:${env:HOST}}', '${incomplete${env:HOST}'];
+			assert.deepStrictEqual(
+				variables.map(variable => service.isAllowed({
+					name: 'server',
+					config: { type: McpServerType.REMOTE, url: `https://blocked.example/${variable}` }
+				}) === true),
+				variables.map(() => true)
+			);
+		});
+
+		for (const fragment of ['${', '${input:literal}']) {
+			test(`enforces the resolved URL allowlist with fragment ${fragment}`, () => {
+				const service = createService({
+					[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
+					[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
+				});
+
+				const result = service.isServerAllowed({ name: 'server', url: `https://attacker.example/mcp#${fragment}` });
+				assert.strictEqual(result !== true && result.value.includes('not in the list of servers allowed by your organization'), true);
+			});
+
+			test(`enforces the resolved URL denylist with fragment ${fragment}`, () => {
+				const service = createService({
+					[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
+					[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
+				});
+
+				const result = service.isServerAllowed({ name: 'server', url: `https://blocked.example/mcp#${fragment}` });
+				assert.strictEqual(result !== true && result.value.includes('blocked by your organization'), true);
+			});
+		}
+
+		test('enforces resolved URL denies without an allowlist', () => {
+			const service = createService({ [mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }] });
+			const result = service.isServerAllowed({ name: 'server', url: 'https://blocked.example/mcp#${' });
+
+			assert.strictEqual(result !== true && result.value.includes('blocked by your organization'), true);
+		});
+
+		test('preserves allowed URLs, name rules, and disabled access', () => {
+			const identity = { name: 'server', url: 'https://trusted.example/mcp#${' };
+			const allowedByUrl = createService({ [mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }] });
+			const allowedByName = createService({ [mcpAllowedServersConfig]: [{ serverName: identity.name }] });
+			const deniedByName = createService({ [mcpDeniedServersConfig]: [{ serverName: identity.name }] });
+			const disabled = createService({ [mcpAccessConfig]: McpAccessValue.None });
+
+			assert.deepStrictEqual({
+				ordinaryUrl: allowedByUrl.isServerAllowed({ ...identity, url: 'https://trusted.example/mcp' }) === true,
+				literalFragment: allowedByUrl.isServerAllowed(identity) === true,
+				allowedByName: allowedByName.isServerAllowed(identity) === true,
+				deniedByName: deniedByName.isServerAllowed(identity) === true,
+				disabled: disabled.isServerAllowed(identity) === true,
+			}, {
+				ordinaryUrl: true,
+				literalFragment: true,
+				allowedByName: true,
+				deniedByName: false,
+				disabled: false,
+			});
+		});
+
+		test('preserves preliminary URL deferral without deferring names or disabled access', () => {
+			const server: IInstallableMcpServer = {
+				name: 'server',
+				config: { type: McpServerType.REMOTE, url: 'https://${input:host}/mcp' },
+			};
+			const allowedByUrl = createService({ [mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }] });
+			const deniedByUrl = createService({ [mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }] });
+			const allowedByName = createService({ [mcpAllowedServersConfig]: [{ serverName: server.name }] });
+			const allowedByOtherName = createService({ [mcpAllowedServersConfig]: [{ serverName: 'other' }] });
+			const deniedByName = createService({ [mcpDeniedServersConfig]: [{ serverName: server.name }] });
+			const disabled = createService({ [mcpAccessConfig]: McpAccessValue.None });
+
+			assert.deepStrictEqual({
+				allowedByUrl: allowedByUrl.isAllowed(server) === true,
+				deniedByUrl: deniedByUrl.isAllowed(server) === true,
+				allowedByName: allowedByName.isAllowed(server) === true,
+				allowedByOtherName: allowedByOtherName.isAllowed(server) === true,
+				deniedByName: deniedByName.isAllowed(server) === true,
+				disabled: disabled.isAllowed(server) === true,
+			}, {
+				allowedByUrl: true,
+				deniedByUrl: true,
+				allowedByName: true,
+				allowedByOtherName: false,
+				deniedByName: false,
+				disabled: false,
+			});
+		});
+	});
+
 	test('isAllowed matches an installable stdio server by its command', () => {
 		const service = createService({ [mcpAllowedServersConfig]: [{ serverCommand: ['npx', '-y', 'server'] }] });
 
