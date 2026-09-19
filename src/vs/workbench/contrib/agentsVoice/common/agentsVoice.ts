@@ -42,6 +42,9 @@ export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | unde
 
 export const enum AgentsVoiceSettingId {
 	ShowButton = 'agents.voice.showButton',
+	GptLiveEnabled = 'agents.voice.gptLive.enabled',
+	GptLiveApiKey = 'agents.voice.gptLive.apiKey',
+	GptLiveBackendUrl = 'agents.voice.gptLive.backendUrl',
 }
 
 /**

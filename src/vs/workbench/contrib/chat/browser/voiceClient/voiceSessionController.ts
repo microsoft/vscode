@@ -22,6 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
@@ -2520,7 +2521,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		switch (event.code) {
 			case VoiceCloseCode.Unauthenticated:
-				return localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
+				return this._usesGptLiveCredentialForVoice()
+					? localize('voice.gptLiveApiKeyRequired', "Set agents.voice.gptLive.apiKey to use Voice Mode with GPT Live.")
+					: localize('voice.signInRequired', "Sign in to GitHub to use Voice Mode.");
 			case VoiceCloseCode.Forbidden:
 				return localize('voice.noAccess', "Your GitHub account doesn't have access to Voice Mode.");
 			case VoiceCloseCode.SessionReplaced:
@@ -2575,7 +2578,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// that fixes this.
 		const action = event.clientSide ? undefined : (info ? info.action : 'retry');
 		const choices: IPromptChoice[] = [];
-		if (action === 'signIn') {
+		if (action === 'signIn' && this._usesGptLiveCredentialForVoice()) {
+			choices.push({
+				label: localize('voice.openSettingsAction', "Open Settings"),
+				run: () => { void this.commandService.executeCommand('workbench.action.openSettings', `@id:${AgentsVoiceSettingId.GptLiveApiKey}`); },
+			});
+		} else if (action === 'signIn') {
 			choices.push({
 				label: localize('voice.signInAction', "Sign in"),
 				// Force reauthorization: an expired or under-scoped token still counts
@@ -2589,6 +2597,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			});
 		}
 		this.notificationService.prompt(Severity.Error, message, choices);
+	}
+
+	private _usesGptLiveCredentialForVoice(): boolean {
+		if (this.configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) !== true) {
+			return false;
+		}
+		const configured = this.configurationService.getValue<string>('agents.voice.backendUrl');
+		return typeof configured !== 'string' || configured.trim().length === 0;
 	}
 
 	private _endTelemetrySession(): void {
