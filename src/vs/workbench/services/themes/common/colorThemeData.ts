@@ -454,15 +454,15 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 		if (semanticTokenColors) {
 			this.customSemanticHighlighting = semanticTokenColors.enabled;
-			if (semanticTokenColors.rules) {
-				this.readSemanticTokenRules(semanticTokenColors.rules);
-			}
 			const themeSpecificColors = this.getThemeSpecificColors(semanticTokenColors) as ISemanticTokenColorCustomizations;
-			if (types.isObject(themeSpecificColors)) {
-				if (themeSpecificColors.enabled !== undefined) {
-					this.customSemanticHighlighting = themeSpecificColors.enabled;
+			if (types.isObject(themeSpecificColors) && themeSpecificColors.enabled !== undefined) {
+				this.customSemanticHighlighting = themeSpecificColors.enabled;
+			}
+			if (this.customSemanticHighlighting !== false) {
+				if (semanticTokenColors.rules) {
+					this.readSemanticTokenRules(semanticTokenColors.rules);
 				}
-				if (themeSpecificColors.rules) {
+				if (types.isObject(themeSpecificColors) && themeSpecificColors.rules) {
 					this.readSemanticTokenRules(themeSpecificColors.rules);
 				}
 			}
