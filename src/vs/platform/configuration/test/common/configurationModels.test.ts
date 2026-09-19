@@ -720,6 +720,22 @@ suite('ConfigurationModel', () => {
 		assert.deepStrictEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
 
+	test('get overriding configuration when overriding values are falsy', () => {
+		const testObject = new ConfigurationModel(
+			{ 'a': 1, 'b': true, 'c': 'base', 'd': { 'e': 1 } }, [],
+			[{ identifiers: ['x'], contents: { 'a': 0, 'b': false, 'c': '', 'd': null }, keys: ['a', 'b', 'c', 'd'] }], [], new NullLogService());
+
+		assert.deepStrictEqual(testObject.override('x').contents, { 'a': 0, 'b': false, 'c': '', 'd': null });
+	});
+
+	test('override does not throw when a null base value is overridden with an object', () => {
+		const testObject = new ConfigurationModelParser('', new NullLogService());
+
+		testObject.parse(JSON.stringify({ 'a': null, '[x]': { 'a': { 'b': 1 } } }));
+
+		assert.deepStrictEqual(testObject.configurationModel.override('x').getValue('a'), { 'b': 1 });
+	});
+
 	test('get overriding configuration if the value of overriding identifier is not object', () => {
 		const testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
