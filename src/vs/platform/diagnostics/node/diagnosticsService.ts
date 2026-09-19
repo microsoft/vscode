@@ -551,8 +551,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 			}
 		}
 
-		const memory = process.platform === 'win32' ? item.mem : (osLib.totalmem() * (item.mem / 100));
-		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(memory / ByteSize.MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
+		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(item.mem / ByteSize.MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
