@@ -15,7 +15,7 @@ import { McpServerTransportType as LaunchTransportType } from '../../common/mcpT
 suite('PluginMcpDiscovery', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('interpolates AgentPlugin MCP definitions before creating the launch', () => {
+	test('interpolates AgentPlugin MCP definitions before creating the launch', async () => {
 		const pluginUri = URI.file('/plugins/example');
 		const pluginDataUri = URI.file('/plugin-data/example');
 		const definition: IMcpServerDefinition = {
@@ -37,7 +37,7 @@ suite('PluginMcpDiscovery', () => {
 			},
 		};
 
-		const server = toPluginMcpServerDefinition('plugin:', { dataDir: pluginDataUri, format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
+		const server = await toPluginMcpServerDefinition('plugin:', { dataDir: pluginDataUri, format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
 		assert.deepStrictEqual(server?.launch, {
 			type: LaunchTransportType.Stdio,
 			command: './server.py',
@@ -53,7 +53,7 @@ suite('PluginMcpDiscovery', () => {
 		});
 	});
 
-	test('does not interpolate non-AgentPlugin MCP definitions', () => {
+	test('does not interpolate non-AgentPlugin MCP definitions', async () => {
 		const pluginUri = URI.file('/plugins/example');
 		const definition: IMcpServerDefinition = {
 			name: 'example',
@@ -68,12 +68,12 @@ suite('PluginMcpDiscovery', () => {
 			},
 		};
 
-		const server = toPluginMcpServerDefinition('plugin:', { format: PluginFormat.Copilot, uri: pluginUri }, definition);
+		const server = await toPluginMcpServerDefinition('plugin:', { format: PluginFormat.Copilot, uri: pluginUri }, definition);
 		assert.ok(server?.launch.type === LaunchTransportType.Stdio);
 		assert.strictEqual(server.launch.command, '${PLUGIN_ROOT}/server.py');
 	});
 
-	test('does not interpolate AgentPlugin HTTP URLs or headers', () => {
+	test('does not interpolate AgentPlugin HTTP URLs or headers', async () => {
 		const pluginUri = URI.file('/plugins/example');
 		const definition: IMcpServerDefinition = {
 			name: 'remote',
@@ -92,7 +92,7 @@ suite('PluginMcpDiscovery', () => {
 			},
 		};
 
-		const server = toPluginMcpServerDefinition('plugin:', { format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
+		const server = await toPluginMcpServerDefinition('plugin:', { format: PluginFormat.AgentPlugin, uri: pluginUri }, definition);
 		assert.ok(server?.launch.type === LaunchTransportType.HTTP);
 		assert.strictEqual(server.launch.uri.toString(true), 'https://example.test/${PLUGIN_ROOT}');
 		assert.deepStrictEqual(server.launch.headers, [['X-Plugin', '${PLUGIN_DATA}']]);
