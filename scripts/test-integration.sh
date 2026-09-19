@@ -78,7 +78,7 @@ if $HELP; then
 	echo "Node.js integration tests are skipped when this option is used."
 	echo ""
 	echo "Options:"
-	echo "  --build                      use out-build for node.js and JSON tests"
+	echo "  --build                      use the out-build directory for node.js and JSON tests"
 	echo "  --run <file>                  run tests from a specific file (src/ path)"
 	echo "  --runGlob, --glob <pattern>   select test files by path glob (e.g. '**/editor/**/*.integrationTest.js')"
 	echo "  --grep, -g, -f <pattern>      filter test cases by name (matched against test titles)"
