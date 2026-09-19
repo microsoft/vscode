@@ -214,8 +214,8 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	},
 	manifestExtensionNamespace: AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE,
 	requiresManifest: true,
-	pluginRootTokens: [],
-	pluginRootEnvVars: [],
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'PLUGIN_DATA'],
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
