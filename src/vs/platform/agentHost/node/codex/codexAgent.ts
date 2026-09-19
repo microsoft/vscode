@@ -51,6 +51,8 @@ import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationCo
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import type { TurnStartResponse } from './protocol/generated/v2/TurnStartResponse.js';
+import { CodexAsyncQuestions } from './codexAsyncQuestions.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -734,6 +736,7 @@ interface ICodexSession {
 	 * {@link CodexAgent.respondToUserInputRequest}.
 	 */
 	readonly pendingUserInputs: PendingRequestRegistry<ICodexUserInputResult>;
+	asyncQuestions?: CodexAsyncQuestions;
 	/**
 	 * Signature of the {@link clientTools} the codex thread was started
 	 * with. Codex only accepts `dynamicTools` at `thread/start`, so if the
@@ -3038,6 +3041,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// The workbench already dispatched the canonical turn start before sendMessage.
 		// Codex's event only establishes app-server turn id correlation for later items.
 		const appTurnId = params.turn.id;
+		session.asyncQuestions?.turnStarted(appTurnId);
 		const mapped = this._withHostTurn(session, params);
 		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
 		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
@@ -3057,6 +3061,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification): (SessionAction | ChatAction)[] {
+		if (session.asyncQuestions?.holdCompletion(params)) {
+			return [];
+		}
 		const appTurnId = params.turn.id;
 		const hostTurnId = this._hostTurnId(session, appTurnId);
 		const out = mapTurnCompleted(session.mapState, this._withHostTurn(session, params), this._clearTurnStopWatch(session));
@@ -3096,10 +3103,49 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * other item kinds defer to {@link mapItemStarted}.
 	 */
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
+		// Isolated subagents have no answer-routing entry or independently retained input lifecycle.
+		if (this._sessions.get(session.sessionId) === session && params.item.type === 'agentMessage' && params.item.delivery === 'async' && params.item.questions?.length) {
+			this._getAsyncQuestions(session).ask(params.item.id, params.item.questions);
+			return [];
+		}
 		if (params.item.type === 'userMessage') {
 			return this._handleSteeredUserMessage(session, params.item.content);
 		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
+	}
+
+	/** Adapts asynchronous questions to the existing carousel and native start-or-steer input. */
+	private _getAsyncQuestions(session: ICodexSession): CodexAsyncQuestions {
+		return session.asyncQuestions ??= new CodexAsyncQuestions({
+			show: request => this._fire(session.sessionUri, { type: ActionType.ChatInputRequested, request }),
+			cancel: requestId => this._fire(session.sessionUri, { type: ActionType.ChatInputCompleted, requestId, response: ChatInputResponseKind.Cancel }),
+			send: async text => {
+				const connection = this._connection;
+				if (connection.kind !== 'ready' || !session.threadId) {
+					throw new Error('Codex connection is unavailable');
+				}
+				// Native turn/start steers an active turn or starts a continuation with sticky thread settings.
+				const hostTurnId = session.currentTurnId;
+				const appTurnId = session.currentAppTurnId;
+				const result = await connection.client.request<'turn/start', TurnStartResponse>('turn/start', {
+					threadId: session.threadId,
+					input: [{ type: 'text', text, text_elements: [] }],
+				}, this._traceContext(session));
+				// Stop needs the acknowledged native id even before turn/started, but a stale response must not replace newer ownership.
+				if (hostTurnId && this._sessions.get(session.sessionId) === session
+					&& session.currentTurnId === hostTurnId && session.currentAppTurnId === appTurnId) {
+					session.currentAppTurnId = result.turn.id;
+					session.hostTurnIdByAppTurnId.set(result.turn.id, hostTurnId);
+				}
+				return result.turn.id;
+			},
+			finish: completion => {
+				for (const action of this._handleTurnCompletedNotification(session, completion)) {
+					this._fire(session.sessionUri, action);
+				}
+			},
+			reportError: error => this._logService.warn('[Codex] Failed to deliver asynchronous question answer; reopening questions', error),
+		});
 	}
 
 	/**
@@ -3115,6 +3161,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!steering) {
 			return [];
 		}
+		session.asyncQuestions?.clear();
 		return this._beginSteeringTurn(session, steering);
 	}
 
@@ -4072,6 +4119,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.pendingCommandApprovals.denyAll('decline');
 			// Reject in-flight client tool calls so their handlers unwind.
 			session.pendingClientToolCalls.rejectAll(new CancellationError());
+			session.asyncQuestions?.clear();
 			session.pendingUserInputs.rejectAll(new CancellationError());
 			// Clear any buffered steering so its pending bubble doesn't leak.
 			this._drainPendingSteering(session);
@@ -4097,6 +4145,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const subagent of this._subagentsByThreadId.values()) {
 			subagent.session.pendingCommandApprovals.denyAll('decline');
 			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
+			subagent.session.asyncQuestions?.clear();
 			subagent.session.pendingUserInputs.rejectAll(new CancellationError());
 			subagent.session.currentTurnId = undefined;
 			subagent.session.currentAppTurnId = undefined;
@@ -5787,6 +5836,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			throw new Error(`Codex session not found: ${sessionUri.toString()} (chat=${chat.toString()}, binding=${this._sessionIdByChatUri.get(chat.toString()) ?? 'none'}, sessions=${[...this._sessions.keys()].join(',') || 'none'})`);
 		}
+		session.asyncQuestions?.clear();
 		const configResource = operationContext?.configurationResource ?? sessionUri;
 		session.agentMergeTurn = operationContext?.agentMergeTurn === true;
 		this._ensureModelProviderAuthenticated(session.model);
@@ -6136,6 +6186,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		const completion = session.asyncQuestions?.clear();
+		await session.asyncQuestions?.whenIdle();
+		session.asyncQuestions?.clear();
+		if (completion && session.currentAppTurnId === completion.turn.id) {
+			for (const action of this._handleTurnCompletedNotification(session, { ...completion, turn: { ...completion.turn, status: 'interrupted' } })) {
+				this._fire(session.sessionUri, action);
+			}
+			return;
+		}
 		// Clear any steering buffered for the turn we're aborting so its
 		// pending bubble doesn't outlive the turn.
 		this._drainPendingSteering(session);
@@ -6308,6 +6367,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Reject any in-flight client tool calls so their `item/tool/call`
 		// handlers unwind instead of awaiting a response that won't arrive.
 		session.pendingClientToolCalls.rejectAll(new CancellationError());
+		session.asyncQuestions?.clear();
 		session.pendingUserInputs.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
@@ -6488,7 +6548,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// `requestId` was minted per request; find the owning session and
 		// resolve its parked deferred. Mirrors respondToPermissionRequest.
 		for (const session of this._sessions.values()) {
-			if (session.pendingUserInputs.respond(requestId, { response, answers })) {
+			if (session.asyncQuestions?.respond(requestId, response, answers) || session.pendingUserInputs.respond(requestId, { response, answers })) {
 				return;
 			}
 		}
@@ -8199,6 +8259,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
+			s.asyncQuestions?.clear();
 			s.pendingUserInputs.rejectAll(new CancellationError());
 			s.mcpController?.dispose();
 		}
@@ -8210,6 +8271,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			subagent.session.pendingCommandApprovals.denyAll('decline');
 			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
+			subagent.session.asyncQuestions?.clear();
 			subagent.session.pendingUserInputs.rejectAll(new CancellationError());
 		}
 		for (const entry of this._sessionMcpDiscoveries.values()) {
