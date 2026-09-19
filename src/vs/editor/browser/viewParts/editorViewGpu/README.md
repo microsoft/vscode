@@ -75,6 +75,14 @@ and indentation overlap suppression. Both horizontal guide modes and all
 bracket-pair settings remain host-controlled. Cursor moves, model edits, theme
 changes and scrolling update the next visible batch.
 
+## Decoration probes in auxiliary windows
+
+Decoration probe elements are created in the main-window DOM realm even when
+the editor root has already been adopted into an auxiliary document. Probes are
+temporarily attached to that root and read through its current owner window's
+`getComputedStyle`, so they retain main-realm identity while using the editor's
+actual stylesheet and theme.
+
 ## Validation
 
 Run the detector tests in both Node and the Electron unit runner: Electron loads

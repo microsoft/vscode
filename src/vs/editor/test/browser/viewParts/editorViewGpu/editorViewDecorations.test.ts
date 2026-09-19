@@ -65,6 +65,54 @@ suite('EditorViewDecorationResolver', () => {
 		);
 	}
 
+	for (const adoptBeforeConstruction of [false, true]) {
+		test(`keeps probes in the main realm and reads owner-document styles (adopt first=${adoptBeforeConstruction})`, () => {
+			const iframe = document.createElement('iframe');
+			document.body.append(iframe);
+			const observer = new MutationObserver(() => { });
+			try {
+				const ownerDocument = iframe.contentDocument!;
+				const ownerStyle = document.createElement('style');
+				ownerStyle.textContent = '.monaco-editor .owner-decoration { background-color: #123456; }';
+				ownerDocument.head.append(ownerStyle);
+				styleElement.textContent = '.monaco-editor .owner-decoration { background-color: #abcdef; }';
+				if (adoptBeforeConstruction) {
+					ownerDocument.body.append(editorRoot);
+				}
+				const cssResolver = new EditorViewDecorationResolver(editorRoot);
+				if (!adoptBeforeConstruction) {
+					ownerDocument.body.append(editorRoot);
+				}
+				observer.observe(editorRoot, { childList: true });
+
+				const paint = cssResolver.resolve(decoration('owner-decoration'), 1)?.[0].kind;
+				const collect = (node: Node): Node[] => [node, ...Array.from(node.childNodes).flatMap(collect)];
+				const probes = observer.takeRecords().flatMap(record => Array.from(record.addedNodes).flatMap(collect));
+				assert.deepStrictEqual({
+					paint,
+					probes: probes.map(node => ({
+						mainRealm: node instanceof HTMLElement,
+						adopted: node.ownerDocument === ownerDocument,
+					})),
+					remainingChildren: editorRoot.childElementCount,
+				}, {
+					paint: { kind: 'background', color: 0x123456ff },
+					probes: Array.from({ length: 4 }, () => ({ mainRealm: true, adopted: true })),
+					remainingChildren: 0,
+				});
+
+				ownerStyle.textContent = '.monaco-editor .owner-decoration { background-color: #654321; }';
+				cssResolver.clear();
+				assert.deepStrictEqual(cssResolver.resolve(decoration('owner-decoration'), 2)?.[0].kind, {
+					kind: 'background', color: 0x654321ff,
+				});
+			} finally {
+				observer.disconnect();
+				iframe.remove();
+			}
+		});
+	}
+
 	test('resolves the computed cascade without class-name semantics and caches it', () => {
 		const cssResolver = resolver(`
 			.monaco-editor .extension-background { background-color: rgb(1, 2, 3); }

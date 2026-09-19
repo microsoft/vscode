@@ -6,6 +6,7 @@
 import type { DecorationInput, DecorationKindInput, DecorationStrokeStyle } from './editorViewTypes.js';
 import { Color } from '../../../../base/common/color.js';
 import type { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface IResolvedDecorationPaint {
 	readonly styleId: number;
@@ -38,7 +39,8 @@ export class EditorViewDecorationResolver {
 	private _nextStyleId = 1;
 
 	constructor(private readonly _editorRoot: HTMLElement) {
-		const document = _editorRoot.ownerDocument;
+		// Auxiliary documents disallow element creation to preserve the main DOM realm.
+		const document = mainWindow.document;
 		this._container = document.createElement('div');
 		this._container.className = 'view-overlays';
 		this._container.style.position = 'absolute';
