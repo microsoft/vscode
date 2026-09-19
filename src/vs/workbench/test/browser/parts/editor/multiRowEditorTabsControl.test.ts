@@ -36,9 +36,7 @@ suite('MultiRowEditorControl', () => {
 		disposables = new DisposableStore();
 		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
 
-		// The tabs control resolves the shared modifier key emitter on creation,
-		// so dispose it again to keep each test independent of the Alt state that
-		// other suites may have left behind
+		// Reset the shared modifier-key emitter after each test to avoid leaked Alt state.
 		disposables.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
