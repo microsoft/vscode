@@ -30,6 +30,7 @@ suite('AgentPluginActions', () => {
 			agents: observableValue('agents', []),
 			instructions: observableValue('instructions', []),
 			mcpServerDefinitions: observableValue('mcpServerDefinitions', []),
+			automations: observableValue('automations', []),
 		};
 	}
 

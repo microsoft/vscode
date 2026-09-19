@@ -12,15 +12,18 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -37,9 +40,11 @@ import { ISessionGroup, ISessionGroupsService } from '../../../../../sessions/se
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionSectionOrderService } from '../../../../../sessions/services/sessions/browser/sessionSectionOrderService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsWindowUsageService } from '../../../../../sessions/services/sessions/browser/sessionsWindowUsageService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -47,11 +52,19 @@ import { ICustomViewService } from '../../../../../sessions/services/customView/
 // eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionReason, BlockedSessions } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
+// eslint-disable-next-line local/code-import-patterns
+import { createSessionArchiveTour } from '../../../../../sessions/contrib/onboardingTours/browser/tours/sessionArchiveTour.js';
+import { SpotlightOverlay } from '../../../../contrib/onboarding/browser/spotlight/spotlightOverlay.js';
+import { ONBOARDING_TARGET_ATTR } from '../../../../contrib/onboarding/browser/spotlight/onboardingTarget.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../../../../sessions/contrib/sessions/browser/automationsNewBadge.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -72,6 +85,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestProductService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -122,6 +136,8 @@ interface ISessionSpec {
 	readonly minutesAgo: number;
 	readonly changesSummary?: ISessionChangesSummary;
 	readonly group?: string;
+	readonly isRead?: boolean;
+	readonly hasFailingCI?: boolean;
 	/** Nested (non-main) chats shown as child rows under the session. */
 	readonly chats?: readonly IChatSpec[];
 	/** Terminal command awaiting approval on the session's main chat (renders on the session row). */
@@ -159,6 +175,7 @@ function createChat(sessionId: string, spec: IChatSpec, updatedAt: Date, approva
 		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
 		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.Completed);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
+		override readonly capabilities = constObservable({ canRename: true, canDelete: true });
 	}();
 }
 
@@ -196,13 +213,14 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(spec.workspace ? createWorkspace(spec.workspace) : undefined);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!spec.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly isRead: IObservable<boolean> = constObservable(spec.isRead ?? true);
 		override readonly changes: IObservable<readonly never[]> = constObservable([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0 });
+		override readonly capabilities = constObservable({ supportsMultipleChats: nestedChats.length > 0, supportsRename: true });
 	}();
 }
 
@@ -218,6 +236,11 @@ interface IRenderOptions {
 	readonly sessions: readonly ISessionSpec[];
 	readonly groups?: readonly ISessionGroup[];
 	readonly grouping?: SessionsGrouping;
+	readonly compact?: boolean;
+	readonly rename?: 'session' | 'chat';
+	readonly collapsed?: boolean;
+	readonly showUnreadInCollapsedSections?: boolean;
+	readonly reducedMotion?: boolean;
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
@@ -227,6 +250,8 @@ interface IRenderOptions {
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
+	readonly focusSelectedSession?: boolean;
+	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
@@ -257,7 +282,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
-			if (options.showFocusedToolbar) {
+			const reducedMotion = options.reducedMotion;
+			if (reducedMotion !== undefined) {
+				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}());
+			}
+			if (options.showFocusedToolbar || options.focusSelectedSession) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
 					override readonly label = 'Archive';
@@ -314,16 +345,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override isSessionPinned(): boolean { return false; }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
-				override getStatusIcon(status: SessionStatus): ThemeIcon {
-					switch (status) {
-						case SessionStatus.InProgress:
-							return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-						case SessionStatus.NeedsInput:
-							return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-						default:
-							return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-					}
-				}
+				override getStatusIcon = SessionsListModelService.prototype.getStatusIcon;
 			}());
 			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 				override readonly onDidChange = Event.None;
@@ -350,6 +372,14 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
 			}());
+			reg.defineInstance(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
+				override readonly hadPriorWindowOpen = true;
+				override readonly windowOpenCount = 2;
+			}());
+			reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
+				override phase = LifecyclePhase.Eventually;
+				override when(): Promise<void> { return Promise.resolve(); }
+			}());
 			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
 				override hasPendingResponse() { return false; }
@@ -357,6 +387,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
 				override readonly runs = automationRuns;
+				override readonly catalogueState = constObservable('ready' as const);
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 				override readonly onDidRefetchAssignments = Event.None;
@@ -369,9 +400,25 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
+				override hideCustomView(): void { }
 			}());
 		},
 	});
+	if (options.archiveOnboarding) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+		const archiveAction = instantiationService.createInstance(MenuItemAction, {
+			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
+		}, undefined, undefined, undefined, undefined);
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(id: MenuId): IMenu {
+				return {
+					onDidChange: Event.None,
+					getActions: () => id === Menus.SessionItemToolbar ? [['navigation', [archiveAction]]] : [],
+					dispose: () => { },
+				};
+			}
+		}());
+	}
 	if (showHeader) {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const newSessionAction = new MenuItemAction(
@@ -395,11 +442,21 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		}());
 	}
 
+	instantiationService.stubInstance(BlockedSessions, new class extends mock<BlockedSessions>() {
+		override readonly blockedSessionsWithReasons = constObservable(sessions
+			.filter((_session, index) => options.sessions[index].hasFailingCI)
+			.map(session => ({ session, reason: BlockedSessionReason.FailingCI, occurrenceId: 'failingCI:fixture' })));
+		override dispose = Disposable.None.dispose;
+	}());
+
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 	if (options.automationBadgeStyle) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.automationBadgeStyle);
+	}
+	if (options.showUnreadInCollapsedSections !== undefined) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, options.showUnreadInCollapsedSections);
 	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
@@ -414,8 +471,11 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${width}px`;
-	container.style.height = options.phone ? '260px' : '220px';
+	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
+	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
+	if (options.archiveOnboarding) {
+		container.style.position = 'relative';
+	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	if (options.phone) {
 		container.classList.add('agent-sessions-workbench', 'phone-layout');
@@ -433,11 +493,63 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
+		compact: () => options.compact ?? false,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.rename === 'session') {
+		const titleRow = listHost.querySelector<HTMLElement>('.session-title-row');
+		if (!titleRow) {
+			throw new Error('Expected a session title row to support inline rename.');
+		}
+		titleRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	} else if (options.rename === 'chat') {
+		const chatTitle = listHost.querySelector<HTMLElement>('.session-chat-title');
+		if (!chatTitle) {
+			throw new Error('Expected a nested chat title to support inline rename.');
+		}
+		chatTitle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, button: 0 }));
+	}
+	if (options.rename && !listHost.querySelector('.session-inline-rename-input input')) {
+		throw new Error('Expected the title-area double-click to start inline rename.');
+	}
+	if (options.collapsed) {
+		list.collapseAllSections();
+	}
+	if (options.archiveOnboarding) {
+		listHost.style.width = `${width}px`;
+		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
+		const target = container.querySelector<HTMLElement>(`[${ONBOARDING_TARGET_ATTR}="${CSS.escape(reveal.targetId)}"]`);
+		if (!target) {
+			throw new Error('Expected the production session archive action.');
+		}
+		const step = createSessionArchiveTour(reveal.targetId, options.archiveOnboarding, async () => { }).presentation.payload.steps[0];
+		const overlay = disposableStore.add(new SpotlightOverlay(container));
+		const finish = () => {
+			overlay.hide();
+			reveal.dispose();
+		};
+		disposableStore.add(overlay.onDidClickNext(finish));
+		disposableStore.add(overlay.onDidSkip(finish));
+		overlay.show(target, {
+			title: step.title,
+			description: step.description,
+			stepIndex: 0,
+			stepCount: 1,
+			canGoBack: false,
+			isLastStep: true,
+			nextButtonLabel: step.nextButtonLabel,
+		}, {
+			placement: step.placement,
+			advanceOnTargetClick: step.advanceOnTargetClick,
+			hideNext: step.hideNext,
+		});
+	}
 
+	if (options.showAutomations) {
+		await list.resetAutomationsNewBadge();
+	}
 	if (options.automationRunStatus) {
 		automationRuns.set([{
 			id: 'fixture-run',
@@ -473,6 +585,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		throw new Error('Expected the rendered New Session action to react to the lightweight keybinding-background style setting.');
 	}
 
+	if (options.focusSelectedSession) {
+		if (!sessions[0] || !list.reveal(sessions[0].resource)) {
+			throw new Error('Expected a session to select for keyboard navigation.');
+		}
+		ctx.focus(list);
+	}
+
 	if (options.showFocusedToolbar) {
 		return Promise.resolve().then(() => {
 			const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
@@ -501,10 +620,129 @@ const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'b', title: 'Add reconnect backoff', workspace: 'agent-host-protocol', minutesAgo: 64, group: GROUP.id },
 	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const COLLAPSED_SECTION_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, isRead: false },
+	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
+	{ id: 'workspace-unread', title: 'Unread session in the workspace', workspace: 'vscode-docs', minutesAgo: 36, isRead: false },
+];
+const COLLAPSED_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	...COLLAPSED_SECTION_SESSIONS,
+	{ id: 'grouped-needs-input', title: 'Needs input in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, status: SessionStatus.NeedsInput },
+	{ id: 'workspace-needs-input', title: 'Needs input in the workspace', workspace: 'vscode-docs', minutesAgo: 60, status: SessionStatus.NeedsInput },
+];
+const COLLAPSED_CI_FAILURE_SESSIONS: readonly ISessionSpec[] = [
+	...COLLAPSED_SECTION_SESSIONS,
+	{ id: 'grouped-failing-ci', title: 'CI failure in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, hasFailingCI: true },
+	{ id: 'workspace-failing-ci', title: 'CI failure in the workspace', workspace: 'vscode-docs', minutesAgo: 60, hasFailingCI: true },
+];
+const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'terminal-confirmation',
+		title: 'Terminal confirmation UX ideas',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		chats: [{ id: 'peer', title: 'hi' }],
+	},
+	{
+		id: 'folder-worktree',
+		title: 'Folder vs Worktree sessions',
+		workspace: 'vscode',
+		minutesAgo: 8,
+	},
+];
+const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	{
+		id: 'question',
+		title: 'Choose the authentication migration',
+		workspace: 'vscode',
+		minutesAgo: 2,
+		status: SessionStatus.NeedsInput,
+		description: 'Which compatibility strategy should I use for existing authentication extensions and older remote clients?',
+	},
+	{
+		id: 'approval',
+		title: 'Publish the release branch',
+		workspace: 'vscode',
+		minutesAgo: 5,
+		status: SessionStatus.NeedsInput,
+		mainApprovalCommand: 'git push origin release/1.139',
+	},
+	{
+		id: 'completed',
+		title: 'Update onboarding copy',
+		workspace: 'vscode',
+		minutesAgo: 12,
+	},
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_ArchiveOnboarding: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, archiveOnboarding: ChatSessionArchiveActionWording.Archive }),
+	}),
+	SessionsList_MarkAsDoneOnboarding: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, archiveOnboarding: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
+	}),
+	SessionsList_Compact: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_CompactNeedsInput: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a truncated input-needed callout but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_NEEDS_INPUT_SESSIONS, compact: true, width: 380 }),
+	}),
+	SessionsList_CompactSessionRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon and row actions, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'session', showFocusedToolbar: true, width: 340 }),
+	}),
+	SessionsList_CompactChatRename: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The nested chat row is being renamed inline. Its input text and border are vertically centered with the compact chat status icon, without shifting the row height.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, rename: 'chat', width: 340 }),
+	}),
+	SessionsList_CollapsedUnreadSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Filled unread indicators replace the icons for Release work and vscode-docs. The vscode section retains its folder icon because its unread session appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: true }),
+	}),
+	SessionsList_CollapsedUnreadSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed and retain their normal group or folder icons despite containing unread sessions, because collapsed-section indicators are disabled by default.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true }),
+	}),
+	SessionsList_CollapsedNeedsInputSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange ring pixel spinners replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-input session appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_NEEDS_INPUT_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: true, reducedMotion: false }),
+	}),
+	SessionsList_CollapsedNeedsInputSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All collapsed sections retain their normal group or folder icons despite containing unread and needs-input sessions, because collapsed-section indicators are disabled by default.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_NEEDS_INPUT_SESSIONS, groups: [GROUP], collapsed: true, reducedMotion: false }),
+	}),
+	SessionsList_CollapsedCIFailureSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange dots replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its session with failing CI appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_CI_FAILURE_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: true }),
+	}),
+	SessionsList_CollapsedCIFailureSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All collapsed sections retain their normal group or folder icons despite containing unread sessions and CI failures, because collapsed-section indicators are disabled by default.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_CI_FAILURE_SESSIONS, groups: [GROUP], collapsed: true }),
 	}),
 	SessionsList_CustomGroup_LongWorkspaceNarrow: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {
@@ -525,6 +763,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			],
 			groups: [GROUP],
 			showFocusedToolbar: true,
+			width: 260,
+		}),
+	}),
+	SessionsList_SelectedKeyboardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The selected session row has keyboard focus and a visible Archive action without hover; its long title truncates before the action.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'a', title: 'Fix keyboard navigation in the selected session', workspace: 'vscode', minutesAgo: 12 }],
+			focusSelectedSession: true,
 			width: 260,
 		}),
 	}),
@@ -609,6 +857,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			sessions: [],
 			showAutomations: true,
 			automationBadgeStyle: 'soft',
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Unread: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationBadgeStyle: 'unread',
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Narrow: defineComponentFixture({

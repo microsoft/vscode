@@ -51,6 +51,8 @@ Archived
 
 The active session remains visible even when a filter would otherwise exclude it.
 
+A caller can acquire a disposable reveal of a session's archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and keeps its action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
+
 ## Grouping
 
 ### Workspace grouping

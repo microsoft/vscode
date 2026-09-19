@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
+import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -164,6 +165,46 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(fired, [MODEL]);
 	});
 
+	test('reports explicit configuration selections separately from restores and schema updates', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setRegistered(false);
+		const editor = createStore(storage, control.service);
+		editor.getModelConfiguration(MODEL);
+
+		const changes: (IStringDictionary<unknown> | undefined)[] = [];
+		const selections: { modelId: string; configuration: IStringDictionary<unknown> | undefined }[] = [];
+		store.add(editor.onDidChange(modelId => changes.push(editor.getModelConfiguration(modelId))));
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push({ modelId, configuration: editor.getModelConfiguration(modelId) })));
+
+		control.setRegistered(true);
+		control.fireModelsChanged();
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
+
+		assert.deepStrictEqual({ changes, selections, globalWrites: control.setConfigCalls }, {
+			changes: [
+				{ thinkingEffort: 'medium' },
+				{ thinkingEffort: 'high' },
+				{ thinkingEffort: 'low' },
+				{ thinkingEffort: 'medium' },
+				{ thinkingEffort: 'high' },
+			],
+			selections: [
+				{ modelId: MODEL, configuration: { thinkingEffort: 'low' } },
+				{ modelId: MODEL, configuration: { thinkingEffort: 'low' } },
+				{ modelId: MODEL, configuration: { thinkingEffort: 'medium' } },
+			],
+			globalWrites: [
+				{ modelId: MODEL, values: { thinkingEffort: 'low' } },
+				{ modelId: MODEL, values: { thinkingEffort: 'medium' } },
+			],
+		});
+	});
+
 	test('setting an unchanged value does not fire onDidChange or rewrite storage', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createStubService());
@@ -195,6 +236,45 @@ suite('ChatModelConfigurationStore', () => {
 
 		const editorB = createStore(storage, createStubService());
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+	});
+
+	test('request restoration stays local until the configuration is explicitly selected', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		const editor = createStore(storage, control.service);
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		control.setConfigCalls.length = 0;
+		const changes: string[] = [];
+		store.add(editor.onDidChange(modelId => changes.push(modelId)));
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_modelConfigStore: editor,
+			_requestProgrammaticLanguageModel: async () => true,
+		});
+
+		await input.requestModelByIdentifier(MODEL, { thinkingEffort: 'low' });
+		await input.requestModelByIdentifier(MODEL, { thinkingEffort: 'low' });
+		control.fireModelsChanged();
+
+		assert.deepStrictEqual({
+			restored: editor.getModelConfiguration(MODEL),
+			inherited: createStore(storage, control.service).getModelConfiguration(MODEL),
+			globalWrites: control.setConfigCalls,
+			changes,
+		}, {
+			restored: { thinkingEffort: 'low' },
+			inherited: { thinkingEffort: 'high' },
+			globalWrites: [],
+			changes: [MODEL],
+		});
+
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		assert.deepStrictEqual({
+			inherited: createStore(storage, control.service).getModelConfiguration(MODEL),
+			globalWrites: control.setConfigCalls,
+		}, {
+			inherited: { thinkingEffort: 'low' },
+			globalWrites: [{ modelId: MODEL, values: { thinkingEffort: 'low' } }],
+		});
 	});
 
 	test('restoreModelConfiguration ignores values that the current schema rejects', () => {

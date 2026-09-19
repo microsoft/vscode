@@ -6,18 +6,29 @@
 import assert from 'assert';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { observableValue } from '../../../base/common/observable.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { AbstractChatView } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
+import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { URI } from '../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class TestNewSessionView extends AbstractChatView {
-		readonly kind = 'newSession';
 		disposed = false;
+
+		constructor(readonly kind: ChatViewKind = 'newSession') {
+			super();
+		}
 
 		protected override doLayout(): void { }
 		override toJSON(): object { return {}; }
@@ -28,15 +39,46 @@ suite('Sessions - Session View', () => {
 		}
 	}
 
+	test('forwards workspace selection to the actual standalone or active group view', () => {
+		const folder = URI.file('/requested');
+		const options: ISelectWorkspaceOptions = { providerId: 'provider', isDefault: true };
+		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+		const target = disposables.add(new class extends TestNewSessionView {
+			override selectWorkspace(folder: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+				calls.push({ folder, options });
+				return 'preserved';
+			}
+		}());
+		const missingPicker = disposables.add(new TestNewSessionView());
+		const currentView = { value: undefined as AbstractChatView | undefined };
+		const group: ChatGroupView = Object.assign(Object.create(ChatGroupView.prototype), { _currentView: currentView });
+		const groups: ChatGroupsView = Object.assign(Object.create(ChatGroupsView.prototype), { _activeGroup: { view: group } });
+		const standalone = observableValue<AbstractChatView | undefined>('standalone', undefined);
+		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _standaloneView: standalone, _groupsView: groups });
+		const results = [sessionView.selectWorkspace(folder, options)];
+		currentView.value = missingPicker;
+		results.push(sessionView.selectWorkspace(folder, options));
+		currentView.value = target;
+		results.push(sessionView.selectWorkspace(folder, options));
+		currentView.value = missingPicker;
+		standalone.set(target, undefined);
+		results.push(sessionView.selectWorkspace(folder, options));
+		assert.deepStrictEqual({ results, calls }, {
+			results: ['notReady', 'notReady', 'preserved', 'preserved'],
+			calls: [{ folder, options }, { folder, options }],
+		});
+	});
+
 	test('forwards effective visibility (part and grid leaf) to the hosted chat view', () => {
 		const forwarded: boolean[] = [];
 		// Created from the prototype so the internal visibility helpers are present.
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_isPartVisible: true,
 			_isLeafVisible: true,
+			_isVisibleObs: observableValue('visible', true),
 			_lastLayout: undefined,
 			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
-			_standaloneView: { value: undefined },
+			_standaloneView: { get: () => undefined },
 		});
 
 		// A sibling session is maximized, hiding this leaf.
@@ -59,7 +101,7 @@ suite('Sessions - Session View', () => {
 			element,
 			themeService: { getColorTheme: () => ({ getColor: () => undefined }) },
 			_groupsView: { setSessionActive: () => { } },
-			_standaloneView: { value: undefined },
+			_standaloneView: { get: () => undefined },
 		});
 
 		view.setActive(false);
@@ -75,8 +117,36 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('lays out the header host and chat content at the full session width', () => {
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const groupsLayout: number[] = [];
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_centeredContentContainer: centeredContentContainer,
+			_header: { visible: true, height: 35 },
+			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
+			_standaloneView: { get: () => undefined },
+		});
+
+		view.layout(1200, 800, 10, 20);
+
+		assert.deepStrictEqual({
+			sessionSize: [element.style.width, element.style.height],
+			headerHostSize: [centeredContentContainer.style.width, centeredContentContainer.style.height],
+			groupsLayout,
+		}, {
+			sessionSize: ['1200px', '800px'],
+			headerHostSize: ['1200px', '35px'],
+			groupsLayout: [1200, 765, 45, 20],
+		});
+	});
+
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
+		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];
 		const shownSessions: Array<IActiveSession | undefined> = [];
 		const contentContainer = document.createElement('div');
 		const groupsElement = document.createElement('div');
@@ -84,8 +154,9 @@ suite('Sessions - Session View', () => {
 		const session = new class extends mock<IActiveSession>() {
 			override readonly isCreated = isCreated;
 		}();
-		const standaloneView = disposables.add(new MutableDisposable<AbstractChatView>());
+		const standaloneView = disposables.add(disposableObservableValue<AbstractChatView | undefined>('standalone', undefined));
 		const openSessionDisposables = disposables.add(new DisposableStore());
+		const scopedInstantiationService = new class extends mock<IInstantiationService>() { }();
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_hasOpenedSession: false,
 			_currentSession: undefined,
@@ -97,10 +168,12 @@ suite('Sessions - Session View', () => {
 				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
 			},
 			_standaloneView: standaloneView,
+			_scopedInstantiationService: scopedInstantiationService,
 			_floatingToolbar: { setSession: () => { } },
 			_contentContainer: contentContainer,
 			_chatViewFactory: {
-				createNewChatView: () => {
+				createNewChatView: (_isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+					forwardedInstantiationServices.push(instantiationService);
 					const created = new TestNewSessionView();
 					createdViews.push(created);
 					return created;
@@ -125,12 +198,55 @@ suite('Sessions - Session View', () => {
 			disposedAfterCreation: createdViews[0].disposed,
 			finalElement: contentContainer.firstElementChild,
 			shownSessions,
+			forwardedInstantiationServices,
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
 			shownSessions: [undefined, undefined, session],
+			forwardedInstantiationServices: [scopedInstantiationService],
+		});
+	});
+
+	test('updates header replacement when chat tab presentation changes', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, configurationService } = createSessionViewTestServices(store);
+		const session = createTestActiveSession('session');
+
+		const view = store.add(instantiationService.createInstance(SessionView));
+		mainWindow.document.body.appendChild(view.element);
+		store.add({ dispose: () => view.element.remove() });
+		view.openSession(session, {});
+
+		const getState = () => ({
+			headerDisplay: view.element.querySelector<HTMLElement>('.session-header-bar')?.style.display,
+			tabBarDisplay: view.element.querySelector<HTMLElement>('.chat-groups-view .chat-composite-bar')?.style.display,
+			tabsReplaceHeader: view.element.classList.contains('tabs-replace-header'),
+		});
+		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+		};
+
+		const multiple = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Single);
+		const single = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+
+		assert.deepStrictEqual({
+			multiple,
+			single,
+			restoredMultiple: getState(),
+		}, {
+			multiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
+			single: { headerDisplay: '', tabBarDisplay: 'none', tabsReplaceHeader: false },
+			restoredMultiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 		});
 	});
 });

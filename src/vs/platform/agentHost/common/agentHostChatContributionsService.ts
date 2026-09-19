@@ -108,8 +108,8 @@ export type IncomingRequestDisposition =
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
-	/** Authoritative value from already-loaded host session metadata, when available. */
-	readonly hasWorkspaceTransitions?: boolean;
+	/** Workspace transitions preloaded from this chat's backing storage, when present. */
+	readonly workspaceTransitions?: ReadonlyMap<string, string>;
 }
 
 /**

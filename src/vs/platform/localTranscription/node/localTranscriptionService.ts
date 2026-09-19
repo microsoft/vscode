@@ -84,6 +84,17 @@ type IModel = import('foundry-local-sdk').IModel;
 type LiveAudioTranscriptionSession = import('foundry-local-sdk').LiveAudioTranscriptionSession;
 type LiveAudioTranscriptionResponse = import('foundry-local-sdk').LiveAudioTranscriptionResponse;
 
+/** Prefer the SDK's dynamically reported cached variant over stale catalog metadata. */
+export function selectCachedModelVariant<T extends { readonly isCached: boolean }>(model: { readonly isCached: boolean; readonly variants: readonly T[]; selectVariant(variant: T): void }): void {
+	if (model.isCached) {
+		return;
+	}
+	const cachedVariant = model.variants.find(variant => variant.isCached);
+	if (cachedVariant) {
+		model.selectVariant(cachedVariant);
+	}
+}
+
 /**
  * Map a raw model download/load error message to a fixed, low-cardinality code
  * safe to emit as telemetry. The raw message can contain paths, URLs, or other
@@ -550,6 +561,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					MODEL_CATALOG_TIMEOUT_MS,
 					`Foundry Local model catalog lookup timed out after ${MODEL_CATALOG_TIMEOUT_MS}ms.`
 				);
+				selectCachedModelVariant(model);
 
 				let didDownload = false;
 				if (!model.isCached) {

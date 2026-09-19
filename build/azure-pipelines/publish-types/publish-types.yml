@@ -6,6 +6,10 @@ trigger:
 
 pr: none
 
+variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
 pool:
   vmImage: ubuntu-latest
 

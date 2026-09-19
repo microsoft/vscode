@@ -54,14 +54,14 @@ export const IAgentHostPullRequestStatusService = createDecorator<IAgentHostPull
 
 /**
  * Tracks the live GitHub state of the pull request belonging to each session a
- * client is currently watching.
+ * client is currently watching or the lifecycle service is refreshing.
  *
  * A pull request subscription costs GitHub API budget, so the watcher is scoped
  * to sessions that have at least one changeset subscriber — in practice the
- * session whose changes the user has open. It normally subscribes only to the
- * `core` and `mergeability` fragments. While Agent Merge is enabled it adds
- * the required-check and review fragments already needed by Agent Merge so the
- * host can advertise the correct draft pull request operation.
+ * session whose changes the user has open — or a short-lived lifecycle refresh.
+ * Lifecycle refreshes subscribe only to `core`. Visible sessions normally add
+ * `mergeability`; while Agent Merge is enabled they also add the required-check
+ * and review fragments needed to advertise the correct pull request operation.
  */
 export interface IAgentHostPullRequestStatusService extends IDisposable {
 	readonly _serviceBrand: undefined;
@@ -86,6 +86,13 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 * without waiting for the next poll.
 	 */
 	refresh(sessionKey: string): Promise<void>;
+
+	/**
+	 * Resolves an authoritative pull request status for a background lifecycle
+	 * check without requiring a client changeset subscription. A supplied pull
+	 * request URL lets cleanup check a cold session without restoring it first.
+	 */
+	resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
@@ -198,6 +205,32 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
 		} catch (error) {
 			this._logService.warn(`[AgentHostPullRequestStatusService] Refresh failed: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+		}
+	}
+
+	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined> {
+		const parsed = parsePullRequestUrl(pullRequestUrl);
+		if (!parsed) {
+			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
+			return undefined;
+		}
+		const credential = await this._gitHubService.credentials.getCredential(this._abortController.signal);
+		if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+			return undefined;
+		}
+		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
+			priority: 'background',
+			core: true,
+		});
+		try {
+			await subscription.refresh('core', undefined, { authoritative: true });
+			return toPullRequestStatus(subscription.resource.snapshot.get());
+		} catch (error) {
+			this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(ref)}, error=${error}`);
+			return undefined;
+		} finally {
+			subscription.dispose();
 		}
 	}
 
@@ -315,12 +348,13 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private _getSubscriptionOptions(sessionKey: string): PullRequestSubscriptionOptions {
+		const visible = this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size > 0;
 		const agentMergeEnabled = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
 		return {
-			priority: 'visible',
+			priority: visible ? 'visible' : 'background',
 			core: true,
-			mergeability: true,
-			...(agentMergeEnabled ? {
+			...(visible ? { mergeability: true } : {}),
+			...(visible && agentMergeEnabled ? {
 				conversation: {
 					topLevelComments: true,
 					submittedReviews: true,

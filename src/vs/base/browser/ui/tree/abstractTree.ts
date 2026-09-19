@@ -1381,6 +1381,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 	private paddingTop: number;
 
+	get domNode(): HTMLElement {
+		return this._widget.domNode;
+	}
+
 	constructor(
 		private readonly tree: AbstractTree<T, TFilterData, TRef>,
 		private readonly model: ITreeModel<T, TFilterData, TRef>,
@@ -1766,6 +1770,10 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			return 0;
 		}
 		return this.getRootHeight(this._previousState);
+	}
+
+	get domNode(): HTMLElement {
+		return this._rootDomNode;
 	}
 
 	get count(): number {
@@ -2759,6 +2767,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private stickyScrollController?: StickyScrollController<T, TFilterData, TRef>;
 	private styleElement: HTMLStyleElement;
 	protected readonly disposables = new DisposableStore();
+	private readonly _onDidChangeStickyScrollDomNode = this.disposables.add(new Emitter<HTMLElement | undefined>());
+	readonly onDidChangeStickyScrollDomNode = this._onDidChangeStickyScrollDomNode.event;
 
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
@@ -2812,6 +2822,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
+	get stickyScrollDomNode(): HTMLElement | undefined { return this.stickyScrollController?.domNode; }
 
 	constructor(
 		private readonly _user: string,
@@ -2905,10 +2916,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (!this.stickyScrollController && this._options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, this._options);
 			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
+			this._onDidChangeStickyScrollDomNode.fire(this.stickyScrollController.domNode);
 		} else if (this.stickyScrollController && !this._options.enableStickyScroll) {
 			this.onDidChangeStickyScrollFocused = Event.None;
 			this.stickyScrollController.dispose();
 			this.stickyScrollController = undefined;
+			this._onDidChangeStickyScrollDomNode.fire(undefined);
 		}
 		this.stickyScrollController?.updateOptions(optionsUpdate);
 	}

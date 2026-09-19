@@ -22,6 +22,8 @@ export const enum CopilotCliConfigKey {
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
+	/** Enable the provider-native Claude Advisor tool. Off by default. */
+	ClaudeAdvisor = 'claudeAdvisor',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
@@ -32,13 +34,12 @@ export const enum CopilotCliConfigKey {
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Enable concise reasoning summaries for supported models. Off by default. */
 	ReasoningSummary = 'reasoningSummary',
-	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
-	MultiTurnContextRouting = 'multiTurnContextRouting',
-	/**
-	 * Offer the Auto model's routing-profile ("Optimize for") picker. Off by default. Separate from
-	 * the extension's gate, which tracks CAPI readiness rather than the bundled runtime's support.
-	 */
-	AutoModeTiers = 'autoModeTiers',
+	/** Enable the experimental HydraFusion synthetic model. Off by default. */
+	HydraFusion = 'hydraFusion',
+	/** Character budget for skill descriptions included in the Copilot SDK system message. */
+	SkillCharBudget = 'skillCharBudget',
+	/** Override Auto's "Optimize for" preference. */
+	AutoModeTierOverride = 'autoModeTierOverride',
 	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
 	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
@@ -47,10 +48,7 @@ export const enum CopilotCliConfigKey {
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
 
-// VS Code `chat.agentHost.*` / `chat.copilot.*` setting IDs that feed the root-config
-// keys above, kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
-// and forwarded into the host's root config by `AgentHostCopilotCliSettingsContribution`
-// (and, for the terminal-tool toggle, `AgentHostTerminalContribution`).
+// Client setting IDs forwarded into the matching provider-owned root-config keys.
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
@@ -58,6 +56,8 @@ export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.custo
 export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
 
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
+
+export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
@@ -69,15 +69,11 @@ export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
-export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
+export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
-export const AgentHostAutoModeTiersEnabledSettingId = 'chat.agentHost.copilot.autoModeTiers.enabled';
+export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
-/**
- * ExP treatment gating the Auto routing-profile picker. The Copilot extension gates its own picker
- * on this same name, so one assignment turns tiers on for both harnesses.
- */
-export const AutoModeTiersExperimentName = 'copilotchat.autoModeTiersEnabled';
+export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
 
 export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
@@ -88,6 +84,12 @@ export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
+export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
+
+/** Floors valid skill character budgets and returns the default for invalid values. */
+export function normalizeSkillCharBudget(value: number | undefined): number {
+	return value !== undefined && Number.isFinite(value) && value >= 1 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
+}
 
 /** Floors valid tool-search thresholds and returns the default for invalid values. */
 export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
@@ -176,6 +178,12 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
 		default: DEFAULT_COPILOT_RUBBER_DUCK_ENABLED,
 	}),
+	[CopilotCliConfigKey.ClaudeAdvisor]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.claudeAdvisor.title', "Claude Advisor Tool"),
+		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
@@ -200,17 +208,23 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.MultiTurnContextRouting]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.multiTurnContextRouting.title', "Auto Multi-Turn Context Routing"),
-		description: localize('agentHost.config.multiTurnContextRouting.description', "When enabled, Auto model selection sends prior user messages to the router so it scores the conversation so far instead of the latest message alone."),
+		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
+		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.autoModeTiers.title', "Auto Routing Profiles"),
-		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker that biases routing toward efficiency, balance, or intelligence. The profile is chosen before a session starts and applies for its lifetime."),
-		default: false,
+	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.skillCharBudget.title', "Skill Character Budget"),
+		description: localize('agentHost.config.skillCharBudget.description', "Maximum number of characters available for skill descriptions in the Copilot SDK system message."),
+		default: DEFAULT_COPILOT_SKILL_CHAR_BUDGET,
+	}),
+	[CopilotCliConfigKey.AutoModeTierOverride]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
+		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
+		default: '',
 	}),
 	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
 		type: 'boolean',

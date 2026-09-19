@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { ILogService } from '../../log/common/log.js';
 import type { AgentHostClientConnectionKind } from './agentHostTelemetry.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from './state/sessionProtocol.js';
-import type { IClientTransport, IProtocolTransport } from './state/sessionTransport.js';
+import type { IClientTransport, IProtocolTransport, ITransportCloseDetails } from './state/sessionTransport.js';
 
 /**
  * A connected transport and the optional owner-specific resource teardown for its establishment attempt.
@@ -31,6 +31,8 @@ class EstablishedTransportStore extends DisposableStore {
  * Establishes an inner transport on demand and forwards its protocol traffic.
  */
 export class ReconnectingTransport extends Disposable implements IClientTransport {
+	private readonly _onDidCloseDetails = this._register(new Emitter<ITransportCloseDetails>());
+	readonly onDidCloseDetails = this._onDidCloseDetails.event;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -86,6 +88,9 @@ export class ReconnectingTransport extends Disposable implements IClientTranspor
 		try {
 			transportStore.add(establishedTransport.transport.onMessage(message => this._onMessage.fire(message)));
 			transportStore.add(establishedTransport.transport.onClose(() => this._onClose.fire()));
+			if (establishedTransport.transport.onDidCloseDetails) {
+				transportStore.add(establishedTransport.transport.onDidCloseDetails(details => this._onDidCloseDetails.fire(details)));
+			}
 			this._establishedTransport.value = transportStore;
 		} catch (err) {
 			transportStore.dispose();

@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,7 +16,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAllowedMcpServersService } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, mcpAutoStartConfig, McpAutoStartValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -26,7 +26,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpService } from '../../common/mcpService.js';
-import { McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
 
@@ -50,7 +50,8 @@ suite('Workbench - MCP - McpService', () => {
 		const parentInstantiationService = store.add(new TestInstantiationService(services));
 		const registry = new TestMcpRegistry(parentInstantiationService);
 		const instantiationService = store.add(parentInstantiationService.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = store.add(new McpService(instantiationService, registry, new NullLogService(), new TestConfigurationService(), storageService));
+		const configurationService = new TestConfigurationService({ [mcpAutoStartConfig]: McpAutoStartValue.NewAndOutdated });
+		const mcpService = store.add(new McpService(instantiationService, registry, new NullLogService(), configurationService, storageService));
 		return { mcpService, registry };
 	};
 
@@ -61,6 +62,49 @@ suite('Workbench - MCP - McpService', () => {
 			serverDefinitions: observableValue('serverDefinitions', [definition])
 		}], undefined);
 	};
+
+	test('first autostart waits for discovery and loads the newly discovered server tools', async () => {
+		const { mcpService, registry } = createMcpService();
+		const collection = registry.collections.get()[0];
+		registry.collections.set([], undefined);
+		const initialDiscovery = new DeferredPromise<void>();
+		const discoveryStub = sinon.stub(registry, 'discoverCollections').callsFake(async () => {
+			await initialDiscovery.p;
+			registry.collections.set([collection], undefined);
+			return [collection];
+		});
+		store.add(toDisposable(() => discoveryStub.restore()));
+		registry.makeTestTransport = () => {
+			const transport = new TestMcpMessageTransport();
+			transport.setResponder('tools/list', message => ({
+				jsonrpc: MCP.JSONRPC_VERSION,
+				id: (message as MCP.JSONRPCRequest).id,
+				result: { tools: [{ name: 'search_index', inputSchema: { type: 'object' } }] },
+			}));
+			return transport;
+		};
+
+		const autostart = mcpService.autostart();
+		const beforeDiscovery = {
+			working: autostart.get().working,
+			serverCount: mcpService.servers.get().length,
+		};
+		await initialDiscovery.complete();
+		const result = await waitForState(autostart, state => !state.working);
+
+		assert.deepStrictEqual({
+			beforeDiscovery,
+			requiringInteraction: result.serversRequiringInteraction,
+			servers: mcpService.servers.get().map(server => ({
+				state: server.connectionState.get().state,
+				toolCount: server.tools.get().length,
+			})),
+		}, {
+			beforeDiscovery: { working: true, serverCount: 0 },
+			requiringInteraction: [],
+			servers: [{ state: McpConnectionState.Kind.Running, toolCount: 1 }],
+		});
+	});
 
 	test('does not notify servers observers when the collection is unchanged', () => {
 		const { mcpService, registry } = createMcpService();

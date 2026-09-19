@@ -20,10 +20,10 @@ export interface IDockedAuxiliaryBarHost {
 	isAuxiliaryBarVisible(): boolean;
 	/** Hide the docked auxiliary bar via the workbench part-visibility API. */
 	hideAuxiliaryBar(): void;
-	/** Reserves space on the right of the breadcrumbs and editor pane while tabs remain full-width. */
+	/** Reserves space on the right of the editor header and pane while tabs remain full-width. */
 	setEditorContentRightInset(px: number): void;
-	/** Height of the full editor group title, including tabs and the optional header. */
-	getTitleHeight(): number;
+	/** Height of the editor tabs above the optional header. */
+	getTabsHeight(): number;
 }
 
 /**
@@ -56,7 +56,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 	/**
 	 * Position the auxiliary bar inside the editor part's right region so the editor
-	 * tab bar spans the full width across the editor content and the detail panel.
+	 * tab bar spans the full width and the editor header ends at the detail panel.
 	 */
 	layout(): void {
 		const auxiliaryBarContainer = this.auxiliaryBarPart.getContainer();
@@ -155,6 +155,6 @@ export class DockedAuxiliaryBarController extends Disposable {
 	}
 
 	private _getTop(): number {
-		return this.host.getTitleHeight();
+		return this.host.getTabsHeight();
 	}
 }
