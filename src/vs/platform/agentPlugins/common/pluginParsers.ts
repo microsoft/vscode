@@ -214,8 +214,8 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	},
 	manifestExtensionNamespace: AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE,
 	requiresManifest: true,
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'PLUGIN_DATA'],
+	pluginRootTokens: [],
+	pluginRootEnvVars: [],
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
@@ -1302,8 +1302,8 @@ export function parseMcpServerDefinitionMap(
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
 		definitions.push(def);
