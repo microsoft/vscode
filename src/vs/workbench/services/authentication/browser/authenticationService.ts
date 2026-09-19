@@ -456,6 +456,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				throw new Error('Authentication service is disposed.');
 			}
 
+			const providerRegistrationSource = new CancellationTokenSource(this._disposedSource.token);
+			store.add(toDisposable(() => providerRegistrationSource.dispose(true)));
 			const providerRegistered = raceCancellation(
 				Event.toPromise(
 					Event.filter(
@@ -465,7 +467,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					),
 					store
 				),
-				this._disposedSource.token
+				providerRegistrationSource.token
 			);
 
 			// Wait for either activation to complete or the provider to register.

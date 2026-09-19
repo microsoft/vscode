@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import sinon from 'sinon';
+import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
 import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
@@ -518,5 +520,29 @@ suite('AuthenticationService - tryActivateProvider', () => {
 
 		const sessions = await authenticationService.getSessions(provider.id);
 		assert.strictEqual(sessions.length, 1);
+	});
+
+	test('should release cancellation listeners after provider registration times out', async () => {
+		const testDisposables = new DisposableStore();
+		try {
+			const clock = sinon.useFakeTimers();
+			testDisposables.add(toDisposable(() => clock.restore()));
+			testDisposables.add(setGlobalLeakWarningThreshold(2));
+			const consoleWarn = sinon.stub(console, 'warn');
+			testDisposables.add(toDisposable(() => consoleWarn.restore()));
+
+			for (let i = 0; i < 2; i++) {
+				const sessionsPromise = assert.rejects(
+					authenticationService.getSessions(`missing-${i}`),
+					/Timed out waiting for authentication provider/
+				);
+				await clock.tickAsync(5000);
+				await sessionsPromise;
+			}
+
+			assert.strictEqual(consoleWarn.callCount, 0);
+		} finally {
+			testDisposables.dispose();
+		}
 	});
 });
