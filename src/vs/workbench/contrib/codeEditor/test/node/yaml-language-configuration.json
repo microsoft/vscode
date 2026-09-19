@@ -1,0 +1,7 @@
+{
+	// Note that this file should stay in sync with 'extensions/yaml/language-configuration.json'
+	"indentationRules": {
+		"increaseIndentPattern": "^\\s*.*(:|-) ?(&\\w+)?(\\{[^}\"']*|\\([^)\"']*|\\|(?:[1-9][+-]?|[+-][1-9]?)?|>(?:[1-9][+-]?|[+-][1-9]?)?)?$",
+		"decreaseIndentPattern": "^\\s+\\}$"
+	}
+}
