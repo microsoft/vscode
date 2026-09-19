@@ -83,12 +83,13 @@ suite('Workbench - MCP - McpService', () => {
 			};
 			setServerDefinition(registry, definition);
 
+			const resolutionResult = { url: resolvedUrl };
 			const resolution = sinon.stub(registry, 'resolveConnection').callsFake(async options => store.add(instantiationService.createInstance(
 				McpServerConnection,
 				registry.collections.get()[0],
 				definition,
 				registry.delegates.get()[0],
-				{ type: McpServerTransportType.HTTP, uri: URI.parse(resolvedUrl), headers: [] },
+				{ type: McpServerTransportType.HTTP, uri: URI.parse(resolutionResult.url), headers: [] },
 				new NullLogger(),
 				true,
 				options.taskManager,
@@ -107,7 +108,7 @@ suite('Workbench - MCP - McpService', () => {
 				return transport;
 			};
 			mcpService.updateCollectedServers();
-			return { server: mcpService.servers.get()[0], configurationService, resolution, transports, registry, mcpService, definition };
+			return { server: mcpService.servers.get()[0], configurationService, resolution, resolutionResult, transports, registry, mcpService, definition };
 		};
 
 		const setDeniedUrls = async (configurationService: TestConfigurationService, urls: string[]) => {
@@ -191,6 +192,68 @@ suite('Workbench - MCP - McpService', () => {
 				blocked: McpConnectionState.Kind.Error,
 				changed: McpConnectionState.Kind.Stopped,
 				transports: 0,
+			});
+		});
+
+		test('reverting a changed definition does not restore a stale resolved policy block', async () => {
+			const { server, registry, definition, resolution, resolutionResult, transports } = createPolicyServer('https://${input:host}/mcp', 'https://blocked.example/mcp');
+			const initial = await server.start({ promptType: 'never', errorOnUserInteraction: true });
+			setServerDefinition(registry, {
+				...definition,
+				cacheNonce: 'b',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://${input:otherHost}/mcp'), headers: [] }
+			});
+			const changed = server.connectionState.get().state;
+			resolutionResult.url = 'https://trusted.example/mcp';
+			setServerDefinition(registry, { ...definition, launch: { ...definition.launch } });
+			const reverted = server.connectionState.get().state;
+			const retried = await server.start({ promptType: 'never', errorOnUserInteraction: true });
+
+			assert.deepStrictEqual({
+				initial: initial.state,
+				changed,
+				reverted,
+				retried: retried.state,
+				resolutions: resolution.callCount,
+				transports: transports.length,
+			}, {
+				initial: McpConnectionState.Kind.Error,
+				changed: McpConnectionState.Kind.Stopped,
+				reverted: McpConnectionState.Kind.Stopped,
+				retried: McpConnectionState.Kind.Running,
+				resolutions: 2,
+				transports: 1,
+			});
+		});
+
+		test('definition changes during a live connection invalidate its retained identity', async () => {
+			const { server, configurationService, registry, definition, resolution, transports } = createPolicyServer('https://${input:host}/mcp', 'https://trusted.example/mcp');
+			const initial = await server.start({ promptType: 'never', errorOnUserInteraction: true });
+			setServerDefinition(registry, {
+				...definition,
+				cacheNonce: 'b',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://${input:otherHost}/mcp'), headers: [] }
+			});
+			setServerDefinition(registry, { ...definition, launch: { ...definition.launch } });
+			const reverted = server.connectionState.get().state;
+			await setDeniedUrls(configurationService, ['https://trusted.example/*']);
+			const revoked = { state: server.connectionState.get().state, connected: !!server.connection.get() };
+			const retried = await server.start({ promptType: 'never', errorOnUserInteraction: true });
+
+			assert.deepStrictEqual({
+				initial: initial.state,
+				reverted,
+				revoked,
+				retried: retried.state,
+				resolutions: resolution.callCount,
+				transports: transports.length,
+			}, {
+				initial: McpConnectionState.Kind.Running,
+				reverted: McpConnectionState.Kind.Running,
+				revoked: { state: McpConnectionState.Kind.Stopped, connected: false },
+				retried: McpConnectionState.Kind.Error,
+				resolutions: 2,
+				transports: 1,
 			});
 		});
 

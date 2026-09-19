@@ -560,10 +560,14 @@ export class McpServer extends Disposable implements IMcpServer {
 			return this._evaluatePolicy(identity);
 		});
 
-		// Stop a live connection when the policy blocks it (e.g. the policy was tightened while the
-		// server was running). The block itself is evaluated reactively by `_policyBlock`, which also
-		// hides cached tools/prompts and surfaces the reason in the UI.
 		this._register(autorun(reader => {
+			const resolved = this._resolvedPolicyIdentity.read(reader);
+			const definition = this._fullDefinitions.read(reader).server;
+			// A reverted definition must not revive an identity from before its last change.
+			if (resolved && (!definition || !McpServerDefinition.equals(resolved.definition, definition))) {
+				this._resolvedPolicyIdentity.set(undefined, undefined);
+			}
+
 			if (this._policyBlock.read(reader) && this._connection.read(undefined)) {
 				this._connection.set(undefined, undefined); // disposes and stops the connection
 			}
