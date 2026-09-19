@@ -19,7 +19,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystem
 import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 
 suite('codexClientCustomizations', () => {
 	const disposables = new DisposableStore();
@@ -143,6 +143,15 @@ suite('codexClientCustomizations', () => {
 		assert.deepStrictEqual(codexSkillCapabilityRoots(plugins).map(root => root.fsPath), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
 	});
 
+	test('includes host file-link instructions without client customizations', async () => {
+		const config = await codexCustomizationConfig([], [], undefined, fileService);
+
+		assert.deepStrictEqual(config, {
+			agentRoles: [],
+			developerInstructions: CODEX_FILE_LINK_INSTRUCTIONS,
+		});
+	});
+
 	test('converts agent markdown and plugin instructions into codex launch configuration', async () => {
 		const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/agents/reviewer.agent.md' });
 		const instructionUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/rules/repo.instructions.md' });
@@ -162,7 +171,7 @@ suite('codexClientCustomizations', () => {
 				instructions: 'Review the change and report risks.',
 				model: 'gpt-test',
 			}],
-			developerInstructions: 'Always run focused tests.\n\nReview the change and report risks.',
+			developerInstructions: `Always run focused tests.\n\nReview the change and report risks.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 		});
 		assert.strictEqual(codexAgentRoleToml(config.agentRoles[0]), [
 			'name = "Reviewer"',
@@ -201,7 +210,7 @@ suite('codexClientCustomizations', () => {
 				instructions: 'Review the workspace change.',
 				model: 'gpt-first',
 			}],
-			developerInstructions: 'Review the workspace change.',
+			developerInstructions: `Review the workspace change.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 		});
 	});
 
@@ -219,7 +228,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, undefined, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply globally.');
+		assert.strictEqual(config.developerInstructions, `Apply globally.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('matches a selected source agent to its host-synced plugin copy', async () => {
@@ -244,7 +253,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, { uri: sourceAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply synced reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply synced reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('matches an original loose-agent URI to its synthetic bundle copy', async () => {
@@ -268,7 +277,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, { uri: sourceAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply loose reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply loose reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('prefers an exact selected agent over a synthetic filename fallback', async () => {
@@ -299,7 +308,7 @@ suite('codexClientCustomizations', () => {
 
 		const config = await codexCustomizationConfig([], plugins, { uri: selectedAgentUri.toString() }, fileService);
 
-		assert.strictEqual(config.developerInstructions, 'Apply exact reviewer instructions.');
+		assert.strictEqual(config.developerInstructions, `Apply exact reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
 	test('removeClient drops a client and setEnabled reports whether it changed', () => {

@@ -6,7 +6,7 @@
 import { Limiter, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
@@ -210,6 +210,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				batch = response.tasks;
 				hasNextPage = hasNextLink(context.res.headers?.['link']);
 			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				if (page === 1) {
 					return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
 				}
@@ -524,13 +530,18 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return context;
 		} catch (error) {
 			// A cancelled request was never answered, so it is not a failure worth counting.
-			if (!isCancellationError(error) && !token.isCancellationRequested) {
+			const cancellationError = isCancellationError(error)
+				? error
+				: token.isCancellationRequested ? new CancellationError() : undefined;
+			if (cancellationError) {
+				this._logService.trace(`${LOG_PREFIX} ${action} -> cancelled after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
+			} else {
 				this._telemetry.reportRequest(action, 'networkError');
+				// Elapsed at the budget means our own timeout fired; shorter means something else did.
+				this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
+				this._logService.error(`${LOG_PREFIX} ${requestMethod} ${url} failed: ${toErrorMessage(error)}`);
 			}
-			// Elapsed at the budget means our own timeout fired; shorter means something else did.
-			this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
-			this._logService.error(`${LOG_PREFIX} ${requestMethod} ${url} failed: ${toErrorMessage(error)}`);
-			throw error;
+			throw cancellationError ?? error;
 		}
 	}
 

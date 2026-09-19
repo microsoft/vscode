@@ -39,9 +39,13 @@ import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
 suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('groups actionable PRs, scopes the combined request, and dismisses one carousel item', async () => {
+	for (const isDraft of [false, true]) {
+		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
+	}
+
+	async function testActionablePullRequests(isDraft: boolean): Promise<void> {
 		const sessionResource = URI.parse('local-agent-host:/session-1');
-		const pullRequests = [pullRequest(42), pullRequest(41)];
+		const pullRequests = [pullRequest(42), pullRequest(41), pullRequest(40), pullRequest(39)];
 		const session = new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'session-1';
 			override readonly resource = sessionResource;
@@ -87,12 +91,16 @@ suite('SessionInputBanners', () => {
 		}();
 
 		const prModels = new Map([
-			[42, pullRequestModel(42, 'Newest pull request')],
-			[41, pullRequestModel(41, 'Older pull request')],
+			[42, pullRequestModel(42, 'Newest pull request', isDraft)],
+			[41, pullRequestModel(41, 'Older pull request', isDraft)],
+			[40, pullRequestModel(40, 'Closed pull request', isDraft, GitHubPullRequestState.Closed)],
+			[39, pullRequestModel(39, 'Merged pull request', false, GitHubPullRequestState.Merged)],
 		]);
 		const ciModels = new Map([
 			[42, ciModel([failedCheck(1), failedCheck(2)])],
 			[41, ciModel([])],
+			[40, ciModel([failedCheck(3)])],
+			[39, ciModel([failedCheck(4)])],
 		]);
 		const gitHubService = new class extends mock<IGitHubService>() {
 			override createPullRequestModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
@@ -152,12 +160,27 @@ suite('SessionInputBanners', () => {
 		));
 		banners.setActive(true);
 
-		assert.deepStrictEqual(currentBanner(banners), {
-			position: '1/3',
-			reference: '#42',
-			text: '2 Checks Failing | 2 PR Comments',
-			splitButtons: 1,
-			actions: ['Fix Checks & Address Comments'],
+		assert.deepStrictEqual({
+			current: currentBanner(banners),
+			ciPolling: [...ciModels].map(([number, model]) => ({
+				number,
+				refreshCalls: model.refreshCalls,
+				startPollingCalls: model.startPollingCalls,
+			})),
+		}, {
+			current: {
+				position: '1/3',
+				reference: '#42',
+				text: '2 Checks Failing | 2 PR Comments',
+				splitButtons: 1,
+				actions: ['Fix Checks & Address Comments'],
+			},
+			ciPolling: [
+				{ number: 42, refreshCalls: 1, startPollingCalls: 1 },
+				{ number: 41, refreshCalls: 1, startPollingCalls: 1 },
+				{ number: 40, refreshCalls: 0, startPollingCalls: 0 },
+				{ number: 39, refreshCalls: 0, startPollingCalls: 0 },
+			],
 		});
 
 		agentMergeState.set({ enabled: true }, undefined);
@@ -239,7 +262,7 @@ suite('SessionInputBanners', () => {
 			},
 			dismissed: ['session-1:pullRequest:owner/repo#41'],
 		});
-	});
+	}
 });
 
 function pullRequest(number: number): IGitHubPullRequestRef {
@@ -251,12 +274,12 @@ function pullRequest(number: number): IGitHubPullRequestRef {
 	};
 }
 
-function pullRequestModel(number: number, title: string): GitHubPullRequestModel {
+function pullRequestModel(number: number, title: string, isDraft: boolean, state = GitHubPullRequestState.Open): GitHubPullRequestModel {
 	const pullRequest = upcastPartial<IGitHubPullRequest>({
 		number,
 		title,
-		state: GitHubPullRequestState.Open,
-		isDraft: false,
+		state,
+		isDraft,
 		headSha: `sha-${number}`,
 	});
 	return new class extends mock<GitHubPullRequestModel>() {
@@ -266,12 +289,20 @@ function pullRequestModel(number: number, title: string): GitHubPullRequestModel
 	}();
 }
 
-function ciModel(checks: readonly IGitHubCICheck[]): GitHubPullRequestCIModel {
+function ciModel(checks: readonly IGitHubCICheck[]) {
 	return new class extends mock<GitHubPullRequestCIModel>() {
+		refreshCalls = 0;
+		startPollingCalls = 0;
 		override readonly checks = observableValue('checks', checks);
 		override readonly fixRequested = observableValue('fixRequested', false);
-		override refresh(): Promise<void> { return Promise.resolve(); }
-		override startPolling(): IDisposable { return Disposable.None; }
+		override refresh(): Promise<void> {
+			this.refreshCalls++;
+			return Promise.resolve();
+		}
+		override startPolling(): IDisposable {
+			this.startPollingCalls++;
+			return Disposable.None;
+		}
 		override getCheckRunAnnotations(): Promise<string> { return Promise.resolve('failure details'); }
 		override markFixRequested(): void { this.fixRequested.set(true, undefined); }
 	}();

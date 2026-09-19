@@ -138,6 +138,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	shouldBeRemovedOnSend: Adapt.v(m => m.shouldBeRemovedOnSend, objectsEqual),
 	agent: Adapt.v(m => m.response?.agent, (a, b) => a?.id === b?.id),
 	modelId: Adapt.v(m => m.modelId),
+	modelConfiguration: Adapt.v(m => m.modelConfiguration, objectsEqual),
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
@@ -171,6 +172,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
+	requestSource: Adapt.v(m => m.requestSource),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
 	origin: Adapt.v(m => m.origin ? serializeChatRequestOrigin(m.origin) : undefined, objectsEqual),

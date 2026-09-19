@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IDiffEditorOptionsService, SessionsDiffViewModeContext } from '../common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../common/diffEditorOptionsService.js';
 
 const VIEW_MODE_STORAGE_KEY = 'sessions.diffEditor.viewMode';
 const LEGACY_RENDER_SIDE_BY_SIDE_STORAGE_KEY = 'sessions.diffEditor.renderSideBySide';
@@ -20,10 +22,13 @@ export class DiffEditorOptionsService extends Disposable implements IDiffEditorO
 
 	readonly viewMode;
 	readonly renderSideBySide;
+	readonly diffEditorWordWrap;
+	readonly editorWordWrap;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		const storedViewMode = storageService.get(VIEW_MODE_STORAGE_KEY, StorageScope.PROFILE);
@@ -32,7 +37,17 @@ export class DiffEditorOptionsService extends Disposable implements IDiffEditorO
 			? storedViewMode
 			: legacyRenderSideBySide === false ? 'inline' : 'automatic');
 		this.renderSideBySide = this.viewMode.map(this, mode => mode !== 'inline');
+		this.diffEditorWordWrap = this.observeWordWrapSetting(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING);
+		this.editorWordWrap = this.observeWordWrapSetting(SESSIONS_EDITOR_WORD_WRAP_SETTING);
 		this._register(bindContextKey(SessionsDiffViewModeContext, contextKeyService, reader => this.viewMode.read(reader)));
+	}
+
+	private observeWordWrapSetting(settingId: string): IObservable<SessionsWordWrap> {
+		return observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(settingId)),
+			() => this.configurationService.getValue<SessionsWordWrap>(settingId),
+		);
 	}
 
 	setViewMode(mode: DiffEditorViewMode): void {
@@ -42,6 +57,14 @@ export class DiffEditorOptionsService extends Disposable implements IDiffEditorO
 
 	toggleRenderSideBySide(): void {
 		this.setViewMode(this.viewMode.get() === 'inline' ? 'automatic' : 'inline');
+	}
+
+	async setDiffEditorWordWrap(wordWrap: SessionsWordWrap): Promise<void> {
+		await this.configurationService.updateValue(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, wordWrap);
+	}
+
+	async setEditorWordWrap(wordWrap: SessionsWordWrap): Promise<void> {
+		await this.configurationService.updateValue(SESSIONS_EDITOR_WORD_WRAP_SETTING, wordWrap);
 	}
 }
 

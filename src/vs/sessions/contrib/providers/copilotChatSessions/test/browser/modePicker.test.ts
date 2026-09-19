@@ -9,11 +9,12 @@ import { hash } from '../../../../../../base/common/hash.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatModeService, IChatModes, ChatMode, CustomChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -23,7 +24,7 @@ import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ModePicker, ModePickerModel } from '../../browser/modePicker.js';
+import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -34,6 +35,136 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 		}
 	}
 }
+
+suite('ScopedModePickerModelCache', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(name: string) {
+		const resource = URI.parse(`copilotcli:/${name}`);
+		const customAgent = new CustomChatMode({
+			id: name,
+			uri: URI.file(`/workspace/${name}.agent.md`),
+			name,
+			agentInstructions: { content: '', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true,
+		});
+		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', { id: customAgent.id, kind: ChatMode.Agent.kind });
+		const session = upcastPartial<IActiveSession>({ resource, mode, providerId: 'default-copilot' });
+		const scope = observableValue<IActiveSession | undefined>('scope', session);
+		return { session, scope, mode, customAgent };
+	}
+
+	function createInstantiationService(sessions: readonly ReturnType<typeof createSession>[], disposed: string[]) {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatSessionsService, {
+			getCustomAgentTargetForSessionType: () => Target.Undefined,
+		});
+		instantiationService.stub(IChatModeService, {
+			createModes: resource => {
+				const entry = sessions.find(entry => entry.session.resource.toString() === resource?.toString());
+				assert.ok(entry);
+				const modes: IChatModes & IDisposable = {
+					onDidChange: Event.None,
+					builtin: [ChatMode.Agent],
+					custom: [entry.customAgent],
+					findModeById: id => id === entry.customAgent.id ? entry.customAgent : id === ChatMode.Agent.id ? ChatMode.Agent : undefined,
+					findModeByName: name => name === entry.customAgent.name.get() ? entry.customAgent : undefined,
+					waitForPendingUpdates: async () => { },
+					dispose: () => disposed.push(entry.customAgent.name.get()),
+				};
+				return modes;
+			},
+		});
+		return instantiationService;
+	}
+
+	test('keeps selected agents and discovery scoped to independent session surfaces', () => {
+		const first = createSession('first');
+		const second = createSession('second');
+		const disposed: string[] = [];
+		const instantiationService = createInstantiationService([first, second], disposed);
+		const cache = store.add(new ScopedModePickerModelCache(() => true));
+		const firstReference = store.add(cache.acquire(first.scope, instantiationService));
+		const secondReference = store.add(cache.acquire(second.scope, instantiationService));
+		const initial = [firstReference, secondReference].map(reference => ({
+			selected: reference.model.selectedMode.id,
+			available: reference.model.getAvailableModes().map(mode => mode.id),
+		}));
+
+		first.mode.set({ id: ChatMode.Agent.id, kind: ChatMode.Agent.kind }, undefined);
+		const afterChangingFirst = [firstReference.model.selectedMode.id, secondReference.model.selectedMode.id];
+		first.scope.set(undefined, undefined);
+
+		assert.deepStrictEqual({
+			initial,
+			afterChangingFirst,
+			firstModesAfterClosing: firstReference.model.getAvailableModes().map(mode => mode.id),
+			secondSelection: secondReference.model.selectedMode.id,
+			disposed,
+		}, {
+			initial: [
+				{ selected: first.customAgent.id, available: ['agent', first.customAgent.id] },
+				{ selected: second.customAgent.id, available: ['agent', second.customAgent.id] },
+			],
+			afterChangingFirst: ['agent', second.customAgent.id],
+			firstModesAfterClosing: ['agent'],
+			secondSelection: second.customAgent.id,
+			disposed: ['first'],
+		});
+	});
+
+	test('retains models across synchronous rebuilds and disposes them after the last release', async () => {
+		const session = createSession('reviewer');
+		const disposed: string[] = [];
+		const instantiationService = createInstantiationService([session], disposed);
+		const cache = store.add(new ScopedModePickerModelCache(() => true));
+		const first = store.add(cache.acquire(session.scope, instantiationService));
+		first.dispose();
+		const replacement = store.add(cache.acquire(session.scope, instantiationService));
+		await Promise.resolve();
+		const afterRebuild = { reused: first.model === replacement.model, disposed: [...disposed] };
+
+		replacement.dispose();
+		replacement.dispose();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ afterRebuild, disposed }, {
+			afterRebuild: { reused: true, disposed: [] },
+			disposed: ['reviewer'],
+		});
+	});
+
+	test('follows scoped retargets and clears discovery for unsupported sessions', () => {
+		const first = createSession('first');
+		const second = createSession('second');
+		const disposed: string[] = [];
+		const instantiationService = createInstantiationService([first, second], disposed);
+		const cache = store.add(new ScopedModePickerModelCache(session => session.providerId === 'default-copilot'));
+		const reference = store.add(cache.acquire(first.scope, instantiationService));
+
+		first.scope.set(second.session, undefined);
+		const retargeted = {
+			selected: reference.model.selectedMode.id,
+			available: reference.model.getAvailableModes().map(mode => mode.id),
+		};
+		first.scope.set(upcastPartial<IActiveSession>({ providerId: 'another-provider', mode: second.mode }), undefined);
+
+		assert.deepStrictEqual({
+			retargeted,
+			selectedAfterSwitchingProvider: reference.model.selectedMode.id,
+			availableAfterSwitchingProvider: reference.model.getAvailableModes().map(mode => mode.id),
+			disposed,
+		}, {
+			retargeted: { selected: second.customAgent.id, available: ['agent', second.customAgent.id] },
+			selectedAfterSwitchingProvider: 'agent',
+			availableAfterSwitchingProvider: ['agent'],
+			disposed: ['first', 'second'],
+		});
+	});
+});
 
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

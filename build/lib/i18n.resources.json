@@ -463,6 +463,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/mcp",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/policies",
 			"project": "vscode-workbench"
 		},
@@ -782,6 +786,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/editor",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/extensions",
 			"project": "vscode-sessions"
 		},
 		{

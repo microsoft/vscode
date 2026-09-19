@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -29,7 +30,7 @@ suite('SessionChangesEditorInput', () => {
 		override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
-		override readonly activeSessionChangeCountObs = constObservable(0);
+		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
 	};
 
 	test('releases resolved multi-diff models without disposing restorable input state', async () => {
@@ -42,9 +43,10 @@ suite('SessionChangesEditorInput', () => {
 		});
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
-		const viewModel = disposables.add(new MultiDiffEditorViewModel({
+		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() { }());
+		const viewModel = disposables.add(instantiationService.createInstance(MultiDiffEditorViewModel, {
 			documents: ValueWithChangeEvent.const([]),
-		}, instantiationService));
+		}));
 
 		let firstModelReferenceDisposed = false;
 		instantiationService.stubInstance(MultiDiffEditorInput, {
@@ -205,7 +207,7 @@ suite('SessionChangesEditorInput', () => {
 		};
 		const resource = URI.parse('test-changes:session');
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
-			override readonly activeSessionChangeCountObs = derived(reader => changes.read(reader).length);
+			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
 		};
 		const input = disposables.add(new SessionChangesEditorInput(
 			resource,

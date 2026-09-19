@@ -31,7 +31,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
+import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
@@ -460,15 +460,19 @@ export class ToolsListWidget extends Disposable {
 		this._createHeader();
 		this._createSearchRow();
 
-		// Wrap the tree in a DomScrollableElement for an overlay scrollbar (not the native one).
-		this._treeContainer = $('.tools-list-tree');
-		this._treeContainer.classList.add('distributed-section-layout');
-		this._treeScrollable = this._register(new DomScrollableElement(this._treeContainer, {
+		// Keep the native scroll target separate because virtualization can make the content overflow visible.
+		const treeScrollContainer = $('.tools-list-scroll-container');
+		this._treeContainer = DOM.append(treeScrollContainer, $('.tools-list-tree.distributed-section-layout'));
+		const treeScrollable = this._register(new DomScrollableElement(treeScrollContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}));
-		const treeScrollableNode = this._treeScrollable.getDomNode();
+		this._treeScrollable = treeScrollable;
+		this._register(DOM.addDisposableListener(treeScrollContainer, DOM.EventType.SCROLL, () => {
+			treeScrollable.setScrollPosition({ scrollTop: treeScrollContainer.scrollTop });
+		}));
+		const treeScrollableNode = treeScrollable.getDomNode();
 		treeScrollableNode.classList.add('tools-list-tree-scrollable');
 		this.element.appendChild(treeScrollableNode);
 
@@ -1061,7 +1065,7 @@ export class ToolsListWidget extends Disposable {
 		const heights = layoutVirtualizedSections(this._treeContainer, this._sectionLists.map(section => ({
 			container: section.container,
 			contentHeight: section.entries.reduce((sum, entry) => sum + computeToolsRowHeight(entry), 0),
-			minimumHeight: section.entries.length > 0 ? computeToolsRowHeight(section.entries[0]) : 0,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.entries, computeToolsRowHeight),
 		})));
 		for (let index = 0; index < this._sectionLists.length; index++) {
 			this._layoutSection(this._sectionLists[index], heights[index]);

@@ -97,6 +97,24 @@ export function browserViewUrlMatches(candidateUrl: string | undefined, targetUr
 		));
 }
 
+/**
+ * The browser views owned by any of `ownerIds`, most recently opened first —
+ * the order the chat pills list them in.
+ */
+export function getAgentBrowserViewsNewestFirst(
+	browserViewService: Pick<IBrowserViewWorkbenchService, 'getKnownBrowserViews'>,
+	ownerIds: ReadonlySet<string>,
+): BrowserEditorInput[] {
+	const views: BrowserEditorInput[] = [];
+	for (const input of browserViewService.getKnownBrowserViews().values()) {
+		const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : undefined;
+		if (ownerId && ownerIds.has(ownerId)) {
+			views.push(input);
+		}
+	}
+	return views.reverse();
+}
+
 /** Extracts the host from a URL string for zoom tracking purposes. */
 function parseZoomHost(url: string): string | undefined {
 	const parsed = URL.parse(url);
@@ -270,7 +288,9 @@ export interface IBrowserViewWorkbenchService {
 	readonly onDidChangeSharingAvailable: Event<boolean>;
 
 	/**
-	 * Get all known browser views.
+	 * Get all known browser views, keyed by id and iterated in the order they
+	 * were opened. A view is registered when its open is requested, so this
+	 * order is independent of how quickly each page then loads.
 	 */
 	getKnownBrowserViews(): Map<string, BrowserEditorInput>;
 

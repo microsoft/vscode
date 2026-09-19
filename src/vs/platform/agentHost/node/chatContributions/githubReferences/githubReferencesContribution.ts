@@ -9,7 +9,7 @@ import { IAgentHostGitStateService } from '../../../common/agentHostGitStateServ
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
-/** Attaches the session's current pull request after a successful turn. */
+/** Reconciles the session's current pull request after a started turn ends. */
 export class GitHubReferencesContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'githubReferences';
@@ -24,7 +24,7 @@ export class GitHubReferencesContribution extends Disposable implements IAgentHo
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		if (turn.reason.kind === 'success') {
+		if (turn.reason.kind !== 'rejected' && turn.reason.kind !== 'localCommand') {
 			const workingDirectory = this._stateManager.getSessionState(turn.session)?.workingDirectories?.[0];
 			void this._gitStateService.attachSessionGitHubPullRequest(turn.session, workingDirectory ? URI.parse(workingDirectory) : undefined);
 		}

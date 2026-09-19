@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAutomationDescriptor } from './automation.js';
+import { AutomationTarget, IAutomationDescriptor } from './automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automationService.js';
+
+export type AutomationDialogCreateInitialValues = Omit<ICreateAutomationOptions, 'target'> & { readonly target?: AutomationTarget };
 
 export type IShowAutomationDialogOptions =
 	| { readonly existing: IAutomationDescriptor; readonly initialValues?: never }
-	| { readonly existing?: never; readonly initialValues?: ICreateAutomationOptions };
+	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues };
 
 export type IAutomationDialogResult =
 	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }

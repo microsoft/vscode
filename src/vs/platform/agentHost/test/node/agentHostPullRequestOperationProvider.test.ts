@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Event } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -19,12 +22,20 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
+import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
+import type { IChangesetOperationHandler } from '../../common/agentHostChangesetOperationService.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 	async refreshSessionGitState(): Promise<void> { }
+	getMaterializedWorktreeMeta(): undefined { return undefined; }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
@@ -39,6 +50,7 @@ function createStatusService(status?: IAgentHostPullRequestStatus, onDidChangePu
 		getPullRequestStatus: () => status,
 		markPullRequestMerged: () => { },
 		refresh: async () => { },
+		resolveForLifecycle: async () => status,
 		dispose: () => { },
 	};
 }
@@ -74,7 +86,9 @@ const pullRequestForBranch: ISessionGitHubState = {
 suite('AgentHostPullRequestOperationContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree', onDidChangePullRequestStatus = Event.None, agentMergeEnabled = false, sessionAgentMergeEnabled = false): AgentHostPullRequestOperationContribution {
+	teardown(() => sinon.restore());
+
+	function createContribution(status?: IAgentHostPullRequestStatus, isolation?: 'folder' | 'worktree', onDidChangePullRequestStatus = Event.None, agentMergeEnabled = false, sessionAgentMergeEnabled = false, instantiationService?: InstantiationService): AgentHostPullRequestOperationContribution {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		if (isolation || sessionAgentMergeEnabled) {
 			const session = {
@@ -100,42 +114,171 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			});
 		}
 		const configurationService = new class extends mock<IAgentConfigurationService>() {
+			override readonly onDidRootConfigChange = Event.None;
 			override getRootValue(_schema: never, key: string) {
 				return (key === AgentMergeConfigKey.Enabled ? agentMergeEnabled : undefined) as never;
 			}
 		}();
 		return disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,
-			disposables.add(new InstantiationService()),
+			instantiationService ?? disposables.add(new InstantiationService()),
 			nullGitStateService,
 			createStatusService(status, onDidChangePullRequestStatus),
 			configurationService,
+			createNullSessionDataService(),
 			new NullLogService(),
 		));
 	}
+
+	test('records a pull request created through the session action as an artifact', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: 'agent:/session',
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		});
+		const database = new TestSessionDatabase();
+		const reference: ISessionArtifact = {
+			id: 'existing-reference',
+			type: SessionArtifactType.PullRequest,
+			label: 'Referenced PR',
+			isArtifact: false,
+			link: 'https://github.com/microsoft/vscode/pull/123',
+			isGitHub: true,
+		};
+		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, [reference]));
+		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts([reference]));
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			nullGitStateService,
+			createStatusService(),
+			new class extends mock<IAgentConfigurationService>() { }(),
+			createSessionDataService(database),
+			new NullLogService(),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
+			pullRequestNumber: 123,
+			pullRequestTitle: 'Improve archive nudges',
+			branchName: 'feature/test',
+		});
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/124',
+			pullRequestNumber: 124,
+			branchName: 'feature/test',
+		});
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
+			pullRequestNumber: 123,
+			pullRequestTitle: 'Improve archive nudges',
+			branchName: 'feature/test',
+		});
+
+		const liveArtifacts = readSessionArtifacts(stateManager.getSessionState('agent:/session')?._meta);
+		const persistedArtifacts = parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts;
+		assert.deepStrictEqual({
+			live: liveArtifacts.map(({ id: _id, ...artifact }) => artifact),
+			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
+		}, {
+			live: [{
+				type: SessionArtifactType.PullRequest,
+				label: 'Improve archive nudges',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/123',
+				isGitHub: true,
+			}, {
+				type: SessionArtifactType.PullRequest,
+				label: '',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/124',
+				isGitHub: true,
+			}],
+			persisted: [{
+				type: SessionArtifactType.PullRequest,
+				label: 'Improve archive nudges',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/123',
+				isGitHub: true,
+			}, {
+				type: SessionArtifactType.PullRequest,
+				label: '',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/124',
+				isGitHub: true,
+			}],
+		});
+	});
 
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {
 		const provider = createContribution();
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
-		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']);
+		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID]);
 	});
 
-	test('advertises Agent Merge variants as the last ready and draft Create PR options when Agent Merge is enabled', () => {
+	test('advertises only creation and preparation even when Agent Merge is enabled', () => {
 		const provider = createContribution(undefined, undefined, Event.None, true);
 
 		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
 		assert.deepStrictEqual(operations?.map(({ id, label }) => ({ id, label })), [
 			{ id: 'create-pr', label: 'Create PR' },
-			{ id: 'create-pr-auto-merge', label: 'Create PR (Auto-Merge)' },
-			{ id: 'create-pr-auto-squash', label: 'Create PR (Auto-Squash)' },
-			{ id: 'create-pr-auto-rebase', label: 'Create PR (Auto-Rebase)' },
-			{ id: 'create-pr-agent-merge', label: 'Create PR & Agent Merge' },
-			{ id: 'create-draft-pr', label: 'Create Draft PR' },
-			{ id: 'create-draft-pr-agent-merge', label: 'Create Draft PR & Agent Merge' },
+			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Prepare PR' },
 		]);
+	});
+
+	test('registers preparation separately from creation and preserves legacy handlers', async () => {
+		const calls: { params: InvokeChangesetOperationParams; token: CancellationToken }[] = [];
+		const handler = new class extends mock<AgentHostPullRequestOperationHandler>() {
+			override async prepare(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+				calls.push({ params, token });
+				return {};
+			}
+			override async invoke(): Promise<InvokeChangesetOperationResult> {
+				throw new Error('Preparation must not invoke creation');
+			}
+		}();
+		const instantiationService = disposables.add(new InstantiationService());
+		sinon.stub(instantiationService, 'createInstance').returns(handler);
+		const provider = createContribution(undefined, undefined, Event.None, false, false, instantiationService);
+		const handlers = new Map<string, IChangesetOperationHandler>();
+		disposables.add(provider.registerHandlers({
+			registerChangesetOperationHandler: (id, operationHandler) => {
+				handlers.set(id, operationHandler);
+				return toDisposable(() => handlers.delete(id));
+			},
+			onDidChangeOperations: () => { },
+			refreshSessionGitState: async () => { },
+		}));
+		const params = { channel: 'agent:/session/changeset/default', operationId: PREPARE_PULL_REQUEST_OPERATION_ID };
+
+		const result = await handlers.get(PREPARE_PULL_REQUEST_OPERATION_ID)!.invoke(params, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result,
+			calls,
+			operationIds: [...handlers.keys()],
+		}, {
+			result: {},
+			calls: [{ params, token: CancellationToken.None }],
+			operationIds: [
+				'create-pr', PREPARE_PULL_REQUEST_OPERATION_ID, 'create-draft-pr',
+				'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase',
+				'create-pr-agent-merge', 'create-draft-pr-agent-merge',
+				'pr-mark-ready', 'pr-mark-ready-with-agent-merge', 'pr-merge',
+				'pr-enable-auto-merge', 'pr-disable-auto-merge',
+			],
+		});
 	});
 
 	test('does not advertise PR operations for folder sessions with outgoing changes', () => {
@@ -171,7 +314,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, gitHubState: { ...pullRequestForBranch, pullRequestBranchName: 'feature/other' }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 		];
 
-		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [undefined, ['create-pr', 'create-pr-auto-merge', 'create-pr-auto-squash', 'create-pr-auto-rebase', 'create-draft-pr']]);
+		assert.deepStrictEqual(actual.map(operations => operations?.map(op => op.id)), [undefined, ['create-pr', PREPARE_PULL_REQUEST_OPERATION_ID]]);
 	});
 
 	test('advertises lifecycle operations for a pull request on the current branch', () => {

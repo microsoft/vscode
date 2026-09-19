@@ -289,23 +289,31 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
+		const currentModel = this._currentModel.get();
+		const republishedCurrentModel = currentModel && models.find(model => model.identifier === currentModel.identifier);
+		if (republishedCurrentModel && republishedCurrentModel !== currentModel) {
+			// A provider can enrich a model after it was selected (for example, when a
+			// second catalogue supplies its context-size schema). Refresh the displayed
+			// snapshot without reapplying or persisting a selection that did not change.
+			this._display(republishedCurrentModel);
+		}
 		if (this.applyConfiguredDefault() || this._reconcilePendingProgrammaticSelection() || this._restoreRememberedModel()) {
 			return;
 		}
-		const currentModel = this._currentModel.get();
+		const reconciledCurrentModel = this._currentModel.get();
 		const declaredDefault = this._runtime.getDeclaredDefaultModel(models);
 		if (this._runtime.isEmpty()
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& declaredDefault
-			&& currentModel?.identifier !== declaredDefault.identifier) {
+			&& reconciledCurrentModel?.identifier !== declaredDefault.identifier) {
 			// Still the first thing on offer, only now the pool has said which that is.
 			this._applyModel(declaredDefault, ModelSelectionReason.FirstAvailable);
 			return;
 		}
-		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
+		if (!shouldResetOnModelListChange(reconciledCurrentModel?.identifier, [...models])) {
 			return;
 		}
-		const match = findBestMatchingModel(currentModel, models);
+		const match = findBestMatchingModel(reconciledCurrentModel, models);
 		if (match) {
 			// The same selection republished under another identifier, so whoever chose it still has.
 			this._applyModel(match, this._selectionReason);
