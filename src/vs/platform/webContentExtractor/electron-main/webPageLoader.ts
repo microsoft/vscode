@@ -200,13 +200,13 @@ export class WebPageLoader extends Disposable {
 		const headers = { ...details.requestHeaders };
 
 		// Request privacy for web-sites that respect these.
-		headers['DNT'] = '1';
+		headers.DNT = '1';
 		headers['Sec-GPC'] = '1';
 
 		// For the main document request, prefer markdown responses from sites that
 		// support agent-friendly content negotiation (e.g. Microsoft Learn, Cloudflare docs).
 		if (details.resourceType === 'mainFrame') {
-			headers['Accept'] = 'text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, application/xml;q=0.8, */*;q=0.7';
+			headers.Accept = 'text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, application/xml;q=0.8, */*;q=0.7';
 		}
 
 		callback({ requestHeaders: headers });
