@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -501,6 +501,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		if (this._abortController.signal.aborted) {
 			return;
 		}
+		this._router.clearTurnState();
 		this._abortController.abort();
 		this._queue.failAll(new CancellationError());
 		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
@@ -519,6 +520,34 @@ export class ClaudeSdkPipeline extends Disposable {
 			await this._query.setPermissionMode(mode);
 			this._appliedPermissionMode = mode;
 		}
+	}
+
+	override dispose(): void {
+		this._router.clearTurnState();
+		super.dispose();
+	}
+
+	private _handleResult(message: Extract<SDKMessage, { type: 'result' }>): void {
+		const parent = this._queue.peekParent();
+		const isIntermediateResult = this._queue.hasPendingAfterHead;
+		const completed = this._queue.settleHead();
+		this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
+		this._router.handleResult(message, parent?.turnId, {
+			turnDuration: parent?.stopWatch.elapsed(),
+			isIntermediateResult,
+		});
+		if (!completed || isIntermediateResult) {
+			return;
+		}
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatTurnComplete,
+				turnId: completed.turnId,
+				duration: Math.max(0, completed.stopWatch.elapsed()),
+			},
+		});
 	}
 
 	private _wireAbortHandler(controller: AbortController): void {
@@ -676,6 +705,10 @@ export class ClaudeSdkPipeline extends Disposable {
 						this._isResumed = true;
 					}
 				}
+				if (message.type === 'result') {
+					this._handleResult(message);
+					continue;
+				}
 				const parent = this._queue.peekParent();
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
@@ -688,24 +721,6 @@ export class ClaudeSdkPipeline extends Disposable {
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
-				}
-				if (message.type === 'result') {
-					const completed = this._queue.settleHead();
-					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
-					// Final result: queue fully drained → protocol turn done.
-					// Intermediate result (still pending entries from a
-					// steering preempt) does NOT fire ChatTurnComplete.
-					if (completed && this._queue.isEmpty) {
-						this._onDidProduceSignal.fire({
-							kind: 'action',
-							resource: this.chatChannelUri,
-							action: {
-								type: ActionType.ChatTurnComplete,
-								turnId: completed.turnId,
-								duration: Math.max(0, completed.stopWatch.elapsed()),
-							},
-						});
-					}
 				}
 			}
 			if (this._abortController.signal.aborted) {
@@ -728,6 +743,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
+				this._router.clearTurnState();
 				this._queue.failAll(fatal);
 				this._needsRebind = true;
 			}
