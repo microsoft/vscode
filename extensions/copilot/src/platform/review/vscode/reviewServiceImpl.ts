@@ -121,7 +121,7 @@ export class ReviewServiceImpl implements IReviewService {
 		return this._comments.map(({ comment }) => comment);
 	}
 
-	addReviewComments(comments: ReviewComment[]) {
+	addReviewComments(comments: ReviewComment[], opts?: { suppressAutoReveal?: boolean }) {
 		for (const comment of comments) {
 			const thread = this._commentController.createCommentThread(comment.uri, comment.range, this.createUIComments(comment));
 			thread.contextValue = 'hasNoSuggestion';
@@ -132,7 +132,6 @@ export class ReviewServiceImpl implements IReviewService {
 			this._comments.push({ comment, thread });
 			this.updateThreadLabels();
 			if (this._comments.length === 1) {
-				vscode.commands.executeCommand('github.copilot.chat.review.next');
 				this._monitorActiveThread = setInterval(() => {
 					const raw = this._commentController.activeCommentThread;
 					const active = raw && this._comments.find(c => c.thread.label === raw.label)?.thread; // https://github.com/microsoft/vscode/issues/223025
@@ -143,6 +142,9 @@ export class ReviewServiceImpl implements IReviewService {
 						}
 					}
 				}, 500);
+				if (!opts?.suppressAutoReveal) {
+					vscode.commands.executeCommand('github.copilot.chat.review.next');
+				}
 			}
 		}
 		vscode.commands.executeCommand('setContext', numberOfReviewCommentsKey, this._comments.length);
@@ -203,9 +205,12 @@ export class ReviewServiceImpl implements IReviewService {
 			}
 		}
 		this.updateThreadLabels();
-		if (this._comments.length === 0 && this._monitorActiveThread) {
-			clearInterval(this._monitorActiveThread);
-			this._monitorActiveThread = undefined;
+		if (this._comments.length === 0) {
+			this._activeThread = undefined;
+			if (this._monitorActiveThread) {
+				clearInterval(this._monitorActiveThread);
+				this._monitorActiveThread = undefined;
+			}
 		}
 		vscode.commands.executeCommand('setContext', numberOfReviewCommentsKey, this._comments.length);
 	}
@@ -224,6 +229,10 @@ export class ReviewServiceImpl implements IReviewService {
 	findCommentThread(comment: ReviewComment): vscode.CommentThread | undefined {
 		const internalComment = this._comments.find(c => c.comment === comment);
 		return internalComment?.thread;
+	}
+
+	getActiveThread(): vscode.CommentThread | undefined {
+		return this._activeThread;
 	}
 
 	dispose(): void {
