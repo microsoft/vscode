@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /** `accessToken` is only carried when the provider authenticates with a bearer. */
@@ -30,8 +31,11 @@ export interface IExtensionGalleryAccountProvider {
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 	readonly onDidChangeAccount: Event<void>;
 
-	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
+	/**
+	 * Never prompts. Check {@link accountStatus} for whether the account may actually be used.
+	 * With `protectedResource`, the returned `accessToken` is scoped to that resource.
+	 */
+	getAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive. The provider owns account selection and how the session is obtained. */
 	signIn(): Promise<void>;
@@ -39,7 +43,7 @@ export interface IExtensionGalleryAccountProvider {
 
 export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
 
-/** Identity and entitlement for the Private Marketplace. Knows nothing about URLs or HTTP. */
+/** Identity and entitlement for the Private Marketplace. Makes no marketplace requests of its own. */
 export interface IExtensionGalleryAccountService {
 	readonly _serviceBrand: undefined;
 
@@ -47,8 +51,11 @@ export interface IExtensionGalleryAccountService {
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 	readonly onDidChangeAccount: Event<void>;
 
-	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
+	/**
+	 * Never prompts. Check {@link accountStatus} for whether the account may actually be used.
+	 * With `protectedResource`, the returned `accessToken` is scoped to that resource.
+	 */
+	getAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive sign-in for whichever provider the deployment configured. */
 	signIn(): Promise<void>;
