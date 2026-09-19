@@ -26,6 +26,7 @@ import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { mcpUriToFsPath, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
@@ -173,6 +174,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -207,6 +209,11 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 							collectionDisposable.value = disposable;
 						} else {
 							disposable.dispose();
+						}
+					}, error => {
+						this._logService.error(`Failed to register MCP collection for plugin ${plugin.uri.toString()}`, error);
+						if (this._collections.get(plugin.uri) === collectionDisposable) {
+							this._collections.deleteAndDispose(plugin.uri);
 						}
 					});
 				}
