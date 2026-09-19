@@ -171,3 +171,11 @@ x $12.45
 <!-- Should not interpret text for skipped percent (\%) -->
 
 $$ \% Should not be highlighted $$
+
+<!-- Should not highlight escaped dollar signs -->
+
+\$ not math \$ and `code` after it
+
+\$\$ not display math \$\$ and `code` after it
+
+Still math $x+y$
