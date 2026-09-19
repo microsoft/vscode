@@ -19,11 +19,11 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
-import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // ===== Test doubles =====
 
@@ -205,6 +205,7 @@ function createPipeline(
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
 		[IDiffComputeService, createZeroDiffComputeService()],
+		[ISessionDataService, createSessionDataService(db)],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
@@ -277,6 +278,7 @@ suite('ClaudeSdkPipeline', () => {
 				[ILogService, new NullLogService()],
 				[IFileService, fileService],
 				[IDiffComputeService, createZeroDiffComputeService()],
+				[ISessionDataService, createSessionDataService(db)],
 			);
 			const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 			const subagents = disposables.add(new SubagentRegistry());

@@ -749,6 +749,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		let action = signal.action;
+		const producerTurnId = hasKey(action, { turnId: true }) ? action.turnId : undefined;
 		if (action.type !== ActionType.ChatTruncated && hasKey(action, { turnId: true }) && action.turnId !== turnId) {
 			if (turnIdRouting === 'remap') {
 				action = { ...action, turnId };
@@ -885,7 +886,12 @@ export class AgentSideEffects extends Disposable {
 			// available across completed turns so it can be steered again.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._changesets.onToolCallEditsApplied(sessionUri, turnId, this._turnTracker.getClientTelemetryContext(sessionKey, turnId));
+				const clientContext = this._turnTracker.getClientTelemetryContext(sessionKey, turnId);
+				if (turnIdRouting === 'remap' && producerTurnId !== turnId) {
+					void this._remapFileEdits(sessionUri, action.toolCallId, turnId, clientContext);
+				} else {
+					this._changesets.onToolCallEditsApplied(sessionUri, turnId, clientContext);
+				}
 			}
 		}
 
@@ -922,6 +928,20 @@ export class AgentSideEffects extends Disposable {
 
 	private _resumedTurnExecutionKey(chat: ProtocolURI, turnId: string): string {
 		return `${chat}\0${turnId}`;
+	}
+
+	private async _remapFileEdits(sessionUri: ProtocolURI, toolCallId: string, turnId: string, clientContext: IAgentHostClientTelemetryContext | undefined): Promise<void> {
+		try {
+			const ref = this._options.sessionDataService.openDatabase(URI.parse(sessionUri));
+			try {
+				await ref.object.reassignFileEditsToTurn(toolCallId, turnId);
+			} finally {
+				ref.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentSideEffects] Failed to reassign file edits for ${toolCallId}`, error);
+		}
+		this._changesets.onToolCallEditsApplied(sessionUri, turnId, clientContext);
 	}
 
 	private _recordModelCallCompleted(agent: IAgent, signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
@@ -1494,22 +1514,18 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
-				const endedTurn = this._completeTurn(channel, action.turnId, 'cancelled');
+				if (!this._completeTurn(channel, action.turnId, 'cancelled')) {
+					break;
+				}
 				this._resumedTurnExecutions.delete(this._resumedTurnExecutionKey(channel, action.turnId));
 				this._toolCallTracker.clearSession(channel);
-				// Keep client cancellations aligned with the agent-signal cancellation path,
-				// but only when a turn actually ended: the reducer no-ops a stale or duplicate
-				// cancellation, and reporting one would mark a read session unread for a turn
-				// that never stopped.
-				if (endedTurn) {
-					this._chatContributions.turnEnd({
-						session: sessionChannel,
-						channel,
-						turnId: action.turnId,
-						reason: { kind: 'cancelled' },
-						clientContext,
-					});
-				}
+				this._chatContributions.turnEnd({
+					session: sessionChannel,
+					channel,
+					turnId: action.turnId,
+					reason: { kind: 'cancelled' },
+					clientContext,
+				});
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);

@@ -60,6 +60,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
+	async reassignFileEditsToTurn(toolCallId: string, turnId: string): Promise<void> {
+		for (const edit of this._edits) {
+			if (edit.toolCallId === toolCallId) {
+				edit.turnId = turnId;
+			}
+		}
+	}
+
 	async getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]> {
 		const toolCallIdsSet = new Set(toolCallIds);
 		return this._toEditRecords(this._edits.filter(e => toolCallIdsSet.has(e.toolCallId)));

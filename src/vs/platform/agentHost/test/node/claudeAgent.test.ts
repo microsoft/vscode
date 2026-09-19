@@ -26,6 +26,7 @@ import {
 	makeTextDelta,
 	makeThinkingDelta,
 	makeUserToolResultMessage,
+	TEST_UUID,
 } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -51,8 +52,9 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { ActionType, isChatAction } from '../../common/state/sessionActions.js';
+import { chatReducer } from '../../common/state/protocol/channels-chat/reducer.js';
+import { isHostNoticeTurn, lastAttributableTurnId, createChatState, TurnState, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -76,7 +78,7 @@ import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
-import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
+import { ClaudeSessionMetadataStore, sdkInitiatedTurnKey } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../common/agentSdkSetup.js';
@@ -476,6 +478,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * deterministically. Resolves immediately when undefined.
 	 */
 	queryAdvance: ((index: number) => Promise<void>) | undefined;
+	promptReceived: ((message: SDKUserMessage) => void) | undefined;
 
 	/**
 	 * Optional gate awaited by {@link FakeQuery.return}. Models the SDK's
@@ -842,6 +845,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 					return;
 				}
 				this.drainedPrompts.push(r.value);
+				this._sdk.promptReceived?.(r.value);
 			}
 		})();
 	}
@@ -8394,6 +8398,18 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			`expected warn-log; got: ${log.warns.join(' | ')}`);
 	});
 
+	test('getMessages replays the transcript when SDK turn metadata cannot be read', async () => {
+		const log = new CapturingLogService();
+		const sessionData = createSessionDataService();
+		sessionData.tryOpenDatabase = async () => { throw new Error('metadata unavailable'); };
+		const { agent, sdk } = createTestContext(disposables, { logService: log, sessionDataService: sessionData });
+		const sessionUri = AgentSession.uri(agent.id, 'metadata-fail');
+		await bindDefaultChat(agent, sessionUri);
+		sdk.sessionMessagesById.set('metadata-fail', [makeUserSessionMessage('user', 'hello'), makeAssistantSessionMessage('assistant', 'world')]);
+		const turns = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
+		assert.deepStrictEqual([turns[0]?.message.text, log.warns.some(w => w.includes('SDK turn metadata read failed'))], ['hello', true]);
+	});
+
 	// Note: Phase 12 step 8 priming used to be tested here against a
 	// `FakeClaudeSubagentResolver`. With the per-session
 	// `SubagentRegistry`, priming is exercised by Phase D's
@@ -11121,3 +11137,148 @@ suite('ClaudeAgent — host seams', () => {
 });
 
 // #endregion
+
+suite('ClaudeAgent — SDK-initiated turns', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createSdkChat(database?: TestSessionDatabase) {
+		const context = createTestContext(disposables, database ? { database } : undefined);
+		await context.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(context.agent, { workingDirectories: [URI.file('/work')] });
+		return { ...context, created, sid: created.sdkSessionId, chat: defaultChatUri(created.session) };
+	}
+
+	for (const canonicalFirst of [false, true]) {
+		test(`background continuation reaches completed chat state (canonicalFirst=${canonicalFirst})`, async () => {
+			const database = new TestSessionDatabase();
+			let markerWrites = 0;
+			const setMetadata = database.setMetadata.bind(database);
+			database.setMetadata = async (key, value) => {
+				if (canonicalFirst && key === sdkInitiatedTurnKey(TEST_UUID)) {
+					markerWrites++;
+					throw new Error('marker write failed');
+				}
+				await setMetadata(key, value);
+			};
+			const { agent, sdk, proxy, sid, chat } = await createSdkChat(database);
+			let state = chatReducer(createChatState({ resource: chat.toString(), title: 'Test', status: SessionStatus.Idle, modifiedAt: new Date().toISOString() }), { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(), message: { text: 'inspect', origin: { kind: MessageKind.User } } });
+			const usage: unknown[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind !== 'action') { return; }
+				if (signal.resource.toString() === chat.toString() && isChatAction(signal.action)) { state = chatReducer(state, signal.action); }
+				if (signal.action.type === ActionType.ChatUsage) { usage.push(signal.action.usage._meta?.copilotUsage); }
+			}));
+			const finished = new DeferredPromise<void>();
+			sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), ...(canonicalFirst ? [makeAssistantMessage(sid, []), makeAssistantMessage(sid, [])] : []), makeStreamEvent(sid, makeMessageStart()), makeStreamEvent(sid, makeContentBlockStartText(0)), makeStreamEvent(sid, makeTextDelta(0, 'background done')), makeStreamEvent(sid, makeContentBlockStop(0)), makeStreamEvent(sid, makeMessageStop()), makeResultSuccess(sid)];
+			sdk.queryAdvance = async index => {
+				if (index === 1) { proxy.onDidReportCreditsEmitter.fire({ sessionId: sid, totalNanoAiu: 100 }); }
+				if (index === 2) { proxy.onDidReportCreditsEmitter.fire({ sessionId: sid, totalNanoAiu: 20 }); }
+				if (index === sdk.nextQueryMessages.length) { finished.complete(); }
+			};
+			await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+			await finished.p;
+
+			const resumed = state.turns[1];
+			assert.deepStrictEqual([state.turns.length, resumed.message.origin?.kind, resumed.state, isHostNoticeTurn(resumed), lastAttributableTurnId(state.turns), state.activeTurn, markerWrites], [2, MessageKind.Agent, TurnState.Complete, false, resumed.id, undefined, canonicalFirst ? 1 : 0]);
+			assert.deepStrictEqual(usage, [{ totalNanoAiu: 100 }, { totalNanoAiu: 20 }]);
+			assert.ok(resumed.responseParts.some(part => part.kind === ResponsePartKind.Markdown && part.content === 'background done'));
+		});
+	}
+
+	test('completes a background turn before a queued prompt and restores its boundary after release', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk, created, sid, chat } = await createSdkChat(database);
+		const ready = new DeferredPromise<void>(), advance = new DeferredPromise<void>(), received = new DeferredPromise<void>();
+		const completed: string[] = [];
+		let backgroundId: string | undefined;
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind !== 'action') { return; }
+			if (signal.action.type === ActionType.ChatTurnStarted) { backgroundId = signal.action.turnId; }
+			if (signal.action.type === ActionType.ChatTurnComplete) { completed.push(signal.action.turnId); }
+		}));
+		const background = makeAssistantMessage(sid, [{ type: 'text', text: 'background done', citations: [] }]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), background, makeResultSuccess(sid), makeResultSuccess(sid)];
+		sdk.queryAdvance = async index => { if (index === 3) { ready.complete(); await advance.p; } };
+		await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await ready.p;
+		sdk.promptReceived = () => received.complete();
+		const next = agent.chats.sendMessage(chat, 'next', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
+		await received.p;
+		advance.complete();
+		await next;
+		assert.ok(backgroundId);
+		assert.deepStrictEqual(completed, ['turn-1', backgroundId, 'turn-2']);
+
+		const prompt = sdk.warmQueries[0].produced!.drainedPrompts[0];
+		sdk.sessionMessagesById.set(sid, [{ ...prompt, uuid: prompt.uuid!, session_id: sid, parent_agent_id: null }, { ...background, parent_agent_id: null }]);
+		await releaseDefaultChat(agent, created.session);
+		const cold = createTestContext(disposables, { database });
+		cold.sdk.sessionMessagesById.set(sid, sdk.sessionMessagesById.get(sid)!);
+		await cold.agent.materializeChat(chat, chatContext(chat), JSON.stringify({ sdkSessionId: sid }));
+		const restored = await cold.agent.chats.getMessages(chat, chatContext(chat));
+		assert.deepStrictEqual([restored.map(turn => turn.id), restored[1].message.origin?.kind], [[prompt.uuid, backgroundId], MessageKind.Agent]);
+
+		await cold.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		cold.sdk.forkSessionResult = { sessionId: 'forked-background' };
+		cold.sdk.sessionList = [{ sessionId: 'forked-background', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		const fork = await createSession(cold.agent, {}, { fork: { source: chat, turnId: backgroundId } });
+		assert.deepStrictEqual(cold.sdk.forkSessionCalls[0], { sessionId: sid, options: { upToMessageId: background.uuid } });
+		cold.sdk.sessionMessagesById.set(fork.sdkSessionId, sdk.sessionMessagesById.get(sid)!);
+		assert.strictEqual((await cold.agent.chats.getMessages(defaultChatUri(fork.session), chatContext(defaultChatUri(fork.session)))).at(-1)?.id, backgroundId);
+		assert.strictEqual(database.setMetadataCalls.filter(call => call.value === backgroundId).length, 2);
+
+		cold.sdk.sessionList = [...cold.sdk.sessionList, { sessionId: sid, summary: 'source', lastModified: 1, cwd: URI.file('/work').fsPath }];
+		await cold.agent.truncateChat(chat, backgroundId, chatContext(chat));
+		cold.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+		await cold.agent.chats.sendMessage(chat, 'after truncate', undefined, undefined, 'turn-3', undefined, undefined, chatContext(chat));
+		assert.strictEqual(cold.sdk.capturedStartupOptions.at(-1)?.resumeSessionAt, background.uuid);
+	});
+
+	for (const ending of ['client abort', 'abort during rebind', 'provider abort', 'stream failure', 'dispose'] as const) {
+		test(`SDK-initiated turn has exactly one terminal action on ${ending}`, async () => {
+			const { agent, sdk, created, sid, chat } = await createSdkChat();
+			const ready = new DeferredPromise<void>(), advance = new DeferredPromise<void>();
+			const terminals: string[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && (signal.action.type === ActionType.ChatTurnCancelled || signal.action.type === ActionType.ChatTurnComplete) && signal.action.turnId !== 'turn-1') { terminals.push(signal.action.type); }
+			}));
+			sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), makeStreamEvent(sid, makeMessageStart()), makeResultSuccess(sid)];
+			sdk.queryAdvance = async index => { if (index === 3) { ready.complete(); await advance.p; if (ending === 'stream failure') { throw new Error('stream failed'); } } };
+			await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+			await ready.p;
+			const session = agent.getSessionForTesting(created.session)!;
+			const startupReached = new DeferredPromise<void>(), startupGate = new DeferredPromise<void>();
+			let rebound: Promise<void> | undefined;
+			if (ending === 'abort during rebind') {
+				sdk.startupAdvance = async () => { startupReached.complete(); await startupGate.p; };
+				rebound = session.rebindForClientTools().catch(() => { });
+				await startupReached.p;
+			}
+			if (ending === 'client abort' || ending === 'abort during rebind') { await agent.chats.abort(chat, chatContext(chat)); }
+			if (ending === 'dispose') { session.dispose(); }
+			if (ending === 'provider abort') { session.abort(); }
+			advance.complete();
+			startupGate.complete();
+			await rebound;
+			await tick();
+			assert.deepStrictEqual(terminals, ending === 'client abort' || ending === 'abort during rebind' ? [] : [ActionType.ChatTurnCancelled]);
+		});
+	}
+
+	test('idle registered subagent output and terminal notification are routed without starting a parent turn', async () => {
+		const { agent, sdk, created, sid, chat } = await createSdkChat();
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const ready = new DeferredPromise<void>(), advance = new DeferredPromise<void>(), finished = new DeferredPromise<void>();
+		sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid), { ...makeAssistantMessage(sid, [{ type: 'text', text: 'child finished', citations: null }]), parent_tool_use_id: 'child-1' }, { type: 'system', subtype: 'task_notification', task_id: 'task-1', tool_use_id: 'child-1', status: 'completed', output_file: '/tmp/output', summary: 'done', session_id: sid, uuid: '00000000-0000-0000-0000-000000000001' }];
+		sdk.queryAdvance = async index => { if (index === 2) { ready.complete(); await advance.p; } if (index === sdk.nextQueryMessages.length) { finished.complete(); } };
+		await agent.chats.sendMessage(chat, 'inspect', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		await ready.p;
+		const registry = agent.getSessionForTesting(created.session)!.subagents;
+		registry.recordSpawn('child-1', { subagentType: 'Explore', prompt: 'inspect' }).background = true;
+		advance.complete();
+		await finished.p;
+		assert.ok(signals.some(signal => signal.kind === 'action' && signal.parentToolCallId === 'child-1' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown && signal.action.part.content === 'child finished'));
+		assert.deepStrictEqual([signals.filter(signal => signal.kind === 'subagent_completed' && signal.toolCallId === 'child-1').length, registry.getSpawn('child-1'), signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted)], [1, undefined, false]);
+	});
+});

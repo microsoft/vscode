@@ -256,6 +256,8 @@ suite('SessionDatabase', () => {
 				addedLines: 5,
 				removedLines: 2,
 			}]);
+			await db.reassignFileEditsToTurn('tc-1', 'turn-2');
+			assert.strictEqual((await db.getFileEdits(['tc-1']))[0].turnId, 'turn-2');
 		});
 
 		test('retrieve multiple edits for a single tool call', async () => {
