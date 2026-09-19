@@ -107,9 +107,12 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly sendMessagesRequests: unknown[] = [];
+	readonly pendingSteeringMessages: string[] = [];
+	readonly pendingQueueItems: Awaited<ReturnType<CopilotSession['rpc']['queue']['pendingItems']>>['items'] = [];
 	sendMessagesError: Error | undefined;
 	sendMessagesGate: Promise<void> | undefined;
 	sendGate: Promise<void> | undefined;
+	inFlightSteeringCount = 0;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
@@ -294,14 +297,21 @@ class MockCopilotSession {
 	}
 
 	// Stubs for methods the wrapper / session class calls
-	async send(request: unknown) {
+	async send(request: Parameters<CopilotSession['send']>[0]) {
 		this.operationLog.push('send');
 		this.sendRequests.push(request);
+		const message = typeof request === 'string' ? { prompt: request } : request;
+		if (message.mode === 'immediate') {
+			this.pendingSteeringMessages.push(message.displayPrompt ?? message.prompt);
+		}
 		await this.sendGate;
 		return `message-${this.sendRequests.length}`;
 	}
 	async abort() {
 		this.abortCalls++;
+		this.pendingSteeringMessages.length = 0;
+		this.pendingQueueItems.length = 0;
+		this.inFlightSteeringCount = 0;
 		await this.abortGate;
 	}
 	async setModel(...args: Parameters<CopilotSession['setModel']>) {
@@ -329,6 +339,33 @@ class MockCopilotSession {
 				throw this.sendMessagesError;
 			}
 			await this.sendMessagesGate;
+		},
+		queue: {
+			pendingItems: async () => {
+				this.operationLog.push('queue.pendingItems');
+				return {
+					items: this.pendingQueueItems.slice(),
+					steeringMessages: this.pendingSteeringMessages.slice(),
+					inFlightSteeringCount: this.inFlightSteeringCount,
+				};
+			},
+			removeAt: async ({ id }: Parameters<CopilotSession['rpc']['queue']['removeAt']>[0]) => {
+				this.operationLog.push('queue.removeAt');
+				const index = this.pendingQueueItems.findIndex(item => item.id === id);
+				if (index === -1) {
+					return { removed: false };
+				}
+				this.pendingQueueItems.splice(index, 1);
+				return { removed: true };
+			},
+			removeMostRecent: async () => {
+				this.operationLog.push('queue.removeMostRecent');
+				if (this.pendingSteeringMessages.length <= this.inFlightSteeringCount) {
+					return { removed: false };
+				}
+				this.pendingSteeringMessages.pop();
+				return { removed: true };
+			},
 		},
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
@@ -6975,15 +7012,15 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	// ---- sendSteering ----
+	// ---- setPendingSteering ----
 
-	suite('sendSteering', () => {
+	suite('setPendingSteering', () => {
 
 		test('forwards attachments to the SDK', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			const imageUri = URI.file('/session/attachments/pasted-image.png');
 
-			await session.sendSteering({
+			await session.setPendingSteering({
 				id: 'steer-1',
 				message: {
 					text: 'see the screenshot',
@@ -6999,6 +7036,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(mockSession.sendRequests, [{
 				prompt: 'see the screenshot',
+				displayPrompt: 'see the screenshot',
 				attachments: [{
 					type: 'file',
 					path: imageUri.fsPath,
@@ -7012,7 +7050,7 @@ suite('CopilotAgentSession', () => {
 			const snapshotUri = URI.file('/session/attachments/pasted.txt');
 			const { session, mockSession } = await createAgentSession(disposables);
 
-			await session.sendSteering({
+			await session.setPendingSteering({
 				id: 'steer-text',
 				message: {
 					text: 'use this',
@@ -7032,6 +7070,7 @@ suite('CopilotAgentSession', () => {
 			// the attachment keeps its plain display name.
 			assert.deepStrictEqual(mockSession.sendRequests, [{
 				prompt: `use this\n\n<reminder>\n${expectedSnapshotReadonlyNote([snapshotUri.fsPath])}\n</reminder>`,
+				displayPrompt: 'use this',
 				attachments: [{
 					type: 'file',
 					path: snapshotUri.fsPath,
@@ -7045,7 +7084,7 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 
 			// Sending the steering must not flip turns until the SDK has
 			// echoed the user message back through the event stream.
@@ -7072,7 +7111,7 @@ suite('CopilotAgentSession', () => {
 			session.resetTurnState('turn-original');
 			const imageUri = URI.file('/session/attachments/pasted-image.png');
 
-			await session.sendSteering({
+			await session.setPendingSteering({
 				id: 'steer-attachment',
 				message: {
 					text: 'Inspect the attached screenshot.',
@@ -7131,7 +7170,7 @@ Use the attached image as context.
 				return sendGate.p;
 			};
 
-			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const steeringPromise = session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			await timeout(0);
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 
@@ -7164,7 +7203,7 @@ Use the attached image as context.
 				return sendGate.p;
 			};
 
-			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const steeringPromise = session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			await timeout(0);
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -7194,7 +7233,7 @@ Use the attached image as context.
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
 				interactionId: 'interaction-steer',
@@ -7233,7 +7272,7 @@ Use the attached image as context.
 				toolRequests: [{ toolCallId: 'tc-1', name: 'grep', arguments: {} }],
 			} as SessionEventPayload<'assistant.message'>['data']);
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
 				interactionId: 'interaction-steer',
@@ -7267,7 +7306,7 @@ Use the attached image as context.
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 
 			// SDK injects an unrelated user.message (e.g. skill content)
 			// with the steering's exact text but a non-'user' source.
@@ -7287,7 +7326,7 @@ Use the attached image as context.
 			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
 			session.resetTurnState('turn-original');
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
 			} as SessionEventPayload<'user.message'>['data'], { agentId: 'agent-1', id: 'evt-subagent' });
@@ -7307,7 +7346,7 @@ Use the attached image as context.
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			mockSession.fire('user.message', {
 				content: 'something completely different',
 			} as SessionEventPayload<'user.message'>['data']);
@@ -7319,16 +7358,261 @@ Use the attached image as context.
 		test('does not send the same steering message again before it is flipped', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
+		test('replaces edited steering messages before the SDK consumes them', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-2', message: { text: 'focus on tests and telemetry', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-3', message: { text: 'focus on tests, telemetry, and product logic', origin: { kind: MessageKind.User } } });
+
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'send' || operation.startsWith('queue.')),
+				pendingSteeringMessages: mockSession.pendingSteeringMessages,
+			}, {
+				operations: [
+					'send',
+					'queue.pendingItems',
+					'queue.removeMostRecent',
+					'send',
+					'queue.pendingItems',
+					'queue.removeMostRecent',
+					'send',
+				],
+				pendingSteeringMessages: ['focus on tests, telemetry, and product logic'],
+			});
+		});
+
+		test('coalesces the remove and add actions produced by editing a pending steering message', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const remove = session.setPendingSteering(undefined);
+			const replace = session.setPendingSteering({ id: 'steer-2', message: { text: 'focus on tests and telemetry', origin: { kind: MessageKind.User } } });
+			await Promise.all([remove, replace]);
+
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'send' || operation.startsWith('queue.')),
+				pendingSteeringMessages: mockSession.pendingSteeringMessages,
+			}, {
+				operations: [
+					'send',
+					'queue.pendingItems',
+					'queue.removeMostRecent',
+					'send',
+				],
+				pendingSteeringMessages: ['focus on tests and telemetry'],
+			});
+		});
+
+		test('sends the latest edit after the previous steering message was already consumed', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.inFlightSteeringCount = 1;
+			await session.setPendingSteering({ id: 'steer-2', message: { text: 'focus on tests and telemetry', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'send' || operation.startsWith('queue.')),
+				pendingSteeringMessages: mockSession.pendingSteeringMessages,
+			}, {
+				operations: [
+					'send',
+					'queue.pendingItems',
+					'send',
+				],
+				pendingSteeringMessages: ['focus on tests', 'focus on tests and telemetry'],
+			});
+		});
+
+		test('updates a pending steering message without changing its protocol id', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'final revision', origin: { kind: MessageKind.User } } });
+			for (const content of mockSession.pendingSteeringMessages) {
+				mockSession.fire('user.message', { content });
+			}
+
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatTurnStarted)
+				.map(action => ({ id: action.queuedMessageId, text: action.message.text })), [
+				{ id: 'steer-1', text: 'final revision' },
+			]);
+		});
+
+		test('removes an attachment-only pending steering message', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setPendingSteering({
+				id: 'steer-1',
+				message: {
+					text: '',
+					origin: { kind: MessageKind.User },
+					attachments: [{ type: MessageAttachmentKind.Simple, label: 'context', modelRepresentation: 'sample context' }],
+				},
+			});
+
+			await session.setPendingSteering(undefined);
+
+			assert.deepStrictEqual(mockSession.pendingSteeringMessages, []);
+		});
+
+		test('coalesces edits while the previous SDK send is still pending', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const sendGate = new DeferredPromise<void>();
+			mockSession.sendGate = sendGate.p;
+			const first = session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			const second = session.setPendingSteering({ id: 'steer-2', message: { text: 'intermediate revision', origin: { kind: MessageKind.User } } });
+			const third = session.setPendingSteering({ id: 'steer-3', message: { text: 'final revision', origin: { kind: MessageKind.User } } });
+			sendGate.complete();
+			await Promise.all([first, second, third]);
+
+			assert.deepStrictEqual({
+				sentPrompts: mockSession.sendRequests.map(request => (request as { prompt: string }).prompt),
+				pending: mockSession.pendingSteeringMessages,
+			}, {
+				sentPrompts: ['first revision', 'final revision'],
+				pending: ['final revision'],
+			});
+		});
+
+		test('does not remove steering that was consumed while reading the SDK queue', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+			const pendingItems = mockSession.rpc.queue.pendingItems;
+			mockSession.rpc.queue.pendingItems = async () => {
+				const snapshot = await pendingItems();
+				mockSession.inFlightSteeringCount = 1;
+				mockSession.fire('user.message', { content: 'first revision' });
+				return snapshot;
+			};
+
+			await session.setPendingSteering({ id: 'steer-2', message: { text: 'final revision', origin: { kind: MessageKind.User } } });
+
+			assert.deepStrictEqual({
+				removed: mockSession.operationLog.includes('queue.removeMostRecent'),
+				pending: mockSession.pendingSteeringMessages.slice(mockSession.inFlightSteeringCount),
+			}, {
+				removed: false,
+				pending: ['final revision'],
+			});
+		});
+
+		test('serializes normal sends behind pending steering removal', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+			const gate = new DeferredPromise<void>();
+			const pendingItems = mockSession.rpc.queue.pendingItems;
+			mockSession.rpc.queue.pendingItems = async () => {
+				const snapshot = await pendingItems();
+				await gate.p;
+				return snapshot;
+			};
+			const remove = session.setPendingSteering(undefined);
+			await timeout(0);
+			const send = session.send('next turn', undefined, 'turn-next');
+			await timeout(0);
+			const sendsBeforeRemoval = mockSession.sendRequests.length;
+			gate.complete();
+			await Promise.all([remove, send]);
+
+			assert.deepStrictEqual({
+				sendsBeforeRemoval,
+				operations: mockSession.operationLog.filter(operation => operation === 'send' || operation.startsWith('queue.')),
+			}, {
+				sendsBeforeRemoval: 1,
+				operations: ['send', 'queue.pendingItems', 'queue.removeMostRecent', 'send'],
+			});
+		});
+
+		test('removes steering by stable id when the SDK promotes it to the normal queue', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+			mockSession.pendingSteeringMessages.length = 0;
+			mockSession.pendingQueueItems.push(
+				{ id: 'queue-1', messageId: 'message-1', kind: 'message', displayText: 'first revision', agentMode: 'interactive' },
+				{ id: 'queue-2', messageId: 'other-message', kind: 'message', displayText: 'unrelated work', agentMode: 'interactive' },
+			);
+
+			await session.setPendingSteering(undefined);
+
+			assert.deepStrictEqual({
+				pendingIds: mockSession.pendingQueueItems.map(item => item.id),
+				removedMostRecent: mockSession.operationLog.includes('queue.removeMostRecent'),
+			}, {
+				pendingIds: ['queue-2'],
+				removedMostRecent: false,
+			});
+		});
+
+		test('preserves unrelated SDK work and retries when the queue changes', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession } = await createAgentSession(disposables, { logService });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+			mockSession.pendingQueueItems.push({ id: 'other', kind: 'command', displayText: '/model', agentMode: 'interactive' });
+
+			await session.setPendingSteering({ id: 'steer-2', message: { text: 'final revision', origin: { kind: MessageKind.User } } });
+			const beforeRetry = {
+				pending: mockSession.pendingSteeringMessages.slice(),
+				removedMostRecent: mockSession.operationLog.includes('queue.removeMostRecent'),
+				errors: logService.errors.length,
+			};
+			mockSession.pendingQueueItems.length = 0;
+			mockSession.fire('pending_messages.modified', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				beforeRetry,
+				pending: mockSession.pendingSteeringMessages,
+			}, {
+				beforeRetry: { pending: ['first revision'], removedMostRecent: false, errors: 1 },
+				pending: ['final revision'],
+			});
+		});
+
+		for (const cleanup of ['abort', 'dispose'] as const) {
+			test(`does not send a replacement after ${cleanup} during queue reconciliation`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables);
+				await session.setPendingSteering({ id: 'steer-1', message: { text: 'first revision', origin: { kind: MessageKind.User } } });
+				const gate = new DeferredPromise<void>();
+				const pendingItems = mockSession.rpc.queue.pendingItems;
+				mockSession.rpc.queue.pendingItems = async () => {
+					const snapshot = await pendingItems();
+					await gate.p;
+					return snapshot;
+				};
+				const edit = session.setPendingSteering({ id: 'steer-2', message: { text: 'final revision', origin: { kind: MessageKind.User } } });
+				await timeout(0);
+				await session[cleanup]();
+				gate.complete();
+				await edit;
+
+				assert.deepStrictEqual({
+					sends: mockSession.sendRequests.length,
+					removedMostRecent: mockSession.operationLog.includes('queue.removeMostRecent'),
+				}, {
+					sends: 1,
+					removedMostRecent: false,
+				});
+			});
+		}
+
 		test('fires steering_consumed on abort when the steering never reached its turn', async () => {
 			const { session, signals } = await createAgentSession(disposables);
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			await session.abort();
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
@@ -7346,7 +7630,7 @@ Use the attached image as context.
 			session.resetTurnState('turn-original');
 			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
 
-			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
 				interactionId: 'interaction-steer',
@@ -7375,7 +7659,7 @@ Use the attached image as context.
 				session.resetTurnState('turn-original');
 				mockSession.fire('assistant.turn_start', { turnId: 'sdk-0', interactionId: 'interaction-original' });
 
-				await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+				await session.setPendingSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 				mockSession.fire('user.message', {
 					content: 'focus on tests',
 					interactionId: interactionId ? 'interaction-steer' : undefined,
@@ -7442,7 +7726,7 @@ Use the attached image as context.
 
 			mockSession.send = async () => { throw new Error('send failed'); };
 
-			await session.sendSteering({ id: 'steer-fail', message: { text: 'will fail', origin: { kind: MessageKind.User } } });
+			await session.setPendingSteering({ id: 'steer-fail', message: { text: 'will fail', origin: { kind: MessageKind.User } } });
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
 			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
