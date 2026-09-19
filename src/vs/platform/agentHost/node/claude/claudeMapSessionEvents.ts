@@ -38,9 +38,10 @@ import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkd
  *   lands in one assistant message, the matching `tool_result` arrives
  *   in a later synthetic `user` message. Keyed by the SDK's globally-
  *   unique `block.id` so re-use of `index` between messages is harmless.
- *   Drained on `tool_result` (happy path) or on the turn's `result`
- *   envelope as a defense-in-depth fallback so an SDK that never
- *   delivers `tool_result` cannot leak entries across turns.
+ *   Drained on `tool_result` (happy path) or, as a defense-in-depth
+ *   fallback, via `clearPendingToolCalls` once the pipeline reports the
+ *   protocol turn is over, so an SDK that never delivers `tool_result`
+ *   cannot leak entries across turns.
  *
  * Encapsulated as a class (vs. a plain interface) so the maps' mutators
  * are not part of the public surface — Phase 6.1's lesson — and the
@@ -171,12 +172,13 @@ export class ClaudeMapperState {
 	 * of a turn. A `tool_use` whose `tool_result` never arrives — model
 	 * misbehavior, transport drop, future cancellation — would otherwise
 	 * survive in the maps for the lifetime of the session and accumulate
-	 * across turns. Called from {@link mapResult} on every `result`
-	 * envelope; warns once per orphan to surface the protocol break.
+	 * across turns. Driven by the pipeline (via
+	 * `ClaudeSdkMessageRouter.clearPendingTurnState`) on the FINAL
+	 * `result` of a protocol turn only: a steering preempt's intermediate
+	 * `result` must keep in-flight attribution. Warns once per orphan.
 	 *
 	 * Phase 12 subagent state lives on {@link SubagentRegistry}, not
-	 * here; the mapper drives that drain via
-	 * `registry.drainForegroundSpawns()` from {@link mapResult}.
+	 * here; the router drains that alongside this call.
 	 */
 	clearPendingToolCalls(logService: ILogService): void {
 		this.toolCalls.clearPending(logService);
@@ -254,7 +256,7 @@ export function mapSDKMessageToAgentSignals(
 				registry,
 			);
 		case 'result':
-			return mapResult(message, chat, turnId, turnDuration, state, logService, registry);
+			return mapResult(message, chat, turnId, turnDuration);
 		case 'assistant':
 			return tagWithParent(
 				mapAssistantCanonical(message, chat, turnId, state, message.parent_tool_use_id, registry, clientToolOwner),
@@ -446,14 +448,17 @@ function isToolResultTextBlock(block: unknown): block is { type: 'text'; text: s
 	return candidate.type === 'text' && typeof candidate.text === 'string';
 }
 
+/**
+ * Map a `result` envelope to its usage / error signals. Turn-end work
+ * (`ChatTurnComplete`, dropping pending tool-call and subagent state) is
+ * the pipeline's, since only it knows whether this result closes the
+ * protocol Turn or is a steering preempt's intermediate one (CONTEXT.md M10).
+ */
 function mapResult(
 	message: Extract<SDKMessage, { type: 'result' }>,
 	session: URI,
 	turnId: string,
 	turnDuration: number | undefined,
-	state: ClaudeMapperState,
-	logService: ILogService,
-	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const signals: AgentSignal[] = [];
 	if (message.subtype === 'success') {
@@ -504,18 +509,6 @@ function mapResult(
 				}),
 			},
 		});
-	}
-	// `ChatTurnComplete` is emitted by the session via
-	// `ClaudeSdkPipeline.onTurnComplete`, NOT here. The pipeline knows
-	// when the protocol Turn is truly done (queue fully drained vs an
-	// intermediate result during a steering preempt — CONTEXT.md M10);
-	// the mapper does not have that state.
-	state.clearPendingToolCalls(logService);
-	// Phase 12 — drain orphaned subagent-spawning entries (foreground
-	// only; background entries survive across turns by design). The
-	// registry owns this state; the mapper drives the drain at turn end.
-	for (const orphan of registry.drainForegroundSpawns()) {
-		logService.warn(`[claudeMapSessionEvents] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
 	}
 	return signals;
 }
