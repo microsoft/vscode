@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { hash, stringHash } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -27,6 +28,7 @@ import { mcpUriToFsPath, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionProvenanc
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { PersistentConnectionEventType } from '../../../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
@@ -180,7 +182,13 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 	}
 
 	public start(): void {
+		const connection = this._remoteAgentService.getConnection();
+		const remoteConnectionGain = connection
+			? observableSignalFromEvent(this, Event.filter(connection.onDidStateChange, e => e.type === PersistentConnectionEventType.ConnectionGain))
+			: undefined;
+
 		this._register(autorun(reader => {
+			remoteConnectionGain?.read(reader);
 			const plugins = this._agentPluginService.plugins.read(reader);
 			const seen = new ResourceSet();
 			for (const plugin of plugins) {
@@ -233,6 +241,9 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		const remoteEnvironment = plugin.uri.scheme === Schemas.vscodeRemote
 			? await this._remoteAgentService.getEnvironment()
 			: undefined;
+		if (plugin.uri.scheme === Schemas.vscodeRemote && !remoteEnvironment) {
+			throw new Error(`Remote environment unavailable for plugin ${plugin.uri.toString()}`);
+		}
 		const serverDefinitions = await Promise.all(
 			defsObservableValue.map(async d => toPluginMcpServerDefinition(collectionId, plugin, d, this._fileService, remoteEnvironment ?? undefined))
 		);
