@@ -77,7 +77,7 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, AgentHostCatalogListResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate } from './agentHostSessionsV2MigrationService.js';
 
-import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -1032,6 +1032,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined> {
 		const sessionId = AgentSession.id(params.session);
+		const creationError = this._worktree.getCreationError(sessionId);
+		if (creationError) {
+			throw creationError;
+		}
 		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.session);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
@@ -1047,9 +1051,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return [resolved, ...tail];
 		}
 
-		// Fall back to the picked folder when worktree creation failed so the
-		// session still materializes in the user's folder rather than nowhere.
-		const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri }) ?? pickedFolderUri;
+		const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri });
 		return resolved ? [resolved, ...tail] : undefined;
 	}
 
@@ -1086,20 +1088,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return [];
 	}
 
-	/**
-	 * Creates the session's isolated worktree on the first send (deferred so the
-	 * user's prompt can name the branch), reports creation progress as the chat's
-	 * activity, surfaces the "Created isolated worktree" announcement as the first
-	 * markdown response part or a durable fallback warning, and returns the created worktree URI.
-	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
-	 * worktree creation failed. Only invoked for sessions whose worktree is still
-	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
-	 */
+	/** Creates the first-send worktree and announces success; failure ends the request through the normal chat error path. */
 	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
 		const { sessionId, pickedFolderUri } = params;
 		const worktree = this._worktree;
 		let reportedActivity = false;
-		let failureDiagnostic: string | undefined;
 		try {
 			await worktree.resolveOnFirstSend({
 				sessionUri: URI.parse(params.session),
@@ -1116,28 +1109,10 @@ export class AgentService extends Disposable implements IAgentService {
 					this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity });
 				},
 			});
-		} catch (err) {
-			failureDiagnostic = toErrorMessage(err);
-			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${failureDiagnostic}`);
-		}
-		// Clear on every exit path so a failed creation can't strand the chat
-		// on a stale "Creating isolated worktree" activity.
-		if (reportedActivity) {
-			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
-		}
-		const resolvedWorktree = worktree.getResolvedWorktree(sessionId);
-		if (!resolvedWorktree) {
-			try {
-				await worktree.persistCreationFailure(URI.parse(params.session), sessionId, failureDiagnostic);
-			} catch (err) {
-				this._logService.warn(`[AgentService] failed to persist worktree creation failure for ${params.session}: ${toErrorMessage(err)}`);
+		} finally {
+			if (reportedActivity) {
+				this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
 			}
-			this._stateManager.dispatchServerAction(params.chat, {
-				type: ActionType.ChatResponsePart,
-				turnId: params.turnId,
-				part: buildWorktreeFailureNotification(failureDiagnostic),
-			});
-			return undefined;
 		}
 		const announcement = worktree.takePendingAnnouncement(sessionId);
 		if (announcement !== undefined) {
@@ -1147,7 +1122,7 @@ export class AgentService extends Disposable implements IAgentService {
 				part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content: announcement },
 			});
 		}
-		return resolvedWorktree;
+		return worktree.getResolvedWorktree(sessionId);
 	}
 
 	private _initializeProvider(provider: IAgent): IDisposable {
@@ -4164,6 +4139,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
+		const creationError = this._worktree.getCreationError(AgentSession.id(session));
+		if (creationError) {
+			throw creationError;
+		}
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider) {
 			throw new Error(`[AgentService] createChat: no provider for session ${sessionKey}`);
