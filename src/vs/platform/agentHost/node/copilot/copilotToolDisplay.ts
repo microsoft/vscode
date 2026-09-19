@@ -228,24 +228,18 @@ interface ICopilotLongRunningSearchToolArgs {
 	query: string;
 }
 
-/**
- * Parameters shared by the agent-coordination tools (`read_agent`,
- * `write_agent`). The Copilot CLI identifies the target agent by its
- * human-readable `agent_id` (e.g. `math-helper`).
- */
-interface ICopilotAgentToolArgs {
-	agent_id?: string;
-}
+export type ToolAgentNameResolver = (agentId: string) => string | undefined;
 
 /**
- * Reads a well-formed `agent_id` from untrusted tool parameters. Since these are
- * parsed from JSON they may not match the expected shape, so the id is returned
- * only when it is a non-empty string and is therefore safe to render as inline
- * markdown code.
+ * Resolves opaque SDK agent ids to their display names for presentation only; invocation
+ * arguments are untouched. Unknown ids and blank names fall back to the raw id.
  */
-function getAgentId(parameters: Record<string, unknown> | undefined): string | undefined {
-	const agentId = (parameters as ICopilotAgentToolArgs | undefined)?.agent_id;
-	return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined;
+function getAgentLabel(parameters: Record<string, unknown> | undefined, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
+	const agentId = parameters?.agent_id;
+	if (typeof agentId !== 'string' || agentId.length === 0) {
+		return undefined;
+	}
+	return resolveAgentName?.(agentId)?.trim() || agentId;
 }
 
 /**
@@ -637,7 +631,7 @@ export function getToolDisplayName(toolName: string): string {
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
 	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -788,16 +782,16 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.ListAgents:
 			return localize('toolInvoke.listAgents', "List agents");
 		case CopilotToolName.ReadAgent: {
-			const agentId = getAgentId(parameters);
-			if (agentId) {
-				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			const agentLabel = getAgentLabel(parameters, resolveAgentName);
+			if (agentLabel) {
+				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
 			}
 			return localize('toolInvoke.readAgentGeneric', "Read agent");
 		}
 		case CopilotToolName.WriteAgent: {
-			const agentId = getAgentId(parameters);
-			if (agentId) {
-				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			const agentLabel = getAgentLabel(parameters, resolveAgentName);
+			if (agentLabel) {
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
 			}
 			return localize('toolInvoke.writeAgentGeneric', "Write to agent");
 		}
@@ -809,7 +803,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 /**
  * Returns the progressively refined message shown while Copilot generates tool input.
  */
-export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+export function getStreamingInvocationMessage(toolName: string, displayName: string, parameters: unknown, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
 	const objectParameters = parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters)
 		? parameters as Record<string, unknown>
 		: undefined;
@@ -850,11 +844,11 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 			return getStreamingPatchMessage(getEditFilePaths(parameters), streamingToolTextLineCount(patch), resolvePath);
 		}
 		default:
-			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath);
+			return getInvocationMessage(toolName, displayName, objectParameters, resolvePath, resolveAgentName);
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -895,7 +889,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Task:
 			return localize('toolComplete.task', "Delegated task");
 		default:
-			return getInvocationMessage(toolName, displayName, parameters, resolvePath);
+			return getInvocationMessage(toolName, displayName, parameters, resolvePath, resolveAgentName);
 	}
 }
 

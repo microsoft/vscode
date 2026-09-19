@@ -98,6 +98,21 @@ describe('applyStrategyConfig', () => {
 		expect(result.currentFile?.includeLineNumbers).toBe(IncludeLineNumbersOption.WithoutSpace);
 	});
 
+	it('matches PatchBased02Unified config except for the eagerness prompt', () => {
+		const unified = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+		}));
+		const eagerness = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+
+		expect(eagerness).toEqual({
+			...unified,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+		});
+	});
+
 	it('preserves undefined for option bags neither side specifies', () => {
 		const result = applyStrategyConfig(baseConfig({
 			promptingStrategy: PromptingStrategy.CopilotNesXtab,
@@ -158,6 +173,27 @@ describe('isEagernessPrompt', () => {
 	it('recognizes the PatchBased02 aggression prompt option', () => {
 		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
 		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 })).toBe(false);
+	});
+
+	it('recognizes the optimized PatchBased02 aggression prompt option', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified })).toBe(false);
+	});
+
+	it('does not recognize eagerness for an unrelated strategy', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.CopilotNesXtab, eagernessPrompt: 'aggressionHighLow' })).toBe(false);
+	});
+
+	it('recognizes the standalone eagerness strategy after strategy config is applied', () => {
+		const config = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+		const options = {
+			...DEFAULT_OPTIONS,
+			promptingStrategy: config.promptingStrategy,
+			eagernessPrompt: config.eagernessPrompt,
+		};
+		expect(isEagernessPrompt(options)).toBe(true);
 	});
 });
 

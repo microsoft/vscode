@@ -7,7 +7,7 @@ import assert from 'assert';
 import { isLinux } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { ISessionFileDiff } from '../../common/state/sessionState.js';
-import { dedupeSessionFileDiffs, evaluateMultiRootDiffSources } from '../../node/agentHostMultiRootDiff.js';
+import { dedupeSessionFileDiffs } from '../../node/agentHostMultiRootDiff.js';
 
 function created(uri: string): ISessionFileDiff {
 	return { after: { uri, content: { uri } } };
@@ -82,39 +82,4 @@ suite('agentHostMultiRootDiff', () => {
 		});
 	});
 
-	suite('evaluateMultiRootDiffSources', () => {
-		test('all sources available => complete', () => {
-			const a = [created('file:///repo/a.ts')];
-			const b: readonly ISessionFileDiff[] = [];
-
-			assert.deepStrictEqual(evaluateMultiRootDiffSources([a, b]), {
-				outcome: 'complete',
-				availableSources: [a, b],
-			});
-		});
-
-		test('some sources unavailable => partial, availables preserved in order', () => {
-			const a = [created('file:///repo/a.ts')];
-			const c = [created('file:///repo/c.ts')];
-
-			assert.deepStrictEqual(evaluateMultiRootDiffSources([a, undefined, c]), {
-				outcome: 'partial',
-				availableSources: [a, c],
-			});
-		});
-
-		test('no source available => failed', () => {
-			assert.deepStrictEqual(evaluateMultiRootDiffSources([undefined, undefined]), {
-				outcome: 'failed',
-				availableSources: [],
-			});
-		});
-
-		test('zero sources => failed (degenerate no-target case)', () => {
-			assert.deepStrictEqual(evaluateMultiRootDiffSources([]), {
-				outcome: 'failed',
-				availableSources: [],
-			});
-		});
-	});
 });

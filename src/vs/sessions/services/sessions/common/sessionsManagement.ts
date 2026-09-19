@@ -8,8 +8,9 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -93,6 +94,10 @@ export interface ICreateNewSessionOptions {
 	 * does not implement the setter.
 	 */
 	readonly permissionLevel?: string;
+	/** Provider-owned session values restored into an Automation draft. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	/** Complete provider-owned Automation draft state. */
+	readonly automationConfiguration?: IAutomationSessionConfiguration;
 	/**
 	 * Optional worktree isolation mode (`worktree` or `workspace`) to apply
 	 * via {@link ISessionsProvider.setIsolationMode}. Skipped if the
@@ -133,6 +138,11 @@ export interface ICreateNewChatInSessionOptions {
 	readonly forceNew?: boolean;
 }
 
+export interface IMarkSessionReadOptions {
+	/** Keep an explicit unread mark during automatic updates within the current visit. */
+	readonly preserveExplicitUnread?: boolean;
+}
+
 /**
  * Event fired when sessions change within a provider.
  */
@@ -150,6 +160,8 @@ export interface ISendRequestSentEvent {
 	readonly chat: IChat;
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	/** Provider configuration captured before preparation can replace the draft. Values may be sensitive and must not be logged wholesale. */
+	readonly newSessionConfig?: ISessionConfigurationSnapshot;
 	/**
 	 * The exact options object the send was started with, so callers can
 	 * correlate a fire-and-forget (background) send with its completion.
@@ -393,6 +405,18 @@ export interface ISessionsManagementService {
 	discardAutomationSession(session?: ISession): void;
 
 	/**
+	 * Capture the provider-owned values currently selected on an Automation draft.
+	 * `null` means the provider does not support capture; `undefined` means the draft was replaced.
+	 */
+	getAutomationSessionConfiguration(session: ISession): Promise<IAutomationSessionConfiguration | null | undefined>;
+
+	/** Whether the session's provider can restore and capture Automation configuration. */
+	supportsAutomationSessionConfiguration(session: ISession): boolean;
+
+	/** Whether the session's provider combines Mode and Model controls on phone layouts. */
+	usesCombinedNewSessionConfigPicker(session: ISession): boolean;
+
+	/**
 	 * Create a new session for the given folder.
 	 *
 	 * When `options.providerId` is omitted, iterates registered providers and
@@ -524,7 +548,7 @@ export interface ISessionsManagementService {
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
 	/** Mark a session as read through its provider. */
-	markRead(session: ISession): Promise<void>;
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
 
 	/** Mark a session as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
@@ -552,6 +576,9 @@ export interface ISessionsManagementService {
 
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
+
+	/** Remove a recorded artifact through its owning provider. */
+	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

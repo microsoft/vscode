@@ -21,6 +21,16 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 	return autoModeTiers.some(tier => tier === value);
 }
 
+/** Maps retired picker and override values to the current runtime names, matching the Copilot extension. */
+export function normalizeAutoModeTier(value: unknown): unknown {
+	switch (value) {
+		case 'eco': return 'efficiency';
+		case 'balanced': return 'balance';
+		case 'max': return 'intelligence';
+		default: return value;
+	}
+}
+
 /**
  * Localized picker label for a routing profile, capitalizing an unrecognized value so a new profile
  * never surfaces raw. Wording matches the extension's `getAutoModeTierLabel`, which cannot be imported here.

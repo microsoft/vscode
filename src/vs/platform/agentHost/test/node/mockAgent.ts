@@ -85,7 +85,7 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
 	readonly changeAgentCalls: { session: URI; agent: AgentSelection | undefined; chat?: URI }[] = [];
-	readonly authenticateCalls: { resource: string; token: string }[] = [];
+	readonly authenticateCalls: { resource: string; token: string; expiresIn?: number }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { chat: URI; clientId: string }[] = [];
@@ -401,8 +401,8 @@ export class MockAgent implements IAgent {
 
 	async materializeChat(_chat: URI, _context: URI | IAgentChatContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> { }
 
-	async authenticate(resource: string, token: string): Promise<boolean> {
-		this.authenticateCalls.push({ resource, token });
+	async authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean> {
+		this.authenticateCalls.push({ resource, token, ...(expiresIn === undefined ? {} : { expiresIn }) });
 		return true;
 	}
 

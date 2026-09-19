@@ -168,6 +168,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -653,6 +654,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 

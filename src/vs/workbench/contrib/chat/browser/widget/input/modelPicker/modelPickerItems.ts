@@ -88,17 +88,18 @@ export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): I
 		: buildFlatModelItems(options);
 }
 
-export function getModelPickerAccessibilityProvider() {
+export function getModelPickerAccessibilityProvider(isSearch = false) {
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (element.kind !== ActionListItemKind.Action) {
 				return null;
 			}
 			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
-			return [element.label, element.badge, description].filter((part): part is string => !!part).join(', ');
+			const currentModel = isSearch && element.item?.checked ? localize('chat.modelPicker.currentModel', "Current model") : undefined;
+			return [element.label, element.badge, description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
-			if (element.isSectionToggle) {
+			if (isSearch || element.isSectionToggle) {
 				return undefined;
 			}
 			if (element.kind === ActionListItemKind.Action && !(element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id))) {
@@ -107,6 +108,9 @@ export function getModelPickerAccessibilityProvider() {
 			return undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
+			if (isSearch) {
+				return element.kind === ActionListItemKind.Action ? 'option' : 'separator';
+			}
 			if (element.isSectionToggle) {
 				return 'menuitem';
 			}
@@ -118,6 +122,6 @@ export function getModelPickerAccessibilityProvider() {
 					return 'separator';
 			}
 		},
-		getWidgetRole: () => 'menu',
+		getWidgetRole: () => isSearch ? 'listbox' : 'menu',
 	} as const;
 }

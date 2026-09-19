@@ -53,6 +53,7 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	const { container, disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.definePartialInstance(ITerminalChatService, {
@@ -128,11 +129,13 @@ const markdownLinksQuestion: IChatQuestion = {
 	id: 'review-results',
 	type: 'text',
 	title: 'Review results',
-	message: new MarkdownString('Review the [VS Code documentation](https://code.visualstudio.com/docs) before continuing.'),
+	message: new MarkdownString('**Review the [VS Code documentation](https://code.visualstudio.com/docs) before continuing.**'),
 	detailedMessage: new MarkdownString([
-		'Related resources:',
+		'### [Related resources](https://code.visualstudio.com/docs)',
 		'',
-		'- [VS Code repository](https://github.com/microsoft/vscode)',
+		'Read the [extension guide](https://code.visualstudio.com/api/get-started/your-first-extension) for more information.',
+		'',
+		'- **[VS Code repository](https://github.com/microsoft/vscode)**',
 		'- [Extension API](https://code.visualstudio.com/api)',
 	].join('\n')),
 };
@@ -172,10 +175,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	}),
 
 	MarkdownLinks: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Links use theme-provided colors. In high-contrast themes, all links in the carousel message, bold question title, detailed heading, paragraph, and list are underlined. Normal themes retain their existing link styling.'],
 		render: (context) => {
 			const carousel = createCarousel([markdownLinksQuestion]);
-			carousel.message = new MarkdownString('See the [question guidance](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode) for more information.');
+			carousel.message = new MarkdownString('See **[question guidance](https://code.visualstudio.com/docs/copilot/chat/chat-agent-mode)**.');
 			renderCarousel(context, carousel);
 		},
 	}),

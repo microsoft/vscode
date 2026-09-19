@@ -92,6 +92,7 @@ interface IOpenedWindow {
 export interface IOpenedMainWindow extends IOpenedWindow {
 	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+	readonly iconPath?: URI;
 }
 
 export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
@@ -112,6 +113,7 @@ export const enum AgentsWindowOpenSource {
 	ChatHandoff = 'chatHandoff',
 	Banner = 'banner',
 	CommandLine = 'commandLine',
+	Link = 'link',
 	Unknown = 'unknown',
 }
 
@@ -124,6 +126,7 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.ChatHandoff:
 		case AgentsWindowOpenSource.Banner:
 		case AgentsWindowOpenSource.CommandLine:
+		case AgentsWindowOpenSource.Link:
 		case AgentsWindowOpenSource.Unknown:
 			return true;
 		default:
