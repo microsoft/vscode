@@ -12,7 +12,8 @@ import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../contextkey/common/contextkeys.js';
 import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
 import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from './quickInput.js';
-import { IInputBox, IQuickInputService, IQuickPick, IQuickTree, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IQuickInputService, IQuickPick, IQuickTree, QuickInputCommandId, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { QUICK_INPUT_ITEM_HEIGHT, QUICK_INPUT_RESIZE_WIDTH_INCREMENT } from './quickInputConstants.js';
 
 function registerQuickInputCommandAndKeybindingRule(rule: PartialExcept<ICommandAndKeybindingRule, 'id' | 'handler'>, options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -301,5 +302,49 @@ registerQuickPickCommandAndKeybindingRule(
 		}
 	}
 );
+
+//#endregion
+
+//#region Resize
+
+registerQuickInputCommandAndKeybindingRule({
+	id: QuickInputCommandId.IncreaseWidth,
+	metadata: { description: localize('quickInput.increaseWidth', "Increase Quick Input Width") },
+	handler: accessor => {
+		accessor.get(IQuickInputService).resize(QUICK_INPUT_RESIZE_WIDTH_INCREMENT, 0);
+	}
+});
+
+registerQuickInputCommandAndKeybindingRule({
+	id: QuickInputCommandId.DecreaseWidth,
+	metadata: { description: localize('quickInput.decreaseWidth', "Decrease Quick Input Width") },
+	handler: accessor => {
+		accessor.get(IQuickInputService).resize(-QUICK_INPUT_RESIZE_WIDTH_INCREMENT, 0);
+	}
+});
+
+registerQuickInputCommandAndKeybindingRule({
+	id: QuickInputCommandId.IncreaseHeight,
+	metadata: { description: localize('quickInput.increaseHeight', "Increase Quick Input Height") },
+	handler: accessor => {
+		accessor.get(IQuickInputService).resize(0, QUICK_INPUT_ITEM_HEIGHT);
+	}
+});
+
+registerQuickInputCommandAndKeybindingRule({
+	id: QuickInputCommandId.DecreaseHeight,
+	metadata: { description: localize('quickInput.decreaseHeight', "Decrease Quick Input Height") },
+	handler: accessor => {
+		accessor.get(IQuickInputService).resize(0, -QUICK_INPUT_ITEM_HEIGHT);
+	}
+});
+
+registerQuickInputCommandAndKeybindingRule({
+	id: QuickInputCommandId.ResetSize,
+	metadata: { description: localize('quickInput.resetSize', "Reset Quick Input Size") },
+	handler: accessor => {
+		accessor.get(IQuickInputService).resetSize();
+	}
+});
 
 //#endregion
