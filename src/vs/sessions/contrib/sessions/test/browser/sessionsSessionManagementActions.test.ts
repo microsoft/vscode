@@ -83,6 +83,11 @@ suite('Sessions - Session management actions', () => {
 			[SessionFocusedChatIsRenameTargetContext.key]: false,
 		};
 		const peerChatTranscript = { ...chatTranscript, [SessionFocusedChatIsRenameTargetContext.key]: true };
+		const peerChatTab = {
+			...sessionsWindow,
+			[SessionsFocusContext.key]: true,
+			[SessionFocusedChatIsRenameTargetContext.key]: true,
+		};
 		const nestedChat = { ...sessionsList, [SessionsListFocusedChatItemContext.key]: true };
 
 		assert.deepStrictEqual({
@@ -100,6 +105,7 @@ suite('Sessions - Session management actions', () => {
 			renameMainTranscriptAsChat: evaluate(renameChatRule, chatTranscript),
 			renamePeerTranscriptAsSession: evaluate(renameRule, peerChatTranscript),
 			renamePeerTranscriptAsChat: evaluate(renameChatRule, peerChatTranscript),
+			renamePeerTabAsChat: evaluate(renameChatRule, peerChatTab),
 			renameHeaderInMainTranscript: evaluate(renameHeaderRule, chatTranscript),
 			renameHeaderInPeerTranscript: evaluate(renameHeaderRule, peerChatTranscript),
 			renamePeerChatInput: evaluate(renameChatRule, { ...peerChatTranscript, [ChatContextKeys.inChatInput.key]: true, [InputFocusedContext.key]: true }),
@@ -130,6 +136,7 @@ suite('Sessions - Session management actions', () => {
 			renameMainTranscriptAsChat: false,
 			renamePeerTranscriptAsSession: true,
 			renamePeerTranscriptAsChat: true,
+			renamePeerTabAsChat: true,
 			renameHeaderInMainTranscript: true,
 			renameHeaderInPeerTranscript: false,
 			renamePeerChatInput: true,
@@ -148,11 +155,13 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
-	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat) {
+	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat, renameFocusedTab = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
 		const inlineRenamedSessions: ISession[] = [];
 		const inlineRenamedChats: ISessionChatItem[] = [];
+		const inlineRenamedTabs: URI[] = [];
+		let inlineRenamedFocusedTabs = 0;
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
@@ -172,11 +181,27 @@ suite('Sessions - Session management actions', () => {
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession: constObservable<IActiveSession | undefined>(activeSession ? upcastPartial<IActiveSession>(activeSession) : undefined),
 		}));
+		const sessionView = activeSession ? upcastPartial<SessionView>({
+			getSession: () => activeSession,
+			getFocusedChat: () => focusedGroupChat,
+			startChatTitleEditing: chatResource => {
+				inlineRenamedTabs.push(chatResource);
+				return true;
+			},
+			startFocusedChatTitleEditing: () => {
+				if (!renameFocusedTab) {
+					return false;
+				}
+				inlineRenamedFocusedTabs++;
+				return true;
+			},
+		}) : undefined;
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(sessionId: string | undefined): SessionView | undefined {
+				return sessionView?.getSession()?.sessionId === sessionId ? sessionView : undefined;
+			}
 			override getFocusedSessionView(): SessionView | undefined {
-				return focusedGroupChat && activeSession
-					? upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedGroupChat })
-					: undefined;
+				return focusedGroupChat ? sessionView : undefined;
 			}
 		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
@@ -185,7 +210,7 @@ suite('Sessions - Session management actions', () => {
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, inlineRenamedSessions, inlineRenamedChats };
+		return { instantiationService, managementService, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
 
 	test('routes session and chat rename commands to their focused targets', async () => {
@@ -208,6 +233,8 @@ suite('Sessions - Session management actions', () => {
 			activeChat: constObservable(peerChat),
 		});
 		const chatHarness = createActionHarness(undefined, activeSession, undefined, peerChat);
+		const chatTabHarness = createActionHarness(undefined, activeSession, undefined, peerChat, true);
+		const chatTabMenuHarness = createActionHarness(undefined, activeSession);
 		const nestedChatHarness = createActionHarness([], listActiveSession, { session: activeSession, chat: peerChat });
 		const archiveSession = createTestSession('Archive target').session;
 		const archivedSession = createTestSession('Already archived', { isArchived: true }).session;
@@ -221,6 +248,8 @@ suite('Sessions - Session management actions', () => {
 		await renameSessionHandler(listHarness.instantiationService);
 		await renameSessionHandler(chatHarness.instantiationService);
 		await renameChatHandler(chatHarness.instantiationService);
+		await renameChatHandler(chatTabHarness.instantiationService);
+		await renameChatHandler(chatTabMenuHarness.instantiationService, { session: activeSession, chat: peerChat, inline: true });
 		await renameChatHandler(nestedChatHarness.instantiationService);
 		await archiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 		await inactiveArchiveHarness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
@@ -230,6 +259,10 @@ suite('Sessions - Session management actions', () => {
 			listPromptRename: listHarness.managementService.renamed,
 			sessionRenameFromChat: chatHarness.managementService.renamed.map(({ session, title }) => ({ sessionId: session.sessionId, title })),
 			activeChatRename: chatHarness.managementService.renamedChats.map(({ session, chatResource, title }) => ({ sessionId: session.sessionId, chatResource: chatResource.toString(), title })),
+			activeChatTabInlineRename: chatTabHarness.inlineRenamedFocusedTabs(),
+			activeChatTabPromptRename: chatTabHarness.managementService.renamedChats,
+			chatTabMenuInlineRename: chatTabMenuHarness.inlineRenamedTabs.map(resource => resource.toString()),
+			chatTabMenuPromptRename: chatTabMenuHarness.managementService.renamedChats,
 			nestedChatInlineRename: nestedChatHarness.inlineRenamedChats.map(item => item.chat.resource.toString()),
 			nestedChatPromptRename: nestedChatHarness.managementService.renamedChats,
 			archived: archiveHarness.managementService.archived.map(session => session.sessionId),
@@ -239,6 +272,10 @@ suite('Sessions - Session management actions', () => {
 			listPromptRename: [],
 			sessionRenameFromChat: [{ sessionId: activeSession.sessionId, title: 'Renamed' }],
 			activeChatRename: [{ sessionId: activeSession.sessionId, chatResource: peerChat.resource.toString(), title: 'Renamed' }],
+			activeChatTabInlineRename: 1,
+			activeChatTabPromptRename: [],
+			chatTabMenuInlineRename: [peerChat.resource.toString()],
+			chatTabMenuPromptRename: [],
 			nestedChatInlineRename: [peerChat.resource.toString()],
 			nestedChatPromptRename: [],
 			archived: [archiveSession.sessionId],

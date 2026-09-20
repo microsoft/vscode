@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IMenu, IMenuService, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
@@ -22,7 +26,7 @@ import { IEditorGroupsService } from '../../../workbench/services/editor/common/
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
-import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -66,6 +70,16 @@ class TestCommandService extends mock<ICommandService>() {
 	override async executeCommand<T = unknown>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
 		this.calls.push({ commandId, args });
 		return undefined;
+	}
+}
+
+class TestContextMenuService extends mock<IContextMenuService>() {
+	override readonly onDidShowContextMenu = Event.None;
+	override readonly onDidHideContextMenu = Event.None;
+	delegate: IContextMenuDelegate | undefined;
+
+	override showContextMenu(delegate: IContextMenuDelegate): void {
+		this.delegate = delegate;
 	}
 }
 
@@ -132,6 +146,7 @@ interface IChatCompositeBarHarness {
 	readonly store: DisposableStore;
 	readonly instantiationService: TestInstantiationService;
 	readonly commandService: TestCommandService;
+	readonly contextMenuService: TestContextMenuService;
 	readonly sessionsService: TestSessionsService;
 	readonly editorGroupsService: TestEditorGroupsService;
 	readonly bar: ChatCompositeBar;
@@ -148,6 +163,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
+	const contextMenuService = new TestContextMenuService();
 	const sessionsService = new TestSessionsService();
 	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat');
@@ -160,6 +176,13 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const showSessionActions = observableValue('test.showSessionActions', true);
 
 	instantiationService.stub(ICommandService, commandService);
+	instantiationService.stub(IContextMenuService, contextMenuService);
+	const keybindingService = instantiationService.get(IKeybindingService);
+	const lookupKeybinding = keybindingService.lookupKeybinding.bind(keybindingService);
+	keybindingService.lookupKeybinding = commandId => commandId === RENAME_CHAT_COMMAND_ID
+		? upcastPartial<ResolvedKeybinding>({ getLabel: () => 'F2' })
+		: lookupKeybinding(commandId);
+	store.add({ dispose: () => keybindingService.lookupKeybinding = lookupKeybinding });
 	const closeAction = instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close Chat' }, undefined, undefined, undefined, undefined);
 	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 		override createMenu(): IMenu {
@@ -196,7 +219,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, contextMenuService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -263,6 +286,38 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { bar } = createHarness(disposables);
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
+	});
+
+	test('uses the shared F2 rename command for chat tabs', async () => {
+		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+			const renameAction = contextMenuService.delegate?.getActions().find(action => action.id === RENAME_CHAT_COMMAND_ID);
+			assert.ok(renameAction);
+			const keybinding = contextMenuService.delegate?.getKeyBinding?.(renameAction);
+			await renameAction.run();
+
+			assert.deepStrictEqual({
+				label: renameAction.label,
+				keybinding: keybinding?.getLabel(),
+				commandCalls: commandService.calls,
+			}, {
+				label: 'Rename...',
+				keybinding: 'F2',
+				commandCalls: [{
+					commandId: RENAME_CHAT_COMMAND_ID,
+					args: [{
+						session,
+						chat: session.visibleChatTabs.get()[1],
+						inline: true,
+					}],
+				}],
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('matches the default and compact editor tab strip heights', () => {

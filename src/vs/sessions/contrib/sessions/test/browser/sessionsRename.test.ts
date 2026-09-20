@@ -867,7 +867,7 @@ suite('Sessions rename', () => {
 				hasMainChatFocus: content.includes('main chat transcript or input'),
 				hasPeerChatFocus: content.includes('non-main chat') && content.includes('nested row'),
 				scopesChatRenameToAvailability: content.includes('When Rename is available for a non-main chat'),
-				hasInlineChatRenameInstructions: content.includes('focus its nested row') && content.includes('double-click its title to rename it inline'),
+				hasInlineChatRenameInstructions: content.includes('focus its tab or nested row') && content.includes('double-click its title'),
 				hasSessionRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
 				hasInlineRenameInstructions: content.includes('press Enter to confirm or Escape to cancel'),
 				hasHeaderRenameInstructions: content.includes('edits the header title inline when it is visible and opens a prompt otherwise'),

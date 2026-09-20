@@ -33,7 +33,6 @@ import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, I
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext } from '../../../common/contextkeys.js';
@@ -563,6 +562,7 @@ const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
 interface IChatRenameContext {
 	readonly session: ISession;
 	readonly chat: IChat;
+	readonly inline?: boolean;
 }
 
 function getSessionsList(accessor: ServicesAccessor): SessionsList | undefined {
@@ -632,7 +632,7 @@ registerAction2(class RenameChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					ContextKeyExpr.or(
-						ContextKeyExpr.and(ChatContextKeys.inChatSession, SessionFocusedChatIsRenameTargetContext),
+						SessionFocusedChatIsRenameTargetContext,
 						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext),
 					),
 				),
@@ -653,6 +653,12 @@ registerAction2(class RenameChatAction extends Action2 {
 			if (focusedChat && sessionsList?.beginRenameChat(focusedChat)) {
 				return;
 			}
+		}
+		if (context?.inline && accessor.get(ISessionsPartService).getSessionView(context.session.sessionId)?.startChatTitleEditing(context.chat.resource)) {
+			return;
+		}
+		if (!context && accessor.get(ISessionsPartService).getFocusedSessionView()?.startFocusedChatTitleEditing?.()) {
+			return;
 		}
 		const target = getChatRenameContext(accessor, context);
 		if (target) {
