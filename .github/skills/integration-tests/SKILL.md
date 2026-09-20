@@ -25,6 +25,14 @@ When run **with `--suite`**, only the matching extension host test suites are ru
 
 ## Options
 
+### `--build` - Run against build output
+
+Selects the `out-build/` directory instead of `out/` for node.js integration tests and the shared VS Code modules used by the standalone JSON suite. This does not compile either output tree; the JSON extension tests still require `compile-extension:json-language-features-client` to generate `client/out/`.
+
+```bash
+./scripts/test-integration.sh --suite json --build
+```
+
 ### `--run <file>` - Run tests from a specific file
 
 Accepts a **source file path** (starting with `src/`). Works identically to `scripts/test.sh --run`.

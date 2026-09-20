@@ -702,6 +702,15 @@ export class ChatGroupsView extends Themable {
 		return group.chats.get().find(chat => chat.resource.toString() === activeResource);
 	}
 
+	startFocusedChatTitleEditing(): boolean {
+		return this._getFocusedGroup()?.view.startFocusedChatTitleEditing() ?? false;
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		const group = this._groups.find(group => group.chats.get().some(chat => chat.resource.toString() === chatResource.toString()));
+		return group?.view.startChatTitleEditing(chatResource) ?? false;
+	}
+
 	private _getFocusedGroup(): IGroupEntry | undefined {
 		return this._groups.find(group => isAncestorOfActiveElement(group.view.element));
 	}

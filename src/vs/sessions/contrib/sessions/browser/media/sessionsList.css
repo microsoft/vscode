@@ -8,13 +8,13 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-list-row.session-list-inset-row {
+	.monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		border-radius: var(--vscode-cornerRadius-medium);
 		margin: 0 10px;
 		width: calc(100% - 20px);
 	}
 
-	&.session-list-row-spacing .monaco-list-row.session-list-inset-row {
+	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		padding-bottom: var(--vscode-spacing-size20);
 		background-clip: content-box;
 		outline: 0 !important;
@@ -24,7 +24,7 @@
 		}
 	}
 
-	&.session-list-row-spacing .monaco-list .monaco-list-row.session-list-inset-row {
+	&.session-list-row-spacing .monaco-list .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		&.selected > .monaco-tl-row {
 			outline: var(--vscode-strokeThickness) dotted var(--vscode-contrastActiveBorder, transparent);
 			outline-offset: calc(-1 * var(--vscode-strokeThickness));
@@ -45,13 +45,13 @@
 		}
 	}
 
-	&.session-list-row-spacing .monaco-list:focus .monaco-list-row.session-list-inset-row.focused > .monaco-tl-row,
-	.context-menu-visible &.session-list-row-spacing .monaco-list.last-focused .monaco-list-row.session-list-inset-row.focused > .monaco-tl-row {
+	&.session-list-row-spacing .monaco-list:focus .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row).focused > .monaco-tl-row,
+	.context-menu-visible &.session-list-row-spacing .monaco-list.last-focused .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row).focused > .monaco-tl-row {
 		outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
 		outline-offset: calc(-1 * var(--vscode-strokeThickness));
 	}
 
-	&.session-list-row-spacing .monaco-list:focus .monaco-list-row.session-list-inset-row.focused.selected > .monaco-tl-row {
+	&.session-list-row-spacing .monaco-list:focus .monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row).focused.selected > .monaco-tl-row {
 		outline-color: var(--vscode-list-focusAndSelectionOutline, var(--vscode-contrastActiveBorder, var(--vscode-list-focusOutline)));
 	}
 
@@ -221,15 +221,6 @@
 
 		.session-icon {
 			line-height: 16px;
-
-			> .codicon {
-				font-size: var(--vscode-codiconFontSize-compact, 12px);
-			}
-
-			> .monaco-pixel-spinner {
-				width: 14px;
-				height: 14px;
-			}
 		}
 
 		.session-title-row {
@@ -817,6 +808,24 @@
 
 /* Section Header */
 
+.sessions-list-header {
+	width: 100%;
+	padding: var(--vscode-spacing-size100) 0 0;
+	box-sizing: border-box;
+
+	.agent-sessions-header-row {
+		padding-left: var(--vscode-spacing-size100);
+	}
+}
+
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row:hover,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row.focused,
+.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.sessions-list-header-row.selected {
+	background-color: transparent;
+	cursor: default;
+}
+
 .session-section {
 	display: flex;
 	align-items: center;
@@ -921,7 +930,7 @@
 	display: block;
 }
 
-/* Shortcut sections (Automations) only show toolbar on hover, not on focus */
+/* Shortcut sections only show toolbar on hover, not on focus */
 .monaco-list-row.focused .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: hidden;
 }
@@ -929,6 +938,11 @@
 	display: block;
 	visibility: hidden;
 }
+
+.session-section.session-section-shortcut {
+	padding-left: 0;
+}
+
 .monaco-list-row:hover .session-section.session-section-shortcut .session-section-toolbar {
 	visibility: visible;
 }
@@ -959,12 +973,12 @@
 .sessions-list-control {
 
 	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
-	.monaco-list-row:has(.session-section):hover,
-	.monaco-list-row:has(.session-show-more-folders):hover,
-	.monaco-list-row.focused:has(.session-section),
-	.monaco-list-row.focused:has(.session-show-more-folders),
-	.monaco-list-row.selected:has(.session-section),
-	.monaco-list-row.selected:has(.session-show-more-folders) {
+	.monaco-list-row.session-list-section-row:hover,
+	.monaco-list-row.session-list-show-more-folders-row:hover,
+	.monaco-list-row.session-list-section-row.focused,
+	.monaco-list-row.session-list-show-more-folders-row.focused,
+	.monaco-list-row.session-list-section-row.selected,
+	.monaco-list-row.session-list-show-more-folders-row.selected {
 		background: transparent !important;
 	}
 
@@ -982,8 +996,10 @@
 	}
 
 	&.session-section-focus-from-pointer {
-		.monaco-list-row.focused:has(.session-section),
-		.monaco-list-row.selected:has(.session-section) {
+		.monaco-list-row.session-list-section-row.focused,
+		.monaco-list-row.session-list-section-row.selected,
+		.monaco-list-row.session-list-shortcut-row.focused,
+		.monaco-list-row.session-list-shortcut-row.selected {
 			outline: none !important;
 		}
 	}
@@ -1121,7 +1137,7 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
-	.monaco-list-row.session-list-inset-row {
+	.monaco-list-row:is(.session-list-inset-row, .session-list-shortcut-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		/* Horizontal-only margin: virtual list rows are absolutely
 		 * positioned with JS-set `top`/`height`, so vertical margins
 		 * here would not produce reliable inter-row spacing. Any gap

@@ -85,6 +85,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestProductService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
@@ -251,6 +252,7 @@ interface IRenderOptions {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
+	readonly revealFirstSession?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
 	readonly showConfetti?: boolean;
 }
@@ -283,6 +285,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+			}());
 			const reducedMotion = options.reducedMotion;
 			if (reducedMotion !== undefined) {
 				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
@@ -522,6 +527,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.collapsed) {
 		list.collapseAllSections();
 	}
+	if (options.revealFirstSession && sessions[0] && !list.reveal(sessions[0].resource)) {
+		throw new Error('Expected the first session to be revealed.');
+	}
 	if (options.archiveOnboarding) {
 		listHost.style.width = `${width}px`;
 		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
@@ -659,6 +667,10 @@ const COMPACT_RENAME_SESSIONS: readonly ISessionSpec[] = [
 		minutesAgo: 8,
 	},
 ];
+const UNREAD_STATUS_ICON_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'workspace-less', title: 'Fix worktree workspace mapping', minutesAgo: 1, isRead: false },
+	{ id: 'workspace', title: 'Fix VS Code #331780', workspace: 'vscode', minutesAgo: 2, isRead: false },
+];
 const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
 	{
 		id: 'question',
@@ -708,6 +720,25 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
 		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_UnreadStatusIcons: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The unread blue-dot status icons for the workspace-less chat and workspace session are the same size.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: UNREAD_STATUS_ICON_SESSIONS,
+			revealFirstSession: true,
+			width: 400,
+		}),
+	}),
+	SessionsList_CompactUnreadStatusIcons: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['In compact mode, the unread blue-dot status icons for the workspace-less chat and workspace session are the same size.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: UNREAD_STATUS_ICON_SESSIONS,
+			compact: true,
+			revealFirstSession: true,
+			width: 400,
+		}),
 	}),
 	SessionsList_CompactNeedsInput: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

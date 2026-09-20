@@ -322,6 +322,14 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._isVisible && this._header.startTitleEditing();
 	}
 
+	startFocusedChatTitleEditing(): boolean {
+		return this._isVisible && this._groupsView.startFocusedChatTitleEditing();
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		return this._isVisible && this._groupsView.startChatTitleEditing(chatResource);
+	}
+
 	getFocusedChat(): IChat | undefined {
 		return this._groupsView.getFocusedChat();
 	}
