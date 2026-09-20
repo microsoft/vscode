@@ -78,6 +78,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	];
 	containerMountsError: Error | undefined;
 	cacheSetupError: Error | undefined;
+	cliCacheSetupError: Error | undefined;
 	cacheMountConfigured = false;
 	hostDirectoryOwnedByCurrentUser = true;
 	readonly checkedHostDirectories: string[] = [];
@@ -97,6 +98,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		private readonly _existingCertificateFiles: ReadonlySet<string> = new Set(),
 		testTmpDir = '/tmp',
 		logService: NullLogService = new NullLogService(),
+		commit?: string,
 	) {
 		const configurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates });
 		super(
@@ -104,7 +106,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			new class extends mock<IProductService>() {
 				override readonly quality = 'insider';
 				override readonly serverDataFolderName = '.vscode-server-oss';
-				override readonly commit = undefined;
+				override readonly commit = commit;
 			}(),
 			NullTelemetryService,
 			configurationService,
@@ -222,6 +224,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			});
 		}
 		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'root') {
+			if (args.at(-1)?.includes('/cli/bin/') && this.cliCacheSetupError) {
+				throw this.cliCacheSetupError;
+			}
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
 		}
 		throw new Error(`Unexpected local command: ${command} ${args.join(' ')}`);
@@ -268,6 +273,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				return { stdout: this._libc, stderr: '', code: 0 };
 			}
 			if (this._forceCliInstall && command.includes('--version &&')) {
+				return { stdout: '', stderr: '', code: 1 };
+			}
+			if (this._forceCliInstall && command.startsWith('test -x ')) {
 				return { stdout: '', stderr: '', code: 1 };
 			}
 			if (command.includes('agent endpoints')) {
@@ -621,6 +629,34 @@ suite('Dev Container Agent Host Main Service', () => {
 		service.cacheMountConfigured = true;
 		await service.connect({ connectionId: 'configured-mount', workspaceFolder: '/workspace', name: 'Project' });
 		assert.deepStrictEqual(service.devContainerArgs.filter(args => args[0] === 'up'), [['up', '--log-level', 'debug', '--workspace-folder', '/workspace']]);
+	});
+
+	test('caches bootstrap CLIs for each libc even when the server cache remains private', async () => {
+		for (const [libc, platform] of [['', 'linux-x64'], ['musl', 'alpine-x64']]) {
+			const service = store.add(new TestDevContainerAgentHostMainService(libc, true, undefined, process.env, true, [], new Set(), '/tmp', new NullLogService(), 'a'.repeat(40)));
+			service.cacheSetupError = new Error('Preserving existing private server cache');
+			await service.connect({ connectionId: platform, workspaceFolder: '/workspace', name: 'Project' });
+			const cacheCommand = service.execCommands.find(command => command.includes('flock 9'));
+			assert.deepStrictEqual({
+				path: cacheCommand?.includes(`/vscode/vscode-server-oss/cli/bin/${platform}`),
+				copies: cacheCommand?.includes('cp "$entry/$archive" "$private_tmp/$archive"'),
+				privateDownloads: service.execCommands.filter(command => command.includes('curl') && !command.includes('flock 9')).length,
+			}, { path: true, copies: true, privateDownloads: 0 });
+		}
+	});
+
+	test('failure to prepare the CLI cache does not disable the shared server cache', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', true, undefined, process.env, true, [], new Set(), '/tmp', new NullLogService(), 'a'.repeat(40)));
+		service.cliCacheSetupError = new Error('Read-only CLI cache');
+		const output: string[] = [];
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		await service.connect({ connectionId: 'private-cli', workspaceFolder: '/workspace', name: 'Project' });
+		assert.deepStrictEqual({
+			sharedServer: output.some(line => line.includes('Using shared server cache')),
+			warning: output.some(line => line.includes('Read-only CLI cache')),
+			cacheCommands: service.execCommands.filter(command => command.includes('flock 9')).length,
+			privateDownloads: service.execCommands.filter(command => command.includes('curl')).length,
+		}, { sharedServer: true, warning: true, cacheCommands: 0, privateDownloads: 1 });
 	});
 
 	test('forwards missing host Git identity without overwriting container identity', async () => {

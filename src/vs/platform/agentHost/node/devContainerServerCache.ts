@@ -35,6 +35,14 @@ export function canAddDevContainerServerCacheMount(output: string): boolean {
 }
 
 export function getDevContainerServerCachePath(serverDataFolderName: string, platform: { os: string; arch: string }): string {
+	return getDevContainerCachePath(serverDataFolderName, platform, 'servers');
+}
+
+export function getDevContainerCliCachePath(serverDataFolderName: string, platform: { os: string; arch: string }): string {
+	return getDevContainerCachePath(serverDataFolderName, platform, 'bin');
+}
+
+function getDevContainerCachePath(serverDataFolderName: string, platform: { os: string; arch: string }, kind: 'servers' | 'bin'): string {
 	getRemoteCLIDataDir(serverDataFolderName);
 	const sharedFolderName = serverDataFolderName.replace(/^\.+/, '');
 	if (!sharedFolderName) {
@@ -43,11 +51,11 @@ export function getDevContainerServerCachePath(serverDataFolderName: string, pla
 	if (!['linux', 'alpine'].includes(platform.os) || !['x64', 'arm64', 'armhf'].includes(platform.arch)) {
 		throw new Error(`Unsupported Dev Container server cache platform: ${platform.os}-${platform.arch}`);
 	}
-	return posix.join('/vscode', sharedFolderName, 'cli', 'servers', `${platform.os}-${platform.arch}`);
+	return posix.join('/vscode', sharedFolderName, 'cli', kind, `${platform.os}-${platform.arch}`);
 }
 
 /** Creates only missing cache directories, without changing ownership of an existing shared cache. */
-export function buildCreateDevContainerServerCacheCommand(cachePath: string, uid: string, gid: string): string {
+export function buildCreateDevContainerCacheCommand(cachePath: string, uid: string, gid: string): string {
 	if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid) || !cachePath.startsWith('/vscode/') || cachePath.endsWith('/') || posix.normalize(cachePath) !== cachePath) {
 		throw new Error('Invalid Dev Container server cache path or user');
 	}

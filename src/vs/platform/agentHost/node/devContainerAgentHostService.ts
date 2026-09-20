@@ -44,7 +44,7 @@ import {
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
-import { buildCreateDevContainerServerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerServerCachePath } from './devContainerServerCache.js';
+import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -246,7 +246,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const serverDataFolderName = this._productService.serverDataFolderName ?? '.vscode-server-oss';
 			const quality = this._productService.quality || 'insider';
-			await this._configureServerCache(config.connectionId, upResult.containerId, serverDataFolderName, platform, exec, tokenSource.token);
+			const cliCacheDir = await this._configureCaches(config.connectionId, upResult.containerId, serverDataFolderName, platform, exec, tokenSource.token);
 			const cliInstallation = await ensureRemoteAgentHostCliInstalled(exec, platform, {
 				serverDataFolderName,
 				quality,
@@ -254,6 +254,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				reportInstalling: () => this._logService.info(`${LOG_PREFIX} Installing VS Code CLI in Dev Container...`),
 				logService: this._logService,
 				logPrefix: LOG_PREFIX,
+				cliCacheDir,
+				reportCacheStatus: message => this._reportOutput(config.connectionId, `${message}\n`),
 			});
 			const { cliBin } = cliInstallation;
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
@@ -338,31 +340,53 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return [];
 	}
 
-	private async _configureServerCache(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<void> {
+	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
+		const reportError = (kind: string, error: Error) => {
+			this._logService.warn(`${LOG_PREFIX} Shared ${kind} cache unavailable; keeping the existing CLI cache`, error);
+			this._reportOutput(connectionId, `Shared ${kind} cache unavailable; keeping the existing CLI cache: ${getErrorMessage(error)}\n`);
+		};
 		try {
 			const mounts = await this._getContainerMounts(connectionId, containerId, token);
 			if (!mounts.some(mount => mount.Type === 'volume' && mount.Name === 'vscode' && mount.Destination === '/vscode')
 				|| mounts.some(mount => mount.Destination.startsWith('/vscode/'))) {
 				throw new Error('The shared vscode volume is not mounted at /vscode without nested mounts');
 			}
-			const cachePath = getDevContainerServerCachePath(serverDataFolderName, platform);
 			const { stdout } = await exec('id -u; id -g');
 			const [uid, gid] = stdout.trim().split(/\r?\n/);
-			const created = await this._runLocalCommand('docker', [
-				'exec', '--user', 'root', containerId, '/bin/sh', '-c', buildCreateDevContainerServerCacheCommand(cachePath, uid, gid),
-			], await this._resolveShellEnvironment(), token);
-			if (created.code !== 0) {
-				throw new Error(`Unable to prepare shared server cache (exit ${created.code}): ${created.stderr}`);
+			let cliCacheDir: string | undefined;
+			for (const kind of ['server', 'CLI'] as const) {
+				if (kind === 'CLI' && !this._productService.commit) {
+					continue;
+				}
+				try {
+					const cachePath = kind === 'server' ? getDevContainerServerCachePath(serverDataFolderName, platform) : getDevContainerCliCachePath(serverDataFolderName, platform);
+					const created = await this._runLocalCommand('docker', [
+						'exec', '--user', 'root', containerId, '/bin/sh', '-c', buildCreateDevContainerCacheCommand(cachePath, uid, gid),
+					], await this._resolveShellEnvironment(), token);
+					if (created.code !== 0) {
+						throw new Error(`Unable to prepare shared ${kind} cache (exit ${created.code}): ${created.stderr}`);
+					}
+					if (kind === 'server') {
+						await exec(buildLinkDevContainerServerCacheCommand(serverDataFolderName, cachePath));
+						this._logService.info(`${LOG_PREFIX} Using shared server cache at ${cachePath}`);
+						this._reportOutput(connectionId, `Using shared server cache at ${cachePath}\n`);
+					} else {
+						cliCacheDir = cachePath;
+					}
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw error;
+					}
+					reportError(kind, error);
+				}
 			}
-			await exec(buildLinkDevContainerServerCacheCommand(serverDataFolderName, cachePath));
-			this._logService.info(`${LOG_PREFIX} Using shared server cache at ${cachePath}`);
-			this._reportOutput(connectionId, `Using shared server cache at ${cachePath}\n`);
+			return cliCacheDir;
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;
 			}
-			this._logService.warn(`${LOG_PREFIX} Shared server cache unavailable; keeping the existing CLI cache`, error);
-			this._reportOutput(connectionId, `Shared server cache unavailable; keeping the existing CLI cache: ${getErrorMessage(error)}\n`);
+			reportError('server', error);
+			return undefined;
 		}
 	}
 

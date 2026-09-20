@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { join } from '../../../../base/common/path.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildCreateDevContainerServerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, getDevContainerServerCachePath } from '../../node/devContainerServerCache.js';
+import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from '../../node/devContainerServerCache.js';
 
 suite('Dev Container server cache', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,10 +21,14 @@ suite('Dev Container server cache', () => {
 			getDevContainerServerCachePath('.vscode-server-insiders', { os: 'linux', arch: 'arm64' }),
 			getDevContainerServerCachePath('.vscode-server', { os: 'alpine', arch: 'x64' }),
 			getDevContainerServerCachePath('.vscode-server-oss', { os: 'linux', arch: 'armhf' }),
+			getDevContainerCliCachePath('.vscode-server-insiders', { os: 'linux', arch: 'arm64' }),
+			getDevContainerCliCachePath('.vscode-server', { os: 'alpine', arch: 'x64' }),
 		], [
 			'/vscode/vscode-server-insiders/cli/servers/linux-arm64',
 			'/vscode/vscode-server/cli/servers/alpine-x64',
 			'/vscode/vscode-server-oss/cli/servers/linux-armhf',
+			'/vscode/vscode-server-insiders/cli/bin/linux-arm64',
+			'/vscode/vscode-server/cli/bin/alpine-x64',
 		]);
 	});
 
@@ -32,8 +36,8 @@ suite('Dev Container server cache', () => {
 		assert.throws(() => getDevContainerServerCachePath('../other', { os: 'linux', arch: 'x64' }));
 		assert.throws(() => getDevContainerServerCachePath('..', { os: 'linux', arch: 'x64' }));
 		assert.throws(() => getDevContainerServerCachePath('.vscode-server', { os: 'linux', arch: 'x64;false' }));
-		assert.throws(() => buildCreateDevContainerServerCacheCommand('/vscode/../other', '1000', '1000'));
-		assert.throws(() => buildCreateDevContainerServerCacheCommand('/vscode/cache', '1000;false', '1000'));
+		assert.throws(() => buildCreateDevContainerCacheCommand('/vscode/../other', '1000', '1000'));
+		assert.throws(() => buildCreateDevContainerCacheCommand('/vscode/cache', '1000;false', '1000'));
 	});
 
 	test('only adds a mount when it will not conflict with configured mounts', () => {
