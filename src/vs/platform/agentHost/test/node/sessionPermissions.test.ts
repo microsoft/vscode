@@ -322,6 +322,17 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
+	test('shell redirects use canonical containment for symlink ancestors', async () => {
+		mkdirSync(join(workDir, 'shell-real'));
+		symlinkSync(join(workDir, 'shell-real'), join(workDir, 'shell-link-in'), directoryLinkType);
+		symlinkSync(outsideDir, join(workDir, 'shell-link-out'), directoryLinkType);
+
+		const inside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-in/note.txt', 'bash'), sessionUri);
+		const outside = await permissions.getAutoApproval(shellEvent('echo hi > shell-link-out/note.txt', 'bash'), sessionUri);
+
+		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
 	test('requires confirmation for home-directory dotfiles', async () => {
 		const homeSession = URI.from({ scheme: 'copilot', path: '/home' }).toString();
 		manager.createSession(makeSummary(homeSession, URI.file(homedir()).toString()));
@@ -794,7 +805,8 @@ suite('SessionPermissionManager', () => {
 			symlinkSync(workDir2, join(workDir, 'cross-link'), directoryLinkType);
 			const read = await permissions.getAutoApproval(readEvent(join(workDir, 'cross-link', 'note.txt'), multiUri), multiUri);
 			const write = await permissions.getAutoApproval(writeEvent(join(workDir, 'cross-link', 'note.txt')), multiUri);
-			assert.deepStrictEqual([read, write], [undefined, undefined]);
+			const shellWrite = await permissions.getAutoApproval(shellEvent('echo hi > cross-link/note.txt', 'bash'), multiUri);
+			assert.deepStrictEqual([read, write, shellWrite], [undefined, undefined, undefined]);
 		});
 	});
 });

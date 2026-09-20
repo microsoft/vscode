@@ -19,7 +19,7 @@ export interface IAgentHostShortcutsWidgetOptions {
 /**
  * Sidebar toolbar that hosts the agent host picker (with embedded
  * connect/disconnect indicator) on web desktop. Always expanded — there is
- * no collapse affordance, unlike `AICustomizationShortcutsWidget`.
+ * no collapse affordance.
  *
  * Mounted only when `isWeb && !isPhoneLayout` (electron desktop has no host
  * picker today, and phone layout uses the mobile titlebar pill instead).
@@ -37,9 +37,7 @@ export class AgentHostShortcutsWidget extends Disposable {
 	}
 
 	private _render(parent: HTMLElement, options: IAgentHostShortcutsWidgetOptions | undefined): void {
-		// Separates the picker from the customizations above it, mirroring the
-		// split view's separator between sessions and customizations — but
-		// static, since this section is not resizable.
+		// The picker is static rather than a resizable sidebar section.
 		DOM.append(parent, $('.agent-host-toolbar-separator'));
 
 		const container = DOM.append(parent, $('.agent-host-toolbar'));
