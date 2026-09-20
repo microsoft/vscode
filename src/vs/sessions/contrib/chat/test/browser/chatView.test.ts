@@ -1950,6 +1950,29 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(inputFocused, true);
 	});
 
+	test('rejects external attachments during preparation and accepts them afterward', () => {
+		const attached: URI[] = [];
+		const messages: string[] = [];
+		const resource = URI.file('/context.txt');
+		const widget = {
+			isTranscriptProgressActive: true,
+			attachmentModel: { addFile: async (uri: URI) => { attached.push(uri); } },
+		};
+		const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
+			_widget: widget,
+			notificationService: { info: (message: string) => messages.push(message) },
+		});
+		view.attach([resource]);
+		const duringPreparation = [...attached];
+		widget.isTranscriptProgressActive = false;
+		view.attach([resource]);
+		assert.deepStrictEqual({ duringPreparation, afterPreparation: attached, messages }, {
+			duringPreparation: [],
+			afterPreparation: [resource],
+			messages: ['Wait for session preparation to finish before adding attachments.'],
+		});
+	});
+
 	test('allows transcript progress until a hidden bootstrap completes or visible content appears', () => {
 		assert.deepStrictEqual({
 			empty: shouldShowTranscriptPreparationProgress(0, 0, undefined),
