@@ -4019,8 +4019,9 @@ suite('Sessions - SessionsList', () => {
 	suite('SessionsFlatList quick-chat presentation', () => {
 
 		function renderQuickChat(useCompactQuickChatRows: boolean) {
-			const quickChat = createTestSession('Investigate failure', { isQuickChat: true }).session;
+			const quickChat = createTestSession('Investigate failure', { isQuickChat: true, isRead: false }).session;
 			const harness = createListHarness(disposables, [quickChat]);
+			harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
 				showSessionHover: false,
@@ -4033,10 +4034,13 @@ suite('Sessions - SessionsList', () => {
 
 			const item = container.querySelector<HTMLElement>('.session-item');
 			assert.ok(item);
+			const statusIcon = item.querySelector<HTMLElement>('.session-icon > .codicon');
 			return {
 				usesStandardRowHeight: contentHeight === list.getRowHeight(),
 				isShorterThanStandardRow: contentHeight < list.getRowHeight(),
 				hasCompactClass: item.classList.contains('quick-chat'),
+				hasUnreadIcon: statusIcon?.classList.contains('codicon-circle-filled') ?? false,
+				statusIconFontSize: statusIcon ? mainWindow.getComputedStyle(statusIcon).fontSize : undefined,
 				hasChatIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-comment-discussion') ?? false,
 				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
 				time: item.querySelector('.session-time')?.textContent ?? undefined,
@@ -4054,6 +4058,8 @@ suite('Sessions - SessionsList', () => {
 					usesStandardRowHeight: false,
 					isShorterThanStandardRow: true,
 					hasCompactClass: true,
+					hasUnreadIcon: true,
+					statusIconFontSize: '16px',
 					hasChatIcon: false,
 					badge: undefined,
 					time: undefined,
@@ -4064,6 +4070,8 @@ suite('Sessions - SessionsList', () => {
 					usesStandardRowHeight: true,
 					isShorterThanStandardRow: false,
 					hasCompactClass: false,
+					hasUnreadIcon: true,
+					statusIconFontSize: '16px',
 					hasChatIcon: true,
 					badge: 'No workspace',
 					time: 'now',
