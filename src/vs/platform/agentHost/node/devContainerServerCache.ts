@@ -55,17 +55,21 @@ function getDevContainerCachePath(serverDataFolderName: string, platform: { os: 
 }
 
 /** Creates only missing cache directories, without changing ownership of an existing shared cache. */
-export function buildCreateDevContainerCacheCommand(cachePath: string, uid: string, gid: string): string {
-	if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid) || !cachePath.startsWith('/vscode/') || cachePath.endsWith('/') || posix.normalize(cachePath) !== cachePath) {
+export function buildCreateDevContainerCacheCommand(cachePath: string, uid: string, gid: string, cacheRoot = '/vscode'): string {
+	if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid)
+		|| !posix.isAbsolute(cacheRoot) || cacheRoot.endsWith('/') || posix.normalize(cacheRoot) !== cacheRoot
+		|| !cachePath.startsWith(`${cacheRoot}/`) || cachePath.endsWith('/') || posix.normalize(cachePath) !== cachePath) {
 		throw new Error('Invalid Dev Container server cache path or user');
 	}
 	const parents: string[] = [];
-	for (let parent = posix.dirname(cachePath); parent !== '/vscode'; parent = posix.dirname(parent)) {
+	for (let parent = posix.dirname(cachePath); parent !== cacheRoot; parent = posix.dirname(parent)) {
 		parents.unshift(parent);
 	}
 	return [
 		'set -eu',
 		'umask 022',
+		`test ! -L ${shellEscape(cacheRoot)}`,
+		`test -d ${shellEscape(cacheRoot)}`,
 		...parents.flatMap(parent => [
 			`test ! -L ${shellEscape(parent)}`,
 			`test -d ${shellEscape(parent)} || mkdir ${shellEscape(parent)} || test -d ${shellEscape(parent)}`,
@@ -87,9 +91,14 @@ export function buildLinkDevContainerServerCacheCommand(serverDataFolderName: st
 		'elif [ -e "$servers" ]; then',
 		'  echo "Preserving existing private server cache" >&2; exit 1',
 		'fi',
-		'test -d "$cache_dir" && test -w "$cache_dir" || { echo "Shared server cache is not writable" >&2; exit 1; }',
+		'cache_unavailable() {',
+		'  if [ -L "$servers" ] && [ "$(readlink "$servers")" = "$cache_dir" ]; then rm -- "$servers"; fi',
+		'  echo "$1" >&2',
+		'  exit 1',
+		'}',
+		'test -d "$cache_dir" && test -w "$cache_dir" || cache_unavailable "Shared server cache is not writable"',
 		'for entry in "$cache_dir/lru.json" "$cache_dir/.locks"; do',
-		'  if [ -L "$entry" ] || { [ -e "$entry" ] && [ ! -w "$entry" ]; }; then echo "Shared server cache metadata is not writable" >&2; exit 1; fi',
+		'  if [ -L "$entry" ] || { [ -e "$entry" ] && [ ! -w "$entry" ]; }; then cache_unavailable "Shared server cache metadata is not writable"; fi',
 		'done',
 		'mkdir -p "$cli_dir"',
 		'if [ ! -L "$servers" ]; then',

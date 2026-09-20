@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFile } from 'child_process';
-import { mkdtemp, mkdir, readFile, readlink, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { chmod, lstat, mkdtemp, mkdir, readFile, readlink, readdir, rm, stat, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { join } from '../../../../base/common/path.js';
@@ -38,6 +38,62 @@ suite('Dev Container server cache', () => {
 		assert.throws(() => getDevContainerServerCachePath('.vscode-server', { os: 'linux', arch: 'x64;false' }));
 		assert.throws(() => buildCreateDevContainerCacheCommand('/vscode/../other', '1000', '1000'));
 		assert.throws(() => buildCreateDevContainerCacheCommand('/vscode/cache', '1000;false', '1000'));
+		assert.throws(() => buildCreateDevContainerCacheCommand('/tmp/cache', '1000', '1000'));
+		assert.throws(() => buildCreateDevContainerCacheCommand('/tmp/cache', '1000', '1000', '/'));
+		assert.throws(() => buildCreateDevContainerCacheCommand('/tmp/cache', '1000', '1000', '/tmp/..'));
+	});
+
+	(isLinux ? test : test.skip)('creates cache directories concurrently and preserves existing ownership', async () => {
+		assert.ok(process.getuid && process.getgid);
+		const uid = process.getuid();
+		const gid = process.getgid();
+		const root = await mkdtemp(join(tmpdir(), 'vscode-cache-creation-'));
+		try {
+			const parents = ['product', 'product/cli', 'product/cli/servers'].map(path => join(root, path));
+			const cache = join(parents[2], 'linux-arm64');
+			const run = (owner = uid) => promisify(execFile)('/bin/sh', ['-c', buildCreateDevContainerCacheCommand(cache, String(owner), String(gid), root)]);
+			await Promise.all([run(), run(), run()]);
+			const created = await stat(cache);
+			await run(uid + 1);
+			const existing = await stat(cache);
+			assert.deepStrictEqual({
+				created: { uid: created.uid, gid: created.gid, mode: created.mode & 0o777 },
+				existing: { uid: existing.uid, gid: existing.gid, inode: existing.ino },
+				parents: await Promise.all(parents.map(async path => (await stat(path)).isDirectory())),
+			}, {
+				created: { uid, gid, mode: 0o755 },
+				existing: { uid, gid, inode: created.ino },
+				parents: [true, true, true],
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	(isLinux ? test : test.skip)('cache directory creation rejects symlinked parents and cache directories', async () => {
+		assert.ok(process.getuid && process.getgid);
+		const uid = String(process.getuid());
+		const gid = String(process.getgid());
+		const root = await mkdtemp(join(tmpdir(), 'vscode-cache-creation-'));
+		try {
+			const outside = join(root, 'outside');
+			const parent = join(root, 'product');
+			const cache = join(parent, 'cli', 'servers', 'linux-arm64');
+			const run = () => promisify(execFile)('/bin/sh', ['-c', buildCreateDevContainerCacheCommand(cache, uid, gid, root)]);
+			await mkdir(outside);
+			await symlink(outside, parent);
+			await assert.rejects(run());
+			await rm(parent);
+			await mkdir(join(parent, 'cli', 'servers'), { recursive: true });
+			await symlink(outside, cache);
+			await assert.rejects(run());
+			assert.deepStrictEqual({
+				target: await readlink(cache),
+				outsideEntries: await readdir(outside),
+			}, { target: outside, outsideEntries: [] });
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test('only adds a mount when it will not conflict with configured mounts', () => {
@@ -101,6 +157,71 @@ suite('Dev Container server cache', () => {
 			await symlink(join(root, 'other-cache'), servers);
 			await assert.rejects(run(), /Preserving existing servers symlink/);
 			assert.strictEqual(await readlink(servers), join(root, 'other-cache'));
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	(isLinux ? test : test.skip)('removes only the same-target link when shared storage or metadata is unavailable', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'vscode-cache-fallback-'));
+		try {
+			const cache = join(root, 'shared');
+			const cli = join(root, '.vscode-server', 'cli');
+			const servers = join(cli, 'servers');
+			const run = () => promisify(execFile)('/bin/sh', ['-c', buildLinkDevContainerServerCacheCommand('.vscode-server', cache)], { env: { ...process.env, HOME: root } });
+			await mkdir(cli, { recursive: true });
+			await symlink(cache, servers);
+			await assert.rejects(run(), /Shared server cache is not writable/);
+			await mkdir(servers);
+			await writeFile(join(servers, 'private'), 'keep');
+			await assert.rejects(run(), /Preserving existing private server cache/);
+			assert.strictEqual(await readFile(join(servers, 'private'), 'utf8'), 'keep');
+			await rm(servers, { recursive: true });
+			await symlink(join(root, 'other'), servers);
+			await assert.rejects(run(), /Preserving existing servers symlink/);
+			assert.strictEqual(await readlink(servers), join(root, 'other'));
+			await rm(servers);
+			await mkdir(cache);
+			await writeFile(join(cache, 'keep'), 'shared');
+			for (const name of ['lru.json', '.locks']) {
+				await symlink(cache, servers);
+				await symlink(join(root, 'other'), join(cache, name));
+				await assert.rejects(run(), /Shared server cache metadata is not writable/);
+				await mkdir(servers);
+				assert.deepStrictEqual({
+					privateDirectory: (await lstat(servers)).isDirectory(),
+					sharedData: await readFile(join(cache, 'keep'), 'utf8'),
+				}, { privateDirectory: true, sharedData: 'shared' });
+				await rm(servers, { recursive: true });
+				await rm(join(cache, name));
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	(isLinux && process.getuid?.() !== 0 ? test : test.skip)('unwritable shared directories and metadata fall back to a writable private cache', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'vscode-cache-permissions-'));
+		try {
+			const cache = join(root, 'shared');
+			const servers = join(root, '.vscode-server', 'cli', 'servers');
+			const run = () => promisify(execFile)('/bin/sh', ['-c', buildLinkDevContainerServerCacheCommand('.vscode-server', cache)], { env: { ...process.env, HOME: root } });
+			await mkdir(cache);
+			await writeFile(join(cache, 'lru.json'), '[]');
+			await mkdir(join(cache, '.locks'));
+			for (const path of [cache, join(cache, 'lru.json'), join(cache, '.locks')]) {
+				await run();
+				await chmod(path, 0o555);
+				try {
+					await assert.rejects(run(), /Shared server cache.*is not writable/);
+					await mkdir(servers);
+					await writeFile(join(servers, 'private'), 'installed');
+					assert.strictEqual(await readFile(join(servers, 'private'), 'utf8'), 'installed');
+					await rm(servers, { recursive: true });
+				} finally {
+					await chmod(path, 0o755);
+				}
+			}
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
