@@ -207,7 +207,7 @@ export class ChatView extends AbstractChatView {
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	private _historyKey: string | undefined;
-	private _restoringPreparationInput = false;
+	private _suppressPreparationInputSave = false;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
@@ -534,11 +534,11 @@ export class ChatView extends AbstractChatView {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
 		if (previousChatResource) {
-			this._restoringPreparationInput = true;
+			this._suppressPreparationInputSave = true;
 			try {
 				this._clearCurrentChat(previousSession, previousChatResource);
 			} finally {
-				this._restoringPreparationInput = false;
+				this._suppressPreparationInputSave = false;
 			}
 		}
 		const cts = new CancellationTokenSource();
@@ -569,14 +569,14 @@ export class ChatView extends AbstractChatView {
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			const preparationInput = this.viewStateService.getPreparationInput(resource);
-			this._restoringPreparationInput = true;
+			this._suppressPreparationInputSave = true;
 			try {
 				if (preparationInput) {
 					ref.object.inputModel.setState(preparationInput);
 				}
 				setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
 			} finally {
-				this._restoringPreparationInput = false;
+				this._suppressPreparationInputSave = false;
 			}
 			const widgetViewState = this.viewStateService.get(resource);
 			if (widgetViewState) {
@@ -629,7 +629,7 @@ export class ChatView extends AbstractChatView {
 		const resource = this._currentChatResource;
 		const session = this._currentSessionObs.get();
 		const preparing = session?.status.get() === SessionStatus.Untitled && session.isNewSessionRequestInProgress?.get();
-		if (!resource || this._restoringPreparationInput || (!preparing && !this.viewStateService.getPreparationInput(resource))) {
+		if (!resource || this._suppressPreparationInputSave || (!preparing && !this.viewStateService.getPreparationInput(resource))) {
 			return;
 		}
 		const input = this._widget.getInputState();
@@ -643,7 +643,7 @@ export class ChatView extends AbstractChatView {
 		if (!input) {
 			return;
 		}
-		this._restoringPreparationInput = true;
+		this._suppressPreparationInputSave = true;
 		try {
 			this._widget.setInput(input.inputText);
 			this._widget.attachmentModel.clearAndSetContext(...input.attachments);
@@ -651,7 +651,7 @@ export class ChatView extends AbstractChatView {
 				this._widget.inputEditor.setSelections(input.selections);
 			}
 		} finally {
-			this._restoringPreparationInput = false;
+			this._suppressPreparationInputSave = false;
 		}
 	}
 
