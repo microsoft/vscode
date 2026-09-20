@@ -88,7 +88,7 @@ class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
 }
 
 suite('FetchWebPageTool', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should handle http/https via web content extractor and other schemes via file service', async () => {
 		const webContentMap = new ResourceMap<string>([
@@ -240,6 +240,49 @@ suite('FetchWebPageTool', () => {
 		} finally {
 			networkFilterService.dispose();
 		}
+	});
+
+	test('blocks Unicode wildcard denied URLs before web content extraction', async () => {
+		const deniedUrls = [
+			'https://xn--bcher-kva.de/',
+			'https://sub.xn--bcher-kva.de/',
+			'https://xn--bcher-kva.de/private',
+			'https://sub.xn--bcher-kva.de/private',
+		];
+		const allowedUrl = 'https://example.com/allowed';
+		const webContentMap = new ResourceMap<string>(
+			deniedUrls.map(url => [URI.parse(url), 'Denied content'] as const)
+		);
+		webContentMap.set(URI.parse(allowedUrl), 'Allowed content');
+		const webContentExtractorService = new TestWebContentExtractorService(webContentMap);
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.de']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		const tool = new FetchWebPageTool(
+			webContentExtractorService,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilterService,
+		);
+
+		const result = await tool.invoke(
+			{ callId: 'test-call-wildcard-idn', toolId: 'fetch-page', parameters: { urls: [...deniedUrls, allowedUrl] }, context: undefined },
+			() => Promise.resolve(0),
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			content: result.content.map(part => part.value),
+			requestedUris: webContentExtractorService.requestedUris.map(uri => uri.toString()),
+		}, {
+			content: [...deniedUrls.map(url => networkFilterService.formatError(URI.parse(url))), 'Allowed content'],
+			requestedUris: [allowedUrl],
+		});
 	});
 
 	test('should handle empty and undefined URLs', async () => {

@@ -21,6 +21,27 @@ suite('Chat URL effective path approval', () => {
 		{ name: 'browser-encoded dots', url: `${wiki}/%252e%252e/%252e%252e/%252e%252e/attacker/repo/wiki/Home` },
 	];
 
+	test('combined IDN and effective path matching honors encoded path exclusions', () => {
+		const hosts = ['x.xn--bcher-kva.example.test', 'x.b\u00fccher.example.test'];
+		const rules = {
+			'https://*.b\u00fccher.example.test/private%20docs/*': false,
+			'https://*.example.test': true,
+		};
+		assert.deepStrictEqual(hosts.map(host => {
+			const uri = URI.parse(`https://${host}/public/../private%20docs/secret`);
+			return [isUrlApproved(uri, rules, true), isUrlApproved(uri, rules, false)];
+		}), hosts.map(() => [false, false]));
+	});
+
+	test('combined IDN and effective path matching preserves scoped approvals', () => {
+		const hosts = ['x.xn--bcher-kva.example.test', 'x.b\u00fccher.example.test'];
+		const rules = { 'https://*.b\u00fccher.example.test/allowed%20docs/*': true };
+		assert.deepStrictEqual(hosts.map(host => {
+			const uri = URI.parse(`https://${host}/public/../allowed%20docs/page`);
+			return [isUrlApproved(uri, rules, true), isUrlApproved(uri, rules, false)];
+		}), hosts.map(() => [true, true]));
+	});
+
 	for (const path of ['private%20docs', '%E6%97%A5%E6%9C%AC%E8%AA%9E', 'report%7B2024%7D', 'file%3Fpart%23part']) {
 		test(`review regression: preserves encoded path exclusion ${path}`, () => {
 			const uri = URI.parse(`https://example.test/${path}/secret`);

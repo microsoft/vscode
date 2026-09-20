@@ -13,9 +13,10 @@ import { arch } from '../../../base/common/process.js';
 import { ExtUri } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
+import { extractDomainFromUri, matchesDomainPattern, normalizeDomain, normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from './settings.js';
@@ -202,9 +203,10 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
-		const allowedDomains = this._host.getSandboxSetting<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
-		const deniedDomains = this._host.getSandboxSetting<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
-		return { allowedDomains, deniedDomains };
+		return {
+			allowedDomains: this._getNormalizedNetworkDomains(AgentNetworkDomainSettingId.AllowedNetworkDomains),
+			deniedDomains: this._getNormalizedNetworkDomains(AgentNetworkDomainSettingId.DeniedNetworkDomains),
+		};
 	}
 
 	async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult> {
@@ -504,6 +506,17 @@ export class TerminalSandboxEngine extends Disposable {
 		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(commandWithPreservedCwd)}`;
 	}
 
+	private _getNormalizedNetworkDomains(settingId: AgentNetworkDomainSettingId.AllowedNetworkDomains | AgentNetworkDomainSettingId.DeniedNetworkDomains): string[] {
+		const patterns = this._host.getSandboxSetting<string[]>(settingId) ?? [];
+		return patterns.map(pattern => {
+			const normalized = normalizeDomainPattern(pattern);
+			if (!normalized) {
+				throw new Error(localize('terminalSandbox.invalidNetworkDomain', "The {0} setting contains an invalid network domain pattern.", settingId));
+			}
+			return normalized;
+		});
+	}
+
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
 		if (this._isSandboxAllowNetworkConfigured()) {
 			return { blockedDomains: [], deniedDomains: [] };
@@ -566,8 +579,7 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _extractDomainFromUrl(value: string): string | undefined {
 		try {
-			const authority = URI.parse(value).authority;
-			return normalizeDomain(authority, true);
+			return extractDomainFromUri(URI.parse(value));
 		} catch {
 			return undefined;
 		}

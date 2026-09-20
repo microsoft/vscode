@@ -237,6 +237,56 @@ suite('urlGlob', () => {
 			);
 		});
 
+		test('IDN literal hostname components match Unicode and Punycode spellings', () => {
+			const hosts = ['bücher.example.test', 'xn--bcher-kva.example.test', 'b%C3%BCcher.example.test', 'BÜCHER.EXAMPLE.TEST', 'XN--BCHER-KVA.EXAMPLE.TEST'];
+			const patterns = ['bücher.example.test', 'xn--bcher-kva.example.test'];
+
+			assert.deepStrictEqual(
+				hosts.map(host => patterns.map(pattern => ({
+					exact: testUrlMatchesGlob(`https://${host}`, `https://${pattern}`),
+					wildcard: testUrlMatchesGlob(`https://x.${host}`, `https://*.${pattern}`),
+					bare: testUrlMatchesGlob(`https://${host}`, `https://*.${pattern}`),
+					uri: testUrlMatchesGlob(URI.parse(`https://x.${host}`), `https://*.${pattern}`),
+				}))),
+				hosts.map(() => patterns.map(() => ({ exact: true, wildcard: true, bare: true, uri: true })))
+			);
+		});
+
+		test('IDN normalization preserves wildcard, scheme, port and path semantics', () => {
+			const cases = [
+				['https://api1.xn--bcher-kva.example.test', 'https://api*.bücher.example.test', true],
+				['https://xn--bcher-kva.a.example.test', 'https://bücher.*.example.test', true],
+				['https://x.xn--bcher-kva.example.test', '*.bücher.example.test', true],
+				['http://x.xn--bcher-kva.example.test', '*.bücher.example.test', true],
+				['https://x.xn--bcher-kva.example.test:8443/allowed/page', 'https://*.bücher.example.test:*/allowed/*', true],
+				['https://xn--bcher-kva.example.test/allowed/page', 'https://bücher.example.test:*/allowed', true],
+				['https://xn--bcher-kva.example.test:443', 'https://bücher.example.test:443', true],
+				['https://xn--bcher-kva.example.test:443', 'https://bücher.example.test', false],
+				['https://xn--bcher-kva.example.test', 'https://bücher.example.test:443', false],
+				['https://xn--bcher-kva.example.test:8443', 'https://bücher.example.test:8080', false],
+				['http://xn--bcher-kva.example.test', 'https://bücher.example.test', false],
+				['custom://xn--bcher-kva.example.test', '*.bücher.example.test', false],
+				['https://xn--bcher-kva.example.test/Allowed/page', 'https://bücher.example.test/allowed', false],
+				['https://xn--bcher-kva.example.test/allowed/../outside', 'https://bücher.example.test/allowed', false],
+				['https://xn--bcher-kva.example.test/allowed/child/../page', 'https://bücher.example.test/allowed', true],
+				['https://evilxn--bcher-kva.example.test', 'https://*.bücher.example.test', false],
+				['https://x.xn--bcher-kva.example.test.evil.test', 'https://*.bücher.example.test', false],
+				['https://x.other.example.test', 'https://*.bücher.example.test', false],
+				['https://bücher.example.test', 'https://bü*.example.test', true],
+				['https://x.bücher.example.test', 'https://＊.bücher.example.test', false],
+				['https://127.0.0.1', 'https://127.1', false],
+				['https://[::1]:8443', 'https://[::1]:*', true],
+			] as const;
+
+			assert.deepStrictEqual(
+				cases.map(([url, pattern]) => ({
+					string: testUrlMatchesGlob(url, pattern),
+					uri: testUrlMatchesGlob(URI.parse(url), pattern),
+				})),
+				cases.map(([, , expected]) => ({ string: expected, uri: expected }))
+			);
+		});
+
 		test('subdomain wildcard must match on dot boundary', () => {
 			// Should NOT match: no dot boundary before the domain
 			assert.strictEqual(testUrlMatchesGlob('https://notexample.com', 'https://*.example.com'), false);
