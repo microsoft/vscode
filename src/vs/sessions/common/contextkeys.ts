@@ -169,7 +169,13 @@ export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('ag
 
 //#region < --- Classic Window --- >
 
-/** `true` by default; a product that embeds the Agents window as its only window sets it to `false`. */
+/**
+ * Whether a classic VS Code window can be opened from the Agents window.
+ *
+ * Nothing binds this key, so it reads as `undefined` in stock VS Code; consumers therefore test
+ * `notEqualsTo(false)` so that unset and `true` both mean available. A product that embeds the
+ * Agents window as its only window sets it to `false`.
+ */
 export const SessionsClassicWindowAvailableContext = new RawContextKey<boolean>('sessionsClassicWindowAvailable', true, localize('sessionsClassicWindowAvailable', "Whether a classic VS Code window can be opened from the Agents window"));
 
 //#endregion

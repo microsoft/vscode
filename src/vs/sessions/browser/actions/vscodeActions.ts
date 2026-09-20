@@ -36,12 +36,12 @@ export class OpenInVSCodeAction extends Action2 {
 			id: OpenInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext),
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext.notEqualsTo(false)),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext.notEqualsTo(false), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}

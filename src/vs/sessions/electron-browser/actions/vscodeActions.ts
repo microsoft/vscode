@@ -12,7 +12,7 @@ import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
-import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
@@ -40,12 +40,12 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			id: OpenSessionInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext),
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext.notEqualsTo(false)),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsClassicWindowAvailableContext.notEqualsTo(false), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -98,7 +98,7 @@ export class OpenVSCodeWindowAction extends Action2 {
 		super({
 			id: OpenVSCodeWindowAction.ID,
 			title: localize2('openVSCodeWindow', 'Open VS Code Window'),
-			precondition: SessionsClassicWindowAvailableContext,
+			precondition: SessionsClassicWindowAvailableContext.notEqualsTo(false),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
@@ -128,7 +128,6 @@ export class ReturnToVSCodeEditorAction extends Action2 {
 		super({
 			id: RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
 			title: localize2('returnToVSCodeEditor', 'Return to VS Code Editor'),
-			precondition: SessionsClassicWindowAvailableContext,
 		});
 	}
 
@@ -148,6 +147,11 @@ export class ShouldShowReturnToVSCodeEditorAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<boolean> {
+		// The sign-in dialog renders its footer button from this answer and then invokes the command
+		// directly, which no precondition can gate -- so the availability check belongs here.
+		if (SessionsClassicWindowAvailableContext.getValue(accessor.get(IContextKeyService)) === false) {
+			return false;
+		}
 		const nativeHostService = accessor.get(INativeHostService);
 		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: false });
 		return shouldShowReturnToVSCodeEditor(windows, getWindowId(mainWindow));
