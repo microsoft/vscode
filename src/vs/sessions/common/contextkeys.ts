@@ -169,14 +169,7 @@ export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('ag
 
 //#region < --- Classic Window --- >
 
-/**
- * Whether opening a classic VS Code window is unavailable, so the actions that do it hide themselves.
- *
- * Stated as an opt-out because nothing binds it: on a positive key `notEqualsTo(false)` canonicalizes
- * to a defined-check (`ContextKeyNotEqualsExpr.create`), which is false when unset. Negating this one
- * gives the intended default instead -- unset means available, and a product that cannot open a
- * classic window sets it to `true`.
- */
+/** An opt-out, so consumers negate it rather than testing a positive key: unset means available. */
 export const SessionsClassicWindowUnavailableContext = new RawContextKey<boolean>('sessionsClassicWindowUnavailable', false, localize('sessionsClassicWindowUnavailable', "Whether opening a classic VS Code window is unavailable from the Agents window"));
 
 //#endregion
