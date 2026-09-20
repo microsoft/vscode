@@ -4094,7 +4094,7 @@
           },
           "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",
