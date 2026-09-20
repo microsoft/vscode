@@ -769,6 +769,30 @@ suite('Response', () => {
 		]);
 	});
 
+	test('mergeable thinking across nested subagent progress', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid' });
+		response.updateContent(ChatToolInvocation.createStreaming({
+			toolCallId: 'child-tool',
+			toolId: 'view',
+			toolData: {
+				id: 'view',
+				modelDescription: 'Read a file',
+				displayName: 'Reading',
+				source: ToolDataSource.Internal,
+			},
+			subagentInvocationId: 'parent-tool',
+		}));
+		response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' base stats.' });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking'
+			? { kind: part.kind, id: part.id, value: part.value }
+			: { kind: part.kind }), [
+			{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.' },
+			{ kind: 'toolInvocation' },
+		]);
+	});
+
 	test('not mergeable markdown', async () => {
 		const response = store.add(new Response([]));
 		const md1 = new MarkdownString('markdown1');

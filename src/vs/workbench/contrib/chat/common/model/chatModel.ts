@@ -941,8 +941,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
+			// Nested subagent parts render inside their parent card and must not split parent reasoning.
 			const lastResponsePart = this._responseParts
-				.filter(p => p.kind !== 'textEditGroup')
+				.filter(p => p.kind !== 'textEditGroup' && !isNestedSubagentResponsePart(p))
 				.at(-1);
 
 			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
