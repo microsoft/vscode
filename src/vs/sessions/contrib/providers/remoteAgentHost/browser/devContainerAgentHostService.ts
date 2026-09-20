@@ -403,6 +403,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				await this._ensureConnection(workspaceUri, CancellationToken.None);
 			},
 			disconnectOnDemand: () => this.disconnect(workspaceUri),
+			showConnectionLog: () => this.showLog(workspaceUri),
 		}));
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 		store.add(this._sessionsProvidersService.registerProvider(provider));

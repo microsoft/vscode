@@ -76,6 +76,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly removeOnDemand?: () => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	readonly showConnectionLog?: () => Promise<void>;
 	/** Optional kind-scoped policy for automatically starting the host. */
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
@@ -141,6 +142,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
+	readonly showConnectionLog?: () => Promise<void>;
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly automations: ISessionsProviderAutomations;
@@ -247,6 +249,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this._resolveDevContainerWorktreeConnection = config.resolveDevContainerWorktreeConnection;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
+		this.showConnectionLog = config.showConnectionLog;
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.canConnectOnDemand = !!config.connectOnDemand;

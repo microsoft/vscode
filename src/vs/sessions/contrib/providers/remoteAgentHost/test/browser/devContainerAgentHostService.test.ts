@@ -373,12 +373,14 @@ suite('Dev Container Agent Host Service', () => {
 		));
 		const restoredProvider = secondService.provider;
 		let connectorCalls = 0;
+		const logWorkspaces: URI[] = [];
 		secondInstantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
 		const reconnect = restoredProvider?.config.connectOnDemand?.();
+		const showLog = restoredProvider?.config.showConnectionLog?.();
 		const statusBeforeConnector = restoredProvider?.status;
 		store.add(secondService.registerConnector({
 			isAvailable: async () => true,
-			showLog: async () => { },
+			showLog: async workspace => { logWorkspaces.push(workspace); },
 			createConnection: async (_workspaceUri, stagedAddress) => {
 				connectorCalls++;
 				return {
@@ -390,6 +392,7 @@ suite('Dev Container Agent Host Service', () => {
 			},
 		}));
 		await reconnect;
+		await showLog;
 
 		assert.deepStrictEqual({
 			restoredProvider: restoredProvider && {
@@ -402,6 +405,7 @@ suite('Dev Container Agent Host Service', () => {
 			connectorCalls,
 			connected: restoredProvider?.wiredConnection !== undefined,
 			statusBeforeConnector,
+			logWorkspaces,
 			storageTargets: {
 				machine: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
 				user: storageService.keys(StorageScope.APPLICATION, StorageTarget.USER),
@@ -417,6 +421,7 @@ suite('Dev Container Agent Host Service', () => {
 			connectorCalls: 1,
 			connected: true,
 			statusBeforeConnector: RemoteAgentHostConnectionStatus.connecting,
+			logWorkspaces: [sourceWorkspace],
 			storageTargets: {
 				machine: ['devContainerAgentHost.connections'],
 				user: [],
