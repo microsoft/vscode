@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,7 +21,7 @@ import { ILoggerService, NullLogger, NullLogService } from '../../../../../platf
 import { AllowedMcpServersService } from '../../../../../platform/mcp/common/allowedMcpServersService.js';
 import { IAllowedMcpServersService, mcpAllowedServersConfig, mcpAutoStartConfig, McpAutoStartValue, mcpDeniedServersConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -30,7 +31,7 @@ import { TestContextService, TestLoggerService, TestProductService, TestStorageS
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpService } from '../../common/mcpService.js';
-import { McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
 
@@ -83,17 +84,25 @@ suite('Workbench - MCP - McpService', () => {
 			};
 			setServerDefinition(registry, definition);
 
-			const resolutionResult = { url: resolvedUrl };
-			const resolution = sinon.stub(registry, 'resolveConnection').callsFake(async options => store.add(instantiationService.createInstance(
-				McpServerConnection,
-				registry.collections.get()[0],
-				definition,
-				registry.delegates.get()[0],
-				{ type: McpServerTransportType.HTTP, uri: URI.parse(resolutionResult.url), headers: [] },
-				new NullLogger(),
-				true,
-				options.taskManager,
-			)));
+			const inputChanges = store.add(new Emitter<void>());
+			registry.onDidChangeInputs = inputChanges.event;
+			const resolutionResult: { url: string; beforeResolve?: () => Promise<void>; cancelled?: boolean } = { url: resolvedUrl };
+			const resolution = sinon.stub(registry, 'resolveConnection').callsFake(async options => {
+				await resolutionResult.beforeResolve?.();
+				if (resolutionResult.cancelled) {
+					return undefined;
+				}
+				return store.add(instantiationService.createInstance(
+					McpServerConnection,
+					registry.collections.get()[0],
+					definition,
+					registry.delegates.get()[0],
+					{ type: McpServerTransportType.HTTP, uri: URI.parse(resolutionResult.url), headers: [] },
+					new NullLogger(),
+					true,
+					options.taskManager,
+				));
+			});
 			store.add(toDisposable(() => resolution.restore()));
 
 			const transports: TestMcpMessageTransport[] = [];
@@ -108,7 +117,7 @@ suite('Workbench - MCP - McpService', () => {
 				return transport;
 			};
 			mcpService.updateCollectedServers();
-			return { server: mcpService.servers.get()[0], configurationService, resolution, resolutionResult, transports, registry, mcpService, definition };
+			return { server: mcpService.servers.get()[0], configurationService, resolution, resolutionResult, transports, registry, mcpService, definition, inputChanges };
 		};
 
 		const setDeniedUrls = async (configurationService: TestConfigurationService, urls: string[]) => {
@@ -121,8 +130,7 @@ suite('Workbench - MCP - McpService', () => {
 			});
 		};
 
-		test('retains a resolved policy block and suppresses cached metadata after disposal', async () => {
-			const { server, configurationService, registry, definition } = createPolicyServer('https://${input:host}/mcp', 'https://trusted.example/mcp');
+		const provideCachedMetadata = (registry: TestMcpRegistry) => {
 			const createTransport = registry.makeTestTransport;
 			registry.makeTestTransport = () => {
 				const transport = createTransport();
@@ -145,7 +153,34 @@ suite('Workbench - MCP - McpService', () => {
 				}));
 				return transport;
 			};
+		};
 
+		const createBlockedInputServer = async () => {
+			const context = createPolicyServer('https://${input:host}/mcp', 'https://trusted.example/mcp');
+			const { server, registry, configurationService } = context;
+			provideCachedMetadata(registry);
+			await configurationService.setUserConfiguration(mcpAllowedServersConfig, [
+				{ serverUrl: 'https://trusted.example/mcp' },
+				{ serverUrl: 'https://changed.example/mcp' },
+			]);
+			await server.start({ promptType: 'never', errorOnUserInteraction: true });
+			await Promise.all([
+				waitForState(server.tools, tools => tools.length === 1),
+				waitForState(server.prompts, prompts => prompts.length === 1),
+			]);
+			await setDeniedUrls(configurationService, ['https://trusted.example/*']);
+			const snapshot = () => ({
+				state: server.connectionState.get().state,
+				connected: !!server.connection.get(),
+				tools: server.tools.get().length,
+				prompts: server.prompts.get().length,
+			});
+			return { ...context, snapshot };
+		};
+
+		test('retains a resolved policy block and suppresses cached metadata after disposal', async () => {
+			const { server, configurationService, registry, definition } = createPolicyServer('https://${input:host}/mcp', 'https://trusted.example/mcp');
+			provideCachedMetadata(registry);
 			await server.start({ promptType: 'never', errorOnUserInteraction: true });
 			await Promise.all([
 				waitForState(server.tools, tools => tools.length === 1),
@@ -172,6 +207,130 @@ suite('Workbench - MCP - McpService', () => {
 				allowedAgain: { state: McpConnectionState.Kind.Stopped, connected: false, tools: 1, prompts: 1 },
 			});
 		});
+
+		for (const inputAction of ['edit', 'reset'] as const) {
+			test(`explicit retry re-resolves a blocked server after saved input ${inputAction}`, async () => {
+				const { server, registry, definition, resolution, resolutionResult, inputChanges, transports, snapshot } = await createBlockedInputServer();
+				const resolving = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				resolutionResult.beforeResolve = async () => {
+					void resolving.complete();
+					await resume.p;
+				};
+				const changedInput = async () => {
+					resolutionResult.url = 'https://changed.example/mcp';
+					inputChanges.fire();
+				};
+				const edit = sinon.stub(registry, 'editSavedInput').callsFake(changedInput);
+				store.add(toDisposable(() => edit.restore()));
+				const clear = sinon.stub(registry, 'clearSavedInputs').callsFake(changedInput);
+				store.add(toDisposable(() => clear.restore()));
+				if (inputAction === 'edit') {
+					await registry.editSavedInput('${input:host}', undefined, 'mcp', ConfigurationTarget.USER);
+				} else {
+					await registry.clearSavedInputs(StorageScope.PROFILE, '${input:host}');
+				}
+				const afterInputChange = snapshot();
+				const quiet = await server.start({ promptType: 'never', errorOnUserInteraction: true });
+				const quietResolutions = resolution.callCount;
+				const pending = server.start({ promptType: 'all-untrusted' });
+				const enteredResolution = await raceTimeout(resolving.p.then(() => true), 1000) ?? false;
+				const duringResolution = snapshot();
+				await resume.complete();
+				const retried = await pending;
+				const connection = server.connection.get();
+				if (connection) {
+					await waitForState(connection.handler, Boolean);
+				}
+
+				const blocked = { state: McpConnectionState.Kind.Error, connected: false, tools: 0, prompts: 0 };
+				assert.deepStrictEqual({
+					definitionUnchanged: registry.collections.get()[0].serverDefinitions.get()[0] === definition,
+					afterInputChange,
+					quiet: quiet.state,
+					quietResolutions,
+					enteredResolution,
+					duringResolution,
+					retried: retried.state,
+					afterRetry: snapshot(),
+					resolutions: resolution.callCount,
+					transports: transports.length,
+				}, {
+					definitionUnchanged: true,
+					afterInputChange: blocked,
+					quiet: McpConnectionState.Kind.Error,
+					quietResolutions: 1,
+					enteredResolution: true,
+					duringResolution: blocked,
+					retried: McpConnectionState.Kind.Running,
+					afterRetry: { state: McpConnectionState.Kind.Running, connected: true, tools: 1, prompts: 1 },
+					resolutions: 2,
+					transports: 2,
+				});
+			});
+		}
+
+		test('cancelled and repeatedly denied input retries keep cached metadata blocked', async () => {
+			const { server, registry, resolution, resolutionResult, inputChanges, transports, snapshot } = await createBlockedInputServer();
+			const resolving = new DeferredPromise<void>();
+			const resume = new DeferredPromise<void>();
+			const clear = sinon.stub(registry, 'clearSavedInputs').callsFake(async () => inputChanges.fire());
+			store.add(toDisposable(() => clear.restore()));
+			await registry.clearSavedInputs(StorageScope.PROFILE, '${input:host}');
+			resolutionResult.beforeResolve = async () => {
+				void resolving.complete();
+				await resume.p;
+			};
+			resolutionResult.cancelled = true;
+			const pending = server.start({ promptType: 'all-untrusted' });
+			const enteredResolution = await raceTimeout(resolving.p.then(() => true), 1000) ?? false;
+			const duringResolution = snapshot();
+			await resume.complete();
+			const cancelled = await pending;
+			const afterCancellation = snapshot();
+			resolutionResult.beforeResolve = undefined;
+			resolutionResult.cancelled = false;
+			const denied = await server.start({ promptType: 'all-untrusted' });
+
+			const blocked = { state: McpConnectionState.Kind.Error, connected: false, tools: 0, prompts: 0 };
+			assert.deepStrictEqual({
+				enteredResolution,
+				duringResolution,
+				cancelled: cancelled.state,
+				afterCancellation,
+				denied: denied.state,
+				afterDenial: snapshot(),
+				resolutions: resolution.callCount,
+				transports: transports.length,
+			}, {
+				enteredResolution: true,
+				duringResolution: blocked,
+				cancelled: McpConnectionState.Kind.Stopped,
+				afterCancellation: blocked,
+				denied: McpConnectionState.Kind.Error,
+				afterDenial: blocked,
+				resolutions: 3,
+				transports: 1,
+			});
+		});
+
+		for (const transportType of [McpServerTransportType.HTTP, McpServerTransportType.Stdio]) {
+			test(`discovery handles repeated incomplete markers without URL rules for transport ${transportType}`, () => {
+				const configurationService = new TestConfigurationService();
+				const allowedMcpServersService = store.add(new AllowedMcpServersService(configurationService));
+				const { mcpService, registry } = createMcpService(allowedMcpServersService);
+				const markers = '${'.repeat(32 * 1024);
+				const launch: McpServerLaunch = transportType === McpServerTransportType.HTTP
+					? { type: McpServerTransportType.HTTP, uri: URI.parse(`https://trusted.example/mcp#${markers}`), headers: [] }
+					: { type: McpServerTransportType.Stdio, command: 'echo', args: [markers], env: {}, envFile: undefined, cwd: undefined, sandbox: undefined };
+				setServerDefinition(registry, { id: 'test-server', label: 'Test Server', cacheNonce: 'a', launch });
+				const stopwatch = StopWatch.create();
+				mcpService.updateCollectedServers();
+				const elapsed = stopwatch.elapsed();
+				assert.ok(elapsed < 1000, `Discovery took ${elapsed}ms for 64 KiB of incomplete markers`);
+				assert.strictEqual(mcpService.servers.get()[0].connectionState.get().state, McpConnectionState.Kind.Stopped);
+			});
+		}
 
 		test('a changed definition releases the retained resolved policy block', async () => {
 			const { server, registry, definition, transports } = createPolicyServer('https://${input:host}/mcp', 'https://blocked.example/mcp');

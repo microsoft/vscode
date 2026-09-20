@@ -19,6 +19,7 @@ import { createURITransformer } from '../../../../base/common/uriTransformer.js'
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { hasConfigurationVariable } from '../../../../platform/configuration/common/configurationVariables.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerIdentity } from '../../../../platform/mcp/common/allowedMcpServers.js';
@@ -29,7 +30,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -746,7 +746,8 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	/** Whether policy URL/command fields contain unresolved configuration variables; the server name is literal. */
 	private static _hasUnresolvedVariables(identity: IMcpServerIdentity): boolean {
-		return !Iterable.isEmpty(ConfigurationResolverExpression.parse({ url: identity.url, command: identity.command }).unresolved());
+		return (identity.url !== undefined && hasConfigurationVariable(identity.url))
+			|| (identity.command?.some(hasConfigurationVariable) ?? false);
 	}
 
 	public start({ interaction, autoTrustChanges, promptType, debug, errorOnUserInteraction }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
@@ -755,7 +756,13 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._connectionSequencer.queue<McpConnectionState>(async () => {
 			const preStartBlock = this._policyBlock.get();
 			if (preStartBlock) {
-				return preStartBlock;
+				const definition = this._fullDefinitions.get().server;
+				const canResolveAgain = !errorOnUserInteraction && this._resolvedPolicyIdentity.get()
+					&& definition && McpServer._hasUnresolvedVariables(this._identityFromLaunch(definition.launch));
+				// Keep cached metadata blocked while an interactive retry resolves the current inputs.
+				if (!canResolveAgain) {
+					return preStartBlock;
+				}
 			}
 
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));

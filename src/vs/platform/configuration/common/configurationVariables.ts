@@ -49,10 +49,17 @@ export function parseConfigurationVariable(value: string, start: number): { repl
 	};
 }
 
+/** Scans backwards for a variable with a matching closing brace in linear time and constant space. */
 export function hasConfigurationVariable(value: string): boolean {
-	for (let offset = value.indexOf('${'); offset !== -1; offset = value.indexOf('${', offset + 2)) {
-		if (parseConfigurationVariable(value, offset)) {
-			return true;
+	let unmatchedClosingBraces = 0;
+	for (let offset = value.length - 1; offset >= 0; offset--) {
+		if (value[offset] === '}') {
+			unmatchedClosingBraces++;
+		} else if (value[offset] === '{' && unmatchedClosingBraces > 0) {
+			unmatchedClosingBraces--;
+			if (offset > 0 && value[offset - 1] === '$') {
+				return true;
+			}
 		}
 	}
 	return false;
