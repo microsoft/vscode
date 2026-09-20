@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
@@ -340,16 +340,65 @@ suite('TerminalSandboxEngine', () => {
 	}
 
 	for (const settingId of [AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeniedNetworkDomains]) {
-		test(`rejects invalid sandbox domain patterns in ${settingId} before wrapping commands`, async () => {
+		test(`invalid sandbox domain patterns in ${settingId} use a deny-all policy without throwing`, async () => {
+			setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
+			setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.test']);
 			setSandboxSetting(settingId, ['*.example.test', '*.bad..example.test']);
+			const warn = instantiationService.spy(ILogService, 'warn');
 			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
 
-			await rejects(engine.wrapCommand('node ./script.js'), {
-				message: `The ${settingId} setting contains an invalid network domain pattern.`,
+			const resolvedDomains = engine.getResolvedNetworkDomains();
+			const wrapped = await engine.wrapCommand('echo offline');
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath);
+			const config: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				resolvedDomains,
+				network: config.network,
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				warningLogged: warn.calledWith(`TerminalSandboxEngine: Cannot normalize a domain pattern in ${settingId}; blocking all network access.`),
+			}, {
+				resolvedDomains: { allowedDomains: [], deniedDomains: [] },
+				network: { allowedDomains: [], deniedDomains: [] },
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: undefined,
+				warningLogged: true,
 			});
-			strictEqual(createdFiles.size, 0);
 		});
 	}
+
+	test('recovers after invalid sandbox domain patterns are corrected', async () => {
+		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.bad..example.test']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath);
+		const invalidConfig: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.example.test']);
+		const wrapped = await engine.wrapCommand('echo offline');
+		const correctedConfig: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual({
+			invalidNetwork: invalidConfig.network,
+			correctedNetwork: correctedConfig.network,
+			resolvedDomains: engine.getResolvedNetworkDomains(),
+			isSandboxWrapped: wrapped.isSandboxWrapped,
+		}, {
+			invalidNetwork: { allowedDomains: [], deniedDomains: [] },
+			correctedNetwork: {
+				allowedDomains: ['*.example.test'],
+				deniedDomains: ['*.xn--bcher-kva.example.test'],
+			},
+			resolvedDomains: {
+				allowedDomains: ['*.example.test'],
+				deniedDomains: ['*.xn--bcher-kva.example.test'],
+			},
+			isSandboxWrapped: true,
+		});
+	});
 
 	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
