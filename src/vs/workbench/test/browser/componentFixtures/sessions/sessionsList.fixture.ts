@@ -253,6 +253,7 @@ interface IRenderOptions {
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
 	readonly revealFirstSession?: boolean;
+	readonly showFirstSessionTwistie?: boolean;
 	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
 	readonly showConfetti?: boolean;
 }
@@ -530,6 +531,16 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.revealFirstSession && sessions[0] && !list.reveal(sessions[0].resource)) {
 		throw new Error('Expected the first session to be revealed.');
 	}
+	if (options.showFirstSessionTwistie) {
+		const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
+		const twistie = sessionRow?.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
+		const statusIcon = sessionRow?.querySelector<HTMLElement>('.session-icon');
+		if (!twistie || !statusIcon) {
+			throw new Error('Expected the first session to have a nested-chat twistie.');
+		}
+		twistie.style.opacity = '1';
+		statusIcon.style.visibility = 'hidden';
+	}
 	if (options.archiveOnboarding) {
 		listHost.style.width = `${width}px`;
 		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
@@ -720,6 +731,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact vscode workspace section shows a session with one nested chat and a second session. Session titles, status icons, and nested-chat titles are vertically centered in their rows.'],
 		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, width: 340 }),
+	}),
+	SessionsList_CompactTwistie: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact vscode workspace section shows an expanded session with its nested-chat twistie visible in place of the status icon. The twistie is vertically centered with the session title.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COMPACT_RENAME_SESSIONS, compact: true, showFirstSessionTwistie: true, width: 340 }),
 	}),
 	SessionsList_UnreadStatusIcons: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

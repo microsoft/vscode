@@ -443,6 +443,10 @@
 }
 
 .sessions-list-control.compact {
+	.monaco-list-row .session-chat-twistie {
+		top: var(--vscode-spacing-size60);
+	}
+
 	.session-item:not(.quick-chat) {
 		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
 

@@ -6,12 +6,14 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITelemetryData, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
@@ -19,6 +21,10 @@ import { SelectAgentsFolderContribution } from '../../electron-browser/chat.cont
 import { Emitter } from '../../../../../base/common/event.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 
 const startWindowOpenTelemetry = Reflect.get(SelectAgentsFolderContribution.prototype, '_startWindowOpenTelemetry') as (
 	source: AgentsWindowOpenSource,
@@ -27,6 +33,66 @@ const startWindowOpenTelemetry = Reflect.get(SelectAgentsFolderContribution.prot
 
 suite('Agents Window workspace handoff telemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes a typed draft without a workspace and preserves existing-session precedence', async () => {
+		const draft: IAgentsWindowDraft = { inputText: 'Incoming', attachments: '[]' };
+		const drafts: IAgentsWindowWorkspaceHandoff[] = [];
+		const sessions: URI[] = [];
+		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+			this: typeof harness, folder: URI | undefined, session: URI | undefined,
+			isDefault: boolean, token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft
+		) => Promise<void>;
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const harness = {
+			configurationService,
+			_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { drafts.push(intent); } },
+			openExistingSession: async (resource: URI) => { sessions.push(resource); },
+		};
+		await handleOpenIntent.call(harness, undefined, undefined, true, CancellationToken.None, undefined, draft);
+		const persisted = URI.parse('agent-host-copilot:/persisted');
+		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft);
+		assert.deepStrictEqual({ drafts, sessions }, {
+			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft }],
+			sessions: [persisted],
+		});
+	});
+
+	test('preserves unresolved draft workspace intent instead of treating remote workspaces as absent', async () => {
+		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const calls: IAgentsWindowWorkspaceHandoff[] = [];
+		const harness = {
+			configurationService,
+			_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { calls.push(intent); } },
+			openExistingSession: async () => assert.fail('A draft must not open an existing session'),
+		};
+		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+			this: typeof harness, workspace: URI | undefined, session: URI | undefined, isDefault: boolean,
+			token: CancellationToken, telemetry: undefined, draft?: IAgentsWindowDraft
+		) => Promise<void>;
+		const hostFolder = URI.file('/host/project');
+		const remoteWorkspaces = [
+			URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/project' }),
+			URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+host', path: '/project' }),
+			URI.from({ scheme: Schemas.vscodeRemote, authority: `dev-container+${encodeHex(VSBuffer.fromString(hostFolder.fsPath))}@ssh-remote+host`, path: '/project' }),
+			URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'remote-host', path: '/project' }),
+			URI.from({ scheme: 'unavailable-workspace', path: '/project' }),
+		];
+		const draft = { inputText: 'Work in the source project', attachments: '[]' };
+		for (const workspace of remoteWorkspaces) {
+			await handleOpenIntent.call(harness, workspace, undefined, false, CancellationToken.None, undefined, draft);
+		}
+		const localContainer = URI.from({ scheme: Schemas.vscodeRemote, authority: `dev-container+${encodeHex(VSBuffer.fromString(hostFolder.fsPath))}`, path: '/project' });
+		await handleOpenIntent.call(harness, localContainer, undefined, false, CancellationToken.None, undefined, draft);
+		await handleOpenIntent.call(harness, remoteWorkspaces[0], undefined, false, CancellationToken.None, undefined);
+		assert.deepStrictEqual(calls.map(intent => ({
+			folder: intent.folderUri?.toString(), preferDevContainer: intent.preferDevContainer, draft: intent.draft,
+		})), [
+			...remoteWorkspaces.map(workspace => ({ folder: workspace.toString(), preferDevContainer: false, draft })),
+			{ folder: hostFolder.toString(), preferDevContainer: true, draft },
+		]);
+	});
 
 	test('later opening requests cannot change the initial opening context or handoff tracker', () => {
 		const lifecycleService = disposables.add(new TestLifecycleService());

@@ -61,6 +61,8 @@ import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
+import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 
 // #region --- New Chat Widget ---
 
@@ -706,9 +708,10 @@ export class NewChatWidget extends Disposable {
 	private async _createNewSession(
 		folderUri: URI,
 		userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType(),
+		handoff?: { readonly token: CancellationToken; readonly providerId?: string; readonly preferDevContainer?: boolean },
 	): Promise<IOpenNewSessionResult> {
 		this._pendingPreferredUpgrade.clear();
-		const creationCts = new CancellationTokenSource();
+		const creationCts = new CancellationTokenSource(handoff?.token);
 		const creationLifecycle = toDisposable(() => creationCts.dispose(true));
 		this._newSessionCreation.value = creationLifecycle;
 		// Session creation is async, so a provider can start serving the folder
@@ -721,7 +724,7 @@ export class NewChatWidget extends Disposable {
 		let changedWhilePending = false;
 		pendingChange.add(this.sessionsManagementService.onDidChangeSessionTypes(() => changedWhilePending = true));
 		let result: IOpenNewSessionResult;
-		const creation = this._createSessionNow(folderUri, userPick, creationCts.token);
+		const creation = this._createSessionNow(folderUri, userPick, creationCts.token, handoff?.providerId);
 		this._pendingWorkspaceCreation = creation;
 		try {
 			result = await creation;
@@ -732,6 +735,7 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
+		const cancelled = creationCts.token.isCancellationRequested;
 		if (isCurrentCreation) {
 			if (result.session) {
 				this._createdSessionId = result.session.sessionId;
@@ -739,6 +743,12 @@ export class NewChatWidget extends Disposable {
 			this._newSessionCreation.clear();
 		} else {
 			return result;
+		}
+		if (cancelled) {
+			return result;
+		}
+		if (handoff) {
+			this._preferredDevContainerFolderUri = handoff.preferDevContainer ? folderUri : undefined;
 		}
 		this._applyPreferredDevContainer(result.session, folderUri);
 		if (result.trustDeclined) {
@@ -777,13 +787,13 @@ export class NewChatWidget extends Disposable {
 		this._preferredDevContainerFolderUri = undefined;
 	}
 
-	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken): Promise<IOpenNewSessionResult> {
+	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken, providerId?: string): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
 		const preferredPick = userPick && this._isPreferredServable(folderUri, userPick)
 			? userPick
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
-		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
+		const fallbackProviderId = providerId ?? this._workspacePicker.selectedResolved?.providerId;
 		try {
 			return await this.sessionsService.openNewSession({
 				folderUri,
@@ -1227,6 +1237,45 @@ export class NewChatWidget extends Disposable {
 	private _canApplyWorkspaceDefault(): boolean {
 		const session = this._session.get();
 		return !session || session.sessionId === this._createdSessionId;
+	}
+
+	async applyDraft(draft: IAgentsWindowDraft, folderUri: URI | undefined, options: ISelectWorkspaceOptions, token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		if (!this._newChatInput.isInputReady) {
+			return 'notReady';
+		}
+		if (token.isCancellationRequested || this._newChatInput.hasInput || this._feedbackItems.get().length > 0) {
+			return 'preserved';
+		}
+		const input = reviveChatDraft(draft);
+		const store = new DisposableStore();
+		const cancellation = new CancellationTokenSource(token);
+		store.add(toDisposable(() => cancellation.dispose(true)));
+		store.add(this._newChatInput.onDidChangeInput(() => cancellation.cancel()));
+		try {
+			if (folderUri) {
+				const result = await this._createNewSession(folderUri, this._newChatInput.sessionTypePicker.getUserPickedSessionType(), {
+					token: cancellation.token, providerId: options.providerId, preferDevContainer: options.preferDevContainer,
+				});
+				if (cancellation.token.isCancellationRequested || this._store.isDisposed || this._newChatInput.hasInput || result.trustDeclined) {
+					return 'preserved';
+				}
+				if (!result.session) {
+					return 'notReady';
+				}
+				this._workspacePicker.setSelectedWorkspace(folderUri, {
+					fireEvent: false,
+					providerId: result.session.providerId,
+					preferDevContainer: options.preferDevContainer,
+					origin: options.selectionOrigin,
+				});
+			}
+			if (cancellation.token.isCancellationRequested || this._store.isDisposed) {
+				return 'preserved';
+			}
+			return this._newChatInput.applyDraft(input) ? 'applied' : 'preserved';
+		} finally {
+			store.dispose();
+		}
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
