@@ -167,6 +167,13 @@ export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('ag
 
 //#endregion
 
+//#region < --- Classic Window --- >
+
+/** `true` by default; a product that embeds the Agents window as its only window sets it to `false`. */
+export const SessionsClassicWindowAvailableContext = new RawContextKey<boolean>('sessionsClassicWindowAvailable', true, localize('sessionsClassicWindowAvailable', "Whether a classic VS Code window can be opened from the Agents window"));
+
+//#endregion
+
 //#region < --- Mobile Layout --- >
 
 export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
