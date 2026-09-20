@@ -5316,6 +5316,39 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('does not mark a session that gained conversation turns during source resolution', async () => {
+				// The emptiness evidence is gathered before the source resolves, so a
+				// mutation landing in that window must abandon the write: re-marking a
+				// session that now holds real work would hide it on the next listing.
+				class MutatingCatalogDatabase extends CentralCatalogDatabase {
+					private _bumped = false;
+					override async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+						const current = await super.getSessionV2PayloadDirty(session);
+						if (this._bumped) {
+							return current;
+						}
+						this._bumped = true;
+						await super.markSessionV2PayloadDirty(session);
+						return current;
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(false, new MutatingCatalogDatabase(), 'crashed-raced-mutation');
+				const svc = await createCrashedService(orchestratorDatabase, createNullSessionDataService());
+
+				const outcomes = await runCatalogReconciliationPass(svc);
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					outcomes,
+					provisionalMarkers: await orchestratorDatabase.listProvisionalSessions(),
+					listed: listed.map(metadata => metadata.session.toString()),
+				}, {
+					outcomes: [{ session: session.toString(), status: 'retry', reason: 'superseded' }],
+					provisionalMarkers: [],
+					listed: [session.toString()],
+				});
+			});
+
 			test('keeps a catalog-served unmarked provider miss when local storage contains conversation turns', async () => {
 				const { orchestratorDatabase, session } = await seedCrashedProvisional(false, new CentralCatalogDatabase(), 'crashed-with-turn');
 				const sessionData = createPerSessionDataService();
@@ -5408,8 +5441,10 @@ suite('AgentService (node dispatcher)', () => {
 				// Deferred work settles only once startup is complete *and* a first
 				// listing has been served, so mark it before awaiting below.
 				svc.markStartupComplete();
-				// The empty local store now proves the placeholder is safe to hide
-				// even before the marker read completes.
+				// The marker read is still in flight, so the listing cannot yet know
+				// this placeholder is empty and leaves it visible — failing open is
+				// deliberate, since hiding a real session costs more than showing a
+				// junk row for one listing.
 				await markerReadHasStarted;
 				const listedDuringRead = await svc.listSessions();
 

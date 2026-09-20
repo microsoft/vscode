@@ -359,10 +359,26 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._parkedSessions.delete(session);
 	}
 
-	private async _markEmptySourceUnresolvableAsProvisional(session: URI, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
+	/**
+	 * Records that an unresolvable session holds no conversation, so a later
+	 * listing can hide it (#321269). Pre-existing orphans carry no marker, and
+	 * nothing else would ever retract the catalog row the provider cannot vouch
+	 * for.
+	 *
+	 * The emptiness evidence is only valid for the revision it was gathered
+	 * against: a mutation or a concurrent materialization during source
+	 * resolution can add turns or clear the marker, and an unconditional write
+	 * would then re-mark a session that holds real work. The dirty marker is
+	 * therefore re-read and a changed one abandons the write, matching how
+	 * {@link _park} yields to the same race.
+	 */
+	private async _markEmptySourceUnresolvableAsProvisional(session: URI, database: AgentHostCatalogDatabaseReference | undefined, observedDirty: number | undefined): Promise<void> {
 		const sessionKey = session.toString();
 		try {
 			if (database && await database.object.hasConversationTurns()) {
+				return;
+			}
+			if (await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
 				return;
 			}
 			await this._catalogDatabase.setSessionProvisional(sessionKey, true);
@@ -429,7 +445,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 							return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 						}
 						if (error instanceof CatalogReconciliationSourceUnresolvableError) {
-							await this._markEmptySourceUnresolvableAsProvisional(session, database);
+							await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
 							return await this._park(sessionKey, observedDirty);
 						}
 						throw error;
@@ -495,7 +511,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 				}
 				if (sourceResult.status === 'sourceUnresolvable') {
-					await this._markEmptySourceUnresolvableAsProvisional(session, database);
+					await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
 					return await this._park(sessionKey, observedDirty);
 				}
 				if (token.isCancellationRequested) {
