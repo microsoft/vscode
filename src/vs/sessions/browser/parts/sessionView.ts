@@ -91,7 +91,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 	private readonly _isVisibleObs = observableValue(this, true);
 
-	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader) && !this._sessionObs.read(reader)?.isNewSessionRequestInProgress?.read(reader)
+	readonly pickerVisibility = derived(this, reader => this._isVisibleObs.read(reader) && !this._sessionObs.read(reader)?.preparationProgress?.read(reader)
 		? this._standaloneView.read(reader)?.pickerVisibility.read(reader) ?? noSessionPickerVisibility
 		: noSessionPickerVisibility);
 
@@ -193,13 +193,14 @@ export class SessionView extends Disposable implements ISerializableView {
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 			let restoreComposerFocus = false;
+			const hasPreparationProgress = derived(reader => !!session.preparationProgress?.read(reader));
 			this._openSessionDisposables.add(autorun(reader => {
 				if (this._currentSession !== session) {
 					return;
 				}
 				if (session.isCreated.read(reader)) {
 					this._showSessionGroups(session, options);
-				} else if (session.isNewSessionRequestInProgress?.read(reader)) {
+				} else if (session.isNewSessionRequestInProgress?.read(reader) && hasPreparationProgress.read(reader)) {
 					// Keep the composer alive so failure or cancellation restores its prompt and attachments.
 					const moveFocus = isAncestorOfActiveElement(view.element);
 					view.setVisible(false);
@@ -218,7 +219,9 @@ export class SessionView extends Disposable implements ISerializableView {
 						preparationView.focus();
 					}
 				} else {
-					this._contentContainer.replaceChildren(view.element);
+					if (view.element.parentElement !== this._contentContainer) {
+						this._contentContainer.replaceChildren(view.element);
+					}
 					view.setActive(this._isActive);
 					view.setVisible(this._isVisible);
 					this._layoutChildren();

@@ -3782,6 +3782,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(events, ['availability resolved', 'container trust', 'trust declined']);
 	});
 
+	for (const cancel of [false, true]) {
+		test(`preferred Dev Container availability exposes progress and clears it on ${cancel ? 'cancellation' : 'fallback'}`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			let connectCalls = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+					override async connect(): Promise<never> {
+						connectCalls++;
+						throw new Error('unexpected connect');
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			provider.preferDevContainer(session.sessionId);
+			const preparation = provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello');
+			const progress = session.preparationProgress?.get();
+			try {
+				if (cancel) {
+					const rejected = assert.rejects(preparation, /Canceled/);
+					progress?.cancel();
+					await rejected;
+				} else {
+					await availability.complete(false);
+					assert.strictEqual((await preparation).session, session);
+				}
+				assert.deepStrictEqual({
+					message: progress?.message,
+					cancellable: typeof progress?.cancel,
+					after: session.preparationProgress?.get(),
+					connectCalls,
+					status: session.status.get(),
+				}, {
+					message: 'Preparing Dev Container...',
+					cancellable: 'function',
+					after: undefined,
+					connectCalls: 0,
+					status: SessionStatus.Untitled,
+				});
+			} finally {
+				if (!availability.isSettled) {
+					await availability.complete(false);
+				}
+			}
+		});
+	}
+
 	test('prepareNewSession releases the Dev Container connection when post-connect setup fails', async () => {
 		const remoteWorkspace = URI.parse('agent-host://devcontainer/workspaces/project');
 		const setupError = new Error('failed to trust mapped workspace');

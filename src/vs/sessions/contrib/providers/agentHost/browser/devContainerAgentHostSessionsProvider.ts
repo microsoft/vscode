@@ -186,14 +186,12 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
 		const availability = this._devContainerAvailability.get(sessionId);
-		if (availability && this._pendingDevContainerEnablement.has(sessionId)) {
-			await raceCancellationError(availability, token);
-		}
+		const awaitingAvailability = availability && this._pendingDevContainerEnablement.has(sessionId);
 		const draft = this._getNewSession(sessionId);
 		if (!draft) {
 			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
 		}
-		if (!this._devContainerDrafts.has(sessionId)) {
+		if (!awaitingAvailability && !this._devContainerDrafts.has(sessionId)) {
 			return { session: draft.session };
 		}
 		const preparation = new CancellationTokenSource(token);
@@ -207,6 +205,15 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		};
 		progress(localize('devContainerAgentHost.preparing', "Preparing Dev Container..."));
 		try {
+			if (awaitingAvailability) {
+				await raceCancellationError(availability, preparation.token);
+			}
+			if (preparation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (!this._devContainerDrafts.has(sessionId)) {
+				return { session: draft.session };
+			}
 			return await this._prepareDevContainerSession(sessionId, preparation.token, query, progress);
 		} finally {
 			draft.preparationProgress.set(undefined, undefined);

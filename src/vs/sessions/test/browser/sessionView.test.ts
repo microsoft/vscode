@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js
 import { disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionPreparationProgress } from '../../services/sessions/common/session.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
@@ -157,9 +158,11 @@ suite('Sessions - Session View', () => {
 		const groupsElement = document.createElement('div');
 		const isCreated = observableValue<boolean>('isCreated', false);
 		const requestInProgress = observableValue('requestInProgress', false);
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
 		const session = new class extends mock<IActiveSession>() {
 			override readonly isCreated = isCreated;
 			override readonly isNewSessionRequestInProgress = requestInProgress;
+			override readonly preparationProgress = preparationProgress;
 			override readonly mainChat = observableValue('mainChat', createTestActiveSession('draft').mainChat.get());
 		}();
 		const preparationViews: TestNewSessionView[] = [];
@@ -206,8 +209,16 @@ suite('Sessions - Session View', () => {
 		const draftElement = contentContainer.firstElementChild;
 		view.focus();
 		requestInProgress.set(true, undefined);
+		const withoutPreparation = {
+			retainedComposer: contentContainer.firstElementChild === initialElement,
+			preparationViewCount: preparationViews.length,
+			focused: mainWindow.document.activeElement === initialElement,
+		};
+		preparationProgress.set({ message: 'Preparing', cancel: () => { } }, undefined);
+		preparationProgress.set({ message: 'Starting', cancel: () => { } }, undefined);
 		const duringPreparation = {
 			showsChat: contentContainer.firstElementChild === preparationViews[0].element,
+			preparationViewCount: preparationViews.length,
 			composerDisposed: createdViews[0].disposed,
 			focused: mainWindow.document.activeElement === preparationViews[0].element,
 		};
@@ -223,6 +234,7 @@ suite('Sessions - Session View', () => {
 		assert.deepStrictEqual({
 			createdViewCount: createdViews.length,
 			preservedForDraft: draftElement === initialElement,
+			withoutPreparation,
 			duringPreparation,
 			afterCancellation,
 			preparationViewsDisposed: preparationViews.every(view => view.disposed),
@@ -233,7 +245,8 @@ suite('Sessions - Session View', () => {
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
-			duringPreparation: { showsChat: true, composerDisposed: false, focused: true },
+			withoutPreparation: { retainedComposer: true, preparationViewCount: 0, focused: true },
+			duringPreparation: { showsChat: true, preparationViewCount: 1, composerDisposed: false, focused: true },
 			afterCancellation: { restoredComposer: true, progressDisposed: true, focused: true },
 			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
