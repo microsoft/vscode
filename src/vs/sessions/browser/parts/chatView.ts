@@ -10,6 +10,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
@@ -104,6 +106,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	selectWorkspace(_folderUri: URI, _options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return 'notReady';
+	}
+
+	applyDraft(_draft: IAgentsWindowDraft, _folderUri: URI | undefined, _options: ISelectWorkspaceOptions, _token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return Promise.resolve('notReady');
 	}
 
 	selectNoWorkspace(): void {
