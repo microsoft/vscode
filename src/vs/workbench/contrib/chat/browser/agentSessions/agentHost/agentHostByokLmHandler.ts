@@ -25,6 +25,7 @@ import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../..
 import {
 	ChatImageMimeType,
 	ChatMessageRole,
+	getModelContextWindowTotal,
 	IChatMessage,
 	IChatMessagePart,
 	ILanguageModelChatRequestOptions,
@@ -176,7 +177,9 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					id: metadata.id,
 					name: metadata.name,
 					modelIdentifier: identifier,
-					maxContextWindowTokens: metadata.maxInputTokens + metadata.maxOutputTokens,
+					maxContextWindowTokens: getModelContextWindowTotal(metadata),
+					maxPromptTokens: metadata.maxInputTokens,
+					maxOutputTokens: metadata.maxOutputTokens,
 					supportsVision: !!metadata.capabilities?.vision,
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),

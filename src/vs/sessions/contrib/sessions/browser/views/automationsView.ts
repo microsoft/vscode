@@ -580,7 +580,7 @@ class AutomationCardsSection extends Disposable {
 			void this.runNow(currentAutomation);
 		}));
 
-		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActionsForAutomation', "More Actions for {0}", automation.name), false);
+		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActions', "More Actions..."), false);
 		moreActionsButton.element.classList.add('automations-card-more-actions-button');
 		moreActionsButton.element.setAttribute('aria-haspopup', 'menu');
 		moreActionsButton.element.setAttribute('aria-expanded', 'false');
@@ -657,7 +657,6 @@ class AutomationCardsSection extends Disposable {
 			card.actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
 			const moreActionsLabel = localize('moreActionsForAutomation', "More Actions for {0}", automation.name);
 			card.moreActionsButton.setAriaLabel(moreActionsLabel);
-			card.moreActionsButton.setTitle(moreActionsLabel);
 			card.nameText.textContent = automation.name;
 		}
 		if (!previous || previous.enabled !== automation.enabled) {

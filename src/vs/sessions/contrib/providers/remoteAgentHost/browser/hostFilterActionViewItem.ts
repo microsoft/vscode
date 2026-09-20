@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/hostFilter.css';
+import '../../../../browser/media/sidebarActionButton.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -138,15 +139,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._renderDiagnosticsButton(this.element);
 	}
 
-	/**
-	 * Sidebar appearance — full-width row matching the Customizations links
-	 * (`CustomizationLinkViewItem`). Same Monaco `Button` shell, same
-	 * `.sidebar-action-button` styling, same `supportIcons` label rendering.
-	 * The trailing connect indicator is rendered alongside the picker
-	 * button as a sibling control, so the row visually mirrors the
-	 * Customizations rows in the toolbar above without making the
-	 * indicator part of the picker label.
-	 */
+	/** Renders the full-width sidebar variant with a separate connection indicator. */
 	private _renderSidebar(): void {
 		if (!this.element) {
 			return;
@@ -154,11 +147,10 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 		this.element.classList.add('sidebar-action');
 
-		// Picker button — same shell as `CustomizationLinkViewItem`. We
-		// drive the button content manually (rather than via `Button.label`)
+		// Drive the button content manually (rather than via `Button.label`)
 		// so the host name span can `flex: 1` and push the chevron all
 		// the way to the trailing edge.
-		const buttonContainer = dom.append(this.element, dom.$('.customization-link-button-container'));
+		const buttonContainer = dom.append(this.element, dom.$('.agent-host-filter-button-container'));
 		this._sidebarButton = this._register(new Button(buttonContainer, {
 			...defaultButtonStyles,
 			secondary: true,

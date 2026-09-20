@@ -172,6 +172,7 @@ function undefinedIfEmpty(record: Record<string, string>): Record<string, string
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
+	public readonly maxContextWindowTokens: number | undefined;
 	public readonly model: string;
 	public readonly name: string;
 	public readonly version: string;
@@ -219,6 +220,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._maxTokens = modelMetadata.capabilities.limits?.max_prompt_tokens ?? 8192;
 		// This metadata should always be present, but if not we will default to 4096 tokens
 		this._maxOutputTokens = modelMetadata.capabilities.limits?.max_output_tokens ?? 4096;
+		this.maxContextWindowTokens = modelMetadata.capabilities.limits?.max_context_window_tokens;
 		this.model = modelMetadata.id;
 		this.modelProvider = modelMetadata.vendor;
 		this.name = modelMetadata.name;

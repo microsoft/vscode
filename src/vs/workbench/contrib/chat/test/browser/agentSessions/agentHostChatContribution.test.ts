@@ -25,6 +25,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -1535,6 +1536,44 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
+
+		for (const provider of ['copilotcli', 'codex']) {
+			test(`consumes handed-off untitled attachment contents without source models (${provider})`, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, modelService } = createContribution(disposables, { provider });
+				const sourceUri = URI.from({ scheme: Schemas.untitled, path: '/Source-1' });
+				const sourceModel = disposables.add(createTextModel('First line\nSelected context\nLast line', 'plaintext', undefined, sourceUri));
+				const draft = reviveChatDraft(serializeChatDraft({
+					inputText: 'Use the attached draft',
+					attachments: [{
+						kind: 'file', id: 'document', name: 'Source-1', value: sourceUri,
+					}, {
+						kind: 'file', id: 'selection', name: 'Selected context',
+						value: { uri: sourceUri, range: new Range(2, 1, 2, 17) },
+					}],
+				}, uri => extUriBiasedIgnorePathCase.isEqual(uri, sourceUri) ? sourceModel : null));
+				sourceModel.dispose();
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: draft.inputText,
+					variables: { variables: [...draft.attachments] },
+				});
+				const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+				assert.deepStrictEqual({
+					destinationModel: modelService.getModel(sourceUri),
+					attachments: turnStarted.message.attachments,
+				}, {
+					destinationModel: null,
+					attachments: draft.attachments.map((entry, index) => ({
+						type: MessageAttachmentKind.EmbeddedResource,
+						label: entry.name,
+						data: encodeBase64(VSBuffer.fromString(index === 0 ? 'First line\nSelected context\nLast line' : 'Selected context')),
+						contentType: 'text/plain',
+						_meta: entry._meta,
+					})),
+				});
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
+				await turnPromise;
+			});
+		}
 
 		test('preserves workspace context as a hidden workspace variable on history replay', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -5077,6 +5116,47 @@ suite('AgentHostChatContribution', () => {
 	// ---- Progress event → chat progress conversion ----------------------
 
 	suite('progress routing', () => {
+
+		test('first response telemetry avoids the common session ID and preserves log correlation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const events: Record<string, unknown>[] = [];
+			instantiationService.stub(ITelemetryService, {
+				...NullTelemetryService,
+				publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+					if (eventName === 'agentHost.firstResponse' && data) {
+						events.push(data);
+					}
+				},
+			});
+			const records = captureFirstResponseTimings(instantiationService);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/responsePart', session, turnId, part: { kind: 'markdown', id: 'answer', content: 'Hello' } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const agentSessionId = AgentSession.uri('copilot', 'new-turntest').toString();
+			assert.deepStrictEqual({
+				telemetry: events.map(event => ({
+					requestId: event.requestId,
+					agentSessionId: event.agentSessionId,
+					chatId: event.chatId,
+					commonSessionIdKeys: Object.keys(event).filter(key => key.toLowerCase() === 'sessionid'),
+				})),
+				logs: records,
+			}, {
+				telemetry: [{ requestId: turnId, agentSessionId, chatId: session, commonSessionIdKeys: [] }],
+				logs: events.map(event => ({ ...event, sessionId: agentSessionId, turnId })),
+			});
+		}));
 
 		test('first response timing counts root tools before text, not updates or later tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
