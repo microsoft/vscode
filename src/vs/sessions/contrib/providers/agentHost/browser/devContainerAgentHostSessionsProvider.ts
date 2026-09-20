@@ -198,12 +198,10 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 		const preparation = new CancellationTokenSource(token);
 		const cancel = () => preparation.cancel();
-		const progress = (message: string, workspaceUri?: URI) => {
+		const progress = (message: string, showLog = draft.preparationProgress.get()?.showLog) => {
 			draft.preparationProgress.set({
 				message,
-				showLog: workspaceUri
-					? () => { void this._devContainerSupport!.service.showLog(workspaceUri).catch(onUnexpectedError); }
-					: draft.preparationProgress.get()?.showLog,
+				showLog,
 				cancel,
 			}, undefined);
 		};
@@ -216,7 +214,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 	}
 
-	private async _prepareDevContainerSession(sessionId: string, token: CancellationToken, query: string, progress: (message: string, workspaceUri?: URI) => void): Promise<IPreparedNewSession> {
+	private async _prepareDevContainerSession(sessionId: string, token: CancellationToken, query: string, progress: (message: string, showLog?: () => void) => void): Promise<IPreparedNewSession> {
 		const draft = this._getNewSession(sessionId);
 		if (!draft) {
 			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
@@ -245,7 +243,10 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
 		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
 			progress(localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container..."));
-			await draft.waitForEagerCreate();
+			await raceCancellationError(draft.waitForEagerCreate(), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const connection = this.connection;
 			if (!connection || !supportsAgentHostDetachedWorktrees(connection.initializeResult.get()) || !connection.createDetachedWorktree || !connection.claimDetachedWorktree || !connection.deleteDetachedWorktree) {
 				throw new Error(localize('devContainerAgentHost.worktreePreparationUnsupported', "The source Agent Host does not support preparing a worktree for a Dev Container."));
@@ -265,7 +266,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 		let target: Awaited<ReturnType<IDevContainerAgentHostService['connect']>>;
 		try {
-			progress(localize('devContainerAgentHost.starting', "Starting Dev Container..."), devContainerWorkspace);
+			progress(localize('devContainerAgentHost.starting', "Starting Dev Container..."), () => {
+				void support.service.showLog(devContainerWorkspace).catch(onUnexpectedError);
+			});
 			target = await support.service.connect(devContainerWorkspace, token);
 		} catch (error) {
 			if (detachedWorktree) {

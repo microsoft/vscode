@@ -125,6 +125,34 @@ suite('ChatWidget', () => {
 		}, { calls: ['new'], sameStatus: true, active: true, cancelled: true, completedActive: false, completedContext: false, cancelCompleted: false, customButton: false, complete: true });
 	});
 
+	test('transcript progress updates preserve detail focus and use the latest action', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		const calls: string[] = [];
+		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => calls.push('old') } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
+		link.focus();
+		widget.setTranscriptProgress('Starting', undefined, { detail: { label: 'Show Log', run: () => calls.push('new') } });
+		const focusedAfterUpdate = mainWindow.document.activeElement === link;
+		link.click();
+		widget.setTranscriptProgress(undefined);
+		const hiddenAfterClearing = !!link.closest('[hidden]');
+		link.click();
+		widget.setTranscriptProgress('Ready', undefined, { complete: true });
+		assert.deepStrictEqual({
+			sameLink: container.querySelector('a') === link,
+			focusedAfterUpdate,
+			hiddenAfterClearing,
+			hiddenWithoutAction: !!link.closest('[hidden]'),
+			calls,
+		}, {
+			sameLink: true,
+			focusedAfterUpdate: true,
+			hiddenAfterClearing: true,
+			hiddenWithoutAction: true,
+			calls: ['new'],
+		});
+	});
+
 	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
 		const { widget } = createTranscriptProgressWidget();
 		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
@@ -158,7 +186,7 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual(states, [true, true, true, false, false]);
 	});
 
-	test('transcript progress clearing disposes the detail action and preserves the message-only API', () => {
+	test('transcript progress clearing hides the detail action and preserves the message-only API', () => {
 		const { widget, container } = createTranscriptProgressWidget();
 		let opened = false;
 		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => opened = true }, onCancel: () => { } });
@@ -167,7 +195,7 @@ suite('ChatWidget', () => {
 		link.click();
 		const cleared = {
 			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
-			link: !!container.querySelector('a'),
+			linkHidden: !!link.closest('[hidden]'),
 			active: widget.isTranscriptProgressActive,
 			opened,
 		};
@@ -176,13 +204,13 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual({
 			cleared,
 			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
-			link: !!container.querySelector('a'),
+			linkHidden: !!link.closest('[hidden]'),
 			statusLabel: container.querySelector('[role=status]')!.getAttribute('aria-label'),
 			shimmer: !!container.querySelector('.shimmer-progress'),
 		}, {
-			cleared: { hidden: true, link: false, active: false, opened: false },
+			cleared: { hidden: true, linkHidden: true, active: false, opened: false },
 			hidden: false,
-			link: false,
+			linkHidden: true,
 			statusLabel: 'Connecting',
 			shimmer: true,
 		});

@@ -386,7 +386,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		readonly container: HTMLElement;
 		readonly status: HTMLElement;
 		readonly detail: HTMLElement;
+		readonly link: Link;
 		readonly part: ChatProgressSubPart;
+		onDetail?: () => void;
 		onCancel?: () => void;
 	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
@@ -1522,12 +1524,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const part = this._register(this.instantiationService.createInstance(ChatProgressSubPart, status, Codicon.check, undefined));
 			part.iconElement.setAttribute('aria-hidden', 'true');
 			const detail = dom.append(part.domNode, $('span'));
+			const link = this._register(this.instantiationService.createInstance(Link, detail, { label: '', href: '#' }, { opener: () => this.transcriptProgress?.onDetail?.() }));
 			dom.append(row, part.domNode);
-			this.transcriptProgress = { container, status, detail, part };
+			this.transcriptProgress = { container, status, detail, link, part };
 		}
 		this.transcriptProgressPart.clear();
 		dom.clearNode(this.transcriptProgress.status);
-		dom.clearNode(this.transcriptProgress.detail);
 		if (message) {
 			const store = new DisposableStore();
 			this.transcriptProgressPart.value = store;
@@ -1536,7 +1538,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderedMessage.element.classList.add('progress-step');
 			renderedMessage.element.setAttribute('aria-hidden', 'true');
 			if (options?.detail) {
-				store.add(this.instantiationService.createInstance(Link, this.transcriptProgress.detail, { label: options.detail.label, href: '#' }, { opener: options.detail.run }));
+				this.transcriptProgress.link.link = { label: options.detail.label, href: '#' };
 			}
 			dom.append(this.transcriptProgress.status, renderedMessage.element);
 		}
@@ -1545,6 +1547,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.transcriptProgress.detail.hidden = !message || !options?.detail;
 		this.transcriptProgress.status.setAttribute('aria-label', ariaLabel ?? '');
 		this.transcriptProgress.container.hidden = message === undefined;
+		this.transcriptProgress.onDetail = message ? options?.detail?.run : undefined;
 		this.transcriptProgress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
 		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
 		this.transcriptProgressActive = message !== undefined;

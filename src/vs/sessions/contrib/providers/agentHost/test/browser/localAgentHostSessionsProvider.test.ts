@@ -3715,6 +3715,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	for (const pendingEagerCreate of [false, true]) {
+		test(`canceling Dev Container worktree preparation does not create a worktree (pending eager create: ${pendingEagerCreate})`, async () => {
+			const eagerCreate = new DeferredPromise<void>();
+			if (pendingEagerCreate) {
+				agentHost.onCreateSession = () => eagerCreate.p;
+			}
+			let connectCalls = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return true; }
+					override async connect(): Promise<never> {
+						connectCalls++;
+						throw new Error('unexpected connect');
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await timeout(0);
+			provider.setDevContainerEnabled(session.sessionId, true);
+			disposables.add(autorun(reader => {
+				const progress = session.preparationProgress?.read(reader);
+				if (progress?.message === 'Preparing worktree for Dev Container...') {
+					progress.cancel();
+				}
+			}));
+			try {
+				await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), /Canceled/);
+				assert.deepStrictEqual({
+					connectCalls,
+					createdWorktrees: agentHost.createDetachedWorktreeCalls,
+					progress: session.preparationProgress?.get(),
+				}, { connectCalls: 0, createdWorktrees: [], progress: undefined });
+			} finally {
+				await eagerCreate.complete();
+			}
+		});
+	}
+
 	test('waits for preferred Dev Container availability before preparing a request', async () => {
 		const availability = new DeferredPromise<boolean>();
 		const events: string[] = [];
