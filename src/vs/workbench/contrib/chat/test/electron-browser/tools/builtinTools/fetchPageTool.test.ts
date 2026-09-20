@@ -340,6 +340,68 @@ suite('FetchWebPageTool', () => {
 		});
 	});
 
+	test('backslash URLs use the same destination for confirmation policy and extraction', async () => {
+		const urls = [
+			String.raw`https://evil.example\.github.com/collect?leak=<data>`,
+			String.raw`https://evil.example\\.github.com/collect?leak=<data>`,
+			String.raw`https://169.254.169.254\.github.com/latest/meta-data/`,
+			String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`,
+			String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`,
+			String.raw`https://github.com\.evil.example/resource`,
+			String.raw`https://api.github.com/path\resource?query=\value#\fragment`,
+			'https://api.github.com/resource',
+		];
+		const destinationUris = urls.map(url => URI.parse(new URL(URI.parse(url).toString(true)).href));
+		const contents = new ResourceMap<string>();
+		for (const uri of [...urls.map(url => URI.parse(url)), ...destinationUris]) {
+			contents.set(uri, 'Fixture content');
+		}
+		const extractor = new TestWebContentExtractorService(contents);
+		const policyUris: string[] = [];
+		const networkFilter = new MockAgentNetworkFilterService();
+		networkFilter.isEnabled = () => false;
+		networkFilter.isUriAllowed = uri => {
+			policyUris.push(uri.toString(true));
+			return true;
+		};
+		const tool = new FetchWebPageTool(
+			extractor,
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			new TestContextService(),
+			networkFilter,
+		);
+		const preparations: { message: string | undefined; requestsBeforeInvocation: number }[] = [];
+		for (const [index, url] of urls.entries()) {
+			const preparation = await tool.prepareToolInvocation(
+				{ parameters: { urls: [url] }, toolCallId: `backslash-${index}`, chatSessionResource: undefined },
+				CancellationToken.None
+			);
+			preparations.push({
+				message: typeof preparation?.invocationMessage === 'string' ? preparation.invocationMessage : preparation?.invocationMessage?.value,
+				requestsBeforeInvocation: extractor.requestedUris.length,
+			});
+			await tool.invoke(
+				{ callId: `backslash-${index}`, toolId: InternalFetchWebPageToolId, parameters: { urls: [url] }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+		}
+
+		const destinations = destinationUris.map(uri => uri.toString(true));
+		assert.deepStrictEqual({
+			preparations,
+			policyUris,
+			extractedUris: extractor.requestedUris.map(uri => uri.toString(true)),
+		}, {
+			preparations: destinations.map((url, index) => ({ message: `Fetching ${url}`, requestsBeforeInvocation: index })),
+			policyUris: destinations.flatMap(url => [url, url]),
+			extractedUris: destinations,
+		});
+	});
+
 	test('should not show confirmation dialog for file URIs inside the workspace', async () => {
 		// Use a workspace rooted at /workspaceRoot
 		const workspaceRoot = URI.file('/workspaceRoot');
