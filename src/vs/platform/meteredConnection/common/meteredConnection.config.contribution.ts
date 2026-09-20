@@ -5,6 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -22,7 +23,7 @@ configurationRegistry.registerConfiguration({
 				localize('meteredConnection.on', "Always treat the network connection as metered. Automatic updates and downloads will be postponed."),
 				localize('meteredConnection.off', "Never treat the network connection as metered.")
 			],
-			default: 'auto',
+			default: product.quality === 'insider' ? 'auto' : 'off',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('meteredConnection', "Controls whether the current network connection should be treated as metered. When metered, automatic updates, extension downloads, and other background network activity will be postponed to reduce data usage."),
 			tags: ['usesOnlineServices']

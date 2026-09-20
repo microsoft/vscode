@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -46,13 +45,9 @@ suite('PluginAutoUpdate', () => {
 		clearUpdatesAvailableCalls: ReadonlySet<string>[];
 	}
 
-	function createContribution(
-		stateOverrides?: Partial<MockState>,
-		isConnectionMetered = false,
-		whenInitialized: Promise<void> = Promise.resolve(),
-	): { contribution: PluginAutoUpdate; state: MockState; meteredConnectionService: TestMeteredConnectionService } {
+	function createContribution(stateOverrides?: Partial<MockState>, isConnectionMetered = false): { contribution: PluginAutoUpdate; state: MockState; meteredConnectionService: TestMeteredConnectionService } {
 		const instantiationService = store.add(new TestInstantiationService());
-		const meteredConnectionService = store.add(new TestMeteredConnectionService(isConnectionMetered, whenInitialized));
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(isConnectionMetered));
 
 		const state: MockState = {
 			marketplacesWithUpdates: observableValue<ReadonlySet<string>>('test.marketplacesWithUpdates', new Set()),
@@ -107,21 +102,6 @@ suite('PluginAutoUpdate', () => {
 			automatic: call.automatic,
 			marketplaceIds: [...call.marketplaceIds ?? []],
 		})), [{ silent: true, automatic: true, marketplaceIds: ['github:microsoft/plugins'] }]);
-	});
-
-	test('waits for connection state initialization before updating', async () => {
-		const initialized = new DeferredPromise<void>();
-		const { state } = createContribution(undefined, false, initialized.p);
-
-		state.marketplacesWithUpdates.set(new Set(['github:microsoft/plugins']), undefined);
-		await flushMicrotasks();
-		assert.strictEqual(state.updateAllCalls.length, 0);
-
-		initialized.complete();
-		await flushMicrotasks();
-		await flushMicrotasks();
-
-		assert.deepStrictEqual(state.updateAllCalls.map(call => [...call.marketplaceIds ?? []]), [['github:microsoft/plugins']]);
 	});
 
 	test('retains queued updates while metered and runs them when unmetered', async () => {

@@ -11,7 +11,6 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -34,10 +33,6 @@ export interface ITelemetryServiceConfig {
 	 * (up to 10 seconds) to ensure experiment context is attached to all events.
 	 */
 	waitForExperimentProperties?: boolean;
-	/**
-	 * If provided, telemetry events will be dropped when the connection is metered.
-	 */
-	meteredConnectionService?: IMeteredConnectionService;
 }
 
 interface IPendingEvent {
@@ -69,13 +64,9 @@ export class TelemetryService implements ITelemetryService {
 	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
 
-	private readonly _meteredConnectionService: IMeteredConnectionService | undefined;
-	private _isMeteredConnectionInitialized: boolean;
-
 	private _pendingEvents: IPendingEvent[] = [];
 	private _isExperimentPropertySet = false;
 	private _flushTimeout: ReturnType<typeof setTimeout> | undefined;
-	private _isDisposed = false;
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -103,16 +94,6 @@ export class TelemetryService implements ITelemetryService {
 		this._piiPaths = config.piiPaths || [];
 		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
-		this._meteredConnectionService = config.meteredConnectionService;
-		this._isMeteredConnectionInitialized = !this._meteredConnectionService;
-		if (this._meteredConnectionService) {
-			void this._meteredConnectionService.whenInitialized.then(() => {
-				if (!this._isDisposed) {
-					this._isMeteredConnectionInitialized = true;
-					this._flushPendingEventsIfReady();
-				}
-			});
-		}
 
 		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/(vscode-)?file:\/\/.*?\/resources\/app\//gi];
@@ -170,29 +151,19 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
-	private _flushPendingEvents(force = false): void {
-		if (!this._isExperimentPropertySet) {
-			this._isExperimentPropertySet = true;
-
-			if (this._flushTimeout !== undefined) {
-				clearTimeout(this._flushTimeout);
-				this._flushTimeout = undefined;
-			}
-		}
-
-		this._flushPendingEventsIfReady(force);
-	}
-
-	private _flushPendingEventsIfReady(force = false): void {
-		if (!this._isExperimentPropertySet || (!this._isMeteredConnectionInitialized && !force)) {
+	private _flushPendingEvents(): void {
+		if (this._isExperimentPropertySet) {
 			return;
 		}
 
-		if (this._meteredConnectionService?.isConnectionMetered) {
-			this._pendingEvents = [];
-			return;
+		this._isExperimentPropertySet = true;
+
+		if (this._flushTimeout !== undefined) {
+			clearTimeout(this._flushTimeout);
+			this._flushTimeout = undefined;
 		}
 
+		// Send all buffered events now that experiment properties are available
 		for (const event of this._pendingEvents) {
 			this._doLog(event.eventName, event.eventLevel, event.data);
 		}
@@ -226,9 +197,8 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	dispose(): void {
-		this._isDisposed = true;
 		// Flush any remaining pending events before disposing
-		this._flushPendingEvents(true);
+		this._flushPendingEvents();
 		this._disposables.dispose();
 	}
 
@@ -238,16 +208,11 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
-		// Buffer events until experiment properties and the initial metered connection state are available.
-		if (!this._isExperimentPropertySet || !this._isMeteredConnectionInitialized) {
+		// Buffer events until experiment properties are set (or timeout expires)
+		if (!this._isExperimentPropertySet) {
 			if (this._pendingEvents.length < TelemetryService.MAX_BUFFER_SIZE) {
 				this._pendingEvents.push({ eventName, eventLevel, data });
 			}
-			return;
-		}
-
-		// Don't send events when the connection is metered
-		if (this._meteredConnectionService?.isConnectionMetered) {
 			return;
 		}
 

@@ -788,41 +788,6 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		assert.strictEqual(fetchCount, 1);
 	});
 
-	test('periodic update checking waits for metered connection initialization', async () => {
-		let runIdle: ((idle: IdleDeadline) => void) | undefined;
-		store.add(installFakeRunWhenIdle((_target, runner) => {
-			runIdle = runner;
-			return Disposable.None;
-		}));
-		const initialized = new DeferredPromise<void>();
-		const meteredConnectionService = store.add(new TestMeteredConnectionService(false, initialized.p));
-		let fetchCount = 0;
-		const service = createService({
-			meteredConnectionService,
-			pluginRepositoryService: {
-				fetchRepository: async () => {
-					fetchCount++;
-					return false;
-				},
-			},
-		});
-		service.addInstalledPlugin(
-			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
-			makePlugin('my-plugin', 'my-plugin'),
-		);
-
-		assert.ok(runIdle);
-		runIdle({ didTimeout: false, timeRemaining: () => 50 });
-		await timeout(0);
-		assert.strictEqual(fetchCount, 0);
-
-		initialized.complete();
-		await timeout(0);
-		await timeout(0);
-
-		assert.strictEqual(fetchCount, 1);
-	});
-
 	test('defers an overdue check until queued updates are acknowledged', async () => {
 		const updateCheckInterval = 24 * 60 * 60 * 1000;
 		const clock = sinon.useFakeTimers({ now: updateCheckInterval + 1 });
@@ -1027,7 +992,6 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 
 		assert.ok(runIdle);
 		runIdle({ didTimeout: false, timeRemaining: () => 50 });
-		await timeout(0);
 		await timeout(0);
 		assert.deepStrictEqual(fetched, [deferredRef.canonicalId]);
 

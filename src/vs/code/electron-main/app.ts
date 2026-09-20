@@ -755,11 +755,9 @@ export class CodeApplication extends Disposable {
 		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
 		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
 
-		// Metered connection telemetry
+		// Metered Connection
 		appInstantiationService.invokeFunction(accessor => {
-			const meteredConnectionService = accessor.get(IMeteredConnectionService) as MeteredConnectionMainService;
-			meteredConnectionService.setTelemetryService(accessor.get(ITelemetryService));
-			meteredConnectionService.start();
+			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).start();
 		});
 
 		// Auth Handler
