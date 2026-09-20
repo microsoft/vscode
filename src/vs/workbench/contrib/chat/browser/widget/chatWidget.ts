@@ -1548,8 +1548,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.transcriptProgress.status.setAttribute('aria-label', ariaLabel ?? '');
 		this.transcriptProgress.container.hidden = message === undefined;
 		this.transcriptProgress.onDetail = message ? options?.detail?.run : undefined;
+		const wasPreparing = this.isTranscriptProgressActive;
 		this.transcriptProgress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
 		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
+		if (wasPreparing !== this.isTranscriptProgressActive) {
+			this.input.setInputEnabled(!this.isTranscriptProgressActive);
+		}
 		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 		this.updateChatViewVisibility();

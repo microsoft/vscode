@@ -239,18 +239,15 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				await app.workbench.agentsWindow.selectDevContainer();
 				const prompt = `start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
-				const followUp = 'Drafted while the container starts';
 				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
 				await app.workbench.agentsWindow.waitForSessionPreparation();
 				await app.workbench.agentsWindow.showSessionPreparationLog();
-				await app.workbench.agentsWindow.draftFollowUpDuringPreparation(followUp);
 				await app.workbench.agentsWindow.cancelSessionPreparation(prompt);
 				await app.workbench.agentsWindow.retrySessionPreparation();
 				await app.workbench.agentsWindow.waitForSessionPreparation();
-				await app.workbench.agentsWindow.waitForFollowUpDraft(followUp);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
-				await app.workbench.agentsWindow.waitForFollowUpDraft(followUp);
+				await app.workbench.agentsWindow.verifyInputEnabledAfterPreparation();
 				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
 				assert.ok(
 					devContainer.mockServer.requestCount() > requestsBefore,

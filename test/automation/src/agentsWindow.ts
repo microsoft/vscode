@@ -130,6 +130,10 @@ export class AgentsWindow {
 		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
 		await page.locator(ACTIVE_SESSION_INPUT_EDITOR).waitFor({ state: 'visible' });
 		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar[inert]`).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-attachments-container[inert]`).waitFor({ state: 'attached' });
+		await page.waitForFunction(selector => !!document.querySelector(selector)?.closest('[inert]'), ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).waitFor({ state: 'hidden' });
 	}
 
 	async showSessionPreparationLog(): Promise<void> {
@@ -140,16 +144,18 @@ export class AgentsWindow {
 		await this.quickaccess.runCommand('workbench.action.closePanel');
 	}
 
-	async draftFollowUpDuringPreparation(prompt: string): Promise<void> {
-		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
-		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
+	async verifyInputEnabledAfterPreparation(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
-		await page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).waitFor({ state: 'hidden' });
-	}
-
-	async waitForFollowUpDraft(prompt: string): Promise<void> {
-		await this.code.waitForTextContent(`${ACTIVE_SESSION_INPUT_EDITOR} .view-lines`, undefined, text => text.replace(/\u00a0/g, ' ') === prompt);
+		await page.waitForFunction(selector => {
+			const editor = document.querySelector(selector);
+			return editor && !editor.closest('[inert]') && !editor.classList.contains('readonly');
+		}, ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar:not([inert])`).waitFor({ state: 'visible' });
+		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, 'Follow-up after preparation');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+		await page.keyboard.press('Backspace');
+		await this.code.waitForTextContent(`${ACTIVE_SESSION_INPUT_EDITOR} .view-lines`, '', text => text.trim() === '');
 	}
 
 	async cancelSessionPreparation(originalPrompt: string): Promise<void> {

@@ -8,7 +8,6 @@ import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -19,19 +18,19 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
-import { ISessionPreparationInput, SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
+import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -1911,7 +1910,7 @@ suite('Sessions - Chat View', () => {
 	});
 
 	test('stores view state independently by chat resource', () => {
-		const service = createViewStateService();
+		const service = new SessionsChatViewStateService();
 		const first = URI.parse('test:///first');
 		const second = URI.parse('test:///second');
 
@@ -1927,7 +1926,7 @@ suite('Sessions - Chat View', () => {
 	});
 
 	test('bounds stored view state', () => {
-		const service = createViewStateService();
+		const service = new SessionsChatViewStateService();
 		for (let index = 0; index <= CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT; index++) {
 			service.set(URI.parse(`test:///${index}`), { scrollTop: index });
 		}
@@ -1939,82 +1938,6 @@ suite('Sessions - Chat View', () => {
 			evicted: undefined,
 			retained: { scrollTop: CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT },
 		});
-	});
-
-	function createViewStateService(onDidReplaceSession: ISessionsManagementService['onDidReplaceSession'] = Event.None, onDidReplaceNewDraftSession: ISessionsManagementService['onDidReplaceNewDraftSession'] = Event.None): SessionsChatViewStateService {
-		return disposables.add(new SessionsChatViewStateService(new class extends mock<ISessionsManagementService>() {
-			override readonly onDidReplaceSession = onDidReplaceSession;
-			override readonly onDidReplaceNewDraftSession = onDidReplaceNewDraftSession;
-		}()));
-	}
-
-	test('carries follow-up input through provider replacement and draft graduation', () => {
-		const replacedDraft = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
-		const replacedSession = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
-		const service = createViewStateService(replacedSession.event, replacedDraft.event);
-		const createSession = (path: string) => new class extends mock<ISession>() {
-			override readonly mainChat = constObservable(new class extends mock<IChat>() {
-				override readonly resource = URI.parse(`test:///${path}`);
-			}());
-		}();
-		const local = createSession('local-draft');
-		const remote = createSession('remote-draft');
-		const committed = createSession('remote-session');
-		const input: ISessionPreparationInput = { inputText: 'Follow-up', attachments: [{ kind: 'file', id: 'file', name: 'file', value: URI.file('/file') }], selections: [] };
-		service.setPreparationInput(local.mainChat.get().resource, input);
-		replacedDraft.fire({ from: local, to: remote });
-		replacedSession.fire({ from: remote, to: committed });
-		replacedSession.fire({ from: committed, to: committed });
-		assert.deepStrictEqual([
-			service.getPreparationInput(local.mainChat.get().resource),
-			service.getPreparationInput(remote.mainChat.get().resource),
-			service.getPreparationInput(committed.mainChat.get().resource),
-		], [undefined, undefined, input]);
-		service.clearPreparationInput(committed.mainChat.get().resource);
-		assert.strictEqual(service.getPreparationInput(committed.mainChat.get().resource), undefined);
-	});
-
-	test('preserves preparation input without a model and restores it for a retry', () => {
-		const service = createViewStateService();
-		const resource = URI.parse('test:///draft');
-		const preparing = observableValue('preparing', true);
-		const status = observableValue('status', SessionStatus.Untitled);
-		const session = new class extends mock<ISession>() {
-			override readonly isNewSessionRequestInProgress = preparing;
-			override readonly status = status;
-		}();
-		let text = 'Follow-up';
-		let attachments: IChatRequestVariableEntry[] = [{ kind: 'file', id: 'file', name: 'file', value: URI.file('/file') }];
-		const view: {
-			_savePreparationInput(): void;
-			_restorePreparationInput(input: ISessionPreparationInput | undefined): void;
-		} = Object.assign(Object.create(ChatView.prototype), {
-			_currentChatResource: resource,
-			_currentSessionObs: constObservable(session),
-			viewStateService: service,
-			_widget: {
-				getInputState: () => ({ inputText: text, attachments, selections: [] }),
-				setInput: (value: string) => {
-					text = value;
-					view._savePreparationInput();
-				},
-				attachmentModel: {
-					get attachments() { return attachments; },
-					clearAndSetContext: (...entries: IChatRequestVariableEntry[]) => { attachments = entries; view._savePreparationInput(); },
-				},
-			},
-		});
-		view._savePreparationInput();
-		const saved = service.getPreparationInput(resource);
-		preparing.set(false, undefined);
-		text = '';
-		attachments = [];
-		view._restorePreparationInput(saved);
-		assert.deepStrictEqual({ inputText: text, attachments, selections: [], saved: service.getPreparationInput(resource) }, { ...saved, saved });
-		status.set(SessionStatus.InProgress, undefined);
-		service.clearPreparationInput(resource);
-		view._savePreparationInput();
-		assert.strictEqual(service.getPreparationInput(resource), undefined);
 	});
 
 	test('focuses the composer while session preparation is in progress', () => {

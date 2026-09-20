@@ -57,6 +57,7 @@ suite('ChatWidget', () => {
 		});
 		const widgetStore = store.add(new DisposableStore());
 		const contextKeyService = store.add(new MockContextKeyService());
+		const inputEnablement: boolean[] = [];
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
 			_store: widgetStore,
 			container,
@@ -65,10 +66,68 @@ suite('ChatWidget', () => {
 			instantiationService,
 			contextKeyService,
 			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			inputPartDisposable: { value: { setInputEnabled: (enabled: boolean) => inputEnablement.push(enabled) } },
 			updateChatViewVisibility: () => { },
 		}) as ChatWidget;
-		return { widget, container, contextKeyService };
+		return { widget, container, contextKeyService, inputEnablement };
 	}
+
+	test('only preparation disables input and completion or cancellation re-enables it', () => {
+		const { widget, inputEnablement } = createTranscriptProgressWidget();
+		widget.setTranscriptProgress('Connecting');
+		widget.setTranscriptProgress('Preparing', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => { } });
+		widget.setTranscriptProgress('Ready', undefined, { complete: true });
+		widget.setTranscriptProgress('Preparing again', undefined, { onCancel: () => widget.setTranscriptProgress(undefined) });
+		widget.cancelTranscriptProgress();
+		assert.deepStrictEqual(inputEnablement, [false, true, false, true]);
+	});
+
+	test('disabled input blocks editing and attachment controls but leaves Stop focusable', () => {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const editorContainer = dom.append(container, dom.$('div'));
+		const editor = dom.append(editorContainer, mainWindow.document.createElement('textarea'));
+		editor.value = 'Existing draft';
+		const attachmentsContainer = dom.append(container, dom.$('div'));
+		const toolbar = dom.append(container, dom.$('div'));
+		const secondaryToolbarContainer = dom.append(container, dom.$('div'));
+		const stop = dom.append(container, dom.$('button'));
+		let dropDisabled = false;
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			inputEnabled: true,
+			_inputEditorElement: editorContainer,
+			_inputEditor: {
+				updateOptions: (options: { readOnly: boolean }) => { editor.readOnly = options.readOnly; },
+				hasWidgetFocus: () => mainWindow.document.activeElement === editor,
+				focus: () => editor.focus(),
+			},
+			attachmentsContainer,
+			inputActionsToolbar: { getElement: () => toolbar },
+			secondaryToolbarContainer,
+			executeToolbar: { focus: () => stop.focus() },
+			dnd: { setDisabledOverlay: (disabled: boolean) => { dropDisabled = disabled; } },
+		});
+		const state = () => ({
+			readOnly: editor.readOnly,
+			inert: [editorContainer, attachmentsContainer, toolbar, secondaryToolbarContainer].map(element => element.inert),
+			dropDisabled,
+			focused: mainWindow.document.activeElement === stop ? 'stop' : mainWindow.document.activeElement === editor ? 'editor' : 'none',
+			value: editor.value,
+		});
+		input.focus();
+		input.setInputEnabled(false);
+		const disabled = state();
+		editor.focus();
+		const cannotFocusEditor = mainWindow.document.activeElement === stop;
+		input.setInputEnabled(true);
+		input.focus();
+		assert.deepStrictEqual({ disabled, cannotFocusEditor, enabled: state() }, {
+			disabled: { readOnly: true, inert: [true, true, true, true], dropDisabled: true, focused: 'stop', value: 'Existing draft' },
+			cannotFocusEditor: true,
+			enabled: { readOnly: false, inert: [false, false, false, false], dropDisabled: false, focused: 'editor', value: 'Existing draft' },
+		});
+	});
 
 	test('transcript progress shows a keyboard-accessible detail action outside the live region', () => {
 		const { widget, container } = createTranscriptProgressWidget();
