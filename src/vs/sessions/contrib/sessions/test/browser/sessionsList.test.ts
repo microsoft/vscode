@@ -24,6 +24,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -35,7 +36,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
@@ -148,6 +152,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly extUri = new ExtUri(() => true);
 				},
 				new class extends mock<ICustomViewService>() { },
+				constObservable(false),
 				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
@@ -205,6 +210,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = constObservable(undefined);
 				},
+				constObservable(false),
 				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
@@ -265,6 +271,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = constObservable(undefined);
 				},
+				constObservable(false),
 				new class extends mock<IMenuService>() { },
 			);
 			const container = document.createElement('div');
@@ -438,6 +445,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				constObservable(false),
 				new class extends mock<IMenuService>() { },
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
@@ -508,6 +516,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
+				constObservable(false),
 				new class extends mock<IMenuService>() { },
 			);
 			runs.set([
@@ -538,6 +547,149 @@ suite('Sessions - SessionsList', () => {
 
 			needsInputStatus.set(SessionStatus.InProgress, undefined);
 			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
+		});
+	});
+
+	suite('shortcut entries', () => {
+		test('places the Sessions header after Automations and Customizations on desktop', () => {
+			const activeEditorChanged = disposables.add(new Emitter<void>());
+			let activeEditor: AICustomizationManagementEditorInput | undefined;
+			let contextMenuCount = 0;
+			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([]);
+					override readonly runs = constObservable([]);
+					override readonly catalogueState = constObservable('ready' as const);
+				});
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				});
+				instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+					override readonly onDidActiveEditorChange = activeEditorChanged.event;
+					override get activeEditor(): AICustomizationManagementEditorInput | undefined {
+						return activeEditor;
+					}
+				});
+				instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+					override showContextMenu(): void {
+						contextMenuCount++;
+					}
+				});
+			});
+			const contextKeyService = harness.instantiationService.get(IContextKeyService);
+			ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const phoneLayout = IsPhoneLayoutContext.bindTo(contextKeyService);
+			const container = harness.createContainer();
+			const sessionsHeaderContainer = document.createElement('div');
+			const sessionsHeader = document.createElement('div');
+			sessionsHeader.className = 'agent-sessions-header-row';
+			sessionsHeader.textContent = 'Sessions';
+			sessionsHeaderContainer.append(sessionsHeader);
+			container.prepend(sessionsHeaderContainer);
+			let headerLayoutCount = 0;
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				sessionsHeader,
+				sessionsHeaderContainer,
+				layoutSessionsHeader: () => headerLayoutCount++,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const shortcutLabels = () => Array.from(container.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
+			const navigationLabels = () => Array.from(container.querySelectorAll('.session-section-shortcut .session-section-label, .sessions-list-header .agent-sessions-header-row'), element => element.textContent);
+			const customizationsSection = () => Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut')).find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+			list.focusCustomizations();
+			sessionsHeader.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			sessionsHeader.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			for (const shortcut of container.querySelectorAll<HTMLElement>('.session-section-shortcut')) {
+				shortcut.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 }));
+			}
+			const customizationInput = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
+			const customizationsActiveBeforeOpen = customizationsSection()?.classList.contains('active');
+			activeEditor = customizationInput;
+			activeEditorChanged.fire();
+			const customizationsActiveWhileOpen = customizationsSection()?.classList.contains('active');
+			activeEditor = undefined;
+			activeEditorChanged.fire();
+			const customizationsActiveAfterClose = customizationsSection()?.classList.contains('active');
+			const initialHeaderLayoutCount = headerLayoutCount;
+			const desktop = {
+				labels: shortcutLabels(),
+				navigationLabels: navigationLabels(),
+				focused: container.querySelector('.monaco-list-row.focused .session-section-label')?.textContent,
+				shortcutsUseOwnRowClass: Array.from(container.querySelectorAll('.session-section-shortcut')).every(element => element.closest('.monaco-list-row')?.classList.contains('session-list-shortcut-row')),
+				headerRowUsesPlatformMeasuredHeight: ['32px', '33px'].includes((sessionsHeader.closest('.monaco-list-row') as HTMLElement | null)?.style.height ?? ''),
+				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen, customizationsActiveAfterClose],
+				shortcutContextMenus: contextMenuCount,
+				ariaLabels: {
+					customizations: Array.from(container.querySelectorAll('.session-section-label')).find(element => element.textContent === 'Customizations')?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+					sessions: sessionsHeader.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				},
+			};
+
+			phoneLayout.set(true);
+			const phone = {
+				labels: shortcutLabels(),
+				headerInTree: sessionsHeader.closest('.sessions-list-header') !== null,
+			};
+
+			phoneLayout.set(false);
+			list.focusCustomizations();
+			const desktopAgain = {
+				labels: shortcutLabels(),
+				navigationLabels: navigationLabels(),
+				focused: container.querySelector('.monaco-list-row.focused .session-section-label')?.textContent,
+				headerLayoutRecomputed: headerLayoutCount > initialHeaderLayoutCount,
+			};
+
+			assert.deepStrictEqual({ desktop, phone, desktopAgain }, {
+				desktop: {
+					labels: ['Automations', 'Customizations'],
+					navigationLabels: ['Automations', 'Customizations', 'Sessions'],
+					focused: 'Customizations',
+					shortcutsUseOwnRowClass: true,
+					headerRowUsesPlatformMeasuredHeight: true,
+					customizationsActive: [false, true, false],
+					shortcutContextMenus: 0,
+					ariaLabels: { customizations: 'Customizations', sessions: 'Sessions' },
+				},
+				phone: { labels: ['Automations'], headerInTree: false },
+				desktopAgain: {
+					labels: ['Automations', 'Customizations'],
+					navigationLabels: ['Automations', 'Customizations', 'Sessions'],
+					focused: 'Customizations',
+					headerLayoutRecomputed: true,
+				},
+			});
+		});
+
+		test('marks regular section and folder show-more rows with renderer classes', () => {
+			const sessions = Array.from({ length: 6 }, (_, index) => {
+				const session = createTestSession(`session-${index}`, {
+					workspaceLabel: `Workspace ${index}`,
+				}).session;
+				return { ...session, updatedAt: constObservable(new Date(index)) };
+			});
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1000, 400);
+
+			assert.deepStrictEqual({
+				sectionRows: container.querySelectorAll('.monaco-list-row.session-list-section-row').length,
+				showMoreFoldersRows: container.querySelectorAll('.monaco-list-row.session-list-show-more-folders-row').length,
+			}, {
+				sectionRows: 1,
+				showMoreFoldersRows: 1,
+			});
 		});
 	});
 

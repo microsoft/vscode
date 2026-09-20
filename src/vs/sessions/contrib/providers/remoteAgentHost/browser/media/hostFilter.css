@@ -36,7 +36,7 @@
 	gap: 4px;
 }
 
-.agent-host-filter-combo.sidebar .customization-link-button-container {
+.agent-host-filter-combo.sidebar .agent-host-filter-button-container {
 	flex: 1 1 auto;
 	min-width: 0;
 }
