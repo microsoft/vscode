@@ -252,6 +252,15 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			throw new UnsafeProviderWorkingDirectoryError(`The provider working directory changed, but the converted session metadata could not be committed atomically: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}`);
 		}
 
+		let project = worktreeApplied ? resolvedWorkspace.project : undefined;
+		if (!worktreeApplied && this._worktreeIsolation.supported) {
+			try {
+				project = await this._worktreeIsolation.recordExternalWorktreeProject(session, authoritativeWorkingDirectory);
+			} catch (error) {
+				this._logService.warn(`[SessionWorkspaceConversionService] Failed to resolve external worktree project for ${session.toString()}: ${toErrorMessage(error)}`);
+			}
+		}
+
 		const finalState = this._getUnchangedConversionState(session, chat, previousWorkingDirectory, convertedState);
 		if (!finalState) {
 			const disposal = await this._disposeUnsafeProviderChat(provider, chat, session);
@@ -265,10 +274,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			throw new UnsafeProviderWorkingDirectoryError(`The workspace-less session state changed while converted metadata was being persisted, so the provider was disposed and the session was quarantined${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`);
 		}
 
-		if (worktreeApplied && resolvedWorkspace.project) {
+		if (project) {
 			this._stateManager.setSessionProject(session.toString(), {
-				uri: resolvedWorkspace.project.uri.toString(),
-				displayName: resolvedWorkspace.project.displayName,
+				uri: project.uri.toString(),
+				displayName: project.displayName,
 			});
 		}
 		this._stateManager.setSessionMeta(

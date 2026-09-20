@@ -40,6 +40,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly requests: IResolveWorkingDirectoryRequest[] = [];
 	readonly createdWorktrees: URI[] = [];
 	readonly removedWorktrees: ISessionWorktree[] = [];
+	readonly externalProjectRequests: URI[] = [];
 
 	constructor(readonly worktree: URI, readonly repository = URI.file('/workspace/project')) {
 		super();
@@ -84,6 +85,13 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
 	override sessionWorktreeInfo(_sessionId: string) {
 		return { project: { uri: this.repository, displayName: 'project' }, workingDirectory: this.worktree, branchName: 'feature' };
+	}
+
+	override async recordExternalWorktreeProject(_sessionUri: URI, workingDirectory: URI) {
+		this.externalProjectRequests.push(workingDirectory);
+		return workingDirectory.toString() === this.worktree.toString()
+			? { uri: this.repository, displayName: 'project' }
+			: undefined;
 	}
 
 	override async prepareSessionDeletion(_sessionUri: URI, _sessionId: string): Promise<ISessionWorktree> {
@@ -719,6 +727,35 @@ suite('SessionWorkspaceConversionService', () => {
 				},
 			}],
 			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in an isolated worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
+		});
+	});
+
+	test('sets the project when the selected workspace is an existing worktree', async () => {
+		const repository = URI.file('/workspace/project');
+		const worktree = URI.file('/workspace/project.worktrees/existing-feature');
+		const worktreeIsolation = new TestWorktreeIsolation(worktree, repository);
+		const harness = createHarness(worktreeIsolation);
+		harness.agent.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', worktree, false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+
+		const state = harness.stateManager.getSessionState(harness.session.toString());
+		assert.deepStrictEqual({
+			externalProjectRequests: worktreeIsolation.externalProjectRequests.map(uri => uri.toString()),
+			createdWorktrees: worktreeIsolation.createdWorktrees,
+			project: harness.stateManager.getSessionSummary(harness.session.toString())?.project,
+			workingDirectories: state?.workingDirectories,
+		}, {
+			externalProjectRequests: [worktree.toString()],
+			createdWorktrees: [],
+			project: {
+				uri: repository.toString(),
+				displayName: 'project',
+			},
+			workingDirectories: [worktree.toString()],
 		});
 	});
 
