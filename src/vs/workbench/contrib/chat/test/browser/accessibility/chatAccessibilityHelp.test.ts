@@ -14,6 +14,14 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('distinguishes editable queued messages from pending steering', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			queued: help.includes('Queued messages can be edited before they are sent'),
+			steering: help.includes('Pending steering messages cannot be edited'),
+		}, { queued: true, steering: true });
+	});
+
 	test('documents accepting the selected confirmation primary action', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

@@ -1085,9 +1085,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sandboxConfigSequencer = new Sequencer();
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
-	private readonly _messageQueueSequencer = new Sequencer();
-	private _desiredPendingSteering: PendingMessage | undefined;
-	private _submittedPendingSteering: { pendingMessage: PendingMessage; sdkMessageId?: string } | undefined;
+	private readonly _steeringMessagesInFlight = new Set<string>();
 	/**
 	 * Steering messages that have been accepted by the SDK but not yet
 	 * surfaced to the chat UI as a separate user message. When the SDK
@@ -1456,14 +1454,17 @@ export class CopilotAgentSession extends Disposable {
 		return newTurnId;
 	}
 
-	/** Clears pending steering on abort or disposal, including edits still being prepared. */
+	/**
+	 * Drains any steering messages we acknowledged to the SDK but never
+	 * promoted to their own turn (e.g. on abort or session dispose). Fires
+	 * `steering_consumed` so the chat UI removes the lingering pending
+	 * steering bubble even when no fresh `user.message` arrives.
+	 */
 	private _drainPendingSteeringFlips(): void {
-		const ids = new Set(this._pendingSteeringFlips.keys());
-		if (this._desiredPendingSteering) {
-			ids.add(this._desiredPendingSteering.id);
+		if (this._pendingSteeringFlips.size === 0) {
+			return;
 		}
-		this._desiredPendingSteering = undefined;
-		this._submittedPendingSteering = undefined;
+		const ids = [...this._pendingSteeringFlips.keys()];
 		this._pendingSteeringFlips.clear();
 		for (const id of ids) {
 			this._onDidSessionProgress.fire({
@@ -1491,7 +1492,6 @@ export class CopilotAgentSession extends Disposable {
 		for (const [id, msg] of this._pendingSteeringFlips) {
 			if (msg.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
-				this._didConsumePendingSteering(msg);
 				return msg;
 			}
 			if (msg.message.text.length > 0
@@ -1502,21 +1502,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 		if (substringMatch) {
 			this._pendingSteeringFlips.delete(substringMatch[0]);
-			this._didConsumePendingSteering(substringMatch[1]);
 			return substringMatch[1];
 		}
 		return undefined;
-	}
-
-	private _didConsumePendingSteering(steeringMessage: PendingMessage): void {
-		if (!equals(this._submittedPendingSteering?.pendingMessage, steeringMessage)) {
-			return;
-		}
-		this._submittedPendingSteering = undefined;
-		if (equals(this._desiredPendingSteering, steeringMessage)) {
-			this._desiredPendingSteering = undefined;
-		}
-		void this._syncPendingSteering();
 	}
 
 	private _parentToolCallIdForSubagentEvent(e: { readonly agentId?: string }): string | undefined {
@@ -3013,10 +3001,10 @@ export class CopilotAgentSession extends Disposable {
 				await this.applyMode(mode);
 				let result: CopilotCommandInvocationResult;
 				try {
-					result = await this._messageQueueSequencer.queue(() => this._wrapper.session.rpc.commands.invoke({
+					result = await this._wrapper.session.rpc.commands.invoke({
 						name: runtimeSlashCommand.name,
 						...(slashCommand.rawRest.length > 0 ? { input: slashCommand.rawRest } : {}),
-					}));
+					});
 				} catch (err) {
 					this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
 					throw err;
@@ -3070,7 +3058,7 @@ export class CopilotAgentSession extends Disposable {
 		const sendingTurn = this._currentTurn.value;
 		sendingTurn?.markProviderCallPending();
 		try {
-			await this._messageQueueSequencer.queue(() => this._otelService.withTraceContext(traceContext, async () => {
+			await this._otelService.withTraceContext(traceContext, () => {
 				if (!this._environmentService.isBuilt && prompt === '$error') {
 					return this._wrapper.session.rpc.sendMessages({
 						messages: [{ prompt }],
@@ -3078,7 +3066,7 @@ export class CopilotAgentSession extends Disposable {
 					});
 				}
 				return this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
-			}));
+			});
 			sendingTurn?.markProviderCallResolved();
 		} catch (error) {
 			sendingTurn?.markProviderCallRejected();
@@ -3446,94 +3434,35 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) === true;
 	}
 
-	/** Synchronizes the single protocol steering message with the SDK's pending steering queue. */
-	setPendingSteering(steeringMessage: PendingMessage | undefined): Promise<void> {
-		this._desiredPendingSteering = steeringMessage;
-		return this._syncPendingSteering();
-	}
-
-	private _syncPendingSteering(): Promise<void> {
-		const token = this._abortToken;
-		return this._messageQueueSequencer.queue(() => this._reconcilePendingSteering(token)).catch(err => {
-			this._logService.error(`[Copilot:${this.sessionId}] Failed to synchronize pending steering`, err);
-		});
-	}
-
-	private async _reconcilePendingSteering(token: CancellationToken): Promise<void> {
-		while (!token.isCancellationRequested && !this.isDisposed && !equals(this._submittedPendingSteering?.pendingMessage, this._desiredPendingSteering)) {
-			const submitted = this._submittedPendingSteering;
-			if (submitted) {
-				if (!await this._removePendingSteering(submitted, token)) {
-					return;
-				}
-				this._pendingSteeringFlips.delete(submitted.pendingMessage.id);
-				if (this._submittedPendingSteering === submitted) {
-					this._submittedPendingSteering = undefined;
-				}
-			}
-
-			const desired = this._desiredPendingSteering;
-			if (!desired) {
-				return;
-			}
-
+	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
+		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
+			return;
+		}
+		this._steeringMessagesInFlight.add(steeringMessage.id);
+		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
+		try {
 			await this._reconcileMcpServerEnablement();
-			if (token.isCancellationRequested || this.isDisposed || !equals(this._desiredPendingSteering, desired)) {
-				continue;
-			}
-			const sdkAttachments = await this._toSdkAttachments(desired.message.attachments);
-			if (token.isCancellationRequested || this.isDisposed || !equals(this._desiredPendingSteering, desired)) {
-				continue;
-			}
+			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
+			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
 			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
 			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the
 			// prompt as a `<reminder>` block instead: the runtime forwards it to the model, and the host's
 			// `stripPromptScaffolding` removes it from the displayed message (#331154).
-			const snapshotReminder = this._snapshotReadonlyReminder(desired.message.attachments);
+			const snapshotReminder = this._snapshotReadonlyReminder(steeringMessage.message.attachments);
 			const steeringPrompt = snapshotReminder
-				? `${desired.message.text}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
-				: desired.message.text;
-			const sending: NonNullable<CopilotAgentSession['_submittedPendingSteering']> = { pendingMessage: desired };
-			this._submittedPendingSteering = sending;
-			this._pendingSteeringFlips.set(desired.id, desired);
-			try {
-				sending.sdkMessageId = await this._wrapper.session.send({
-					prompt: steeringPrompt,
-					displayPrompt: desired.message.text,
-					attachments: sdkAttachments?.length ? sdkAttachments : undefined,
-					mode: 'immediate',
-				});
-			} catch (err) {
-				this._pendingSteeringFlips.delete(desired.id);
-				if (this._submittedPendingSteering === sending) {
-					this._submittedPendingSteering = undefined;
-				}
-				throw err;
-			}
+				? `${steeringMessage.message.text}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
+				: steeringMessage.message.text;
+			await this._wrapper.session.send({
+				prompt: steeringPrompt,
+				attachments: sdkAttachments?.length ? sdkAttachments : undefined,
+				mode: 'immediate',
+			});
+		} catch (err) {
+			this._pendingSteeringFlips.delete(steeringMessage.id);
+			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
+		} finally {
+			this._steeringMessagesInFlight.delete(steeringMessage.id);
 		}
-	}
-
-	private async _removePendingSteering(submitted: NonNullable<CopilotAgentSession['_submittedPendingSteering']>, token: CancellationToken): Promise<boolean> {
-		const pending = await this._wrapper.session.rpc.queue.pendingItems();
-		if (token.isCancellationRequested || this.isDisposed) {
-			return false;
-		}
-		if (this._submittedPendingSteering !== submitted) {
-			return true;
-		}
-		const queued = pending.items.find(item => submitted.sdkMessageId !== undefined && item.messageId === submitted.sdkMessageId);
-		if (queued) {
-			return (await this._wrapper.session.rpc.queue.removeAt({ id: queued.id })).removed;
-		}
-		const steering = pending.steeringMessages.slice(pending.inFlightSteeringCount ?? 0);
-		if (steering.length === 0) {
-			return false;
-		}
-		// LIFO removal is safe only for our sole pending entry; all host queue writers share the sequencer.
-		if (pending.items.length > 0 || steering.length !== 1 || steering[0] !== submitted.pendingMessage.message.text) {
-			throw new Error('Cannot replace pending steering while the SDK has other pending work');
-		}
-		return (await this._wrapper.session.rpc.queue.removeMostRecent()).removed;
 	}
 
 	async getMessages(): Promise<readonly Turn[]> {
@@ -3693,11 +3622,11 @@ export class CopilotAgentSession extends Disposable {
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._awaitControlPlaneRpc('session.setModel', this._messageQueueSequencer.queue(() => this._wrapper.session.setModel(model, {
+		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
 			reasoningEffort,
 			contextTier,
 			...(autoTier !== undefined ? { autoTier } : {}),
-		})));
+		}));
 		this._lastSeenModelId = model;
 	}
 
@@ -5180,7 +5109,7 @@ export class CopilotAgentSession extends Disposable {
 		//    be associated with the root turn boundary.
 		//
 		// 2. If the content matches a steering message we acknowledged
-		//    via {@link setPendingSteering}, promote it to its own protocol
+		//    via {@link sendSteering}, promote it to its own protocol
 		//    turn (closing the in-flight turn) BEFORE step 3 so the
 		//    event id is recorded against the new steering turn rather
 		//    than the preempted one.
@@ -6942,7 +6871,6 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onPendingMessagesModified(() => {
 			this._logService.trace(`[Copilot:${sessionId}] Pending messages modified`);
-			void this._syncPendingSteering();
 		}));
 
 		this._register(wrapper.onBackgroundTasksChanged(() => {

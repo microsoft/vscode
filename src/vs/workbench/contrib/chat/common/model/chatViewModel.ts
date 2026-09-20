@@ -24,6 +24,11 @@ export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
 }
 
+/** Pending steering may already be in the agent's input queue and cannot be safely replaced. */
+export function isEditableRequestVM(item: unknown): item is IChatRequestViewModel {
+	return isRequestVM(item) && item.pendingKind !== ChatRequestQueueKind.Steering;
+}
+
 export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }

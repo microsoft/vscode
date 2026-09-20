@@ -156,7 +156,7 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
-	test('editing a steering request passes its model and configuration to the input', async () => {
+	test('editing a queued request passes its model and configuration to the input', async () => {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
 		const configurationService = new TestConfigurationService();
@@ -178,7 +178,7 @@ suite('ChatWidget', () => {
 			variables: [],
 			modelId,
 			modelConfiguration,
-			pendingKind: ChatRequestQueueKind.Steering,
+			pendingKind: ChatRequestQueueKind.Queued,
 		});
 		let editing: IChatRequestViewModel | undefined;
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
@@ -210,6 +210,29 @@ suite('ChatWidget', () => {
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	test('does not start editing a pending steering request', () => {
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'steering-request',
+			message: { text: 'original steering', parts: [] },
+			pendingKind: ChatRequestQueueKind.Steering,
+		});
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		Object.defineProperties(widget, {
+			viewModel: {
+				value: {
+					model: { getRequests: () => assert.fail('Editing pending steering must not touch the model') },
+				},
+			},
+			listWidget: {
+				value: { getTemplateDataForRequestId: () => ({ currentElement: request }) },
+			},
+		});
+
+		widget.startEditing(request.id);
+
+		assert.strictEqual(widget.viewModel?.editing, undefined);
 	});
 
 	test('confirms before cancelling changed request edits', async () => {

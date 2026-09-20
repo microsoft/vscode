@@ -4341,7 +4341,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 
-		void target.setPendingSteering(steeringMessage);
+		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
+		if (steeringMessage) {
+			target.sendSteering(steeringMessage);
+		}
 
 		// Queued messages are consumed by the server (AgentSideEffects)
 		// which dispatches ChatTurnStarted and calls sendMessage directly.
