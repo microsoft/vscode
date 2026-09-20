@@ -43,7 +43,7 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
-import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { getCustomizationMigrationHintDismissedStorageKey } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
@@ -574,6 +574,20 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.strictEqual(model.getRequests()[0].message.text, '');
 		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
+	});
+
+	test('sendRequest allows empty message with a handed-off explicit file snapshot', async () => {
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const attachment = toPasteVariableEntry('Unsaved file', 'Current draft contents', {
+			_meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true },
+		});
+		const response = await testService.sendRequest(model.sessionResource, '', { attachedContext: [attachment] });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(model.getRequests().map(request => ({
+			text: request.message.text, attachments: request.variableData.variables,
+		})), [{ text: '', attachments: [attachment] }]);
 	});
 
 	test('sendRequest rejects empty message without explicit file attachment', async () => {
