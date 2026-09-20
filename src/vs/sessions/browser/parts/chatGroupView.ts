@@ -182,6 +182,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._compositeBar.setAriaLabel(localize('chatGroupTabsAriaLabel', "Chats, Group {0} of {1}", index + 1, count));
 	}
 
+	startFocusedChatTitleEditing(): boolean {
+		return this._compositeBar.startFocusedTabEditing();
+	}
+
+	startChatTitleEditing(chatResource: URI): boolean {
+		return this._compositeBar.startTabEditing(chatResource);
+	}
+
 	/** Sets (or clears) the group this view renders. */
 	setContext(context: IChatGroupContext | undefined): void {
 		this._contextDisposables.clear();
