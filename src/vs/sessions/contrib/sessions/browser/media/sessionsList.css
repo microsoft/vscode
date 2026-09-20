@@ -221,15 +221,6 @@
 
 		.session-icon {
 			line-height: 16px;
-
-			> .codicon {
-				font-size: var(--vscode-codiconFontSize-compact, 12px);
-			}
-
-			> .monaco-pixel-spinner {
-				width: 14px;
-				height: 14px;
-			}
 		}
 
 		.session-title-row {
