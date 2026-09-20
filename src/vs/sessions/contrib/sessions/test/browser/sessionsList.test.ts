@@ -622,7 +622,7 @@ suite('Sessions - SessionsList', () => {
 				navigationLabels: navigationLabels(),
 				focused: container.querySelector('.monaco-list-row.focused .session-section-label')?.textContent,
 				shortcutsUseOwnRowClass: Array.from(container.querySelectorAll('.session-section-shortcut')).every(element => element.closest('.monaco-list-row')?.classList.contains('session-list-shortcut-row')),
-				headerRowHeight: (sessionsHeader.closest('.monaco-list-row') as HTMLElement | null)?.style.height,
+				headerRowUsesPlatformMeasuredHeight: ['32px', '33px'].includes((sessionsHeader.closest('.monaco-list-row') as HTMLElement | null)?.style.height ?? ''),
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen, customizationsActiveAfterClose],
 				shortcutContextMenus: contextMenuCount,
 				ariaLabels: {
@@ -652,7 +652,7 @@ suite('Sessions - SessionsList', () => {
 					navigationLabels: ['Automations', 'Customizations', 'Sessions'],
 					focused: 'Customizations',
 					shortcutsUseOwnRowClass: true,
-					headerRowHeight: '33px',
+					headerRowUsesPlatformMeasuredHeight: true,
 					customizationsActive: [false, true, false],
 					shortcutContextMenus: 0,
 					ariaLabels: { customizations: 'Customizations', sessions: 'Sessions' },
