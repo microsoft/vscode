@@ -309,6 +309,42 @@ suite('ChatUrlFetchingPatterns', () => {
 				false,
 			]);
 		});
+
+		for (const { name, settings, expected } of [
+			{ name: 'boolean', settings: false, expected: { request: false, response: false } },
+			{ name: 'request', settings: { approveRequest: false }, expected: { request: false, response: true } },
+			{ name: 'response', settings: { approveResponse: false }, expected: { request: true, response: false } },
+		]) {
+			test(`IDN ${name} denial precedes broader approval for equivalent host spellings`, () => {
+				const patterns = ['https://*.bücher.example.test', 'https://*.xn--bcher-kva.example.test'];
+				const hosts = ['x.bücher.example.test', 'x.xn--bcher-kva.example.test', 'x.b%C3%BCcher.example.test', 'x.BÜCHER.EXAMPLE.TEST', 'x.XN--BCHER-KVA.EXAMPLE.TEST'];
+
+				assert.deepStrictEqual(
+					patterns.map(pattern => {
+						const approved: Record<string, boolean | IUrlApprovalSettings> = {
+							[pattern]: settings,
+							'https://*.example.test': true,
+						};
+						return {
+							denied: hosts.map(host => {
+								const url = URI.parse(`https://${host}/resource`);
+								return {
+									request: isUrlApproved(url, approved, true),
+									response: isUrlApproved(url, approved, false),
+								};
+							}),
+							unrelated: [true, false].map(request => isUrlApproved(URI.parse('https://x.other.example.test/resource'), approved, request)),
+							outside: [true, false].map(request => isUrlApproved(URI.parse('https://x.other.test/resource'), approved, request)),
+						};
+					}),
+					patterns.map(() => ({
+						denied: hosts.map(() => expected),
+						unrelated: [true, true],
+						outside: [false, false],
+					}))
+				);
+			});
+		}
 	});
 
 	suite('getMatchingPattern', () => {
@@ -324,6 +360,19 @@ suite('ChatUrlFetchingPatterns', () => {
 			const approved = { 'https://*.example.com': true };
 			const pattern = getMatchingPattern(url, approved);
 			assert.strictEqual(pattern, 'https://*.example.com');
+		});
+
+		test('IDN matching retains the configured exception pattern for either spelling', () => {
+			const patterns = ['https://*.bücher.example.test', 'https://*.xn--bcher-kva.example.test'];
+			const hosts = ['x.bücher.example.test', 'x.xn--bcher-kva.example.test'];
+
+			assert.deepStrictEqual(
+				patterns.map(pattern => hosts.map(host => getMatchingPattern(URI.parse(`https://${host}/resource`), {
+					[pattern]: false,
+					'https://*.example.test': true,
+				}))),
+				patterns.map(pattern => hosts.map(() => pattern))
+			);
 		});
 
 		test('no match returns undefined', () => {

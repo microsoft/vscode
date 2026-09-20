@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
@@ -18,7 +18,7 @@ import type { ISandboxDependencyStatus, IWindowsMxcConfig, IWindowsMxcFilesystem
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
+import { type ITerminalSandboxResolvedNetworkDomains, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
 
 suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -296,6 +296,61 @@ suite('TerminalSandboxEngine', () => {
 		});
 	});
 
+	for (const { name, os } of [
+		{ name: 'Linux', os: OperatingSystem.Linux },
+		{ name: 'macOS', os: OperatingSystem.Macintosh },
+	]) {
+		test(`canonicalizes Unicode domain policies before writing the ${name} sandbox configuration`, async () => {
+			const allowedDomains = ['*.example.test', 'b\u00fccher.allowed.test', 'localhost', '127.0.0.1'];
+			const deniedDomains = ['*.b\u00fccher.example.test', 'b\u00fccher.example.test', '*.xn--bcher-kva.existing.test'];
+			setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, allowedDomains);
+			setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, deniedDomains);
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+				getOS: () => Promise.resolve(os),
+			})));
+
+			const wrapped = await engine.wrapCommand('node ./script.js');
+			const configPath = await engine.getSandboxConfigPath();
+			ok(configPath);
+			const config: { network: ITerminalSandboxResolvedNetworkDomains } = JSON.parse(createdFiles.get(configPath)!);
+
+			deepStrictEqual({
+				network: config.network,
+				resolvedDomains: engine.getResolvedNetworkDomains(),
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				configuredDomains: { allowedDomains, deniedDomains },
+			}, {
+				network: {
+					allowedDomains: ['*.example.test', 'xn--bcher-kva.allowed.test', 'localhost', '127.0.0.1'],
+					deniedDomains: ['*.xn--bcher-kva.example.test', 'xn--bcher-kva.example.test', '*.xn--bcher-kva.existing.test'],
+				},
+				resolvedDomains: {
+					allowedDomains: ['*.example.test', 'xn--bcher-kva.allowed.test', 'localhost', '127.0.0.1'],
+					deniedDomains: ['*.xn--bcher-kva.example.test', 'xn--bcher-kva.example.test', '*.xn--bcher-kva.existing.test'],
+				},
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: undefined,
+				configuredDomains: {
+					allowedDomains: ['*.example.test', 'b\u00fccher.allowed.test', 'localhost', '127.0.0.1'],
+					deniedDomains: ['*.b\u00fccher.example.test', 'b\u00fccher.example.test', '*.xn--bcher-kva.existing.test'],
+				},
+			});
+		});
+	}
+
+	for (const settingId of [AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeniedNetworkDomains]) {
+		test(`rejects invalid sandbox domain patterns in ${settingId} before wrapping commands`, async () => {
+			setSandboxSetting(settingId, ['*.example.test', '*.bad..example.test']);
+			const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+			await rejects(engine.wrapCommand('node ./script.js'), {
+				message: `The ${settingId} setting contains an invalid network domain pattern.`,
+			});
+			strictEqual(createdFiles.size, 0);
+		});
+	}
+
 	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
@@ -355,6 +410,48 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(wrapped.blockedDomains, ['example.com']);
 		deepStrictEqual(wrapped.deniedDomains, ['example.com']);
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+	});
+
+	test('detects Unicode URL domains denied by sandbox policy before network relaxation', async () => {
+		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.example.test']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		const commands = [
+			'curl https://x.b\u00fccher.example.test/private',
+			'curl https://x.xn--bcher-kva.example.test/private',
+			'curl https://x.allowed.example.test/private',
+		];
+		const results = [];
+		for (const command of commands) {
+			const wrapped = await engine.wrapCommand(command);
+			results.push({
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				blockedDomains: wrapped.blockedDomains,
+				deniedDomains: wrapped.deniedDomains,
+			});
+		}
+
+		deepStrictEqual(results, [
+			{
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: true,
+				blockedDomains: ['x.xn--bcher-kva.example.test'],
+				deniedDomains: ['x.xn--bcher-kva.example.test'],
+			},
+			{
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: true,
+				blockedDomains: ['x.xn--bcher-kva.example.test'],
+				deniedDomains: ['x.xn--bcher-kva.example.test'],
+			},
+			{
+				isSandboxWrapped: true,
+				requiresAllowNetworkConfirmation: undefined,
+				blockedDomains: undefined,
+				deniedDomains: undefined,
+			},
+		]);
 	});
 
 	test('onDidChangeRoots triggers a sandbox config rewrite on the next wrap', async () => {

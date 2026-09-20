@@ -51,7 +51,7 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 	if (
 		!doMemoUrlMatch(normalizedUrl.scheme, normalizedGlobUrl.scheme) ||
 		// The authority is the only thing that should do port logic.
-		!doMemoUrlMatch(normalizedUrl.authority, normalizedGlobUrl.authority, true)
+		!doUrlAuthorityMatch(normalizedUrl.authority, normalizedGlobUrl.authority)
 	) {
 		return false;
 	}
@@ -66,6 +66,47 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 
 	const resolvedPath = normalizeURL(normalizedUrl, true).path;
 	return resolvedPath === normalizedUrl.path || doMemoUrlMatch(resolvedPath, normalizedGlobUrl.path);
+}
+
+function doUrlAuthorityMatch(authority: string, globAuthority: string): boolean {
+	if (doMemoUrlMatch(authority, globAuthority, true)) {
+		return true;
+	}
+
+	const normalizedAuthority = normalizeAuthority(authority);
+	const normalizedGlobAuthority = normalizeAuthority(globAuthority);
+	return (normalizedAuthority !== authority || normalizedGlobAuthority !== globAuthority)
+		&& doMemoUrlMatch(normalizedAuthority, normalizedGlobAuthority, true);
+}
+
+/** Canonicalizes literal DNS labels without reinterpreting wildcard labels, ports or user information. */
+function normalizeAuthority(authority: string): string {
+	const hostnameStart = authority.lastIndexOf('@') + 1;
+	if (authority[hostnameStart] === '[') {
+		return authority;
+	}
+
+	const portStart = authority.indexOf(':', hostnameStart);
+	const hostnameEnd = portStart === -1 ? authority.length : portStart;
+	const hostname = authority.slice(hostnameStart, hostnameEnd).split('.').map(label => {
+		if (label.includes('*') || /[%/\\?#\s]/.test(label)) {
+			return label;
+		}
+		if (/^[\w-]*$/.test(label)) {
+			return label.toLowerCase();
+		}
+		try {
+			// A suffix prevents numeric labels from being interpreted as IPv4 addresses.
+			const suffix = '.invalid';
+			const normalizedHostname = new URL(`${Schemas.http}://${label}${suffix}`).hostname;
+			const normalizedLabel = normalizedHostname.slice(0, -suffix.length);
+			return normalizedHostname.endsWith(suffix) && !normalizedLabel.includes('*') ? normalizedLabel : label;
+		} catch {
+			return label;
+		}
+	}).join('.');
+
+	return authority.slice(0, hostnameStart) + hostname + authority.slice(hostnameEnd);
 }
 
 /**
