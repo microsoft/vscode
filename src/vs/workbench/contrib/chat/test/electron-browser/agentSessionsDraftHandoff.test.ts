@@ -33,6 +33,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionStatus, IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
@@ -164,7 +165,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		instantiation.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				if (id === OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID) {
-					await instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor, args[0] as { source?: AgentsWindowOpenSource; sessionResource?: URI }));
+					await instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor, args[0] as { source?: AgentsWindowOpenSource; sessionResource?: URI; inputUri?: URI }));
 				} else if (id === OpenChatSessionInAgentsWindowAction.ID) {
 					await instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, ...args));
 				} else {
@@ -176,7 +177,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			},
 		}));
 		return {
-			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames,
+			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, widget, inputUri,
 			set readTreatment(value: (name: string) => Promise<string | undefined>) { readTreatment = value; },
 			refetchTreatments: async () => { assignmentsRefetched.fire(); await timeout(0); },
 			setTreatments: async (title?: string, description?: string) => {
@@ -239,7 +240,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			await h.instantiation.invokeFunction(async accessor => {
 				switch (surface) {
 					case 'titleBar': return new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor);
-					case 'chatTitle': return new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: h.resource });
+					case 'chatTitle': return new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: h.resource, inputUri: h.inputUri });
 					case 'command': return new OpenAgentsWindowAction().run(accessor);
 					case 'workspace': return new OpenWorkspaceInAgentsWindowAction().run(accessor);
 					case 'chatSession': return new OpenChatSessionInAgentsWindowAction().run(accessor, h.resource);
@@ -257,6 +258,82 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			});
 		});
 	}
+
+	for (const surface of ['workspaceTitle', 'sessionTitle'] as const) {
+		for (const inputState of ['available', 'closed', 'rebound'] as const) {
+			test(`${surface} uses its input instance without falling back to a duplicate chat widget (${inputState})`, async () => {
+				const h = createHarness();
+				const inputUri = URI.from({ scheme: Schemas.vscodeChatInput, path: '/second-widget' });
+				let secondSession = h.resource;
+				let secondText = 'Second view draft';
+				const secondAttachments = [toFileVariableEntry(URI.file('/source/second-view.ts'))];
+				const second = upcastPartial<IChatWidget>({
+					location: ChatAgentLocation.Chat,
+					viewContext: {},
+					scopedContextKeyService: h.widget.scopedContextKeyService,
+					inputPart: upcastPartial<IChatWidget['inputPart']>({ inputUri }),
+					get viewModel() { return upcastPartial<IChatViewModel>({ sessionResource: secondSession, model: upcastPartial<IChatModel>({ hasRequests: false }) }); },
+					getInput: () => secondText,
+					attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ attachments: secondAttachments }),
+				});
+				let inputLookups = 0;
+				let resourceLookups = 0;
+				h.instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+					lastFocusedWidget: h.widget,
+					getWidgetByInputUri: uri => {
+						inputLookups++;
+						return inputState !== 'closed' && isEqual(uri, inputUri) ? second : undefined;
+					},
+					getWidgetBySessionResource: () => { resourceLookups++; return h.widget; },
+				}));
+				const pane: ChatViewPane = Object.assign(Object.create(ChatViewPane.prototype), { _widget: second });
+				const context = pane.getActionsContext();
+				assert.ok(context);
+				secondText = 'Latest second-view edit';
+				if (inputState === 'rebound') {
+					secondSession = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-another-chat' });
+				}
+				await h.instantiation.invokeFunction(accessor => surface === 'workspaceTitle'
+					? new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, context)
+					: new OpenChatSessionInAgentsWindowAction().run(accessor, context));
+				assert.deepStrictEqual({
+					contextInput: context.inputUri, inputLookups, resourceLookups,
+					draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
+					firstRetained: h.input, secondRetained: secondText,
+				}, {
+					contextInput: inputUri, inputLookups: 1, resourceLookups: 0,
+					draft: inputState === 'available' ? { inputText: secondText, attachments: secondAttachments } : undefined,
+					firstRetained: 'Original prompt', secondRetained: 'Latest second-view edit',
+				});
+			});
+		}
+	}
+
+	test('retains resource-only fallback while no-argument session opens use the last focused input', async () => {
+		const h = createHarness();
+		const inputUri = URI.from({ scheme: Schemas.vscodeChatInput, path: '/second-widget' });
+		const second = upcastPartial<IChatWidget>({
+			location: ChatAgentLocation.Chat, viewContext: {},
+			viewModel: h.widget.viewModel,
+			inputPart: upcastPartial<IChatWidget['inputPart']>({ inputUri }),
+			scopedContextKeyService: h.widget.scopedContextKeyService,
+			getInput: () => 'Last focused draft',
+			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ attachments: [] }),
+		});
+		h.instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			lastFocusedWidget: second,
+			getWidgetByInputUri: uri => isEqual(uri, inputUri) ? second : undefined,
+			getWidgetBySessionResource: () => h.widget,
+		}));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, {
+			$mid: MarshalledId.ChatViewContext, sessionResource: h.resource,
+		}));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, h.resource));
+		await h.instantiation.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor));
+		assert.deepStrictEqual(h.calls.map(call => call.draft?.inputText), [
+			'Original prompt', 'Original prompt', 'Last focused draft',
+		]);
+	});
 
 	for (const transfer of [false, true]) {
 		for (const reveal of [false, true]) {

@@ -84,12 +84,15 @@ function hasRunningAgentHostSession(service: IAgentSessionsService): boolean {
 	return service.model.sessions.some(session => session.status === AgentSessionStatus.InProgress && !session.isArchived() && isAgentHostAgentSessionItem(session));
 }
 
-function getDraftHandoffOptions(accessor: ServicesAccessor, sessionResource?: URI, forceTransfer = false): Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> {
+function getDraftHandoffOptions(accessor: ServicesAccessor, sessionResource?: URI, forceTransfer = false, inputUri?: URI): Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> {
 	if (!forceTransfer && accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.OpenInAgentsWindowTransferDraft) !== true) {
 		return {};
 	}
 	const widgets = accessor.get(IChatWidgetService);
-	const widget = sessionResource ? widgets.getWidgetBySessionResource(sessionResource) : widgets.lastFocusedWidget;
+	const widget = inputUri ? widgets.getWidgetByInputUri(inputUri) : sessionResource ? widgets.getWidgetBySessionResource(sessionResource) : widgets.lastFocusedWidget;
+	if (sessionResource && !isEqual(widget?.viewModel?.sessionResource, sessionResource)) {
+		return {};
+	}
 	return captureDraftHandoffOptions(accessor, widget);
 }
 
@@ -139,8 +142,9 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI }): Promise<void> {
-		await openCurrentWorkspaceInAgentsWindow(accessor, options?.source ?? AgentsWindowOpenSource.CommandPalette, options?.sessionResource);
+	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI }): Promise<void> {
+		const draftOptions = getDraftHandoffOptions(accessor, options?.sessionResource, false, options?.inputUri);
+		await openCurrentWorkspaceInAgentsWindow(accessor, options?.source ?? AgentsWindowOpenSource.CommandPalette, options?.sessionResource, draftOptions);
 	}
 }
 
@@ -164,6 +168,7 @@ export class OpenWorkspaceInAgentsWindowChatTitleAction extends Action2 {
 		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, {
 			source: AgentsWindowOpenSource.ChatTitleBar,
 			...(context?.sessionResource ? { sessionResource: context.sessionResource } : {}),
+			...(context?.inputUri ? { inputUri: context.inputUri } : {}),
 		});
 	}
 }
@@ -296,6 +301,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const source = commandOptions?.agentsWindowOpenSource ?? AgentsWindowOpenSource.ChatTitleBar;
 		const args = commandOptions ? rest.slice(1) : rest;
 		let sessionResource: URI | undefined;
+		let inputUri: URI | undefined;
 		const arg = args[0];
 		if (URI.isUri(arg)) {
 			sessionResource = arg;
@@ -304,16 +310,21 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			if (URI.isUri(ctx.sessionResource)) {
 				sessionResource = ctx.sessionResource;
 			}
+			if (URI.isUri(ctx.inputUri)) {
+				inputUri = ctx.inputUri;
+			}
 		}
 		if (!sessionResource) {
-			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			const widget = inputUri ? chatWidgetService.getWidgetByInputUri(inputUri) : chatWidgetService.lastFocusedWidget;
+			sessionResource = widget?.viewModel?.sessionResource;
+			inputUri ??= widget?.inputPart?.inputUri;
 		}
 
 		// Hand off a real (persisted, non-untitled) session so the agents window
 		// opens that same session (it carries its own workspace). Otherwise fall
 		// back to forwarding the workspace folder so the agents window scopes its
 		// new-session composer to it.
-		const draftOptions = getDraftHandoffOptions(accessor, sessionResource, commandOptions?.transferDraft === true);
+		const draftOptions = getDraftHandoffOptions(accessor, sessionResource, commandOptions?.transferDraft === true, inputUri);
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && !draftOptions.draft;
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({

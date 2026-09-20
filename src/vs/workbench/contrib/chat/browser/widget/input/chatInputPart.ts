@@ -4862,6 +4862,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					arg: {
 						$mid: MarshalledId.ChatViewContext,
 						sessionResource,
+						inputUri: this.inputUri,
 					} satisfies IChatViewTitleActionContext,
 				}) : undefined,
 				disableWhileRunning: isSessionMenu,
