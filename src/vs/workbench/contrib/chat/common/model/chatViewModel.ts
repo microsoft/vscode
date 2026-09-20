@@ -430,7 +430,7 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 	 * An ID that changes when the request should be re-rendered.
 	 */
 	get dataId() {
-		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
+		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}_${this._pendingKind ?? ''}`;
 	}
 
 	get sessionResource() {
