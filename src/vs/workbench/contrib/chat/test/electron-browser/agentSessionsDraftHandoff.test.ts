@@ -19,14 +19,12 @@ import { createTextModel } from '../../../../../editor/test/common/testTextModel
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import product from '../../../../../platform/product/common/product.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
@@ -46,7 +44,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
-import '../../browser/chat.shared.contribution.js';
+import { agentsWindowHandoffConfigurationProperties } from '../../browser/agentSessionsConfiguration.js';
 
 suite('Agents Window draft handoff and parallel invitation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -219,22 +217,17 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 		};
 	}
 
-	test('registers only the feature flags as settings, not the banner copy treatments', () => {
-		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const keys = [
-			ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled,
-		];
+	test('defines only the feature flags as settings, not the banner copy treatments', () => {
+		const properties = agentsWindowHandoffConfigurationProperties;
 		assert.deepStrictEqual({
-			settings: keys.map(key => ({ type: properties[key].type, default: properties[key].default, experiment: properties[key].experiment })),
-			titleSetting: properties['chat.agentsParallelWorkBanner.title'],
-			descriptionSetting: properties['chat.agentsParallelWorkBanner.description'],
+			keys: Object.keys(properties),
+			settings: Object.values(properties).map(property => ({ type: property.type, default: property.default, experiment: property.experiment })),
 		}, {
+			keys: [ChatConfiguration.OpenInAgentsWindowTransferDraft, ChatConfiguration.AgentsParallelWorkBannerEnabled],
 			settings: [
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
 				{ type: 'boolean', default: product.quality === 'insider', experiment: { mode: 'auto' } },
 			],
-			titleSetting: undefined,
-			descriptionSetting: undefined,
 		});
 	});
 
