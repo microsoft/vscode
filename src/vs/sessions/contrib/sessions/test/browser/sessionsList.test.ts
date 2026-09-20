@@ -555,7 +555,8 @@ suite('Sessions - SessionsList', () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			let activeEditor: AICustomizationManagementEditorInput | undefined;
 			let contextMenuCount = 0;
-			const harness = createListHarness(disposables, [], instantiationService => {
+			const sessions = Array.from({ length: 6 }, (_, index) => createTestSession(`session-${index}`, { workspaceLabel: 'Workspace' }).session);
+			const harness = createListHarness(disposables, sessions, instantiationService => {
 				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
@@ -582,6 +583,8 @@ suite('Sessions - SessionsList', () => {
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			const phoneLayout = IsPhoneLayoutContext.bindTo(contextKeyService);
 			const container = harness.createContainer();
+			container.style.setProperty('--vscode-cornerRadius-medium', '6px');
+			container.style.setProperty('--vscode-spacing-size200', '20px');
 			const sessionsHeaderContainer = document.createElement('div');
 			const sessionsHeader = document.createElement('div');
 			sessionsHeader.className = 'agent-sessions-header-row';
@@ -590,7 +593,7 @@ suite('Sessions - SessionsList', () => {
 			container.prepend(sessionsHeaderContainer);
 			let headerLayoutCount = 0;
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
+				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
 				sessionsHeader,
 				sessionsHeaderContainer,
@@ -598,6 +601,9 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
+			const headerRowUsesPlatformMeasuredHeight = ['32px', '33px'].includes((sessionsHeader.closest('.monaco-list-row') as HTMLElement | null)?.style.height ?? '');
+			list.setWorkspaceGroupCapped(true);
+			list.layout(500, 400);
 
 			const shortcutLabels = () => Array.from(container.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const navigationLabels = () => Array.from(container.querySelectorAll('.session-section-shortcut .session-section-label, .sessions-list-header .agent-sessions-header-row'), element => element.textContent);
@@ -617,12 +623,42 @@ suite('Sessions - SessionsList', () => {
 			activeEditorChanged.fire();
 			const customizationsActiveAfterClose = customizationsSection()?.classList.contains('active');
 			const initialHeaderLayoutCount = headerLayoutCount;
+			const feedbackGeometry = (row: Element | null) => {
+				const style = row ? mainWindow.getComputedStyle(row) : undefined;
+				return {
+					height: (row as HTMLElement | null)?.style.height,
+					borderRadius: style?.borderRadius,
+					marginLeft: style?.marginLeft,
+					marginRight: style?.marginRight,
+				};
+			};
+			const sectionPadding = (section: Element) => {
+				const style = mainWindow.getComputedStyle(section);
+				return {
+					paddingLeft: style.paddingLeft,
+					paddingRight: style.paddingRight,
+				};
+			};
+			const workspaceSection = [...container.querySelectorAll<HTMLElement>('.session-section:not(.session-section-shortcut)')]
+				.find(section => section.querySelector('.session-section-label')?.textContent === 'Workspace');
+			const shortcutRow = container.querySelector('.session-list-shortcut-row');
+			const showMoreRow = container.querySelector('.session-list-show-more-row');
+			const showMorePadding = showMoreRow?.querySelector('.session-show-more');
 			const desktop = {
 				labels: shortcutLabels(),
 				navigationLabels: navigationLabels(),
 				focused: container.querySelector('.monaco-list-row.focused .session-section-label')?.textContent,
 				shortcutsUseOwnRowClass: Array.from(container.querySelectorAll('.session-section-shortcut')).every(element => element.closest('.monaco-list-row')?.classList.contains('session-list-shortcut-row')),
-				headerRowUsesPlatformMeasuredHeight: ['32px', '33px'].includes((sessionsHeader.closest('.monaco-list-row') as HTMLElement | null)?.style.height ?? ''),
+				sectionPadding: [
+					...container.querySelectorAll('.session-section-shortcut'),
+					...(workspaceSection ? [workspaceSection] : []),
+				].map(sectionPadding),
+				showMorePadding: showMorePadding ? sectionPadding(showMorePadding) : undefined,
+				feedbackGeometry: [
+					shortcutRow,
+					showMoreRow,
+				].map(feedbackGeometry),
+				headerRowUsesPlatformMeasuredHeight,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen, customizationsActiveAfterClose],
 				shortcutContextMenus: contextMenuCount,
 				ariaLabels: {
@@ -652,6 +688,20 @@ suite('Sessions - SessionsList', () => {
 					navigationLabels: ['Automations', 'Customizations', 'Sessions'],
 					focused: 'Customizations',
 					shortcutsUseOwnRowClass: true,
+					sectionPadding: Array(3).fill({
+						paddingLeft: '10px',
+						paddingRight: '10px',
+					}),
+					showMorePadding: {
+						paddingLeft: '20px',
+						paddingRight: '20px',
+					},
+					feedbackGeometry: Array(2).fill({
+						height: '28px',
+						borderRadius: '0px',
+						marginLeft: '0px',
+						marginRight: '0px',
+					}),
 					headerRowUsesPlatformMeasuredHeight: true,
 					customizationsActive: [false, true, false],
 					shortcutContextMenus: 0,
@@ -667,14 +717,18 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('marks regular section and folder show-more rows with renderer classes', () => {
+		test('aligns workspace and custom group rows under the same section feedback class', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
 			const sessions = Array.from({ length: 6 }, (_, index) => {
 				const session = createTestSession(`session-${index}`, {
 					workspaceLabel: `Workspace ${index}`,
 				}).session;
 				return { ...session, updatedAt: constObservable(new Date(index)) };
 			});
-			const harness = createListHarness(disposables, sessions);
+			const harness = createListHarness(disposables, sessions, {
+				groups: [group],
+				memberships: new Map([[sessions[0].sessionId, group.id]]),
+			});
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
@@ -683,12 +737,36 @@ suite('Sessions - SessionsList', () => {
 			}));
 			list.layout(1000, 400);
 
+			const groupRow = container.querySelector('.session-group')?.closest('.monaco-list-row');
+			const workspaceRow = [...container.querySelectorAll<HTMLElement>('.session-section:not(.session-group)')]
+				.find(section => section.querySelector('.session-section-label')?.textContent?.startsWith('Workspace'))
+				?.closest('.monaco-list-row');
+			const sessionRow = container.querySelector<HTMLElement>('.monaco-list-row.session-list-inset-row');
+			const feedbackGeometry = (row: Element | null | undefined) => {
+				const style = row ? mainWindow.getComputedStyle(row) : undefined;
+				return {
+					borderRadius: style?.borderRadius,
+					marginLeft: style?.marginLeft,
+					marginRight: style?.marginRight,
+				};
+			};
+
 			assert.deepStrictEqual({
 				sectionRows: container.querySelectorAll('.monaco-list-row.session-list-section-row').length,
 				showMoreFoldersRows: container.querySelectorAll('.monaco-list-row.session-list-show-more-folders-row').length,
+				groupRowClass: groupRow?.classList.contains('session-list-section-row'),
+				workspaceRowClass: workspaceRow?.classList.contains('session-list-section-row'),
+				feedbackGeometry: [workspaceRow, groupRow, sessionRow].map(feedbackGeometry),
 			}, {
-				sectionRows: 1,
+				sectionRows: 2,
 				showMoreFoldersRows: 1,
+				groupRowClass: true,
+				workspaceRowClass: true,
+				feedbackGeometry: Array(3).fill({
+					borderRadius: '0px',
+					marginLeft: '0px',
+					marginRight: '0px',
+				}),
 			});
 		});
 	});
