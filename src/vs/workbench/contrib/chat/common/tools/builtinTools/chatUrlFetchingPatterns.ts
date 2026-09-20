@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { isURLSafeForTrust, normalizeURL } from '../../../../../../platform/url/common/trustedDomains.js';
+import { isURLSafeForTrust, normalizeURLForTrust } from '../../../../../../platform/url/common/trustedDomains.js';
 import { testUrlMatchesGlob } from '../../../../../../platform/url/common/urlGlob.js';
 
 /**
@@ -32,12 +32,13 @@ export function extractUrlPatterns(url: URI): string[] {
 		return [];
 	}
 
-	const normalizedStr = normalizeURL(url);
-	const normalized = URI.parse(normalizedStr);
+	const normalized = normalizeURLForTrust(url);
+	// Pattern strings are parsed as URIs again, so preserve literal path escapes across that boundary.
+	const patternPath = normalized.path.replace(/%/g, '%25');
 	const patterns = new Set<string>();
 
 	// Full URL (most specific)
-	const fullUrl = normalized.toString(true);
+	const fullUrl = normalized.with({ path: patternPath }).toString(true);
 	patterns.add(fullUrl);
 
 	// Domain-only pattern (without trailing slash)
@@ -71,7 +72,7 @@ export function extractUrlPatterns(url: URI): string[] {
 	}
 
 	// Path patterns (if there's a non-trivial path)
-	const pathSegments = normalized.path.split('/').filter((s: string) => s.length > 0);
+	const pathSegments = patternPath.split('/').filter((s: string) => s.length > 0);
 	if (pathSegments.length > 0) {
 		// Add patterns for each path level with wildcard
 		for (let i = pathSegments.length - 1; i >= 0; i--) {
@@ -91,11 +92,11 @@ export function extractUrlPatterns(url: URI): string[] {
 /**
  * Generates user-friendly labels for URL patterns to show in quick pick
  * @param url The original URL
- * @param pattern The pattern to generate a label for
+ * @param pattern The serialized URI pattern to generate a label for
  * @returns A user-friendly label describing what the pattern matches (without protocol)
  */
 export function getPatternLabel(url: URI, pattern: string): string {
-	let displayPattern = pattern;
+	let displayPattern = URI.parse(pattern).toString(true);
 
 	if (displayPattern.startsWith('https://')) {
 		displayPattern = displayPattern.substring(8);
@@ -123,8 +124,7 @@ export function isUrlApproved(
 		return settings === undefined ? false : getUrlApprovalValue(settings, checkRequest) ?? false;
 	}
 
-	const normalizedUrlStr = normalizeURL(url);
-	const normalizedUrl = URI.parse(normalizedUrlStr);
+	const normalizedUrl = normalizeURLForTrust(url);
 
 	for (const [pattern, settings] of Object.entries(approvedUrls)) {
 		// Check if URL matches this pattern
@@ -153,8 +153,7 @@ export function getMatchingPattern(
 		return Object.keys(approvedUrls).includes('*') ? '*' : undefined;
 	}
 
-	const normalizedUrlStr = normalizeURL(url);
-	const normalizedUrl = URI.parse(normalizedUrlStr);
+	const normalizedUrl = normalizeURLForTrust(url);
 	const patterns = extractUrlPatterns(url);
 
 	// Check patterns in order of specificity (most specific first)

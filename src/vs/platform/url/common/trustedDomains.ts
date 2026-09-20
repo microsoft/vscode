@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { testUrlMatchesGlob } from './urlGlob.js';
+import { normalizeURLPathSeparators, testUrlMatchesGlob } from './urlGlob.js';
 
 /**
  * Check whether a domain like https://www.microsoft.com matches
@@ -19,7 +19,7 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]): boolean 
 	if (!isURLSafeForTrust(url) && !trustedDomains.includes('*')) {
 		return false;
 	}
-	url = URI.parse(normalizeURL(url.toString(true).replace(/\\/g, '/')));
+	url = normalizeURLForTrust(url);
 
 	if (isLocalhostAuthority(url.authority)) {
 		return true;
@@ -53,18 +53,22 @@ export function hasURLUserInformation(url: URI): boolean {
 }
 
 /**
- * Case-normalize some case-insensitive URLs, such as github.
+ * Normalizes effective HTTP(S) paths and case-insensitive paths, such as GitHub paths.
  */
 export function normalizeURL(url: string | URI): string {
-	const caseInsensitiveAuthorities = ['github.com'];
 	try {
-		const parsed = typeof url === 'string' ? URI.parse(url, true) : url;
-		if (caseInsensitiveAuthorities.includes(parsed.authority)) {
-			return parsed.with({ path: parsed.path.toLowerCase() }).toString(true);
-		} else {
-			return parsed.toString(true);
-		}
+		return normalizeURLForTrust(typeof url === 'string' ? URI.parse(url, true) : url).toString(true);
 	} catch { return url.toString(); }
+}
+
+/**
+ * Normalizes a URL for trust matching without decoding its components again.
+ */
+export function normalizeURLForTrust(url: URI): URI {
+	const parsed = normalizeURLPathSeparators(url);
+	const hostOffset = parsed.authority.indexOf('@') + 1;
+	const authority = parsed.authority.slice(0, hostOffset) + parsed.authority.slice(hostOffset).toLowerCase();
+	return parsed.with({ authority, path: authority === 'github.com' ? parsed.path.toLowerCase() : parsed.path });
 }
 
 const rLocalhost = /^(.+\.)?localhost(:\d+)?$/i;

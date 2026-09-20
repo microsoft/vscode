@@ -6,11 +6,46 @@
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 
+function normalizeURLAuthority(url: URI): URI {
+	if (!matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+		return url;
+	}
+
+	if (!/[\\/]/.test(url.authority)) {
+		return url;
+	}
+
+	const serialized = url.with({ query: null, fragment: null }).toString(true);
+	const authorityAndPath = serialized.slice(url.scheme.length + 3).replace(/\\/g, '/').replace(/^\/+/, '');
+	const separator = authorityAndPath.indexOf('/');
+	return url.with({
+		authority: separator < 0 ? authorityAndPath : authorityAndPath.slice(0, separator),
+		path: separator < 0 ? '' : authorityAndPath.slice(separator),
+	});
+}
+
+/**
+ * Normalizes effective HTTP(S) authority and path separators and dot segments without changing query or fragment contents.
+ */
+export function normalizeURLPathSeparators(url: URI): URI {
+	if (!url.authority || !matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+		return url;
+	}
+
+	const normalized = normalizeURLAuthority(url);
+	if (!normalized.authority) {
+		return normalized;
+	}
+	// A fixed authority preserves glob syntax such as wildcard hosts and ports.
+	const path = new URL(normalized.with({ authority: 'url.invalid' }).toString(true)).pathname;
+	return normalized.with({ path });
+}
+
 /**
  * Removes trailing slashes, queries and fragments, optionally resolving HTTP(S) paths.
  */
 function normalizeURL(url: string | URI, resolvePath = false): URI {
-	const uri = typeof url === 'string' ? URI.parse(url) : url;
+	const uri = normalizeURLAuthority(typeof url === 'string' ? URI.parse(url) : url);
 	let path = uri.path;
 	if (resolvePath && matchesSomeScheme(uri, Schemas.http, Schemas.https)) {
 		// Apply browser preprocessing without reparsing the authority or decoding percent escapes again.
@@ -26,6 +61,18 @@ function normalizeURL(url: string | URI, resolvePath = false): URI {
 		query: null,
 		fragment: null,
 	});
+}
+
+function encodeURLPathForMatching(url: URI): string {
+	if (!matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+		return url.path;
+	}
+
+	// Encode decoded path characters without decoding or double-encoding existing escapes.
+	return encodeURI(url.path.toWellFormed())
+		.replace(/%25/g, '%')
+		.replace(/[?#]/g, character => encodeURIComponent(character))
+		.replace(/%[0-9a-f]{2}/gi, sequence => sequence.toUpperCase());
 }
 
 /**
@@ -60,12 +107,14 @@ export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean 
 		return true;
 	}
 
-	if (!doMemoUrlMatch(normalizedUrl.path, normalizedGlobUrl.path)) {
+	const path = encodeURLPathForMatching(normalizedUrl);
+	const globPath = encodeURLPathForMatching(normalizedGlobUrl);
+	if (!doMemoUrlMatch(path, globPath)) {
 		return false;
 	}
 
-	const resolvedPath = normalizeURL(normalizedUrl, true).path;
-	return resolvedPath === normalizedUrl.path || doMemoUrlMatch(resolvedPath, normalizedGlobUrl.path);
+	const resolvedPath = encodeURLPathForMatching(normalizeURL(normalizedUrl, true));
+	return resolvedPath === path || doMemoUrlMatch(resolvedPath, globPath);
 }
 
 /**

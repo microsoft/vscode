@@ -199,6 +199,44 @@ suite('urlGlob', () => {
 			assert.strictEqual(testUrlMatchesGlob('https://example.com', 'https://*.example.com'), true);
 		});
 
+		test('backslash URL authorities match only the browser destination', () => {
+			const cases = [
+				{ url: String.raw`https://evil.example\.github.com/collect?leak=<data>`, pattern: 'https://*.github.com', matches: false },
+				{ url: String.raw`https://evil.example\\.github.com/collect?leak=<data>`, pattern: 'https://*.github.com', matches: false },
+				{ url: String.raw`https://169.254.169.254\.github.com/latest/meta-data/`, pattern: '*.github.com', matches: false },
+				{ url: String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`, pattern: '*.github.com', matches: false },
+				{ url: String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`, pattern: 'http://*.github.com:*', matches: false },
+				{ url: String.raw`https://github.com\.evil.example/resource`, pattern: 'https://*.github.com', matches: true },
+				{ url: 'https://api.github.com/resource', pattern: 'https://*.github.com', matches: true },
+				{ url: 'https://evil.example/resource', pattern: 'https://*.github.com', matches: false },
+				{ url: String.raw`custom://example.com\segment/resource`, pattern: String.raw`custom://example.com\segment`, matches: true },
+				{ url: String.raw`custom://example.com\segment/resource`, pattern: 'custom://example.com/segment', matches: false },
+			];
+
+			assert.deepStrictEqual(
+				cases.map(({ url, pattern }) => ({
+					url,
+					string: testUrlMatchesGlob(url, pattern),
+					uri: testUrlMatchesGlob(URI.parse(url), pattern),
+				})),
+				cases.map(({ url, matches }) => ({ url, string: matches, uri: matches }))
+			);
+		});
+
+		test('backslash URL patterns use browser path separators', () => {
+			const cases = [
+				{ url: 'https://example.com/.github.com/resource', pattern: String.raw`https://example.com\.github.com`, matches: true },
+				{ url: 'https://example.com/.github.com/resource', pattern: String.raw`example.com\.github.com`, matches: true },
+				{ url: 'https://example.com/path/resource', pattern: String.raw`https://example.com\path\*`, matches: true },
+				{ url: 'https://api.github.com/resource', pattern: String.raw`https://example.com\.github.com`, matches: false },
+			];
+
+			assert.deepStrictEqual(
+				cases.map(({ url, pattern }) => testUrlMatchesGlob(url, pattern)),
+				cases.map(({ matches }) => matches)
+			);
+		});
+
 		test('subdomain wildcard must match on dot boundary', () => {
 			// Should NOT match: no dot boundary before the domain
 			assert.strictEqual(testUrlMatchesGlob('https://notexample.com', 'https://*.example.com'), false);
