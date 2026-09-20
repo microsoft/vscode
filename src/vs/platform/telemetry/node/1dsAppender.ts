@@ -6,7 +6,10 @@
 import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError, onUnexpectedError } from '../../../base/common/errors.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IRequestService, NO_FETCH_TELEMETRY } from '../../request/common/request.js';
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
@@ -41,8 +44,12 @@ async function makeTelemetryRequest(options: IRequestOptions, requestService: IR
  * @param options The options which will be used to make the request
  * @returns An object containing the headers, statusCode, and responseData
  */
-async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IResponseData> {
+async function makeLegacyTelemetryRequest(options: IRequestOptions, isTransmissionPaused: () => boolean): Promise<IResponseData> {
 	const https = await import('https'); // Lazy due to https://github.com/nodejs/node/issues/59686
+	if (isTransmissionPaused()) {
+		throw new CancellationError();
+	}
+
 	const httpsOptions = {
 		method: options.type,
 		headers: options.headers
@@ -71,7 +78,12 @@ async function makeLegacyTelemetryRequest(options: IRequestOptions): Promise<IRe
 	return responsePromise;
 }
 
-async function sendPostAsync(requestService: IRequestService | undefined, payload: IPayloadData, oncomplete: OnCompleteFunc) {
+async function sendPostAsync(requestService: IRequestService | undefined, payload: IPayloadData, oncomplete: OnCompleteFunc, isTransmissionPaused: () => boolean) {
+	if (isTransmissionPaused()) {
+		oncomplete(0, {});
+		return;
+	}
+
 	const telemetryRequestData = typeof payload.data === 'string' ? payload.data : new TextDecoder().decode(payload.data);
 	const requestOptions: IRequestOptions = {
 		type: 'POST',
@@ -86,7 +98,7 @@ async function sendPostAsync(requestService: IRequestService | undefined, payloa
 	};
 
 	try {
-		const responseData = requestService ? await makeTelemetryRequest(requestOptions, requestService) : await makeLegacyTelemetryRequest(requestOptions);
+		const responseData = requestService ? await makeTelemetryRequest(requestOptions, requestService) : await makeLegacyTelemetryRequest(requestOptions, isTransmissionPaused);
 		oncomplete(responseData.statusCode, responseData.headers, responseData.responseData);
 	} catch {
 		// If it errors out, send status of 0 and a blank response to oncomplete so we can retry events
@@ -97,21 +109,57 @@ async function sendPostAsync(requestService: IRequestService | undefined, payloa
 
 export class OneDataSystemAppender extends AbstractOneDataSystemAppender {
 
+	private readonly _meteredConnectionListener: IDisposable | undefined;
+	private _isFlushed = false;
+
 	constructor(
 		requestService: IRequestService | undefined,
 		isInternalTelemetry: boolean,
 		eventPrefix: string,
 		defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
+		meteredConnectionService?: IMeteredConnectionService,
 	) {
 		// Override the way events get sent since node doesn't have XHTMLRequest
 		const customHttpXHROverride: IXHROverride = {
 			sendPOST: (payload: IPayloadData, oncomplete: OnCompleteFunc) => {
 				// Fire off the async request without awaiting it
-				sendPostAsync(requestService, payload, oncomplete);
+				void sendPostAsync(requestService, payload, oncomplete, () => this.isTransmissionPaused);
 			}
 		};
 
 		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory, customHttpXHROverride);
+
+		if (meteredConnectionService) {
+			let initialized = false;
+			const updateConnectionState = () => this.setIsConnectionMetered(!initialized || meteredConnectionService.isConnectionMetered);
+			updateConnectionState();
+			this._meteredConnectionListener = meteredConnectionService.onDidChangeIsConnectionMetered(updateConnectionState);
+			void meteredConnectionService.whenInitialized.then(() => {
+				if (!this._isFlushed) {
+					initialized = true;
+					updateConnectionState();
+				}
+			}, onUnexpectedError);
+		}
+	}
+
+	setIsConnectionMetered(isMetered: boolean): void {
+		this.setTransmissionPaused(this._isFlushed || isMetered);
+	}
+
+	override async flush(): Promise<void> {
+		if (this._isFlushed) {
+			return;
+		}
+
+		this._isFlushed = true;
+		try {
+			await super.flush();
+		} finally {
+			this.setTransmissionPaused(true);
+			this._aiCoreOrKey = undefined;
+			this._meteredConnectionListener?.dispose();
+		}
 	}
 }
