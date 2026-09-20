@@ -55,12 +55,14 @@ suite('Sessions - Session management actions', () => {
 	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {
 		const renameRule = getKeybindingRule(RENAME_SESSION_COMMAND_ID, KeyCode.F2);
 		const renameChatRule = getKeybindingRule(RENAME_CHAT_COMMAND_ID, KeyCode.F2);
+		const renameHeaderRule = getKeybindingRule('sessions.sessionHeader.rename', KeyCode.F2);
 		const archiveSessionRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyCode.Delete);
 		const archiveSessionMacRule = getKeybindingRule(ARCHIVE_SESSION_COMMAND_ID, KeyMod.CtrlCmd | KeyCode.Backspace, OperatingSystem.Macintosh);
 		const deleteSessionRule = getKeybindingRule('sessionsViewPane.deleteSession', KeyCode.Delete);
 		const deleteChatRule = getKeybindingRule(DELETE_CHAT_COMMAND_ID, KeyCode.Delete);
 		assert.ok(renameRule?.when);
 		assert.ok(renameChatRule?.when);
+		assert.ok(renameHeaderRule?.when);
 		assert.ok(archiveSessionRule?.when);
 		assert.ok(archiveSessionMacRule?.when);
 		assert.ok(deleteChatRule?.when);
@@ -86,8 +88,10 @@ suite('Sessions - Session management actions', () => {
 		assert.deepStrictEqual({
 			renameWeight: renameRule.weight1,
 			renameChatWeight: renameChatRule.weight1,
+			renameHeaderWeight: renameHeaderRule.weight1,
 			renameSessionRow: evaluate(renameRule, sessionsList),
 			renameChatOnSessionRow: evaluate(renameChatRule, sessionsList),
+			renameHeaderOnSessionRow: evaluate(renameHeaderRule, sessionsList),
 			renameNestedChatAsSession: evaluate(renameRule, nestedChat),
 			renameNestedChat: evaluate(renameChatRule, nestedChat),
 			renameInListFindInput: evaluate(renameRule, { ...sessionsList, [InputFocusedContext.key]: true }),
@@ -96,6 +100,8 @@ suite('Sessions - Session management actions', () => {
 			renameMainTranscriptAsChat: evaluate(renameChatRule, chatTranscript),
 			renamePeerTranscriptAsSession: evaluate(renameRule, peerChatTranscript),
 			renamePeerTranscriptAsChat: evaluate(renameChatRule, peerChatTranscript),
+			renameHeaderInMainTranscript: evaluate(renameHeaderRule, chatTranscript),
+			renameHeaderInPeerTranscript: evaluate(renameHeaderRule, peerChatTranscript),
 			renamePeerChatInput: evaluate(renameChatRule, { ...peerChatTranscript, [ChatContextKeys.inChatInput.key]: true, [InputFocusedContext.key]: true }),
 			renameUnsupportedPeerAsChat: evaluate(renameChatRule, { ...peerChatTranscript, [SessionSupportsRenameContext.key]: false }),
 			renameOutsideAgentsWindow: evaluate(renameRule, { [ChatContextKeys.inChatSession.key]: true, [SessionSupportsRenameContext.key]: true }),
@@ -112,8 +118,10 @@ suite('Sessions - Session management actions', () => {
 		}, {
 			renameWeight: KeybindingWeight.SessionsContrib,
 			renameChatWeight: KeybindingWeight.SessionsContrib + 10,
+			renameHeaderWeight: KeybindingWeight.SessionsContrib + 1,
 			renameSessionRow: true,
 			renameChatOnSessionRow: false,
+			renameHeaderOnSessionRow: false,
 			renameNestedChatAsSession: true,
 			renameNestedChat: true,
 			renameInListFindInput: false,
@@ -122,6 +130,8 @@ suite('Sessions - Session management actions', () => {
 			renameMainTranscriptAsChat: false,
 			renamePeerTranscriptAsSession: true,
 			renamePeerTranscriptAsChat: true,
+			renameHeaderInMainTranscript: true,
+			renameHeaderInPeerTranscript: false,
 			renamePeerChatInput: true,
 			renameUnsupportedPeerAsChat: true,
 			renameOutsideAgentsWindow: false,

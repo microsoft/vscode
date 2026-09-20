@@ -64,7 +64,7 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, RENAME_SESSION_LIST_CHAT_ACTION_ID, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
@@ -637,6 +637,12 @@ registerAction2(class RenameChatAction extends Action2 {
 					),
 				),
 			},
+			menu: {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
+			},
 		});
 	}
 
@@ -652,29 +658,6 @@ registerAction2(class RenameChatAction extends Action2 {
 		if (target) {
 			await renameChatWithQuickInput(accessor, target);
 		}
-	}
-});
-
-registerAction2(class RenameSessionListChatAction extends Action2 {
-	constructor() {
-		super({
-			id: RENAME_SESSION_LIST_CHAT_ACTION_ID,
-			title: localize2('renameChat', "Rename..."),
-			f1: false,
-			menu: {
-				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 1,
-				when: ContextKeyExpr.and(SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext.negate()),
-			},
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
-		if (!context) {
-			return;
-		}
-		await renameChatWithQuickInput(accessor, context);
 	}
 });
 
@@ -1785,6 +1768,16 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 			id: 'sessions.sessionHeader.rename',
 			title: localize2('renameSessionHeader', "Rename..."),
 			icon: Codicon.edit,
+			keybinding: {
+				primary: KeyCode.F2,
+				weight: KeybindingWeight.SessionsContrib + 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					SessionsFocusContext,
+					SessionSupportsRenameContext,
+					SessionFocusedChatIsRenameTargetContext.negate(),
+				),
+			},
 			menu: [{
 				id: Menus.SessionHeaderContext,
 				group: '2_edit',
@@ -1800,6 +1793,7 @@ registerAction2(class RenameSessionHeaderAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+		session ??= accessor.get(ISessionsService).activeSession.get();
 		if (!session) {
 			return;
 		}

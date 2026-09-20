@@ -768,8 +768,12 @@ suite('Sessions rename', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const commandService = new TestCommandService();
 			const sessionData = createTestSession('Existing');
+			const session = upcastPartial<IActiveSession>({ ...sessionData.session });
 			let inlineRenameCalls = 0;
 			instantiationService.stub(ICommandService, commandService);
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			});
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView() {
 					if (inlineRename === undefined) {
@@ -785,7 +789,7 @@ suite('Sessions rename', () => {
 			});
 			const handler = CommandsRegistry.getCommand('sessions.sessionHeader.rename')?.handler;
 			assert.ok(handler);
-			return { handler, instantiationService, commandService, session: sessionData.session, inlineRenameCalls: () => inlineRenameCalls };
+			return { handler, instantiationService, commandService, session, inlineRenameCalls: () => inlineRenameCalls };
 		}
 
 		test('renames inline in the header and only prompts when that is not possible', async () => {
@@ -812,7 +816,7 @@ suite('Sessions rename', () => {
 				inline: { calls: 1, prompts: [] },
 				headerUnavailable: { calls: 1, prompts: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [headerUnavailable.session] }] },
 				noView: { calls: 0, prompts: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [noView.session] }] },
-				withoutSession: { calls: 0, prompts: [] },
+				withoutSession: { calls: 1, prompts: [] },
 			});
 		});
 	});
@@ -866,6 +870,7 @@ suite('Sessions rename', () => {
 				hasInlineChatRenameInstructions: content.includes('focus its nested row') && content.includes('double-click its title to rename it inline'),
 				hasSessionRenameKeybinding: content.includes(`<keybinding:${RENAME_SESSION_COMMAND_ID}>`),
 				hasInlineRenameInstructions: content.includes('press Enter to confirm or Escape to cancel'),
+				hasHeaderRenameInstructions: content.includes('edits the header title inline when it is visible and opens a prompt otherwise'),
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
@@ -888,6 +893,7 @@ suite('Sessions rename', () => {
 				hasInlineChatRenameInstructions: true,
 				hasSessionRenameKeybinding: true,
 				hasInlineRenameInstructions: true,
+				hasHeaderRenameInstructions: true,
 				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,
 				hasPermanentDelete: true,
