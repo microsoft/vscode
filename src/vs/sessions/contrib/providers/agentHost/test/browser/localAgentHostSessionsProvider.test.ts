@@ -36,7 +36,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { IProgress, IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -52,7 +52,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostProgress, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -3671,14 +3671,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(connectCalls, 0);
 	});
 
-	test('Dev Container preparation exposes output and cancellation without committing the draft', async () => {
+	test('Dev Container preparation links to the workspace log and supports cancellation without committing the draft', async () => {
 		const connecting = new DeferredPromise<void>();
 		const pending = new DeferredPromise<never>();
+		let connectedWorkspace: URI | undefined;
+		let logWorkspace: URI | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 				override async isAvailable(): Promise<boolean> { return true; }
-				override async connect(_workspace: URI, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<never> {
-					progress?.report({ message: 'Building container...', output: 'Step 1\nStep 2\n' });
+				override async showLog(workspace: URI): Promise<void> {
+					logWorkspace = workspace;
+				}
+				override async connect(workspace: URI, token: CancellationToken): Promise<never> {
+					connectedWorkspace = workspace;
 					connecting.complete();
 					return raceCancellationError(pending.p, token);
 				}
@@ -3691,7 +3696,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const rejected = assert.rejects(preparation, /Canceled/);
 		await connecting.p;
 		const progress = session.preparationProgress?.get();
-		const during = { message: progress?.message, output: progress?.output, status: session.status.get() };
+		const during = { message: progress?.message, status: session.status.get() };
+		progress?.showLog?.();
 		progress?.cancel();
 		await rejected;
 		assert.deepStrictEqual({
@@ -3699,11 +3705,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			after: session.preparationProgress?.get(),
 			status: session.status.get(),
 			deletedDetachedWorktrees: agentHost.deletedDetachedWorktrees,
+			logMatchesContainerWorkspace: !!logWorkspace && logWorkspace === connectedWorkspace,
 		}, {
-			during: { message: 'Building container...', output: 'Step 1\nStep 2\n', status: SessionStatus.Untitled },
+			during: { message: 'Starting Dev Container...', status: SessionStatus.Untitled },
 			after: undefined,
 			status: SessionStatus.Untitled,
 			deletedDetachedWorktrees: ['00000000-0000-4000-8000-000000000001'],
+			logMatchesContainerWorkspace: true,
 		});
 	});
 

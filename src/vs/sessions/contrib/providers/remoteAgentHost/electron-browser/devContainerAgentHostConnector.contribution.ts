@@ -33,10 +33,9 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostProgress, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
@@ -227,6 +226,22 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	}
 }
 
+function getDevContainerOutputChannel(workspaceUri: URI): string {
+	const sha = new StringSHA1();
+	sha.update(getComparisonKey(workspaceUri));
+	const channelId = `devContainer.${sha.digest()}`;
+	const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+	if (!registry.getChannel(channelId)) {
+		registry.registerChannel({
+			id: channelId,
+			label: localize('devContainerOutputChannel', "Dev Container ({0})", basename(workspaceUri)),
+			log: false,
+			languageId: 'log',
+		});
+	}
+	return channelId;
+}
+
 class DevContainerOutputWriter extends Disposable {
 	private readonly _channelId: string;
 	private readonly _connectionIds = new Set<string>();
@@ -239,19 +254,7 @@ class DevContainerOutputWriter extends Disposable {
 	) {
 		super();
 		this._connectionIds.add(connectionId);
-		const sha = new StringSHA1();
-		sha.update(getComparisonKey(workspaceUri));
-		this._channelId = `devContainer.${sha.digest()}`;
-
-		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		if (!registry.getChannel(this._channelId)) {
-			registry.registerChannel({
-				id: this._channelId,
-				label: localize('devContainerOutputChannel', "Dev Container ({0})", basename(workspaceUri)),
-				log: false,
-				languageId: 'log',
-			});
-		}
+		this._channelId = getDevContainerOutputChannel(workspaceUri);
 
 		this._append(localize('devContainerOutputStarting', "\n--- Starting Dev Container for {0} ---\n", workspaceUri.fsPath));
 		this._register(mainService.onDidOutput(output => {
@@ -311,7 +314,11 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		return getDevContainerEnvironment(workspaceUris, this._fileService, this._mainService);
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, progress?: IProgress<IDevContainerAgentHostProgress>): Promise<IDevContainerAgentHostConnection> {
+	showLog(workspaceUri: URI): Promise<void> {
+		return this._outputService.showChannel(getDevContainerOutputChannel(workspaceUri), true);
+	}
+
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 		if (workspaceUri.scheme !== Schemas.file && !sourceEntry) {
@@ -332,23 +339,17 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		const workspaceFolder = devContainerSourcePath(workspaceUri);
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
 		const outputWriter = new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService);
-		const connectWithProgress = async (connectionId: string) => {
-			const listener = progress ? Event.filter(mainService.onDidOutput, event => event.connectionId === connectionId)(
-				event => progress.report({ output: event.data })
-			) : undefined;
-			try {
-				return await mainService.connect({ connectionId, workspaceFolder, name });
-			} finally {
-				listener?.dispose();
-			}
-		};
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
 		try {
-			const result = await connectWithProgress(connectionId);
+			const result = await mainService.connect({
+				connectionId,
+				workspaceFolder,
+				name,
+			});
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -373,8 +374,11 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				const reconnectConnectionId = generateUuid();
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
-					progress?.report({ message: localize('devContainerAgentHost.reconnecting', "Reconnecting to Dev Container...") });
-					await connectWithProgress(reconnectConnectionId);
+					await mainService.connect({
+						connectionId: reconnectConnectionId,
+						workspaceFolder,
+						name,
+					});
 					return {
 						connectionId: reconnectConnectionId,
 						close: async () => {

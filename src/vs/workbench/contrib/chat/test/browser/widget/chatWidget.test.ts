@@ -18,6 +18,9 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -33,62 +36,24 @@ import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
-import { ChatTerminalToolOutputSection } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	class TestTranscriptOutput extends Disposable {
-		readonly domNode = dom.$('.chat-terminal-output-container', { tabindex: 0 });
-		readonly rendered: string[] = [];
-		renderGate: DeferredPromise<void> | undefined;
-		activeRenders = 0;
-		maxActiveRenders = 0;
-		disposed = false;
-
-		get isExpanded(): boolean { return this.domNode.classList.contains('expanded'); }
-
-		constructor(private readonly getSnapshot: () => { text: string }) {
-			super();
-		}
-
-		async toggle(): Promise<void> {
-			this.maxActiveRenders = Math.max(this.maxActiveRenders, ++this.activeRenders);
-			this.rendered.push(this.getSnapshot().text);
-			await this.renderGate?.p;
-			this.activeRenders--;
-			if (!this.disposed) {
-				this.domNode.classList.add('expanded');
-			}
-		}
-
-		focus(): void { this.domNode.focus(); }
-		containsElement(element: HTMLElement | null): boolean { return !!element && this.domNode.contains(element); }
-		getOutputAsText(): string { return this.getSnapshot().text; }
-
-		override dispose(): void {
-			this.disposed = true;
-			super.dispose();
-		}
-	}
-
 	function createTranscriptProgressWidget() {
 		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
 		store.add(toDisposable(() => container.remove()));
 		const instantiationService = mockObject<IInstantiationService>()();
-		const sections: TestTranscriptOutput[] = [];
-		instantiationService.createInstance.callsFake((ctor: typeof ChatContentMarkdownRenderer | typeof ChatTerminalToolOutputSection, element?: HTMLElement, _resolveCommand?: () => undefined, _getOutputSource?: () => undefined, getSnapshot?: () => { text: string }) => {
+		instantiationService.createInstance.callsFake((ctor: typeof ChatContentMarkdownRenderer | typeof Link, element?: HTMLElement, link?: ILinkDescriptor, options?: ILinkOptions) => {
 			if (ctor === ChatContentMarkdownRenderer) {
 				return { render: () => ({ element: dom.$('span'), dispose: () => { } }) };
 			}
-			if (ctor === ChatTerminalToolOutputSection) {
-				const section = new TestTranscriptOutput(getSnapshot!);
-				sections.push(section);
-				return section;
+			if (ctor === Link) {
+				return new Link(element!, link!, options, upcastPartial<IHoverService>({}), upcastPartial<IOpenerService>({}));
 			}
-			return { domNode: dom.$('.progress-container', undefined, element!), dispose: () => { } };
+			return { domNode: dom.$('.progress-container', undefined, element!), iconElement: dom.$('div'), dispose: () => { } };
 		});
 		const widgetStore = store.add(new DisposableStore());
 		const contextKeyService = store.add(new MockContextKeyService());
@@ -102,42 +67,38 @@ suite('ChatWidget', () => {
 			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
 			updateChatViewVisibility: () => { },
 		}) as ChatWidget;
-		return { widget, container, instantiationService, sections, widgetStore, contextKeyService };
+		return { widget, container, contextKeyService };
 	}
 
-	test('transcript progress streams through the terminal output section without replacing controls or announcing it', async () => {
-		const { widget, container, instantiationService, sections } = createTranscriptProgressWidget();
-		widget.setTranscriptProgress('Building', 'Building container', { output: 'first line', onCancel: () => { } });
-		await timeout(0);
-		const section = sections[0];
+	test('transcript progress shows a keyboard-accessible detail action outside the live region', () => {
+		const { widget, container } = createTranscriptProgressWidget();
+		let opened = 0;
+		widget.setTranscriptProgress('Building', 'Building container', { detail: { label: 'Show Log', run: () => opened++ } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
 		const status = container.querySelector('[role=status]')!;
-		const phaseContent = status.firstChild!.firstChild;
-		section.focus();
-
-		const output = '<script>not HTML</script>\n**not markdown**';
-		widget.setTranscriptProgress('Building', 'Building container', { output, onCancel: () => { } });
-		await timeout(0);
+		link.focus();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+		link.click();
 
 		assert.deepStrictEqual({
-			sameOutput: container.querySelector('.chat-terminal-output-container') === section.domNode,
-			samePhase: status.firstChild!.firstChild === phaseContent,
-			expanded: section.domNode.classList.contains('expanded'),
-			focused: mainWindow.document.activeElement === section.domNode,
-			rendered: section.rendered,
-			customOutput: !!container.querySelector('details, pre'),
-			outputInLiveRegion: status.contains(section.domNode),
+			label: link.textContent,
+			tabIndex: link.tabIndex,
+			focused: mainWindow.document.activeElement === link,
+			opened,
+			linkInLiveRegion: status.contains(link),
+			linkHidden: !!link.closest('[aria-hidden=true]'),
 			statusLabel: status.getAttribute('aria-label'),
-			renderCount: instantiationService.createInstance.callCount,
+			shimmer: !!container.querySelector('.shimmer-progress'),
 		}, {
-			sameOutput: true,
-			samePhase: true,
-			expanded: true,
+			label: 'Show Log',
+			tabIndex: 0,
 			focused: true,
-			rendered: ['first line', output],
-			customOutput: false,
-			outputInLiveRegion: false,
+			opened: 3,
+			linkInLiveRegion: false,
+			linkHidden: false,
 			statusLabel: 'Building container',
-			renderCount: 3,
+			shimmer: true,
 		});
 	});
 
@@ -145,6 +106,7 @@ suite('ChatWidget', () => {
 		const { widget, container, contextKeyService } = createTranscriptProgressWidget();
 		const calls: string[] = [];
 		widget.setTranscriptProgress('Building', undefined, { onCancel: () => calls.push('old') });
+		const status = container.querySelector('[role=status]');
 		widget.setTranscriptProgress('Starting', undefined, { onCancel: () => calls.push('new') });
 		const active = contextKeyService.getContextKeyValue(ChatContextKeys.transcriptProgressActive.key);
 		const cancelled = widget.cancelTranscriptProgress();
@@ -152,6 +114,7 @@ suite('ChatWidget', () => {
 
 		assert.deepStrictEqual({
 			calls,
+			sameStatus: container.querySelector('[role=status]') === status,
 			active,
 			cancelled,
 			completedActive: widget.isTranscriptProgressActive,
@@ -159,33 +122,7 @@ suite('ChatWidget', () => {
 			cancelCompleted: widget.cancelTranscriptProgress(),
 			customButton: !!container.querySelector('.monaco-button'),
 			complete: !!container.querySelector('.show-checkmarks'),
-		}, { calls: ['new'], active: true, cancelled: true, completedActive: false, completedContext: false, cancelCompleted: false, customButton: false, complete: true });
-	});
-
-	test('transcript progress focus targets output and ignores hidden output', async () => {
-		const { widget, container } = createTranscriptProgressWidget();
-		const beforeProgress = widget.focusTranscriptProgress();
-		widget.setTranscriptProgress('Building', undefined, { output: 'output', onCancel: () => { } });
-		await timeout(0);
-		const withOutput = widget.focusTranscriptProgress();
-		const outputFocused = mainWindow.document.activeElement === container.querySelector('.chat-terminal-output-container');
-		widget.setTranscriptProgress('Building');
-		const withoutControls = widget.focusTranscriptProgress();
-		widget.setTranscriptProgress(undefined);
-
-		assert.deepStrictEqual({
-			beforeProgress,
-			withOutput,
-			outputFocused,
-			withoutControls,
-			afterProgress: widget.focusTranscriptProgress(),
-		}, {
-			beforeProgress: false,
-			withOutput: true,
-			outputFocused: true,
-			withoutControls: false,
-			afterProgress: false,
-		});
+		}, { calls: ['new'], sameStatus: true, active: true, cancelled: true, completedActive: false, completedContext: false, cancelCompleted: false, customButton: false, complete: true });
 	});
 
 	test('transcript preparation blocks submissions without a model or touching the draft', async () => {
@@ -221,96 +158,31 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual(states, [true, true, true, false, false]);
 	});
 
-	test('transcript progress coalesces and serializes output rendering', async () => {
-		const { widget, sections } = createTranscriptProgressWidget();
-		widget.setTranscriptProgress('Building', undefined, { output: 'initial' });
-		await timeout(0);
-		const section = sections[0];
-		section.renderGate = new DeferredPromise<void>();
-		widget.setTranscriptProgress('Building', undefined, { output: 'second' });
-		widget.setTranscriptProgress('Building', undefined, { output: 'third' });
-		widget.setTranscriptProgress('Building', undefined, { output: 'latest' });
-		await section.renderGate.complete();
-		await timeout(0);
-		assert.deepStrictEqual({
-			rendered: section.rendered,
-			maxActiveRenders: section.maxActiveRenders,
-		}, { rendered: ['initial', 'second', 'latest'], maxActiveRenders: 1 });
-	});
-
-	test('transcript progress exposes the focused output to accessible view and restores focus', async () => {
-		const { widget, container, sections } = createTranscriptProgressWidget();
-		widget.setTranscriptProgress('Building', undefined, { output: 'first line' });
-		await timeout(0);
-		const unfocused = widget.getTranscriptProgressOutput();
-		sections[0].focus();
-		const provider = widget.getTranscriptProgressOutput()!;
-		widget.setTranscriptProgress('Starting', undefined, { output: 'latest line' });
-		container.tabIndex = 0;
-		container.focus();
-		provider.focus();
-		assert.deepStrictEqual({
-			unfocused,
-			content: provider.provideContent(),
-			focused: mainWindow.document.activeElement === sections[0].domNode,
-		}, { unfocused: undefined, content: 'Starting\nlatest line', focused: true });
-	});
-
-	test('transcript progress can focus output before asynchronous rendering finishes', async () => {
-		const { widget, sections } = createTranscriptProgressWidget();
-		widget.setTranscriptProgress('Building', undefined, { output: 'first line' });
-		const focused = widget.focusTranscriptProgress();
-		await timeout(0);
-		assert.deepStrictEqual({
-			focused,
-			active: mainWindow.document.activeElement === sections[0].domNode,
-		}, { focused: true, active: true });
-	});
-
-	test('transcript progress discards queued output when cleared and disposes the terminal on widget disposal', async () => {
-		const { widget, container, sections, widgetStore } = createTranscriptProgressWidget();
-		widget.setTranscriptProgress('Building', undefined, { output: 'initial' });
-		await timeout(0);
-		const section = sections[0];
-		section.renderGate = new DeferredPromise<void>();
-		widget.setTranscriptProgress('Building', undefined, { output: 'second' });
-		widget.setTranscriptProgress('Building', undefined, { output: 'queued' });
-		widget.setTranscriptProgress(undefined);
-		const cleared = !container.querySelector('.chat-terminal-output-container');
-		widget.setTranscriptProgress('Starting', undefined, { output: 'new output' });
-		await timeout(0);
-		const restarted = sections[1].isExpanded;
-		await section.renderGate.complete();
-		await timeout(0);
-		widgetStore.dispose();
-		assert.deepStrictEqual({
-			cleared,
-			restarted,
-			rendered: section.rendered,
-			disposed: sections.map(section => section.disposed),
-		}, { cleared: true, restarted: true, rendered: ['initial', 'second'], disposed: [true, true] });
-	});
-
-	test('transcript progress clearing resets output and preserves the message-only API', () => {
+	test('transcript progress clearing disposes the detail action and preserves the message-only API', () => {
 		const { widget, container } = createTranscriptProgressWidget();
-		widget.setTranscriptProgress('Building', undefined, { output: 'old output', onCancel: () => { } });
+		let opened = false;
+		widget.setTranscriptProgress('Building', undefined, { detail: { label: 'Show Log', run: () => opened = true }, onCancel: () => { } });
+		const link = container.querySelector<HTMLAnchorElement>('a')!;
 		widget.setTranscriptProgress(undefined);
+		link.click();
 		const cleared = {
 			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
-			output: !!container.querySelector('.chat-terminal-output-container'),
+			link: !!container.querySelector('a'),
+			active: widget.isTranscriptProgressActive,
+			opened,
 		};
 		widget.setTranscriptProgress('Connecting');
 
 		assert.deepStrictEqual({
 			cleared,
 			hidden: container.querySelector<HTMLElement>('.chat-transcript-progress')!.hidden,
-			controlsHidden: container.querySelector<HTMLElement>('.chat-transcript-progress-controls')!.hidden,
+			link: !!container.querySelector('a'),
 			statusLabel: container.querySelector('[role=status]')!.getAttribute('aria-label'),
 			shimmer: !!container.querySelector('.shimmer-progress'),
 		}, {
-			cleared: { hidden: true, output: false },
+			cleared: { hidden: true, link: false, active: false, opened: false },
 			hidden: false,
-			controlsHidden: true,
+			link: false,
 			statusLabel: 'Connecting',
 			shimmer: true,
 		});

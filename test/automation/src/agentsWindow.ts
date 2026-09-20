@@ -13,7 +13,7 @@ const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
-const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"])';
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])';
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
@@ -119,12 +119,25 @@ export class AgentsWindow {
 		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 	}
 
-	async waitForSessionPreparationOutput(): Promise<void> {
+	async waitForSessionPreparation(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden]) .chat-terminal-output-container.expanded .xterm-screen`).waitFor({ state: 'visible', timeout: 30_000 });
+		const progress = page.locator(`${ACTIVE_SESSION} .chat-transcript-progress:not([hidden])`);
+		await progress.getByText('Starting Dev Container...', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		await progress.getByRole('button', { name: 'Show Log', exact: true }).waitFor({ state: 'visible' });
+		if (await progress.locator('.xterm-screen').count()) {
+			throw new Error('Startup logs must remain in the output channel, not the transcript');
+		}
 		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
 		await page.locator(ACTIVE_SESSION_INPUT_EDITOR).waitFor({ state: 'visible' });
 		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+	}
+
+	async showSessionPreparationLog(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION} .chat-transcript-progress`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		await this.quickaccess.runCommand('workbench.action.closePanel');
 	}
 
 	async draftFollowUpDuringPreparation(prompt: string): Promise<void> {

@@ -702,21 +702,6 @@
 	/* For the scroll down button */
 }
 
-.chat-transcript-progress-controls[hidden],
-.chat-transcript-progress-output[hidden] {
-	display: none;
-}
-
-.chat-transcript-progress-output {
-	width: 100%;
-	min-width: 0;
-	pointer-events: auto;
-}
-
-.chat-transcript-progress-output > .chat-terminal-output-container {
-	border-radius: var(--vscode-cornerRadius-medium);
-}
-
 .hc-black .interactive-request,
 .hc-light .interactive-request {
 	border-left: 3px solid var(--vscode-chat-requestBorder);

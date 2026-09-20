@@ -2073,7 +2073,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('shows draft activity and streams cancellable preparation output before a chat model is loaded', () => {
+	test('shows draft activity with a log link and cancellation before a chat model is loaded', () => {
 		const preparing = observableValue('preparing', true);
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', undefined);
 		const session = new class extends mock<ISession>() {
@@ -2091,20 +2091,24 @@ suite('Sessions - Chat View', () => {
 		});
 		view._setupTranscriptPreparationProgress(constObservable(undefined));
 		let canceled = false;
+		let logOpened = false;
 		const cancel = () => { canceled = true; };
-		preparationProgress.set({ message: 'Building container...', output: '<literal output>\n', cancel }, undefined);
+		const showLog = () => { logOpened = true; };
+		preparationProgress.set({ message: 'Starting Dev Container...', showLog, cancel }, undefined);
+		calls.at(-1)?.[2]?.detail?.run();
 		calls.at(-1)?.[2]?.onCancel?.();
 		transaction(tx => {
 			preparationProgress.set(undefined, tx);
 			preparing.set(false, tx);
 		});
-		assert.deepStrictEqual({ calls, canceled }, {
+		assert.deepStrictEqual({ calls, canceled, logOpened }, {
 			calls: [
 				['Starting Dev Container...', 'Starting Dev Container...', undefined],
-				['Building container...', 'Building container...', { output: '<literal output>\n', onCancel: cancel }],
+				['Starting Dev Container...', 'Starting Dev Container...', { detail: { label: 'Show Log', run: showLog }, onCancel: cancel }],
 				[undefined, undefined, undefined],
 			],
 			canceled: true,
+			logOpened: true,
 		});
 	});
 

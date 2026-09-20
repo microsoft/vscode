@@ -416,7 +416,6 @@ export interface IChatWidget {
 	readonly isTranscriptProgressActive?: boolean;
 	/** Cancels transcript preparation and returns whether it handled cancellation. */
 	cancelTranscriptProgress?(): boolean;
-	getTranscriptProgressOutput?(): { provideContent: () => string; focus: () => void } | undefined;
 	readonly domNode: HTMLElement;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
 	readonly transcriptDomNode: HTMLElement;

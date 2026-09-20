@@ -544,56 +544,6 @@ suite('ChatTerminalToolOutputSection layout', () => {
 	});
 
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Keep private layout access type-checked without exposing test-only APIs. */
-	test('snapshot updates follow the tail unless the user scrolls up', async () => {
-		const output = { text: 'line\r\n'.repeat(20) };
-		const section = createSection(output);
-		await section.toggle(true);
-		section['_outputRelayout'].clear();
-		const scrollToBottom = sinon.spy(section['_scrollOutputToBottom']);
-		section['_scrollOutputToBottom'] = scrollToBottom;
-		const results: number[] = [];
-		for (const isAtBottom of [true, false, true]) {
-			section['_isAtBottom'] = isAtBottom;
-			output.text += 'next line\r\n';
-			scrollToBottom.resetHistory();
-			await section.refresh();
-			results.push(scrollToBottom.callCount);
-		}
-		assert.deepStrictEqual(results, [1, 0, 1]);
-	});
-
-	test('disposing during snapshot attachment does not expand or lay out the section', async () => {
-		const attached = new DeferredPromise<void>();
-		const resume = new DeferredPromise<void>();
-		const createDetachedTerminal = instantiationService.get(ITerminalService).createDetachedTerminal;
-		sinon.stub(instantiationService.get(ITerminalService), 'createDetachedTerminal').callsFake(async options => {
-			await attached.complete();
-			await resume.p;
-			return createDetachedTerminal(options);
-		});
-		const section = createSection({ text: 'output' });
-		const toggle = section.toggle(true);
-		await attached.p;
-		section.dispose();
-		await resume.complete();
-		await toggle;
-		assert.deepStrictEqual({
-			expanded: section.isExpanded,
-			height: boxHeight(section),
-		}, { expanded: false, height: '' });
-	});
-
-	test('accessible output strips ANSI without inventing a command', () => {
-		const section = createSection({ text: '\x1b[31mBuild output\x1b[0m\n' });
-		assert.deepStrictEqual({
-			output: section.getOutputAsText(),
-			commandAndOutput: section.getCommandAndOutputAsText(),
-		}, {
-			output: 'Build output',
-			commandAndOutput: 'Command: echo test\nBuild output',
-		});
-	});
-
 	test('scans output once after resizing and preserves native reflow', async () => {
 		const text = 'x'.repeat(100);
 		const section = createSection({ text });

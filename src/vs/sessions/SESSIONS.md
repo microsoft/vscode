@@ -84,7 +84,7 @@ An `ISession` has a provider-owned resource URI, provider identifier, session ty
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
-Drafts may expose `preparationProgress` with a startup phase, bounded plain-text output, and cancellation. This is transient provider-owned state, not chat history. While the first request is in progress, the view presents the chat progress surface without committing the draft; its composer is retained so failed or canceled preparation preserves the prompt and attachments.
+Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. While the first request is in progress, the view presents the chat progress surface without committing the draft; its composer is retained so failed or canceled preparation preserves the prompt and attachments.
 
 Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
 

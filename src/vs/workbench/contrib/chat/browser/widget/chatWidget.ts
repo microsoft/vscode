@@ -9,7 +9,7 @@ import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
-import { disposableTimeout, Throttler, timeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -17,7 +17,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -38,7 +37,6 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatTerminalToolOutputSection } from './chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
@@ -47,6 +45,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -386,14 +385,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private transcriptProgress: {
 		readonly container: HTMLElement;
 		readonly status: HTMLElement;
-		readonly content: HTMLElement;
-		readonly controls: HTMLElement;
-		readonly output: HTMLElement;
-		readonly outputSection: MutableDisposable<ChatTerminalToolOutputSection>;
-		readonly outputUpdate: MutableDisposable<Throttler>;
-		outputText: string;
-		message?: string;
-		complete?: boolean;
+		readonly detail: HTMLElement;
+		readonly part: ChatProgressSubPart;
 		onCancel?: () => void;
 	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
@@ -1520,106 +1513,43 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
-	/** Updates the phase message and optional caller-bounded plain-text output without resetting output interaction state. */
-	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly output?: string; readonly onCancel?: () => void }): void {
+	setTranscriptProgress(message: string | undefined, ariaLabel = message, options?: { readonly complete?: boolean; readonly detail?: { readonly label: string; readonly run: () => void }; readonly onCancel?: () => void }): void {
 		if (!this.transcriptProgress) {
 			const container = dom.append(this.listContainer, $('.chat-transcript-progress'));
 			container.hidden = true;
-			const status = dom.append(container, $('.interactive-item-container'));
-			status.setAttribute('role', 'status');
-			status.setAttribute('aria-live', 'polite');
-			const content = dom.append(status, $('div'));
-			content.setAttribute('aria-hidden', 'true');
-			const controls = dom.append(container, $('.interactive-item-container.chat-transcript-progress-controls'));
-			const output = dom.append(controls, $('.chat-transcript-progress-output'));
-			const outputSection = this._register(new MutableDisposable<ChatTerminalToolOutputSection>());
-			const outputUpdate = this._register(new MutableDisposable<Throttler>());
-			const outputContext = this._register(this.contextKeyService.createScoped(output));
-			ChatContextKeys.inChatTerminalToolOutput.bindTo(outputContext).set(true);
-			this.transcriptProgress = { container, status, content, controls, output, outputSection, outputUpdate, outputText: '' };
+			const row = dom.append(container, $('.interactive-item-container'));
+			const status = $('div', { role: 'status', 'aria-live': 'polite' });
+			const part = this._register(this.instantiationService.createInstance(ChatProgressSubPart, status, Codicon.check, undefined));
+			part.iconElement.setAttribute('aria-hidden', 'true');
+			const detail = dom.append(part.domNode, $('span'));
+			dom.append(row, part.domNode);
+			this.transcriptProgress = { container, status, detail, part };
 		}
-		const progress = this.transcriptProgress;
-		if (message !== progress.message || options?.complete !== progress.complete) {
-			this.transcriptProgressPart.clear();
-			dom.clearNode(progress.content);
-			if (message) {
-				const store = new DisposableStore();
-				const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-				const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
-				const progressPart = store.add(this.instantiationService.createInstance(ChatProgressSubPart, renderedMessage.element, Codicon.check, undefined));
-				progressPart.domNode.classList.toggle('shimmer-progress', options?.complete !== true);
-				progressPart.domNode.classList.toggle('show-checkmarks', options?.complete === true);
-				dom.append(progress.content, progressPart.domNode);
-				this.transcriptProgressPart.value = store;
+		this.transcriptProgressPart.clear();
+		dom.clearNode(this.transcriptProgress.status);
+		dom.clearNode(this.transcriptProgress.detail);
+		if (message) {
+			const store = new DisposableStore();
+			this.transcriptProgressPart.value = store;
+			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
+			renderedMessage.element.classList.add('progress-step');
+			renderedMessage.element.setAttribute('aria-hidden', 'true');
+			if (options?.detail) {
+				store.add(this.instantiationService.createInstance(Link, this.transcriptProgress.detail, { label: options.detail.label, href: '#' }, { opener: options.detail.run }));
 			}
-			progress.message = message;
-			progress.complete = options?.complete;
+			dom.append(this.transcriptProgress.status, renderedMessage.element);
 		}
-		if (progress.status.getAttribute('aria-label') !== (ariaLabel ?? '')) {
-			progress.status.setAttribute('aria-label', ariaLabel ?? '');
-		}
-		progress.container.hidden = message === undefined;
-		progress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
+		this.transcriptProgress.part.domNode.classList.toggle('shimmer-progress', options?.complete !== true);
+		this.transcriptProgress.part.domNode.classList.toggle('show-checkmarks', options?.complete === true);
+		this.transcriptProgress.detail.hidden = !message || !options?.detail;
+		this.transcriptProgress.status.setAttribute('aria-label', ariaLabel ?? '');
+		this.transcriptProgress.container.hidden = message === undefined;
+		this.transcriptProgress.onCancel = message === undefined || options?.complete ? undefined : options?.onCancel;
 		this.transcriptProgressActiveContext.set(this.isTranscriptProgressActive);
-		progress.output.hidden = message === undefined || !options?.output;
-		progress.controls.hidden = progress.output.hidden;
-		progress.outputText = message === undefined ? '' : options?.output ?? '';
-		if (progress.output.hidden) {
-			progress.outputUpdate.clear();
-			progress.outputSection.clear();
-			dom.clearNode(progress.output);
-		} else {
-			if (!progress.outputSection.value) {
-				progress.outputUpdate.value = new Throttler();
-				progress.outputSection.value = this.instantiationService.createInstance(
-					ChatTerminalToolOutputSection,
-					async () => undefined,
-					() => undefined,
-					() => undefined,
-					() => ({ text: progress.outputText }),
-					() => localize('chat.transcriptProgress.outputLabel', "Progress output"),
-					() => undefined,
-					() => progress.complete !== true,
-					false,
-				);
-				dom.append(progress.output, progress.outputSection.value.domNode);
-			}
-			const section = progress.outputSection.value;
-			void progress.outputUpdate.value!.queue(async () => {
-				if (!this._store.isDisposed && progress.outputSection.value === section) {
-					await section.toggle(true);
-				}
-			}).catch(onUnexpectedError);
-		}
 		this.transcriptProgressActive = message !== undefined;
 		this.container.classList.toggle('chat-transcript-progress-active', message !== undefined);
 		this.updateChatViewVisibility();
-	}
-
-	focusTranscriptProgress(): boolean {
-		const progress = this.transcriptProgress;
-		if (!progress || progress.container.hidden) {
-			return false;
-		}
-		if (!progress.output.hidden) {
-			const section = progress.outputSection.value;
-			section?.focus();
-			if (section && !section.isExpanded) {
-				const activeElement = dom.getActiveElement();
-				void (async () => {
-					await progress.outputUpdate.value?.queue(async () => {
-						if (progress.outputSection.value === section) {
-							await section.toggle(true);
-						}
-					});
-					if (progress.outputSection.value === section && dom.getActiveElement() === activeElement) {
-						section.focus();
-					}
-				})().catch(onUnexpectedError);
-			}
-			return true;
-		}
-		return false;
 	}
 
 	get isTranscriptProgressActive(): boolean {
@@ -1633,18 +1563,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		onCancel();
 		return true;
-	}
-
-	getTranscriptProgressOutput(): { provideContent: () => string; focus: () => void } | undefined {
-		const progress = this.transcriptProgress;
-		const section = progress?.outputSection.value;
-		if (!progress || progress.container.hidden || !section?.domNode.contains(dom.getActiveElement())) {
-			return undefined;
-		}
-		return {
-			provideContent: () => `${progress.message}\n${section.getOutputAsText()}`,
-			focus: () => section.focus(),
-		};
 	}
 
 	setTranscriptContext(context: IChatRequestTranscriptContextVariableEntry | undefined): void {

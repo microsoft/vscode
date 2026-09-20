@@ -1384,9 +1384,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
-		if (this._store.isDisposed) {
-			return false;
-		}
 		const currentlyExpanded = this.isExpanded;
 		if (expanded === currentlyExpanded) {
 			if (expanded) {
@@ -1406,15 +1403,9 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 		await this._updateTerminalContent();
 
-		if (this._store.isDisposed) {
-			return false;
-		}
 		// Only now show the expanded state (after content is ready)
 		this._setExpanded(true);
 		const result = await this._layoutMirrorWidth();
-		if (this._store.isDisposed) {
-			return false;
-		}
 		this._layoutOutput(result?.lineCount);
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
@@ -1461,34 +1452,29 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			return undefined;
 		}
 		const commandHeader = localize('chatTerminalOutputAccessibleViewHeader', 'Command: {0}', commandText);
-		return `${commandHeader}\n${this.getOutputAsText()}`;
-	}
-
-	public getOutputAsText(): string {
-		const command = this._resolveCommand();
 		if (command) {
 			const rawOutput = command.getOutput();
 			if (!rawOutput || rawOutput.trim().length === 0) {
-				return localize('chat.terminalOutputEmpty', 'No output was produced by the command.');
+				return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
 			}
 			const lines = rawOutput.split('\n');
-			return lines.join('\n').trimEnd();
+			return `${commandHeader}\n${lines.join('\n').trimEnd()}`;
 		}
 
 		const source = this._getOutputSource();
 		const snapshot = source ? { text: source.output } : this._getTerminalCommandOutput();
 		if (!snapshot) {
-			return localize('chatTerminalOutputUnavailable', 'Command output is no longer available.');
+			return `${commandHeader}\n${localize('chatTerminalOutputUnavailable', 'Command output is no longer available.')}`;
 		}
 		const plain = removeAnsiEscapeCodes((snapshot.text ?? ''));
 		if (!plain.trim().length) {
-			return localize('chat.terminalOutputEmpty', 'No output was produced by the command.');
+			return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
 		}
 		let outputText = plain.trimEnd();
 		if (snapshot.truncated) {
 			outputText += `\n${localize('chatTerminalOutputTruncated', 'Output truncated.')}`;
 		}
-		return outputText;
+		return `${commandHeader}\n${outputText}`;
 	}
 
 	private _setExpanded(expanded: boolean): void {
@@ -1546,9 +1532,6 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		const liveTerminalInstance = await this._resolveLiveTerminal();
-		if (this._store.isDisposed) {
-			return;
-		}
 		const command = liveTerminalInstance ? this._resolveCommand() : undefined;
 		const snapshot = this._getTerminalCommandOutput();
 
@@ -1654,15 +1637,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			this._snapshotMirror.setOutput(snapshot);
 			await this._layoutMirrorWidth(this._snapshotMirror);
 			const result = await this._snapshotMirror.render();
-			if (this._store.isDisposed) {
-				return;
-			}
-			const wasAtBottom = this._isAtBottom;
 			this._layoutOutput(result?.lineCount ?? snapshot.lineCount ?? this._lastRenderedLineCount ?? 0);
-			if (wasAtBottom) {
-				this._isAtBottom = true;
-				this._scrollOutputToBottom();
-			}
 			return;
 		}
 		if (this._store.isDisposed) {
@@ -1672,15 +1647,9 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
 		this._register(this._snapshotMirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
 		await this._snapshotMirror.attach(this._terminalContainer);
-		if (this._store.isDisposed) {
-			return;
-		}
 		this._snapshotMirror.setOutput(snapshot);
 		await this._layoutMirrorWidth(this._snapshotMirror);
 		const result = await this._snapshotMirror.render();
-		if (this._store.isDisposed) {
-			return;
-		}
 		const hasText = !!snapshot.text && snapshot.text.length > 0;
 		if (hasText) {
 			this._hideEmptyMessage();

@@ -15,7 +15,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { isClientTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -213,8 +212,8 @@ suite('Dev Container Agent Host Connector', () => {
 			const disconnected: string[] = [];
 			const outputs = store.add(new Emitter<{ connectionId: string; data: string }>());
 			const output: string[] = [];
-			const progressOutput: string[] = [];
-			const phases: string[] = [];
+			const writtenChannels: string[] = [];
+			const shownChannels: string[] = [];
 			let dockerChecks = 0;
 			let dockerAvailable = true;
 			let supported = true;
@@ -229,8 +228,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
-					outputs.fire({ connectionId: config.connectionId, data: `remote container output ${configs.length}` });
-					outputs.fire({ connectionId: 'unrelated', data: 'unrelated output' });
+					outputs.fire({ connectionId: config.connectionId, data: 'remote container output' });
 					return { connectionId: config.connectionId, address: 'devcontainer:container', name: config.name, remoteWorkspaceFolder: '/workspaces/project' };
 				}
 				override async disconnect(id: string): Promise<void> {
@@ -256,10 +254,14 @@ suite('Dev Container Agent Host Connector', () => {
 				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true }),
 				new class extends mock<IEnvironmentService>() { }(),
 				new class extends mock<IOutputService>() {
-					override getChannel(): IOutputChannel {
+					override getChannel(id: string): IOutputChannel {
+						writtenChannels.push(id);
 						return new class extends mock<IOutputChannel>() {
 							override append(value: string): void { output.push(value); }
 						}();
+					}
+					override async showChannel(id: string): Promise<void> {
+						shownChannels.push(id);
 					}
 				}(),
 				new class extends mock<IFileService>() {
@@ -281,48 +283,24 @@ suite('Dev Container Agent Host Connector', () => {
 			dockerAvailable = false;
 			const withoutDocker = await connector.isAvailable(workspaceUri);
 			dockerAvailable = true;
-			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None, {
-				report: update => {
-					if (update.output) {
-						progressOutput.push(update.output);
-					}
-					if (update.message) {
-						phases.push(update.message);
-					}
-				},
-			});
-			if (target.transportDisposable) {
-				store.add(target.transportDisposable);
-			}
-			outputs.fire({ connectionId: configs[0].connectionId, data: 'after startup' });
-			const firstTransport = store.add(target.transportFactory());
-			assert.ok(isClientTransport(firstTransport));
-			await firstTransport.connect();
-			firstTransport.dispose();
-			const reconnectedTransport = store.add(target.transportFactory());
-			assert.ok(isClientTransport(reconnectedTransport));
-			await reconnectedTransport.connect();
-			outputs.fire({ connectionId: configs[0].connectionId, data: 'stale connection' });
-			outputs.fire({ connectionId: configs[1].connectionId, data: 'after reconnect' });
-			reconnectedTransport.dispose();
+			await connector.showLog(workspaceUri);
+			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None);
+			await connector.showLog(workspaceUri);
+			assert.deepStrictEqual(shownChannels, [writtenChannels[0], writtenChannels[0]]);
 			target.transportDisposable?.dispose();
 			await Promise.resolve();
 			assert.deepStrictEqual({
 				available, oldHostAvailable, withoutDocker, dockerChecks,
 				workspaces: configs.map(config => config.workspaceFolder),
-				output: output.filter(value => value.startsWith('remote container output')),
-				progressOutput,
-				phases,
+				output: output.filter(value => value === 'remote container output'),
 				workspace: target.workspaceUri,
 				disconnected: disconnected.length,
 			}, {
 				available: true, oldHostAvailable: false, withoutDocker: false, dockerChecks: 2,
-				workspaces: ['/remote/project', '/remote/project'],
-				output: ['remote container output 1', 'remote container output 2'],
-				progressOutput: ['remote container output 1', 'remote container output 2'],
-				phases: ['Reconnecting to Dev Container...'],
+				workspaces: ['/remote/project'],
+				output: ['remote container output'],
 				workspace: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority('devcontainer:test'), path: '/workspaces/project' }),
-				disconnected: 2,
+				disconnected: 1,
 			});
 		});
 	}

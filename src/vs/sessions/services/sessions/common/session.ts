@@ -120,7 +120,7 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 /** Provider-owned progress while preparing a draft for its first request. */
 export interface ISessionPreparationProgress {
 	readonly message: string;
-	readonly output: string;
+	readonly showLog?: () => void;
 	cancel(): void;
 }
 
