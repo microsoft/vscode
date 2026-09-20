@@ -743,8 +743,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	protected _getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 		const spawnEnvironment: NodeJS.ProcessEnv = { ...environment, ELECTRON_RUN_AS_NODE: '1' };
-		delete spawnEnvironment['NODE_OPTIONS'];
-		delete spawnEnvironment['VSCODE_INSPECTOR_OPTIONS'];
+		delete spawnEnvironment.NODE_OPTIONS;
+		delete spawnEnvironment.VSCODE_INSPECTOR_OPTIONS;
 		return spawnEnvironment;
 	}
 
