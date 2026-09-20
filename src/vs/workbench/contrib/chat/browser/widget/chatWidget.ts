@@ -44,6 +44,7 @@ import { ITextResourceEditorInput } from '../../../../../platform/editor/common/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
@@ -584,6 +585,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatPasteTargetService private readonly chatPasteTargetService: IChatPasteTargetService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService chatEditingService: IChatEditingService,
@@ -3240,6 +3242,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
+	private _validateRequestEdit(): boolean {
+		const editing = this.viewModel?.editing;
+		if (!editing || editing.pendingKind === undefined) {
+			return true;
+		}
+		if (this.viewModel?.model.getPendingRequests().some(pending => pending.request.id === editing.id && pending.kind === ChatRequestQueueKind.Queued)) {
+			return true;
+		}
+
+		this.notificationService.warn(localize('chat.editRequest.noLongerQueued', "This message is no longer queued and cannot be edited. Your edits have been kept in the input."));
+		return false;
+	}
+
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
@@ -3255,7 +3270,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			await Event.toPromise(this.onDidChangeViewModel, this._store);
 		}
 
-		if (!this.viewModel) {
+		if (!this.viewModel || !this._validateRequestEdit()) {
 			return;
 		}
 
@@ -3318,6 +3333,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
 		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+			return;
+		}
+		if (!this._validateRequestEdit()) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
