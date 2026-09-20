@@ -11,6 +11,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -19,7 +20,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { AllowedMcpServersService } from '../../../../../platform/mcp/common/allowedMcpServersService.js';
-import { IAllowedMcpServersService, mcpAllowedServersConfig, mcpAutoStartConfig, McpAutoStartValue, mcpDeniedServersConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, mcpAccessConfig, McpAccessValue, mcpAllowedServersConfig, mcpAutoStartConfig, McpAutoStartValue, mcpDeniedServersConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -27,6 +28,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
@@ -49,7 +51,7 @@ suite('Workbench - MCP - McpService', () => {
 			[IWorkbenchEnvironmentService, {}],
 			[ITelemetryService, NullTelemetryService],
 			[IProductService, TestProductService],
-			[IAllowedMcpServersService, allowedMcpServersService ?? { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true }],
+			[IAllowedMcpServersService, allowedMcpServersService ?? { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true }],
 		);
 
 		const parentInstantiationService = store.add(new TestInstantiationService(services));
@@ -69,7 +71,7 @@ suite('Workbench - MCP - McpService', () => {
 	};
 
 	suite('URL policy resolution', () => {
-		const createPolicyServer = (definitionUrl: string, resolvedUrl = definitionUrl) => {
+		const createPolicyServer = (definitionUrl: string, resolvedUrl = definitionUrl, requiresActivation = false) => {
 			const configurationService = new TestConfigurationService({
 				[mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }],
 				[mcpDeniedServersConfig]: [{ serverUrl: 'https://blocked.example/*' }],
@@ -83,6 +85,15 @@ suite('Workbench - MCP - McpService', () => {
 				cacheNonce: 'a',
 			};
 			setServerDefinition(registry, definition);
+			const activation = { done: true, calls: 0 };
+			if (requiresActivation) {
+				const collection = registry.collections.get()[0];
+				registry.collections.set([{ ...collection, lazy: { isCached: true, load: async () => { } } }], undefined);
+				instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+					override activationEventIsDone(): boolean { return activation.done; }
+					override async activateByEvent(): Promise<void> { activation.calls++; activation.done = true; }
+				});
+			}
 
 			const inputChanges = store.add(new Emitter<void>());
 			registry.onDidChangeInputs = inputChanges.event;
@@ -117,7 +128,7 @@ suite('Workbench - MCP - McpService', () => {
 				return transport;
 			};
 			mcpService.updateCollectedServers();
-			return { server: mcpService.servers.get()[0], configurationService, resolution, resolutionResult, transports, registry, mcpService, definition, inputChanges };
+			return { server: mcpService.servers.get()[0], configurationService, resolution, resolutionResult, transports, registry, mcpService, definition, inputChanges, activation };
 		};
 
 		const setDeniedUrls = async (configurationService: TestConfigurationService, urls: string[]) => {
@@ -313,6 +324,51 @@ suite('Workbench - MCP - McpService', () => {
 				transports: 1,
 			});
 		});
+
+		for (const variable of ['${input:host}', '${command:resolveHost}']) {
+			for (const retained of [false, true]) {
+				for (const [reason, key, value] of [
+					['disabled access', mcpAccessConfig, McpAccessValue.None],
+					['denied name', mcpDeniedServersConfig, [{ serverName: 'Test Server' }]],
+					['unlisted name', mcpAllowedServersConfig, [{ serverName: 'Another Server' }]],
+				] as const) {
+					test(`${reason} prevents startup side effects for ${variable} with retained identity ${retained}`, async () => {
+						const { server, configurationService, resolution, resolutionResult, transports, activation } = createPolicyServer(`https://${variable}/mcp`, 'https://blocked.example/mcp', true);
+						if (retained) {
+							await server.start({ promptType: 'never', errorOnUserInteraction: true });
+						}
+						await configurationService.setUserConfiguration(key, value);
+						configurationService.onDidChangeConfigurationEmitter.fire({
+							source: ConfigurationTarget.USER,
+							affectedKeys: new Set([key]),
+							change: { keys: [key], overrides: [] },
+							affectsConfiguration: candidate => candidate === key,
+						});
+						activation.done = false;
+						const resolveInputs = sinon.stub().resolves();
+						resolutionResult.beforeResolve = resolveInputs;
+						const result = await server.start({ promptType: 'all-untrusted' });
+						assert.deepStrictEqual({
+							state: result.state,
+							activations: activation.calls,
+							resolutions: resolution.callCount,
+							inputResolutions: resolveInputs.callCount,
+							transports: transports.length,
+							tools: server.tools.get().length,
+							prompts: server.prompts.get().length,
+						}, {
+							state: McpConnectionState.Kind.Error,
+							activations: 0,
+							resolutions: retained ? 1 : 0,
+							inputResolutions: 0,
+							transports: 0,
+							tools: 0,
+							prompts: 0,
+						});
+					});
+				}
+			}
+		}
 
 		for (const transportType of [McpServerTransportType.HTTP, McpServerTransportType.Stdio]) {
 			test(`discovery handles repeated incomplete markers without URL rules for transport ${transportType}`, () => {

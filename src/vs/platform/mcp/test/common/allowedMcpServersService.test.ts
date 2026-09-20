@@ -187,6 +187,41 @@ suite('AllowedMcpServersService', () => {
 		assert.notStrictEqual(service.isAllowed(blocked), true);
 	});
 
+	test('preliminary command checks defer variable-dependent rules but not access or names', () => {
+		const server: IInstallableMcpServer = {
+			name: 'server',
+			config: { type: McpServerType.LOCAL, command: 'node', args: ['${input:script}'] },
+		};
+		const allowedByCommand = createService({ [mcpAllowedServersConfig]: [{ serverCommand: ['node', 'allowed.js'] }] });
+		const deniedByCommand = createService({ [mcpDeniedServersConfig]: [{ serverCommand: ['node', 'blocked.js'] }] });
+		const deniedByName = createService({
+			[mcpAllowedServersConfig]: [{ serverCommand: ['node', 'allowed.js'] }],
+			[mcpDeniedServersConfig]: [{ serverName: server.name }],
+		});
+		const otherName = createService({ [mcpAllowedServersConfig]: [{ serverName: 'other' }] });
+		const onlyUrl = createService({ [mcpAllowedServersConfig]: [{ serverUrl: 'https://trusted.example/mcp' }] });
+		const disabled = createService({ [mcpAccessConfig]: McpAccessValue.None });
+		assert.deepStrictEqual({
+			allowedByCommand: allowedByCommand.isAllowed(server) === true,
+			deniedByCommand: deniedByCommand.isAllowed(server) === true,
+			deniedByName: deniedByName.isAllowed(server) === true,
+			otherName: otherName.isAllowed(server) === true,
+			onlyUrl: onlyUrl.isAllowed(server) === true,
+			disabled: disabled.isAllowed(server) === true,
+			incompleteLiteral: allowedByCommand.isAllowed({ name: 'server', config: { type: McpServerType.LOCAL, command: 'node', args: ['${'] } }) === true,
+			resolvedDenied: deniedByCommand.isServerAllowed({ name: 'server', command: ['node', 'blocked.js'] }) === true,
+		}, {
+			allowedByCommand: true,
+			deniedByCommand: true,
+			deniedByName: false,
+			otherName: false,
+			onlyUrl: false,
+			disabled: false,
+			incompleteLiteral: false,
+			resolvedDenied: false,
+		});
+	});
+
 	test('isAllowed matches an installable remote server by its URL', () => {
 		const service = createService({ [mcpAllowedServersConfig]: [{ serverUrl: 'https://mcp.example.com/*' }] });
 

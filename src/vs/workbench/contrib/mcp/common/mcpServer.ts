@@ -542,22 +542,11 @@ export class McpServer extends Disposable implements IMcpServer {
 			if (resolved && definition && McpServerDefinition.equals(resolved.definition, definition)) {
 				return this._evaluatePolicy(resolved.identity);
 			}
-			// At rest, only decide when we have a concrete, fully-resolved launch. If the definition
-			// has not been provided yet (e.g. a lazy/extension server before activation) or the launch
-			// still contains unresolved `${...}` variables (inputs, workspace or env vars), a
-			// URL/command allow/deny rule cannot be matched reliably, so defer the decision to start()
-			// — which re-checks the fully resolved launch — to avoid over-eagerly blocking (and hiding
-			// the cached tools of) a server that will actually be allowed once resolved. `chat.mcp.access`
-			// and deny-by-name are still enforced at start(), and access also by the enablement layer.
 			const launch = definition?.launch;
 			if (!launch) {
 				return undefined;
 			}
-			const identity = this._identityFromLaunch(launch);
-			if (McpServer._hasUnresolvedVariables(identity)) {
-				return undefined;
-			}
-			return this._evaluatePolicy(identity);
+			return this._evaluatePolicy(this._identityFromLaunch(launch), 'definition');
 		});
 
 		this._register(autorun(reader => {
@@ -739,8 +728,10 @@ export class McpServer extends Disposable implements IMcpServer {
 		return { name: this.definition.label };
 	}
 
-	private _evaluatePolicy(identity: IMcpServerIdentity): McpConnectionState.Error | undefined {
-		const allowed = this._allowedMcpServersService.isServerAllowed(identity);
+	private _evaluatePolicy(identity: IMcpServerIdentity, phase: 'definition' | 'resolved' = 'resolved'): McpConnectionState.Error | undefined {
+		const allowed = phase === 'definition'
+			? this._allowedMcpServersService.isServerAllowedBeforeResolution(identity)
+			: this._allowedMcpServersService.isServerAllowed(identity);
 		return allowed === true ? undefined : { state: McpConnectionState.Kind.Error, message: allowed.value };
 	}
 
@@ -757,8 +748,9 @@ export class McpServer extends Disposable implements IMcpServer {
 			const preStartBlock = this._policyBlock.get();
 			if (preStartBlock) {
 				const definition = this._fullDefinitions.get().server;
+				const identity = definition && this._identityFromLaunch(definition.launch);
 				const canResolveAgain = !errorOnUserInteraction && this._resolvedPolicyIdentity.get()
-					&& definition && McpServer._hasUnresolvedVariables(this._identityFromLaunch(definition.launch));
+					&& identity && McpServer._hasUnresolvedVariables(identity) && !this._evaluatePolicy(identity, 'definition');
 				// Keep cached metadata blocked while an interactive retry resolves the current inputs.
 				if (!canResolveAgain) {
 					return preStartBlock;

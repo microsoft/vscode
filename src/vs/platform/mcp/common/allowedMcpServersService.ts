@@ -34,7 +34,11 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	}
 
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
-		return this.checkServerAllowed(this.toIdentity(mcpServer), 'definition');
+		return this.isServerAllowedBeforeResolution(this.toIdentity(mcpServer));
+	}
+
+	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString {
+		return this.checkServerAllowed(identity, 'definition');
 	}
 
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString {
@@ -68,26 +72,26 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	}
 
 	private checkServerAllowedBeforeResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
-		if (!identity.url || !hasConfigurationVariable(identity.url)) {
+		const unresolvedUrl = identity.url !== undefined && hasConfigurationVariable(identity.url);
+		const unresolvedCommand = identity.command?.some(hasConfigurationVariable) ?? false;
+		if (!unresolvedUrl && !unresolvedCommand) {
 			return checkMcpServerAllowed(allowlist, denylist, identity);
 		}
 
-		const nonUrlIdentity = { name: identity.name };
-		const nonUrlDenylist = denylist?.filter(matcher => !isString(matcher.serverUrl));
-		if (checkMcpServerAllowed(undefined, nonUrlDenylist, nonUrlIdentity) === McpServerAllowResult.Denied) {
+		const knownIdentity: IMcpServerIdentity = {
+			name: identity.name,
+			url: unresolvedUrl ? undefined : identity.url,
+			command: unresolvedCommand ? undefined : identity.command,
+		};
+		if (checkMcpServerAllowed(undefined, denylist, knownIdentity) === McpServerAllowResult.Denied) {
 			return McpServerAllowResult.Denied;
 		}
-		if (allowlist === undefined) {
+		if (allowlist === undefined || checkMcpServerAllowed(allowlist, undefined, knownIdentity) === McpServerAllowResult.Allowed) {
 			return McpServerAllowResult.Allowed;
 		}
 
-		const nonUrlAllowlist = allowlist.filter(matcher => !isString(matcher.serverUrl));
-		if (checkMcpServerAllowed(nonUrlAllowlist, undefined, nonUrlIdentity) === McpServerAllowResult.Allowed) {
-			return McpServerAllowResult.Allowed;
-		}
-
-		// URL matchers are authoritative only after runtime variable resolution.
-		return allowlist.some(matcher => isString(matcher.serverUrl))
+		return allowlist.some(matcher =>
+			(unresolvedUrl && isString(matcher.serverUrl)) || (unresolvedCommand && Array.isArray(matcher.serverCommand)))
 			? McpServerAllowResult.Allowed
 			: McpServerAllowResult.NotAllowed;
 	}
