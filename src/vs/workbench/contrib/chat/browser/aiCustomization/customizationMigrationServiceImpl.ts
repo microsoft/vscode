@@ -14,6 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -40,9 +41,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 	) {
 		super();
-		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService);
+		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService);
 		this._register(autorun(reader => {
 			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			this.updateActiveContext(sessionResource);

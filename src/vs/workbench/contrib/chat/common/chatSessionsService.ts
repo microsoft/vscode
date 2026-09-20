@@ -94,6 +94,7 @@ export interface IChatSessionProviderOptionModelMetadata {
 	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
+	readonly maxContextWindowTokens?: number;
 	readonly capabilities?: {
 		readonly vision?: boolean;
 		readonly toolCalling?: boolean;

@@ -2001,12 +2001,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// so a stale status can never fire after the invocation has ended.
 			preparingStatus.dispose();
 			const timing = firstResponse.finish({
-				requestId: request.requestId, provider: this._config.provider, sessionId, chatId,
+				requestId: request.requestId, provider: this._config.provider, agentSessionId: sessionId, chatId,
 				sessionTurnKind, invocationKind, outcome: cancellationToken.isCancellationRequested ? 'cancelled' : outcome,
 				rendererRootInvocationOrdinal, trustInteractionRequired,
 			});
 			this._telemetryService.publicLog2<IAgentHostFirstResponseEvent, AgentHostFirstResponseClassification>('agentHost.firstResponse', timing);
-			this._logService.info(`[AgentHostFirstResponse] ${JSON.stringify({ ...timing, turnId: request.requestId })}`);
+			this._logService.info(`[AgentHostFirstResponse] ${JSON.stringify({ ...timing, sessionId, turnId: request.requestId })}`);
 		}
 	}
 

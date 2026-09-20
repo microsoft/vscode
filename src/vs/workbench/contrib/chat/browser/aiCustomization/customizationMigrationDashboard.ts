@@ -83,6 +83,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	private readonly expandedActivity = new Set<string>();
 	private readonly activityDetails = new Map<string, HTMLDetailsElement>();
 	private pendingFocus: string | typeof focusPreferredTarget | undefined;
+	private allMigrationsComplete = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -94,6 +95,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	showLoading(title: string, description: string, retry?: () => void): void {
+		this.allMigrationsComplete = false;
 		this.pendingFocus ??= this.getFocusedKey();
 		this.prepareRender();
 		const page = this.renderHeader(title, description);
@@ -107,10 +109,11 @@ export class CustomizationMigrationDashboard extends Disposable {
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
 		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
 		this.pendingFocus = undefined;
+		this.allMigrationsComplete = overview.scopes.every(scope => scope.count === 0);
 		this.prepareRender();
 		const page = this.renderHeader(
 			localize('migrationsTitle', "Migrations"),
-			overview.scopes.every(scope => scope.count === 0)
+			this.allMigrationsComplete
 				? localize('migrationsCompletedDescription', "Your file migrations are complete. See the checklist below for the status of each location.")
 				: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 		);
@@ -143,6 +146,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 			this.renderActivity(page, overview.activity);
 		}
 		this.callbacks.onDidChangeContent?.();
+		if (this.allMigrationsComplete) {
+			return;
+		}
 		if (focusedKey === focusPreferredTarget) {
 			this.focus();
 		} else if (focusedKey) {
@@ -151,6 +157,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	focus(): void {
+		if (this.allMigrationsComplete) {
+			return;
+		}
 		const reviewAction = [...this.focusTargets].find(([key]) => key.startsWith('review:'))?.[1];
 		const firstAction = [...this.focusTargets.values()].find(element => element.getAttribute('role') === 'button');
 		const preferredTarget = reviewAction ?? firstAction ?? this.focusTargets.get('checklist');
