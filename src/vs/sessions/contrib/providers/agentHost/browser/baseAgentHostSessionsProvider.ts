@@ -210,6 +210,7 @@ interface ISerializedSessionMetadata {
 		readonly summary?: string;
 		readonly kind: 'default' | 'peer';
 		readonly origin?: ChatOrigin;
+		readonly interactivity?: ProtocolChatInteractivity;
 	}[];
 	readonly github?: ISessionGitHubState;
 	/**
@@ -247,6 +248,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 			summary: chat.summary,
 			kind: chat.kind,
 			origin: chat.origin,
+			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		})),
 		github: readSessionGitHubState(meta._meta),
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
@@ -283,6 +285,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 				summary: chat.summary,
 				kind: chat.kind,
 				origin: chat.origin,
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			})),
 			...(_meta ? { _meta } : {}),
 		};
@@ -297,6 +300,7 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 		summary: chat.title,
 		kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 		origin: chat.origin,
+		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 	}));
 }
 
@@ -765,8 +769,9 @@ class AdditionalChat extends Disposable {
 		});
 	}
 
-	updateCatalogMetadata(title: string | undefined, tx?: ITransaction): void {
+	updateCatalogMetadata(title: string | undefined, interactivity: ProtocolChatInteractivity | undefined, tx?: ITransaction): void {
 		this._title.set(title || localize('newChatTab', "New Chat"), tx);
+		this._interactivity.set(toChatInteractivity(interactivity), tx);
 	}
 
 	/** Optimistically update the chat title ahead of the host's `chatUpdated`. */
@@ -1269,6 +1274,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		const defaultChat = chats.find(chat => chat.kind === 'default');
 		this._defaultChatTitleOverride.set(defaultChat?.summary || undefined, tx);
+		this._defaultChatInteractivity.set(toChatInteractivity(defaultChat?.interactivity), tx);
 
 		const peerIds = chats
 			.filter(chat => chat.kind === 'peer')
@@ -1300,10 +1306,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					status: ProtocolSessionStatus.Idle,
 					modifiedAt: this.updatedAt.get().toISOString(),
 					origin: chat.origin,
+					interactivity: chat.interactivity,
 				});
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.updateCatalogMetadata(chat.summary, tx);
+				entry.updateCatalogMetadata(chat.summary, chat.interactivity, tx);
 			}
 			ordered.push(entry.chat);
 		}

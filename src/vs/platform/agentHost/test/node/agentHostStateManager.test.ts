@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -1999,6 +1999,23 @@ suite('AgentHostStateManager', () => {
 					},
 				);
 			});
+		});
+
+		test('session summaries preserve chat interactivity', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, {
+				title: 'Hidden peer',
+				interactivity: ChatInteractivity.Hidden,
+			});
+
+			assert.deepStrictEqual(manager.getSessionSummary(sessionUri)?.chats?.map(chat => ({
+				resource: chat.resource,
+				title: chat.title,
+				interactivity: chat.interactivity,
+			})), [
+				{ resource: sessionChatUri, title: 'Test', interactivity: undefined },
+				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden },
+			]);
 		});
 
 		test('SessionSummaryNotifier provides the previous summary to internal observers', () => {

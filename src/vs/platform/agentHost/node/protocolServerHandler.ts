@@ -1665,6 +1665,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						resource: chat.chat.toString(),
 						title: chat.summary ?? '',
 						origin: chat.origin,
+						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					})),
 					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind

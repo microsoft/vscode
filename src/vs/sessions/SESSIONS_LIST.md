@@ -107,7 +107,7 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
-Session facades may expose catalog-backed peer-chat identities and titles before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+Session facades may expose catalog-backed peer-chat identities, titles, and interactivity before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
 
 ## Persistence
 

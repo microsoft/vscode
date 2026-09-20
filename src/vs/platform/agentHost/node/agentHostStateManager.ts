@@ -498,6 +498,7 @@ export class AgentHostStateManager extends Disposable {
 					resource: chat.resource,
 					title: chat.title,
 					origin: chat.origin,
+					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				}));
 			this._sessionSummaryChats.set(chats, result);
 		}
@@ -526,7 +527,8 @@ export class AgentHostStateManager extends Disposable {
 			const other = b[index];
 			return chat.resource === other.resource
 				&& chat.title === other.title
-				&& equals(chat.origin, other.origin);
+				&& equals(chat.origin, other.origin)
+				&& chat.interactivity === other.interactivity;
 		});
 	}
 

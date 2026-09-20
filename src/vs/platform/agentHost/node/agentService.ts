@@ -330,6 +330,7 @@ interface ICatalogChat {
 	readonly kind: 'default' | 'peer';
 	readonly title?: string;
 	readonly origin?: ChatOrigin;
+	readonly interactivity?: ChatInteractivity;
 	readonly inheritedTurnId?: string;
 }
 
@@ -1861,6 +1862,7 @@ export class AgentService extends Disposable implements IAgentService {
 			summary: chat.title,
 			kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 			origin: chat.origin,
+			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		}));
 	}
 
@@ -2107,6 +2109,7 @@ export class AgentService extends Disposable implements IAgentService {
 				kind: state.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 				title: chat.title,
 				origin: chat.origin,
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				inheritedTurnId: this._stateManager.getChatInheritedTurnId(chat.resource),
 			}));
 	}
@@ -7273,6 +7276,7 @@ export class AgentService extends Disposable implements IAgentService {
 			kind: chat.kind,
 			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
+			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
 		}));
 	}
@@ -7337,18 +7341,18 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] Skipping malformed persisted peer chat URI '${entry.uri}': ${toErrorMessage(err)}`);
 				return undefined;
 			}
-			const cachedTitle = cachedChats?.find(chat => chat.uri === entry.uri)?.title;
+			const cachedChat = cachedChats?.find(chat => chat.uri === entry.uri);
 			const { title, draft } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
-			}, cachedTitle ? { title: cachedTitle } : {});
-			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, inheritedTurnId: entry.inheritedTurnId };
+			}, cachedChat?.title ? { title: cachedChat.title } : {});
+			return { chatUri, title, draft, providerData: entry.providerData, origin: entry.origin, interactivity: cachedChat?.interactivity, inheritedTurnId: entry.inheritedTurnId };
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin, inheritedTurnId } = item;
+			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -7357,6 +7361,7 @@ export class AgentService extends Disposable implements IAgentService {
 				draft,
 				providerData,
 				origin,
+				interactivity,
 				inheritedTurnId,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});

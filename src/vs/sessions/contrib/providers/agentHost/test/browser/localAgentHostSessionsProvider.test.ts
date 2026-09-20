@@ -5783,7 +5783,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				summary: 'Session',
 				chats: [
 					{ chat: defaultChat, kind: 'default', summary: 'Default' },
-					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer' },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden },
 				],
 			}));
 			const provider = createProvider(disposables, agentHost);
@@ -5795,9 +5795,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const initialPeer = session.chats.get()[1];
 			assert.deepStrictEqual({
 				titles: session.chats.get().map(chat => chat.title.get()),
+				interactivity: session.chats.get().map(chat => chat.interactivity.get()),
 				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
 			}, {
 				titles: ['Default', 'Catalog Peer'],
+				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
 				sessionSubscriptions: 0,
 			});
 
