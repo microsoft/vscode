@@ -6,12 +6,13 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -35,6 +36,10 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+import { shouldAnnounceChatInputRequest } from '../../../../browser/accessibility/chatInputRequestAnnouncement.js';
+import { getToolConfirmationOptionButtons } from '../../../../browser/widget/chatContentParts/toolInvocationParts/abstractToolConfirmationSubPart.js';
+import { ConfirmationOptionKind } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { Separator } from '../../../../../../../base/common/actions.js';
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -277,6 +282,121 @@ suite('ChatToolProgressSubPart', () => {
 			text: '\u2014 Review current branch',
 			label: 'Open Review current branch Chat',
 		});
+	});
+
+	test('projected requests keep source-qualified identities and never offer bulk approval', () => {
+		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => { throw new Error('A source factory is required'); }, []));
+		const workerActive = observableValue('workerActive', true);
+		const scoutActive = observableValue('scoutActive', true);
+		const released: string[] = [];
+		const add = (source: string, isActive: ISettableObservable<boolean>) => disposables.add(carousel.addRequest({
+			id: `${source}\0turn\0same-tool-id\0parameters`,
+			title: 'Run task?',
+			sourceLabel: source,
+			isActive,
+			createContent: () => ({
+				domNode: mainWindow.document.createElement('input'),
+				dispose: () => released.push(source),
+			}),
+		}));
+		add('Worker', workerActive);
+		add('Scout', scoutActive);
+		carousel.allowAll();
+		carousel.activateRequest('Scout\0turn\0same-tool-id\0parameters');
+		const before = {
+			count: carousel.pendingCount,
+			source: carousel.domNode.querySelector('.chat-tool-carousel-source-label')?.textContent,
+			bulk: carousel.domNode.querySelector<HTMLElement>('.chat-tool-carousel-allow-all-button')?.style.display,
+			dismiss: carousel.domNode.querySelector<HTMLElement>('.chat-tool-carousel-dismiss-button')?.style.display,
+		};
+		workerActive.set(false, undefined);
+		assert.deepStrictEqual({
+			before,
+			remaining: carousel.pendingCount,
+			selected: carousel.activeRequestId,
+			released,
+		}, {
+			before: { count: 2, source: '\u2014 Scout', bulk: 'none', dismiss: 'none' },
+			remaining: 1, selected: 'Scout\0turn\0same-tool-id\0parameters', released: ['Worker'],
+		});
+	});
+
+	test('source and projected views announce each request phase only once', () => {
+		const worker = {};
+		const scout = {};
+		assert.deepStrictEqual([
+			shouldAnnounceChatInputRequest(worker, 'parameters'),
+			shouldAnnounceChatInputRequest(worker, 'parameters'),
+			shouldAnnounceChatInputRequest(scout, 'parameters'),
+			shouldAnnounceChatInputRequest(worker, 'result'),
+			shouldAnnounceChatInputRequest(worker, 'result'),
+			shouldAnnounceChatInputRequest({}, 'parameters'),
+		], [true, false, true, true, false, true]);
+	});
+	test('removing a preceding request preserves the active question draft and keyboard focus', () => {
+		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => { throw new Error('Unexpected tool'); }, []));
+		mainWindow.document.body.appendChild(carousel.domNode);
+		disposables.add(toDisposable(() => carousel.domNode.remove()));
+		const firstActive = observableValue('firstActive', true);
+		const secondActive = observableValue('secondActive', true);
+		for (const [id, isActive] of [['worker', firstActive], ['scout', secondActive]] as const) {
+			disposables.add(carousel.addRequest({
+				id, sourceLabel: id, title: 'Question', isActive,
+				createContent: () => ({ domNode: mainWindow.document.createElement('input'), dispose: () => { } }),
+			}));
+		}
+		carousel.activateRequest('scout');
+		const input = carousel.domNode.querySelector('input');
+		assert.ok(input);
+		input.value = 'Unsubmitted answer';
+		input.focus();
+		carousel.updateRequestPresentation('scout', 'Updated question', 'Scout: Validation');
+		firstActive.set(false, undefined);
+		assert.deepStrictEqual({
+			sameInput: carousel.domNode.querySelector('input') === input,
+			draft: input.value,
+			focused: mainWindow.document.activeElement === input,
+			active: carousel.activeRequestId,
+			title: carousel.domNode.querySelector('.chat-tool-carousel-collapsed-title')?.textContent,
+		}, { sameInput: true, draft: 'Unsubmitted answer', focused: true, active: 'scout', title: 'Updated question' });
+	});
+
+	test('standard and terminal confirmations preserve provider option identities and groups', () => {
+		const buttons = getToolConfirmationOptionButtons([
+			{ id: 'once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve, group: 0 },
+			{ id: 'source-session', label: 'Allow for This Chat', kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny, group: 0 },
+		], option => option.id);
+		assert.deepStrictEqual(buttons.map(button => ({
+			id: button.data, secondary: button.isSecondary,
+			more: button.moreActions?.map(action => action instanceof Separator ? 'separator' : action.data),
+		})), [
+			{ id: 'once', secondary: false, more: ['separator', 'source-session'] },
+			{ id: 'deny', secondary: true, more: undefined },
+		]);
+	});
+	test('the standard carousel retains result-review and authentication phases', () => {
+		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => { throw new Error('External part expected'); }, []));
+		const states = [
+			{
+				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
+				confirmed: { type: ToolConfirmKind.UserAction }, contentForModel: [{ kind: 'text', value: 'result' }],
+				parameters: {}, resultDetails: undefined, confirmationMessages: { title: 'Review result' }, confirm: () => { },
+			},
+			{
+				type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				confirmed: { type: ToolConfirmKind.UserAction }, parameters: {},
+				server: { id: 'source/server', name: 'Server', resource: 'https://server.test' }, cancel: () => { },
+			},
+		] satisfies IChatToolInvocation.State[];
+		for (const [index, state] of states.entries()) {
+			const tool = { ...createToolInvocation(), toolCallId: `phase-${index}`, state: observableValue<IChatToolInvocation.State>('phase', state) };
+			carousel.addToolInvocation(tool, undefined, undefined, undefined, undefined, new class extends mock<ChatToolInvocationPart>() {
+				override readonly domNode = mainWindow.document.createElement('div');
+				override addDisposable(disposable: IDisposable) { disposables.add(disposable); }
+			}());
+		}
+		assert.strictEqual(carousel.pendingCount, 2);
 	});
 
 	test('detects MCP tool invocations for live and serialized rows', () => {

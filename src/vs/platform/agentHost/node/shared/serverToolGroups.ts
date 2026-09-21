@@ -8,6 +8,8 @@ import { createSessionServerToolGroup, type ISessionServerToolAccessor } from '.
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
+import { createPersistentTeamServerToolGroup } from './persistentTeamServerTools.js';
+import type { IAgentHostPersistentTeamService } from '../agentHostPersistentTeamService.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -25,12 +27,13 @@ import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from 
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, teams?: IAgentHostPersistentTeamService): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
 		createSessionServerToolGroup(sessionAccessor),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
+		createPersistentTeamServerToolGroup(teams),
 	];
 }
 

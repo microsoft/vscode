@@ -17,7 +17,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import { GetPersistentTeamStateExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResetPersistentTeamMemberExtensionMethod, supportsAgentHostArtifactRemoval } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostPersistentTeamAddress, IAgentHostPersistentTeamReset, IAgentHostPersistentTeamState } from '../../common/agentHostPersistentTeam.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -156,6 +157,8 @@ class MockAgentService implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	readonly persistentTeamCalls: Array<{ operation: string; request: IAgentHostPersistentTeamAddress }> = [];
+	persistentTeamState: IAgentHostPersistentTeamState = { version: 2, leadChat: buildDefaultChatUri('copilotcli:/session-1'), enabled: true, state: 'ready', members: [] };
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -266,6 +269,14 @@ class MockAgentService implements IAgentService {
 	}
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+	}
+	async getPersistentTeamState(session: URI, leadChat: URI): Promise<IAgentHostPersistentTeamState> {
+		this.persistentTeamCalls.push({ operation: 'get', request: { session: session.toString(), leadChat: leadChat.toString() } });
+		return this.persistentTeamState;
+	}
+	async resetPersistentTeamMember(request: IAgentHostPersistentTeamReset): Promise<IAgentHostPersistentTeamState> {
+		this.persistentTeamCalls.push({ operation: 'reset', request });
+		return this.persistentTeamState;
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -988,6 +999,71 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(agentService.removeSessionArtifactCalls, []);
 	});
 
+	test('routes persistent team state and confirmed ordinary-chat reset', async () => {
+		const transport = connectClient('persistent-team');
+		const address = { session: 'copilotcli:/session-1', leadChat: buildDefaultChatUri('copilotcli:/session-1') };
+		const reset: IAgentHostPersistentTeamReset = { ...address, role: 'worker', expectedMemberChat: buildChatUri(address.session, 'worker') };
+		const operations: readonly [string, IAgentHostPersistentTeamAddress][] = [
+			[GetPersistentTeamStateExtensionMethod, address],
+			[ResetPersistentTeamMemberExtensionMethod, reset],
+		];
+		for (const [index, [method, params]] of operations.entries()) {
+			const id = index + 20;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, method, params));
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id, result: agentService.persistentTeamState });
+		}
+		assert.deepStrictEqual(agentService.persistentTeamCalls, [
+			{ operation: 'get', request: address },
+			{ operation: 'reset', request: reset },
+		]);
+	});
+
+	test('rejects malformed, foreign and unbound persistent team addresses before routing', async () => {
+		const transport = connectClient('persistent-team-invalid');
+		const address = { session: 'copilotcli:/session-1', leadChat: buildDefaultChatUri('copilotcli:/session-1'), role: 'worker', expectedMemberChat: buildChatUri('copilotcli:/session-1', 'worker') };
+		for (const [index, params] of [
+			undefined, null, [],
+			{ ...address, role: 'lead' },
+			{ ...address, session: 'not-a-session' },
+			{ ...address, leadChat: buildDefaultChatUri('copilotcli:/other') },
+			{ ...address, expectedMemberChat: buildChatUri('copilotcli:/other', 'worker') },
+			{ ...address, expectedMemberChat: undefined },
+		].entries()) {
+			const id = index + 20;
+			const responsePromise = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, ResetPersistentTeamMemberExtensionMethod, params));
+			const response = await responsePromise;
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.deepStrictEqual(agentService.persistentTeamCalls, []);
+	});
+
+	test('Team state and reset address errors return protocol responses', async () => {
+		const transport = connectClient('persistent-team-address-errors');
+		const session = 'copilotcli:/session-1';
+		const leadChat = buildDefaultChatUri(session);
+		const reset = { session, leadChat, role: 'worker', expectedMemberChat: buildChatUri(session, 'worker') };
+		const cases: readonly [string, object][] = [
+			[GetPersistentTeamStateExtensionMethod, { session: 'not-a-session', leadChat }],
+			[GetPersistentTeamStateExtensionMethod, { session, leadChat: buildDefaultChatUri('copilotcli:/other') }],
+			[ResetPersistentTeamMemberExtensionMethod, { ...reset, session: 'not-a-session' }],
+			[ResetPersistentTeamMemberExtensionMethod, { ...reset, expectedMemberChat: buildChatUri('copilotcli:/other', 'worker') }],
+		];
+		const codes: (number | undefined)[] = [];
+		for (const [index, [method, params]] of cases.entries()) {
+			const id = index + 20;
+			const responsePromise = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, method, params));
+			const response = await responsePromise;
+			codes.push(isJsonRpcResponse(response) && hasKey(response, { error: true }) ? response.error?.code : undefined);
+		}
+		assert.deepStrictEqual({ codes, routed: agentService.persistentTeamCalls }, {
+			codes: cases.map(() => JsonRpcErrorCodes.InvalidParams),
+			routed: [],
+		});
+	});
+
 	test('propagates artifact removal extension errors', async () => {
 		const transport = connectClient('client-remove-artifact-error');
 		const error = new Error('artifact persistence failed');
@@ -1246,6 +1322,68 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		});
+	});
+
+	test('local Team methods follow draft changes without exposing management methods', async () => {
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			localServer,
+			{ allowExtensionMethods: new Set([GetPersistentTeamStateExtensionMethod, ResetPersistentTeamMemberExtensionMethod]) },
+			disposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			NullTelemetryService,
+			managedSettingsService,
+			clientConnections,
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'local-team' }));
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		stateManager.createSession(makeSessionSummary());
+		const leadChat = buildDefaultChatUri(sessionUri);
+		const draft = { text: 'Preserve draft', origin: { kind: MessageKind.User }, model: { id: 'chosen-model' } };
+		agentService.getPersistentTeamState = async (session, chat) => {
+			assert.deepStrictEqual(
+				{ session: session.toString(), chat: chat.toString(), draft: stateManager.getChatState(leadChat)?.draft },
+				{ session: sessionUri, chat: leadChat, draft },
+			);
+			return agentService.persistentTeamState;
+		};
+		transport.simulateMessage(notification('dispatchAction', { channel: leadChat, clientSeq: 1, action: { type: ActionType.ChatDraftChanged, draft } }));
+		const address = { session: sessionUri, leadChat };
+		const reset = { ...address, role: 'worker', expectedMemberChat: buildChatUri(sessionUri, 'worker') };
+		const cases: readonly [string, object][] = [
+			[GetPersistentTeamStateExtensionMethod, address],
+			[ResetPersistentTeamMemberExtensionMethod, reset],
+			['shutdown', {}],
+			['diagnosticsFetch', { url: 'https://example.com' }],
+			[RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }],
+		];
+		const results = [];
+		for (const [index, [method, params]] of cases.entries()) {
+			const id = index + 2;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, method, params));
+			results.push(await response);
+		}
+		assert.deepStrictEqual({
+			results,
+			artifactRemoval: supportsAgentHostArtifactRemoval(initialize.result as InitializeResult),
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			results: [
+				{ jsonrpc: '2.0', id: 2, result: agentService.persistentTeamState },
+				{ jsonrpc: '2.0', id: 3, result: agentService.persistentTeamState },
+				{ jsonrpc: '2.0', id: 4, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+				{ jsonrpc: '2.0', id: 5, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: diagnosticsFetch' } },
+				{ jsonrpc: '2.0', id: 6, error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${RemoveSessionArtifactExtensionMethod}` } },
+			],
+			artifactRemoval: false,
+			shutdownCalls: 0,
 		});
 	});
 

@@ -39,6 +39,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey, copilotModelTeamSchema, parseCopilotModelTeam, validateCopilotModelTeam } from '../../common/copilotModelTeam.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
@@ -3461,7 +3462,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const activeClient = this._activeClients.get(current.configurationResource);
 			const currentSnapshot = activeClient ? await activeClient.snapshot(current.chatKey) : undefined;
-			if (entry.requiresRestartAfterWorkingDirectoryChange || (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot))) {
+			if (entry.requiresRestartAfterWorkingDirectoryChange || entry.requiresTeamToolRefresh || (activeClient && currentSnapshot && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey, currentSnapshot))) {
 				await this._destroyLiveSession(entry, true);
 				entry = entry.sessionId === current.configurationId
 					? await this._resumeSession(current.configurationId, current.chat)
@@ -4036,11 +4037,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return alternativeAgentUri ? { uri: alternativeAgentUri.toString() } : undefined;
 	}
 
-	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
+	async resolveChatConfig(params: IAgentResolveChatConfigParams, reason?: 'restore'): Promise<ResolveSessionConfigResult> {
 		// Isolation / branch are contributed by the host (see
 		// AgentService._withHostSessionConfigContributions); this agent only owns its platform
 		// session config (auto-approve / mode / permissions).
-		const values = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
+		const values: Record<string, unknown> = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
 			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
 			[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
 			// Permissions intentionally omitted — leave unset so auto-approval
@@ -4048,9 +4049,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// materializes on the session once the user hits "Allow in this
 			// Session".
 		});
+		for (const key of [CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey]) {
+			if (params.config?.[key] !== undefined) {
+				const team = parseCopilotModelTeam(params.config[key]);
+				if (team && reason !== 'restore') {
+					validateCopilotModelTeam(team, this._models.get());
+				}
+				values[key] = team ?? {};
+			}
+		}
 
 		return {
-			schema: platformSessionSchema.toProtocol(),
+			schema: {
+				...platformSessionSchema.toProtocol(),
+				properties: { ...platformSessionSchema.toProtocol().properties, ...copilotModelTeamSchema.toProtocol().properties },
+			},
 			values,
 		};
 	}
@@ -4173,7 +4186,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
 				[...new Set(currentDisabledRootMcpServers)].sort(),
 			);
-			if (entry && (entry.requiresRestartAfterWorkingDirectoryChange || rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh || entry.requiresControlPlaneResync)) {
+			if (entry && (entry.requiresRestartAfterWorkingDirectoryChange || rootsChanged || structuralConfigChanged || disabledRootMcpServersChanged || entry.requiresMcpLaunchConfigurationRefresh || entry.requiresControlPlaneResync || entry.requiresTeamToolRefresh)) {
 				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
 				// the updated config. Routing is preserved so the session identity
@@ -4203,6 +4216,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// allocates a fresh response part.
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
+			}
+			const backing = this._chatBackings.get(current.chatKey);
+			if (backing?.allowEmptyResume) {
+				const { allowEmptyResume: _allowEmptyResume, ...updated } = backing;
+				this._chatBackings.set(current.chatKey, updated);
+				this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
 			}
 
 			try {
@@ -4533,6 +4552,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					sdkSessionId,
 					...(model ? { model } : {}),
 					...(agent ? { agent } : {}),
+					...(!fork ? { allowEmptyResume: true as const } : {}),
 				};
 				this._chatBackings.set(chatKey, backing);
 				result = {
@@ -4581,7 +4601,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.configurationResource, context.chat);
 		const provisional = this._provisionalSessions.get(context.configurationId);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
-			return this._materializeProvisional(context.configurationId, workingDirectories);
+			const lifetime = this._getOrCreateSessionLifetime(provisional.sdkSessionId);
+			const lease = await lifetime?.acquire();
+			if (!lifetime || !lease) {
+				return undefined;
+			}
+			try {
+				return this._findChatByUri(context.chat)
+					?? await lifetime.resumeDefault(() => this._materializeProvisional(context.configurationId, workingDirectories));
+			} finally {
+				lease.dispose();
+			}
 		}
 		if (context.sdkSessionId === context.configurationId) {
 			return context.target ?? this._resumeSession(context.configurationId, context.chat, workingDirectories);
@@ -4776,14 +4806,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	/**
-	 * Re-attaches a concrete chat backing on session
-	 * restore, decoding the opaque `providerData` the orchestrator persisted
-	 * at creation (or the latest {@link onDidChangeChatData}). After this
-	 * resolves the chat's backing SDK session can be resumed lazily on its first
-	 * send. Best-effort — a corrupt/unknown blob is logged and dropped rather
-	 * than thrown.
-	 */
+	/** Registers an exact saved backing and returns its canonical data. Unknown or corrupt peer data does not create a backing. */
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		this._noteHostCustomizations(context);
 		const resolved = resolveAgentChatContext(context, chat);
@@ -4803,6 +4826,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._chatBackings.set(chatKey, backing);
+		return { providerData: encodeProviderData(backing) };
 	}
 
 	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
@@ -4931,6 +4955,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
 				const launchPlan: CopilotSessionLaunchPlan = {
 					kind: 'resume',
+					requireHistory: !info.allowEmptyResume,
 					client,
 					sessionId: info.sdkSessionId,
 					workingDirectory,
@@ -5010,6 +5035,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			if (eventId) {
 				await entry.truncateAtEventId(eventId, turnId);
+				const backing = this._chatBackings.get(current.chatKey);
+				if (turnId === undefined && backing) {
+					const updated = { ...backing, allowEmptyResume: true as const };
+					this._chatBackings.set(current.chatKey, updated);
+					this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
+				}
 			} else {
 				this._logService.info(`[Copilot:${sessionId}] No event ID found for truncation, nothing to truncate`);
 			}
@@ -5038,7 +5069,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
-			if (provisional) {
+			if (provisional?.chat.toString() === current.chatKey) {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
@@ -5078,7 +5109,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._queueChat(context.configurationId, context.sequencerKey, 'changeAgent', async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const provisional = this._provisionalSessions.get(current.configurationId);
-			if (provisional) {
+			if (provisional?.chat.toString() === current.chatKey) {
 				provisional.agent = agent;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
@@ -5421,7 +5452,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	protected _resumeSession(sessionId: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		if (chatChannelUri) {
-			this._chatBackings.set(chatChannelUri.toString(), { sdkSessionId: sessionId });
+			this._chatBackings.set(chatChannelUri.toString(), { ...this._chatBackings.get(chatChannelUri.toString()), sdkSessionId: sessionId });
 		}
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {
@@ -5479,7 +5510,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const launchWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(launchWorkingDirectories));
 		// Prefer chat-scoped membership when this SDK session is already bound to a chat.
-		const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString());
+		const chatKey = this._findBoundSessionChatUri(sessionId)?.toString();
+		const snapshot = await activeClient.snapshot(chatKey);
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
@@ -5488,6 +5520,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const launchPlan: CopilotSessionLaunchPlan = {
 			kind: 'resume',
+			requireHistory: !this._chatBackings.get(chatKey ?? '')?.allowEmptyResume,
 			client,
 			sessionId,
 			workingDirectory: resolvedWorkingDirectory,

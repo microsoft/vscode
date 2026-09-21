@@ -61,9 +61,16 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 			},
 		));
 		this._register(widget.onDidClick(async ({ button, isTouchClick }) => {
+			if (this._store.isDisposed || context.isRequestActive?.() === false) {
+				return;
+			}
 			await button.data();
 			if (!isTouchClick) {
-				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+				if (context.focusAfterAction) {
+					context.focusAfterAction();
+				} else {
+					chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+				}
 			}
 		}));
 		this.domNode = widget.domNode;

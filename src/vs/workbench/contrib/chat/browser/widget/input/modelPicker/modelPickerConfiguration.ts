@@ -24,9 +24,16 @@ export interface IModelPickerConfigurationHost {
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
+	readonly onDidHide?: () => void;
 }
 
 export class ModelPickerConfiguration {
+	private _visible = false;
+	private _showVersion = 0;
+
+	get isVisible(): boolean {
+		return this._visible;
+	}
 
 	constructor(
 		private readonly _host: IModelPickerConfigurationHost,
@@ -80,28 +87,46 @@ export class ModelPickerConfiguration {
 		button.ariaLabel = ariaParts.join(', ');
 	}
 
-	show(button: HTMLElement | undefined, focusGroup?: string): void {
+	hide(): void {
+		if (this._visible) {
+			this._actionWidgetService.hide(true);
+		}
+	}
+
+	show(button: HTMLElement | undefined, focusGroup?: string): boolean {
 		if (this._host.isDisabled() || !button || !this._host.getSelectedModel()) {
-			return;
+			return false;
 		}
 
 		const items = this._buildItems();
 		if (!items.length) {
-			return;
+			return false;
 		}
 
+		this.hide();
+		const showVersion = ++this._showVersion;
+		this._visible = true;
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
 				this._actionWidgetService.focusItemById(action.id);
 				await action.run();
-				this._actionWidgetService.updateItems(this._buildItems(), action.id);
+				if (this._visible && showVersion === this._showVersion) {
+					this._actionWidgetService.updateItems(this._buildItems(), action.id);
+				}
 			},
 			onHide: () => {
-				button.setAttribute('aria-expanded', 'false');
-				if (dom.isHTMLElement(previouslyFocusedElement)) {
-					previouslyFocusedElement.focus();
+				if (!this._visible || showVersion !== this._showVersion) {
+					return;
 				}
+				this._visible = false;
+				button.setAttribute('aria-expanded', 'false');
+				if (dom.isHTMLElement(previouslyFocusedElement) && previouslyFocusedElement.isConnected) {
+					previouslyFocusedElement.focus();
+				} else if (button.isConnected) {
+					button.focus();
+				}
+				this._host.onDidHide?.();
 			}
 		};
 
@@ -135,6 +160,7 @@ export class ModelPickerConfiguration {
 				this._actionWidgetService.focusItemById(groupItem.item.id);
 			}
 		}
+		return true;
 	}
 
 	private _getConfigProperty(group: string) {
@@ -143,72 +169,75 @@ export class ModelPickerConfiguration {
 
 	private _buildItems(): IActionListItem<IActionWidgetDropdownAction>[] {
 		const model = this._host.getSelectedModel();
-		if (!model) {
-			return [];
-		}
-
-		const modelIdentifier = model.identifier;
-		const configurationAccess = this._host.getConfigurationAccess();
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
-		const defaultLabel = localize('models.configDefault', "Default");
-		const appendConfigSection = (
-			group: string,
-			fallbackHeaderLabel: string,
-			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
-		): void => {
-			const config = this._getConfigProperty(group);
-			if (!config) {
-				return;
-			}
-			const previousValue = String(config.value ?? '');
-			const enumValues = config.schema.enum ?? [];
-			if (items.length) {
-				items.push({ kind: ActionListItemKind.Separator });
-			}
-			items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
-			for (let index = 0; index < enumValues.length; index++) {
-				const value = enumValues[index];
-				const isDefault = value === config.schema.default;
-				const displayLabel = formatValueLabel(value, config.schema.enumItemLabels?.[index]);
-				const enumDescription = config.schema.enumDescriptions?.[index];
-				const ariaDescriptionParts = [isDefault ? defaultLabel : undefined, enumDescription].filter((part): part is string => !!part);
-				const checked = config.value === value;
-				items.push({
-					item: {
-						id: `${group}.${value}`,
-						enabled: true,
-						checked,
-						class: undefined,
-						tooltip: enumDescription ?? '',
-						label: displayLabel,
-						run: () => {
-							logModelConfigurationChange(this._telemetryService, model, group, config.key, previousValue, value);
-							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
-						}
-					},
-					kind: ActionListItemKind.Action,
-					className: 'chat-model-picker-config-option',
-					label: displayLabel,
-					description: isDefault ? defaultLabel : undefined,
-					ariaDescription: ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined,
-					hover: enumDescription ? { content: enumDescription } : undefined,
-					group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
-					hideIcon: false,
-				});
-			}
-		};
-
-		appendConfigSection(
-			MODEL_CONFIG_GROUP_EFFORT,
-			localize('chat.effort.header', "Thinking Effort"),
-			(value, enumLabel) => enumLabel ?? String(value),
-		);
-		appendConfigSection(
-			MODEL_CONFIG_GROUP_CONTEXT,
-			localize('chat.tokens.header', "Context Size"),
-			(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
-		);
-
-		return items;
+		return model ? buildModelConfigurationItems(model, this._host.getConfigurationAccess(), this._telemetryService) : [];
 	}
+}
+
+export function buildModelConfigurationItems(model: ILanguageModelChatMetadataAndIdentifier, configurationAccess: IModelConfigurationAccess, telemetryService: ITelemetryService): IActionListItem<IActionWidgetDropdownAction>[] {
+	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
+	const defaultLabel = localize('models.configDefault', "Default");
+	const appendConfigSection = (
+		group: string,
+		fallbackHeaderLabel: string,
+		formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
+	): void => {
+		const config = getModelConfigProperty(model, configurationAccess, group);
+		if (!config) {
+			return;
+		}
+		const previousValue = String(config.value ?? '');
+		const enumValues = config.schema.enum ?? [];
+		if (items.length) {
+			items.push({ kind: ActionListItemKind.Separator });
+		}
+		items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
+		for (let index = 0; index < enumValues.length; index++) {
+			const value = enumValues[index];
+			const isDefault = value === config.schema.default;
+			const displayLabel = formatValueLabel(value, config.schema.enumItemLabels?.[index]);
+			const enumDescription = config.schema.enumDescriptions?.[index];
+			const ariaDescriptionParts = [
+				isDefault ? defaultLabel : undefined,
+				enumDescription,
+				config.schema.readOnly ? localize('chat.modelPicker.readOnlyOption', "Read-only") : undefined,
+			].filter((part): part is string => !!part);
+			const checked = config.value === value;
+			items.push({
+				item: {
+					id: `${group}.${value}`,
+					enabled: !config.schema.readOnly,
+					checked,
+					class: undefined,
+					tooltip: enumDescription ?? '',
+					label: displayLabel,
+					run: () => {
+						logModelConfigurationChange(telemetryService, model, group, config.key, previousValue, value);
+						return configurationAccess.setModelConfiguration(model.identifier, { [config.key]: value });
+					}
+				},
+				kind: ActionListItemKind.Action,
+				...(config.schema.readOnly ? { disabled: true } : {}),
+				className: 'chat-model-picker-config-option',
+				label: displayLabel,
+				description: isDefault ? defaultLabel : undefined,
+				ariaDescription: ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined,
+				hover: enumDescription ? { content: enumDescription } : undefined,
+				group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
+				hideIcon: false,
+			});
+		}
+	};
+
+	appendConfigSection(
+		MODEL_CONFIG_GROUP_EFFORT,
+		localize('chat.effort.header', "Thinking Effort"),
+		(value, enumLabel) => enumLabel ?? String(value),
+	);
+	appendConfigSection(
+		MODEL_CONFIG_GROUP_CONTEXT,
+		localize('chat.tokens.header', "Context Size"),
+		(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
+	);
+
+	return items;
 }

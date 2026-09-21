@@ -17,6 +17,8 @@ export interface IPersistedChat {
 	readonly sdkSessionId: string;
 	readonly model?: ModelSelection;
 	readonly agent?: AgentSelection;
+	/** A new chat or an explicit Start Over may have no conversation events yet. */
+	readonly allowEmptyResume?: true;
 }
 
 export interface IResolvedAgentChat<TSession extends IDisposable> {
@@ -40,7 +42,7 @@ export function encodeProviderData(backing: IPersistedChat): string {
  */
 export function decodeProviderData(providerData: string): IPersistedChat | undefined {
 	try {
-		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; agent?: unknown };
+		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; agent?: unknown; allowEmptyResume?: unknown };
 		if (!value || typeof value !== 'object') {
 			return undefined;
 		}
@@ -57,6 +59,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 			sdkSessionId,
 			...(validModel ? { model: validModel } : {}),
 			...(validAgent ? { agent: validAgent } : {}),
+			...(value.allowEmptyResume === true ? { allowEmptyResume: true } : {}),
 		};
 	} catch {
 		return undefined;

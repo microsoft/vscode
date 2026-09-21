@@ -17,7 +17,7 @@ import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable 
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
-import { safeStringify } from '../../../../base/common/objects.js';
+import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -64,7 +64,7 @@ import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerVal
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
-import { clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { clientToolNamesFromSnapshot, getCopilotTeamToolFilters, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime, type ICopilotSessionToolFilters } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -83,6 +83,9 @@ import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
+import { IAgentHostPersistentTeamService } from '../agentHostPersistentTeamService.js';
+import { AgentHostPersistentTeamContinuationPrefix } from '../../common/meta/agentHostPersistentTeamMeta.js';
+import { PersistentTeamToolName } from '../../common/serverToolNames.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
@@ -860,6 +863,8 @@ export class CopilotAgentSession extends Disposable {
 	}>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _teamCompletionTurn: CopilotTurn | undefined;
+	private _pendingTeamContinuation: { readonly prompt: string; readonly turnId: string } | undefined;
 	/**
 	 * Signatures ({@link safeStringify}) of user-approved `read`/`write`
 	 * permission requests, keyed by tool call id. The Copilot CLI runtime emits
@@ -1062,6 +1067,9 @@ export class CopilotAgentSession extends Disposable {
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
 	private _autoApprovalExperimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
+	private _configuredToolFilters: ICopilotSessionToolFilters | undefined;
+	private _appliedTeamToolFilters: ICopilotSessionToolFilters | undefined;
+	private _hasTeamTool = false;
 	private readonly _sandboxConfigSequencer = new Sequencer();
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
@@ -1201,6 +1209,7 @@ export class CopilotAgentSession extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostPersistentTeamService private readonly _persistentTeams: IAgentHostPersistentTeamService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -1227,6 +1236,11 @@ export class CopilotAgentSession extends Disposable {
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
+		this._register(this._persistentTeams.onDidBlockTask(task => {
+			if (task.chat === this._chatChannelUri.toString() && task.turnId === this._currentTurn.value?.id) {
+				this._failTeamTurn(task.error);
+			}
+		}));
 		this._hostCustomizations = options.hostCustomizations ?? (() => []);
 		this._platform = options.platform ?? process.platform;
 		this._realpath = options.realpath ?? realpath;
@@ -1787,6 +1801,11 @@ export class CopilotAgentSession extends Disposable {
 		if (!turn) {
 			return;
 		}
+		const teamError = this._persistentTeams.completionError(this._ownerSessionUri.toString(), this._chatChannelUri.toString(), turn.id);
+		if (teamError) {
+			this.failActiveTurn({ errorType: 'teamTaskBlocked', message: teamError });
+			return;
+		}
 		turn.markCompleted();
 		this._reportToolCallDetails(turn, 'success');
 		this._emitAction({
@@ -1834,6 +1853,7 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
+		this._pendingTeamContinuation = undefined;
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -2026,6 +2046,11 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get requiresControlPlaneResync(): boolean {
 		return this._controlPlaneDesynchronized;
+	}
+
+	get requiresTeamToolRefresh(): boolean {
+		return !this._launchPlan.isEphemeral
+			&& (this._serverToolHost?.getDefinitionsForSession(this._ownerSessionUri.toString()).some(definition => definition.name === PersistentTeamToolName) ?? false) !== this._hasTeamTool;
 	}
 
 	get appliedDisabledRootMcpServers(): readonly string[] {
@@ -2229,7 +2254,9 @@ export class CopilotAgentSession extends Disposable {
 			return [];
 		}
 		const sessionUri = parseRequiredSessionUriFromChatUri(this._chatChannelUri.toString());
-		return host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
+		const definitions = host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions);
+		this._hasTeamTool = definitions.some(definition => definition.name === PersistentTeamToolName);
+		return definitions.map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
@@ -2390,7 +2417,43 @@ export class CopilotAgentSession extends Disposable {
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
+			handleAgentStop: () => this._handleAgentStop(),
+			configureToolFilters: filters => {
+				this._configuredToolFilters = filters;
+				this._appliedTeamToolFilters = undefined;
+				return getCopilotTeamToolFilters(filters, this._persistentTeams.getLeadPhase(this._ownerSessionUri.toString(), this._chatChannelUri.toString()));
+			},
 		};
+	}
+
+	private async _handleAgentStop(): Promise<Awaited<ReturnType<NonNullable<SessionHooks['onAgentStop']>>>> {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		const token = this._abortToken;
+		try {
+			const reason = await this._persistentTeams.beforeStop(this._ownerSessionUri.toString(), this._chatChannelUri.toString(), turn.id, token);
+			if (token.isCancellationRequested || this._currentTurn.value !== turn) {
+				return;
+			}
+			await this._syncTeamToolFilters();
+			if (!token.isCancellationRequested && this._currentTurn.value === turn && reason) {
+				this._pendingTeamContinuation = { prompt: reason, turnId: turn.id };
+				return { decision: 'block', reason };
+			}
+		} catch (error) {
+			if (!token.isCancellationRequested && this._currentTurn.value === turn) {
+				this._logService.error('[Copilot] Team completion failed', error);
+				this._failTeamTurn(getErrorMessage(error));
+			}
+		}
+	}
+
+	private _failTeamTurn(message: string): void {
+		this.failActiveTurn({ errorType: 'teamTaskBlocked', message });
+		this._dropLateRootTurnEvents = true;
+		void this.abort().catch(error => this._logService.error('[Copilot] Could not stop the blocked Team turn', error));
 	}
 
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
@@ -2935,13 +2998,24 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const turn = this._currentTurn.value;
 		this._resumingTurnAwaitingProviderStart = turn;
+		const abortToken = this._abortToken;
 		turn?.markProviderCallPending();
 		try {
+			await this._persistentTeams.retryTurn(this._ownerSessionUri.toString(), this._chatChannelUri.toString(), turnId);
 			await this._prepareSdkTurn(mode);
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-			await this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] }));
+			const continuation = await this._persistentTeams.beforeStop(this._ownerSessionUri.toString(), this._chatChannelUri.toString(), turnId, abortToken);
+			if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+				throw new CancellationError();
+			}
+			if (continuation) {
+				this._pendingTeamContinuation = { prompt: continuation, turnId };
+			}
+			await this._otelService.withTraceContext(traceContext, () => continuation
+				? this._wrapper.session.send({ prompt: continuation })
+				: this._wrapper.session.rpc.sendMessages({ messages: [] }));
 			turn?.markProviderCallResolved();
-			this._logService.info(`[Copilot:${this.sessionId}] zero-message continuation returned`);
+			this._logService.info(`[Copilot:${this.sessionId}] ${continuation ? 'Team report' : 'zero-message'} continuation returned`);
 		} catch (error) {
 			if (this._resumingTurnAwaitingProviderStart === turn) {
 				this._resumingTurnAwaitingProviderStart = undefined;
@@ -3046,11 +3120,35 @@ export class CopilotAgentSession extends Disposable {
 	 * Permission and sandbox failures prevent the turn from starting.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
+		await this._syncTeamToolFilters();
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._syncShellInitScript();
 		await this._reconcileMcpServerEnablement();
+	}
+
+	private async _syncTeamToolFilters(): Promise<void> {
+		if (!this._configuredToolFilters) {
+			return;
+		}
+		const phase = this._persistentTeams.getLeadPhase(this._ownerSessionUri.toString(), this._chatChannelUri.toString());
+		if (!phase && !this._appliedTeamToolFilters) {
+			return;
+		}
+		const filters = getCopilotTeamToolFilters(this._configuredToolFilters, phase);
+		if (equals(filters, this._appliedTeamToolFilters)) {
+			return;
+		}
+		const result = await this._awaitControlPlaneRpc('options.update:teamTools', this._wrapper.session.rpc.options.update({
+			availableTools: filters.availableTools ?? ['builtin:*', 'custom:*', 'mcp:*'],
+			excludedTools: filters.excludedTools ?? [],
+			toolFilterPrecedence: 'excluded',
+		}));
+		if (!result.success) {
+			throw new Error(localize('persistentTeam.toolFilterFailed', "The Lead's Team tool restrictions could not be applied. The task has not been started."));
+		}
+		this._appliedTeamToolFilters = filters;
 	}
 
 	/**
@@ -4975,6 +5073,23 @@ export class CopilotAgentSession extends Disposable {
 				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
 				return;
 			}
+			const continuation = this._pendingTeamContinuation;
+			if (continuation?.prompt === e.data.content) {
+				this._pendingTeamContinuation = undefined;
+				if (!e.data.source || e.data.source.toLowerCase() === 'user') {
+					void this._databaseRef.object.setMetadata(`${AgentHostPersistentTeamContinuationPrefix}${e.id}`, continuation.turnId).catch(error => {
+						this._logService.error('[Copilot] Could not persist Team continuation identity', error);
+						if (this._currentTurn.value?.id === continuation.turnId) {
+							this._failTeamTurn(getErrorMessage(error));
+						}
+					});
+				}
+				if (this._currentTurn.value?.id === continuation.turnId) {
+					this._dropLateRootTurnEvents = false;
+					this._currentTurn.value.markRunning();
+				}
+				return;
+			}
 			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
 				return;
 			}
@@ -5559,6 +5674,34 @@ export class CopilotAgentSession extends Disposable {
 				await turn.drainToolCompletions();
 				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
 					return;
+				}
+			}
+			if (this._persistentTeams.completionError(this._ownerSessionUri.toString(), this._chatChannelUri.toString(), turn.id)) {
+				if (this._teamCompletionTurn === turn) {
+					return;
+				}
+				this._teamCompletionTurn = turn;
+				const abortToken = this._abortToken;
+				try {
+					// The published runtime can omit hooks after a warm resume; host completion still owns this gate.
+					const continuation = await this._handleAgentStop();
+					if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+						return;
+					}
+					if (continuation?.reason) {
+						await this._wrapper.session.send({ prompt: continuation.reason });
+						return;
+					}
+				} catch (error) {
+					this._logService.error('[Copilot] Could not continue the Team task', error);
+					if (this._currentTurn.value === turn) {
+						this._failTeamTurn(getErrorMessage(error));
+					}
+					return;
+				} finally {
+					if (this._teamCompletionTurn === turn) {
+						this._teamCompletionTurn = undefined;
+					}
 				}
 			}
 			this._completeActiveRepoInfoTelemetry();

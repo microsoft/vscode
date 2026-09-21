@@ -95,6 +95,27 @@ export interface IAbstractToolPrimaryAction extends IChatConfirmationButton<(() 
 
 type AbstractToolPrimaryAction = IAbstractToolPrimaryAction | Separator;
 
+export function getToolConfirmationOptionButtons<T>(options: readonly ConfirmationOption[], data: (option: ConfirmationOption) => T): IChatConfirmationButton<T>[] {
+	const approve = options.filter(option => option.kind === ConfirmationOptionKind.Approve);
+	const deny = options.filter(option => option.kind === ConfirmationOptionKind.Deny);
+	const makeAction = (option: ConfirmationOption): IChatConfirmationButton<T> => ({ label: option.label, data: data(option) });
+	const makeGroup = (group: ConfirmationOption[], isSecondary: boolean): IChatConfirmationButton<T> => {
+		const [primary, ...rest] = group;
+		const button = { ...makeAction(primary), isSecondary };
+		const moreActions: (IChatConfirmationButton<T> | Separator)[] = [];
+		let previousGroup = primary.group;
+		for (const option of rest) {
+			if (option.group !== previousGroup) {
+				moreActions.push(new Separator());
+			}
+			moreActions.push(makeAction(option));
+			previousGroup = option.group;
+		}
+		return moreActions.length ? { ...button, moreActions } : button;
+	};
+	return [...(approve.length ? [makeGroup(approve, false)] : []), ...(deny.length ? [makeGroup(deny, approve.length > 0)] : [])];
+}
+
 /**
  * Base class for a tool confirmation.
  *
@@ -138,7 +159,9 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		let buttons: IChatConfirmationButton<(() => void)>[];
 
 		if (customOptions && customOptions.length > 0) {
-			buttons = this.buildCustomOptionButtons(toolInvocation, customOptions);
+			buttons = getToolConfirmationOptionButtons(customOptions, option => () => {
+				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+			});
 		} else {
 			const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
 			const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
@@ -215,9 +238,16 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
+			if (this._store.isDisposed || this.context.isRequestActive?.() === false) {
+				return;
+			}
 			button.data();
 			if (!isTouchClick) {
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				if (this.context.focusAfterAction) {
+					this.context.focusAfterAction();
+				} else {
+					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				}
 			}
 		}));
 
@@ -227,54 +257,10 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	}
 
 	protected confirmWith(toolInvocation: IChatToolInvocation, reason: ConfirmedReason): void {
-		IChatToolInvocation.confirmWith(toolInvocation, reason);
+		if (!this._store.isDisposed && this.context.isRequestActive?.() !== false) {
+			IChatToolInvocation.confirmWith(toolInvocation, reason);
+		}
 	}
-
-	private buildCustomOptionButtons(toolInvocation: IChatToolInvocation, options: readonly ConfirmationOption[]): IChatConfirmationButton<(() => void)>[] {
-		const approve: ConfirmationOption[] = [];
-		const deny: ConfirmationOption[] = [];
-		for (const option of options) {
-			(option.kind === ConfirmationOptionKind.Deny ? deny : approve).push(option);
-		}
-
-		const makeAction = (option: ConfirmationOption): IChatConfirmationButton<(() => void)> => ({
-			label: option.label,
-			data: () => {
-				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
-			},
-		});
-
-		const makeGroupButton = (group: ConfirmationOption[], isSecondary: boolean): IChatConfirmationButton<(() => void)> => {
-			const [primary, ...rest] = group;
-			const button: IChatConfirmationButton<(() => void)> = {
-				...makeAction(primary),
-				isSecondary,
-			};
-			if (rest.length > 0) {
-				const moreActions: (IChatConfirmationButton<(() => void)> | Separator)[] = [];
-				let prevGroup = primary.group;
-				for (const option of rest) {
-					if (option.group !== prevGroup) {
-						moreActions.push(new Separator());
-					}
-					moreActions.push(makeAction(option));
-					prevGroup = option.group;
-				}
-				button.moreActions = moreActions;
-			}
-			return button;
-		};
-
-		const buttons: IChatConfirmationButton<(() => void)>[] = [];
-		if (approve.length > 0) {
-			buttons.push(makeGroupButton(approve, false));
-		}
-		if (deny.length > 0) {
-			buttons.push(makeGroupButton(deny, approve.length > 0));
-		}
-		return buttons;
-	}
-
 
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {
 		return [];

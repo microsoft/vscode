@@ -13,7 +13,7 @@ import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,6 +37,9 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../comm
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { AgentHostPersistentTeamService, IAgentHostPersistentTeamService } from '../../node/agentHostPersistentTeamService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
@@ -121,6 +124,9 @@ class MockCopilotSession {
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
 	shellInitScriptUpdateSuccess = true;
+	readonly toolFilterUpdates: Parameters<CopilotSession['rpc']['options']['update']>[0][] = [];
+	toolFilterUpdateSuccess = true;
+	toolFilterUpdateGate: Promise<void> | undefined;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
 	modelGate: Promise<void> | undefined;
@@ -483,6 +489,11 @@ class MockCopilotSession {
 		},
 		options: {
 			update: async (params: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
+				if (params.availableTools !== undefined) {
+					this.toolFilterUpdates.push(params);
+					await this.toolFilterUpdateGate;
+					return { success: this.toolFilterUpdateSuccess };
+				}
 				if (params.sandboxConfig !== undefined) {
 					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
@@ -806,6 +817,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatChannelUri?: URI;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
+	persistentTeams?: IAgentHostPersistentTeamService;
 	/** Whether the launch plan represents an ephemeral session. */
 	isEphemeral?: boolean;
 	/** Whether the owning chat surface is scoped to editing a single file. */
@@ -1048,6 +1060,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostPersistentTeamService, options?.persistentTeams ?? disposables.add(new AgentHostPersistentTeamService(stateManager, createTestAgentHostProviderService(() => undefined), createSessionDataService(options?.sessionDatabase), options?.logService ?? new NullLogService())));
 	services.set(IAgentHostCustomizationEnablementService, {
 		_serviceBrand: undefined,
 		onDidChange: customizationEnablementEmitter.event,
@@ -1233,6 +1246,95 @@ suite('CopilotAgentSession', () => {
 			firstHook: { additionalContext: 'Rename before working' },
 			secondHook: undefined,
 		});
+	});
+
+	test('Team completion remains blocked even if SDK idle bypasses the stop hook', async () => {
+		const persistentTeams = new class extends mock<IAgentHostPersistentTeamService>() {
+			override readonly onDidBlockTask = Event.None;
+			override async beforeStop() { return undefined; }
+			override completionError() { return 'Worker has not reported'; }
+		}();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { persistentTeams });
+		await session.send('Team task', undefined, 'team-turn');
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+		await timeout(0);
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && (signal.action.type === ActionType.ChatError || signal.action.type === ActionType.ChatTurnComplete)
+			? [{ type: signal.action.type, error: signal.action.type === ActionType.ChatError ? signal.action.part.error?.message : undefined }] : []), [
+			{ type: ActionType.ChatError, error: 'Worker has not reported' },
+		]);
+	});
+
+	test('Lead tool phases are applied before sends and continuations and restored when Team is off', async () => {
+		let phase: 'manager' | 'integration' | undefined = 'manager';
+		const persistentTeams = new class extends mock<IAgentHostPersistentTeamService>() {
+			override readonly onDidBlockTask = Event.None;
+			override getLeadPhase() { return phase; }
+			override completionError() { return undefined; }
+			override async beforeStop() { phase = 'integration'; return 'Integrate accepted engineering'; }
+		}();
+		const { session, runtime, mockSession } = await createAgentSession(disposables, { persistentTeams });
+		runtime.configureToolFilters!({ excludedTools: ['builtin:create'] });
+		await session.send('Manage delivery', undefined, 'team-turn');
+		await runtime.handleAgentStop();
+		phase = undefined;
+		await session.send('Normal chat', undefined, 'ordinary-turn');
+		assert.deepStrictEqual(mockSession.toolFilterUpdates.map(update => ({
+			edits: update.availableTools?.includes('builtin:apply_patch'),
+			allTools: update.availableTools?.includes('builtin:*'),
+			messaging: update.availableTools?.includes('custom:send_message'),
+			excluded: update.excludedTools,
+			precedence: update.toolFilterPrecedence,
+		})), [
+			{ edits: false, allTools: false, messaging: true, excluded: ['builtin:create'], precedence: 'excluded' },
+			{ edits: true, allTools: false, messaging: false, excluded: ['builtin:create'], precedence: 'excluded' },
+			{ edits: false, allTools: true, messaging: false, excluded: ['builtin:create'], precedence: 'excluded' },
+		]);
+	});
+
+	test('a failed manager tool restriction prevents the provider call', async () => {
+		const persistentTeams = new class extends mock<IAgentHostPersistentTeamService>() {
+			override readonly onDidBlockTask = Event.None;
+			override getLeadPhase() { return 'manager' as const; }
+		}();
+		const { session, runtime, mockSession } = await createAgentSession(disposables, { persistentTeams });
+		runtime.configureToolFilters!({});
+		mockSession.toolFilterUpdateSuccess = false;
+		await assert.rejects(session.send('Manage delivery', undefined, 'team-turn'), /tool restrictions could not be applied/);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+	});
+
+	test('a stalled manager filter update is bounded and requires control-plane resync', async () => {
+		const persistentTeams = new class extends mock<IAgentHostPersistentTeamService>() {
+			override readonly onDidBlockTask = Event.None;
+			override getLeadPhase() { return 'manager' as const; }
+		}();
+		const { session, runtime, mockSession } = await createAgentSession(disposables, { persistentTeams, controlPlaneRpcTimeoutMs: 1 });
+		const gate = new DeferredPromise<void>();
+		runtime.configureToolFilters!({});
+		mockSession.toolFilterUpdateGate = gate.p;
+		try {
+			await assert.rejects(session.send('Manage delivery', undefined, 'team-turn'), /options.update:teamTools timed out/);
+			assert.deepStrictEqual({ sends: mockSession.sendRequests, needsResync: session.requiresControlPlaneResync }, { sends: [], needsResync: true });
+		} finally {
+			await gate.complete();
+		}
+	});
+
+	test('Team stop-hook failures abort the Lead and never emit successful completion', async () => {
+		const persistentTeams = new class extends mock<IAgentHostPersistentTeamService>() {
+			override readonly onDidBlockTask = Event.None;
+			override async beforeStop(): Promise<string | undefined> { throw new Error('Scout verification failed'); }
+			override completionError() { return undefined; }
+		}();
+		const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { persistentTeams });
+		await session.send('Team task', undefined, 'team-turn');
+		await runtime.handleAgentStop();
+		mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+		assert.deepStrictEqual({
+			aborts: mockSession.abortCalls,
+			completed: signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete),
+			errors: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError ? [signal.action.part.error?.message] : []),
+		}, { aborts: 1, completed: false, errors: ['Scout verification failed'] });
 	});
 
 	test('forwards Auto routing preferences and explicit resets with the model configuration', async () => {

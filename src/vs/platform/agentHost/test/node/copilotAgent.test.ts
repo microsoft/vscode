@@ -39,6 +39,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey } from '../../common/copilotModelTeam.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -47,6 +48,8 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentHostPersistentTeamService, IAgentHostPersistentTeamService } from '../../node/agentHostPersistentTeamService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -1130,6 +1133,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostPersistentTeamService, disposables.add(new AgentHostPersistentTeamService(stateManager, createTestAgentHostProviderService(() => undefined), options?.sessionDataService ?? createNullSessionDataService(), logService)));
 	// Narrow host seams the provider consumes instead of the state manager
 	// itself (see §8 of MULTI_CHAT_ARCHITECTURE.md). Both are constructed over
 	// the same test state manager, so a test that drives host state still sees
@@ -1315,6 +1319,38 @@ suite('CopilotAgent', () => {
 				fork: agent.getInheritedChatConfig(restored.values)?.sandboxEnabled,
 				mutable: restored.schema.properties.sandboxEnabled.sessionMutable,
 			}, { fresh: undefined, restored: 'off', fork: undefined, mutable: true });
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('stock Team configuration advertises host-owned preferences without creating SDK sessions', async () => {
+		const client = new TestCopilotClient([], [{ id: 'worker-model', name: 'Worker', supportedReasoningEfforts: ['low', 'high'] }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await waitForState(agent.models, models => models.length > 0);
+			const team = { worker: { id: 'worker-model', config: { thinkingLevel: 'high' } } };
+			const resolved = await agent.resolveChatConfig({
+				config: {
+					[CopilotModelTeamConfigKey]: team,
+					[CopilotModelTeamRememberedConfigKey]: team,
+					autoApprove: 'default', sandboxEnabled: 'on',
+				}
+			});
+			const missing = { worker: { id: 'no-longer-available' } };
+			const restored = await agent.resolveChatConfig({ config: { [CopilotModelTeamConfigKey]: missing } }, 'restore');
+			await assert.rejects(agent.resolveChatConfig({ config: { [CopilotModelTeamConfigKey]: missing } }), /unavailable|disabled by policy/);
+			assert.deepStrictEqual({
+				selected: resolved.values[CopilotModelTeamConfigKey],
+				remembered: resolved.values[CopilotModelTeamRememberedConfigKey],
+				restored: restored.values[CopilotModelTeamConfigKey],
+				mutable: resolved.schema.properties[CopilotModelTeamConfigKey].sessionMutable,
+				sandbox: resolved.values.sandboxEnabled,
+				approval: resolved.values.autoApprove,
+				inherited: agent.getInheritedChatConfig(resolved.values),
+				runtimeCapability: resolved.schema.properties['copilotModelTeamSupport'],
+			}, { selected: team, remembered: team, restored: missing, mutable: true, sandbox: 'on', approval: 'default', inherited: { autoApprove: 'default' }, runtimeCapability: undefined });
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -11134,6 +11170,19 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materializeChat reports a validated ordinary peer backing without creating a session', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'saved-peer');
+				const chat = URI.parse(buildChatUri(session, 'peer'));
+				const providerData = JSON.stringify({ sdkSessionId: 'saved-peer-sdk', model: { id: 'worker-model' } });
+				const result = await agent.materializeChat(chat, exactChatContext(session, chat), providerData);
+				assert.deepStrictEqual(result, { providerData });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('disposeChat deletes the SDK chat (via legacy fallback) and drops the live backing without rewriting copilot.chats', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
@@ -11183,6 +11232,8 @@ suite('CopilotAgent', () => {
 			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnId: string | undefined }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
 			_resolveChatContext: (chat: URI, context: IAgentChatContext) => unknown;
+			_ensureResolvedChatSession: (context: unknown) => Promise<CopilotAgentSession | undefined>;
+			_materializeProvisional: (sessionId: string) => Promise<CopilotAgentSession>;
 		};
 
 		interface IFakeChatRecorder {
@@ -11254,6 +11305,34 @@ suite('CopilotAgent', () => {
 			} as unknown as CopilotAgentSession;
 			return { rec, fake };
 		}
+
+		test('concurrent ordinary requests share provisional backing materialization', async () => {
+			const agent = createTestAgent(disposables);
+			const gate = new DeferredPromise<CopilotAgentSession>();
+			const started = new DeferredPromise<void>();
+			const session = AgentSession.uri('copilotcli', 'provisional-single-flight');
+			const fake = makeFakeChatSession(session, 'reserved-sdk').fake;
+			try {
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				const internals = agent as unknown as ChatInternals;
+				let materializations = 0;
+				internals._materializeProvisional = () => {
+					materializations++;
+					void started.complete();
+					return gate.p;
+				};
+				const context = internals._resolveChatContext(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+				const first = internals._ensureResolvedChatSession(context);
+				const second = internals._ensureResolvedChatSession(context);
+				await started.p;
+				await gate.complete(fake);
+				const results = await Promise.all([first, second]);
+				assert.deepStrictEqual({ materializations, same: results.every(result => result === fake) }, { materializations: 1, same: true });
+			} finally {
+				await gate.complete(fake);
+				await disposeAgent(agent);
+			}
+		});
 
 		test('collectDebugLogs targets the selected peer chat', async () => {
 			const agent = createTestAgent(disposables);
@@ -11359,8 +11438,8 @@ suite('CopilotAgent', () => {
 					session: session.toString(),
 					channel: chatUri.toString(),
 					kind: 'create',
-					backing: { sdkSessionId: captured!.sessionId, model: { id: 'gpt-x' } },
-					providerData: { sdkSessionId: captured!.sessionId, model: { id: 'gpt-x' } },
+					backing: { sdkSessionId: captured!.sessionId, model: { id: 'gpt-x' }, allowEmptyResume: true },
+					providerData: { sdkSessionId: captured!.sessionId, model: { id: 'gpt-x' }, allowEmptyResume: true },
 					legacyCatalogWritten: false,
 				});
 			} finally {
@@ -12724,14 +12803,16 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					materializedBackings: [internals2._chatBackings.get(peerA.toString()), internals2._chatBackings.get(peerB.toString())],
 					resumeKind: resumed?.kind,
+					requiresHistory: resumed?.kind === 'resume' ? resumed.requireHistory : undefined,
 					resumeSessionId: resumed?.sessionId,
 					expectedSessionId: created['peer-a'],
 					historyLen: history.length,
 					tracked: hasLiveChat(agent2, peerA),
 					parentResumeCalls: (agent2 as TestableCopilotAgent).resumeCalls,
 				}, {
-					materializedBackings: [{ sdkSessionId: created['peer-a'] }, { sdkSessionId: created['peer-b'] }],
+					materializedBackings: [{ sdkSessionId: created['peer-a'] }, { sdkSessionId: created['peer-b'], allowEmptyResume: true }],
 					resumeKind: 'resume',
+					requiresHistory: false,
 					resumeSessionId: created['peer-a'],
 					expectedSessionId: created['peer-a'],
 					historyLen: 1,
@@ -12809,7 +12890,7 @@ suite('CopilotAgent', () => {
 	suite('chat surface (IAgentChats)', () => {
 
 		type ConvInternals = {
-			_provisionalSessions: Map<string, unknown>;
+			_provisionalSessions: Map<string, { model?: ModelSelection; agent?: AgentSelection }>;
 			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI }) => CopilotAgentSession;
 		};
 
@@ -12986,6 +13067,27 @@ suite('CopilotAgent', () => {
 					session: session.toString(),
 					provisional: true,
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('ordinary peer model and agent changes do not overwrite a provisional Lead', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'independent-peer-model');
+				const leadModel = { id: 'lead-model' };
+				const leadAgent = { uri: 'file:///workspace/lead.agent.md' };
+				await provisionSession(agent, { session, model: leadModel, agent: leadAgent, workingDirectories: [URI.file('/workspace')] });
+				const peer = URI.parse(buildChatUri(session, 'worker'));
+				const record = installFake(agent, peer.toString(), 'chat', session);
+				await agent.chats.changeModel(peer, { id: 'worker-model' }, exactChatContext(session, peer));
+				await agent.chats.changeAgent(peer, undefined, exactChatContext(session, peer));
+				const provisional = (agent as unknown as ConvInternals)._provisionalSessions.get(AgentSession.id(session));
+				assert.deepStrictEqual({
+					leadModel: provisional?.model, leadAgent: provisional?.agent,
+					modelCalls: record.modelCalls, agentCalls: record.agentCalls,
+				}, { leadModel, leadAgent, modelCalls: ['worker-model'], agentCalls: [undefined] });
 			} finally {
 				await disposeAgent(agent);
 			}

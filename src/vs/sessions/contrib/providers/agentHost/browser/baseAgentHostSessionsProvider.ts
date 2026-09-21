@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, raceCancellationError, SequencerByKey } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
+import { mapsStrictEqualIgnoreOrder, ResourceMap } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -33,10 +34,13 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { parseAgentHostModelSelection } from '../../../../../platform/agentHost/common/agentHostModelSelection.js';
+import { CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey, ICopilotModelTeam, omitCopilotModelTeamConfig, parseCopilotModelTeam } from '../../../../../platform/agentHost/common/copilotModelTeam.js';
+import { readAgentHostPersistentTeamState } from '../../../../../platform/agentHost/common/meta/agentHostPersistentTeamMeta.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset, SessionInputRequestKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -51,21 +55,23 @@ import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../.
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { filterConfigurationToSchema } from '../../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
-import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { getRegisteredLanguageModels, isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, LOCAL_AGENT_HOST_PROVIDER_ID, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionModelTeam, ISessionModelTeamMember, ISessionModelTeamState, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, SessionModelTeamRole } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -2219,7 +2225,7 @@ class NewSession extends Disposable {
 
 	// -- Picker mutations ----------------------------------------------------
 
-	setSelectedModelId(modelId: string, source: ChatModelSource): void {
+	setSelectedModelId(modelId: string | undefined, source: ChatModelSource): void {
 		this._selectedModelId = modelId;
 		transaction(tx => {
 			this._modelSource.set(source, tx);
@@ -2395,6 +2401,12 @@ class NewSession extends Disposable {
 		if (explicitlySet) {
 			this._explicitlySetConfigProperties.add(property);
 		}
+		this._syncWorktreePending();
+	}
+
+	restoreConfig(config: ResolveSessionConfigResult): void {
+		this._config = config;
+		this._unresolvedConfigValues = undefined;
 		this._syncWorktreePending();
 	}
 
@@ -2759,6 +2771,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
 	readonly onDidChangeModels: Event<void>;
+	private readonly _onDidChangeModelTeam = this._register(new Emitter<void>());
+	readonly onDidChangeModelTeam: Event<void>;
+	private readonly _modelTeamSequencer = new SequencerByKey<string>();
+	private readonly _modelTeamOperations = new ResourceMap<Promise<void>>();
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
 
@@ -3006,6 +3022,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this.onDidChangeModels = Event.defer(Event.any(
 			this._languageModelsService.onDidChangeLanguageModels,
 			this._languageModelsService.onDidChangeModelVisibility,
+		), false, this._store);
+		this.onDidChangeModelTeam = Event.defer(Event.any(
+			this._onDidChangeModelTeam.event,
+			Event.map(this._onDidChangeSessionConfig.event, () => undefined),
+			Event.map(this._onDidChangeSessionsImmediately, () => undefined),
+			this._onDidChangeRootConfig.event,
 		), false, this._store);
 		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
@@ -3678,7 +3700,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (configuration.sessionTemplate) {
 			const template = configuration.sessionTemplate;
 			assertAutomationSessionTemplate(template);
-			const config = omitAutomationSessionTemplateConfigValues({ ...template.config });
+			const config = omitCopilotModelTeamConfig(omitAutomationSessionTemplateConfigValues({ ...template.config }));
 			return {
 				...(template.modelId ? { modelId: template.modelId } : {}),
 				...(template.modelConfiguration !== undefined ? { modelConfiguration: template.modelConfiguration } : {}),
@@ -3961,7 +3983,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				config[key] = value;
 			}
 		}
-		const templateConfig = omitAutomationSessionTemplateConfigValues(config);
+		const templateConfig = omitCopilotModelTeamConfig(omitAutomationSessionTemplateConfigValues(config));
 		const modelId = newSession.getSelectedModelId();
 		const modelConfiguration = newSession.modelConfiguration.captureModelConfiguration(modelId);
 		const agent = newSession.getSelectedAgent();
@@ -4194,9 +4216,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		});
 	}
 
-	private async _resolveRunningSessionConfig(sessionId: string, cached: AgentHostSessionAdapter, values: Record<string, unknown>): Promise<void> {
+	private async _resolveRunningSessionConfig(sessionId: string, cached: AgentHostSessionAdapter, values: Record<string, unknown>, options: { readonly strict?: boolean; readonly publish?: boolean } = {}): Promise<ResolveSessionConfigResult | undefined> {
 		const connection = this.connection;
 		if (!connection) {
+			if (options.strict) {
+				throw new Error(localize('modelTeam.connectionUnavailable', "The agent host connection is unavailable."));
+			}
 			return;
 		}
 		const seq = (this._runningSessionConfigResolveSeq.get(sessionId) ?? 0) + 1;
@@ -4208,12 +4233,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				config: values,
 			});
 			if (this._runningSessionConfigResolveSeq.get(sessionId) !== seq) {
+				if (options.strict) {
+					throw new Error(localize('modelTeam.configurationChanged', "The chat configuration changed while the team was being saved. Open the team picker and try again."));
+				}
 				return;
 			}
-			this._runningSessionConfigs.set(sessionId, resolved);
-			this._onDidChangeSessionConfig.fire(sessionId);
+			if (options.publish !== false) {
+				this._runningSessionConfigs.set(sessionId, resolved);
+				this._onDidChangeSessionConfig.fire(sessionId);
+			}
+			return resolved;
 		} catch (err) {
+			if (options.strict) {
+				throw err;
+			}
 			this._logService.warn(`[${this.id}] Failed to re-resolve session config for ${sessionId}: ${err}`);
+			return undefined;
 		}
 	}
 
@@ -4394,6 +4429,350 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- Model selection ------------------------------------------------------
 
+	private _modelTeamTarget(sessionId: string, chatResource: URI): { readonly draft?: NewSession; readonly cached?: AgentHostSessionAdapter; readonly resourceScheme: string } | undefined {
+		if (this.id !== LOCAL_AGENT_HOST_PROVIDER_ID) {
+			return undefined;
+		}
+		const draft = this._getNewSession(sessionId);
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const session = draft?.session ?? cached;
+		if (!session || session.isQuickChat?.get() || !isEqual(session.mainChat.get().resource, chatResource)
+			|| (draft?.agentProvider ?? cached?.agentProvider) !== 'copilotcli') {
+			return undefined;
+		}
+		return { draft, cached, resourceScheme: session.resource.scheme };
+	}
+
+	getModelTeam(sessionId: string, chatResource: URI): ISessionModelTeamState | undefined {
+		const target = this._modelTeamTarget(sessionId, chatResource);
+		if (!target) {
+			return undefined;
+		}
+		const knownConfig = target.draft?.getConfig() ?? this._runningSessionConfigs.get(sessionId) ?? this._lastSessionStates.get(sessionId)?.config;
+		if (!knownConfig?.schema.properties[CopilotModelTeamConfigKey]) {
+			return undefined;
+		}
+		const config = this.getSessionConfig(sessionId);
+		if (!config?.schema.properties[CopilotModelTeamConfigKey]) {
+			return undefined;
+		}
+		const persistent = readAgentHostPersistentTeamState(this._lastSessionStates.get(sessionId));
+		const inputNeeded = this._lastSessionStates.get(sessionId)?.inputNeeded ?? [];
+		const pendingInputCount = (chat: string) => inputNeeded.filter(request => request.kind !== SessionInputRequestKind.ToolClientExecution && isEqual(URI.parse(request.chat), URI.parse(chat))).length;
+		try {
+			const memberChats = target.cached?.chats.get() ?? [];
+			const findMemberChat = (backend: string) => memberChats.find(chat => isEqual(this.getBackendChatResource(chat.resource), URI.parse(backend)));
+			const members: ISessionModelTeamMember[] | undefined = persistent?.members.flatMap(member => {
+				const chat = findMemberChat(member.chat);
+				const assignment = persistent?.task?.assignments.find(assignment => assignment.role === member.role && assignment.chat === member.chat);
+				const inputCount = pendingInputCount(member.chat);
+				return chat ? [{
+					role: member.role,
+					chatResource: chat.resource,
+					title: chat.title.get(),
+					status: chat.status.get(),
+					enabled: member.enabled,
+					...(inputCount ? { pendingInputCount: inputCount } : {}),
+					...(member.error ? { historyUnavailable: true } : {}),
+					...(assignment ? {
+						assignment: {
+							state: assignment.state,
+							...(assignment.objective !== undefined ? { objective: assignment.objective } : {}),
+							...(assignment.deliverable !== undefined ? { deliverable: assignment.deliverable } : {}),
+							...(assignment.revision !== undefined ? { revision: assignment.revision } : {}),
+							...(assignment.delivered !== undefined ? { delivered: assignment.delivered } : {}),
+							...(assignment.reviewed !== undefined ? { reviewed: assignment.reviewed } : {}),
+							...(assignment.reviewFeedback !== undefined ? { reviewFeedback: assignment.reviewFeedback } : {}),
+							...(assignment.error ? { error: assignment.error } : {}),
+						}
+					} : {}),
+				}] : [];
+			});
+			const teamInputCount = persistent ? pendingInputCount(persistent.leadChat) + (members?.filter(member => member.enabled).reduce((count, member) => count + (member.pendingInputCount ?? 0), 0) ?? 0) : 0;
+			const persistentState = {
+				...(members ? { members } : {}),
+				...(persistent?.task ? {
+					task: {
+						state: persistent.task.state,
+						...(persistent.task.leadPhase ? { leadPhase: persistent.task.leadPhase } : {}),
+						...(persistent.task.requestedLeadPhase ? { requestedLeadPhase: persistent.task.requestedLeadPhase } : {}),
+						...(teamInputCount ? { pendingInputCount: teamInputCount } : {}),
+						...(target.cached ? { leadStatus: target.cached.mainChat.get().status.get() } : {}),
+						...(persistent.task.error ? { error: persistent.task.error } : {}),
+					}
+				} : {}),
+			};
+			const team = parseCopilotModelTeam(config.values[CopilotModelTeamConfigKey]);
+			const remembered = parseCopilotModelTeam(config.values[CopilotModelTeamRememberedConfigKey]);
+			const models = this.getModelsSnapshot(sessionId).models;
+			const identifier = (id: string) => models.find(model => model.metadata.id === id)?.identifier ?? `${target.resourceScheme}:${id}`;
+			const currentSelection = (role: SessionModelTeamRole, fallback: ModelSelection): ModelSelection => {
+				const member = persistent?.members.find(member => member.role === role);
+				const resource = member && findMemberChat(member.chat)?.resource;
+				const input = resource && this._chatService.getSession(resource)?.inputModel.state.get();
+				return input?.selectedModel && isInConversationModelChoice(input.selectedModelReason) ? {
+					id: input.selectedModel.metadata.id,
+					...(input.modelConfiguration ? { config: parseAgentHostModelSelection({ id: input.selectedModel.metadata.id, config: input.modelConfiguration }).config } : {}),
+				} : member?.model ?? fallback;
+			};
+			const project = (value: ICopilotModelTeam): ISessionModelTeam => {
+				const worker = currentSelection('worker', value.worker);
+				const scout = value.scout ? currentSelection('scout', value.scout) : undefined;
+				return {
+					workerModelId: identifier(worker.id),
+					...(worker.config !== undefined ? { workerModelConfiguration: worker.config } : {}),
+					...(scout ? {
+						scoutModelId: identifier(scout.id),
+						...(scout.config !== undefined ? { scoutModelConfiguration: scout.config } : {}),
+					} : {}),
+				};
+			};
+			const inputState = target.cached ? this._chatService.getSession(chatResource)?.inputModel.state.get() : undefined;
+			const leadModelId = target.draft?.getSelectedModelId() ?? target.cached?.getChatModelId(chatResource) ?? inputState?.selectedModel?.identifier;
+			const leadModelConfiguration = target.draft?.getSelectedModel()?.config
+				?? (inputState?.selectedModel?.identifier === leadModelId ? inputState?.modelConfiguration : undefined);
+			const leadConfigurationState = leadModelConfiguration !== undefined ? { leadModelConfiguration } : {};
+			if (!team) {
+				return {
+					supported: true,
+					pending: this._modelTeamOperations.has(chatResource),
+					...leadConfigurationState,
+					...persistentState,
+					...(remembered ? { rememberedSelection: project(remembered) } : {}),
+				};
+			}
+			const selection = project(team);
+			const unavailable = [selection.workerModelId, selection.scoutModelId].find(id => id && !models.some(model => model.identifier === id && model.metadata.isUserSelectable !== false));
+			const error = unavailable
+				? localize('modelTeam.helperUnavailable', "The selected helper model '{0}' is unavailable. Choose a replacement in the team picker.", unavailable)
+				: persistent?.error?.message ?? persistent?.members.find(member => member.error)?.error?.message;
+			return {
+				supported: true,
+				selection,
+				...leadConfigurationState,
+				...persistentState,
+				pending: this._modelTeamOperations.has(chatResource) || !members?.some(member => member.role === 'worker')
+					|| (!!team.scout && !members.some(member => member.role === 'scout')),
+				...(error ? { error } : {}),
+			};
+		} catch (error) {
+			return { supported: false, pending: false, error: error instanceof Error ? error.message : String(error) };
+		}
+	}
+
+	setModelTeam(sessionId: string, chatResource: URI, leadModelId: string, team: ISessionModelTeam | undefined, leadModelConfiguration?: Readonly<Record<string, unknown>>): Promise<void> {
+		return this._queueModelTeamSelection(sessionId, chatResource, leadModelId, team, leadModelConfiguration);
+	}
+
+	private _queueModelTeamSelection(sessionId: string, chatResource: URI, leadModelId: string, team: ISessionModelTeam | undefined, leadModelConfiguration?: Readonly<Record<string, unknown>>): Promise<void> {
+		return this._queueModelTeamOperation(sessionId, chatResource, () => this._applyModelTeamSelection(sessionId, chatResource, leadModelId, team, leadModelConfiguration));
+	}
+
+	private _queueModelTeamOperation(sessionId: string, chatResource: URI, run: () => Promise<void>): Promise<void> {
+		const operation = this._modelTeamSequencer.queue(getComparisonKey(chatResource), run);
+		this._modelTeamOperations.set(chatResource, operation);
+		this._getNewSession(sessionId)?.trackConfigOperation(operation);
+		this._onDidChangeModelTeam.fire();
+		const clear = () => {
+			if (this._modelTeamOperations.get(chatResource) === operation) {
+				this._modelTeamOperations.delete(chatResource);
+				this._onDidChangeModelTeam.fire();
+			}
+		};
+		void operation.then(clear, clear);
+		return operation;
+	}
+
+	resetModelTeamMember(sessionId: string, chatResource: URI, role: SessionModelTeamRole, expectedMember: URI): Promise<void> {
+		return this._queueModelTeamOperation(sessionId, chatResource, async () => {
+			const target = this._modelTeamTarget(sessionId, chatResource);
+			const connection = this.connection;
+			const lead = this.getBackendChatResource(chatResource);
+			const member = this.getBackendChatResource(expectedMember);
+			const state = readAgentHostPersistentTeamState(this._lastSessionStates.get(sessionId));
+			if (!target?.cached || !connection?.resetPersistentTeamMember || !lead || !member
+				|| state?.leadChat !== lead.toString()
+				|| !state.members.some(candidate => candidate.role === role && candidate.chat === member.toString())) {
+				throw new Error(localize('modelTeam.memberChanged', "The teammate changed. Reopen the team picker before resetting it."));
+			}
+			await connection.resetPersistentTeamMember({
+				session: target.cached.backendUri.toString(), leadChat: lead.toString(), role, expectedMemberChat: member.toString(),
+			});
+		});
+	}
+
+	private async _applyModelTeamSelection(sessionId: string, chatResource: URI, leadModelId: string, selection: ISessionModelTeam | undefined, leadModelConfiguration?: Readonly<Record<string, unknown>>): Promise<void> {
+		const target = this._modelTeamTarget(sessionId, chatResource);
+		const teamState = this.getModelTeam(sessionId, chatResource);
+		if (teamState?.loading) {
+			throw new Error(localize('modelTeam.configurationLoading', "Wait for the chat configuration to finish loading before choosing a model."));
+		}
+		if (!target || (selection && !teamState?.supported)) {
+			throw new Error(localize('modelTeam.unsupportedChat', "Model teams are not available for this chat."));
+		}
+		const { draft, cached } = target;
+		if (draft) {
+			await draft.waitForConfigResolution();
+			if (this._getNewSession(sessionId) !== draft) {
+				throw new CancellationError();
+			}
+		}
+		const models = this.getModelsSnapshot(sessionId).models;
+		const leadModel = models.find(model => model.identifier === leadModelId);
+		if (!leadModel) {
+			throw new Error(localize('modelTeam.leadUnavailable', "The selected Lead model is unavailable. Choose a replacement."));
+		}
+		const leadConfiguration = leadModelConfiguration === undefined ? undefined : parseAgentHostModelSelection({ id: leadModel.metadata.id, config: leadModelConfiguration }).config ?? {};
+		if (leadConfiguration !== undefined && (!equals(leadConfiguration, filterConfigurationToSchema(leadConfiguration, leadModel.metadata.configurationSchema))
+			|| Object.keys(leadConfiguration).some(key => leadModel.metadata.configurationSchema?.properties?.[key]?.readOnly))) {
+			throw new Error(localize('modelTeam.leadConfigurationUnavailable', "The Lead model does not support the selected configuration."));
+		}
+		const previousConfig = this.getSessionConfig(sessionId);
+		const previousTeam = teamState?.selection ? parseCopilotModelTeam(previousConfig?.values[CopilotModelTeamConfigKey]) : undefined;
+		const previousRemembered = teamState?.rememberedSelection ? parseCopilotModelTeam(previousConfig?.values[CopilotModelTeamRememberedConfigKey]) : undefined;
+		const previousHelpers = previousTeam ?? previousRemembered;
+		const resolveHelper = (identifier: string, configuration: Readonly<Record<string, unknown>> | undefined, previous: ModelSelection | undefined): ModelSelection => {
+			const model = models.find(model => model.identifier === identifier && model.metadata.isUserSelectable !== false);
+			if (!model) {
+				throw new Error(localize('modelTeam.invalidHelper', "Choose an available model for each helper."));
+			}
+			if (configuration !== undefined) {
+				if (!equals(configuration, filterConfigurationToSchema(configuration, model.metadata.configurationSchema))
+					|| Object.keys(configuration).some(key => model.metadata.configurationSchema?.properties?.[key]?.readOnly)) {
+					throw new Error(localize('modelTeam.helperConfigurationUnavailable', "The teammate model does not support the selected configuration."));
+				}
+				return parseAgentHostModelSelection({ id: model.metadata.id, config: configuration });
+			}
+			return previous?.id === model.metadata.id ? previous : { id: model.metadata.id };
+		};
+		const team: ICopilotModelTeam | undefined = selection ? {
+			worker: resolveHelper(selection.workerModelId, selection.workerModelConfiguration, previousHelpers?.worker),
+			...(selection.scoutModelId ? { scout: resolveHelper(selection.scoutModelId, selection.scoutModelConfiguration, previousHelpers?.scout) } : {}),
+		} : undefined;
+		const changedValues = {
+			[CopilotModelTeamConfigKey]: team ?? {},
+			...(previousConfig?.schema.properties[CopilotModelTeamRememberedConfigKey]
+				? { [CopilotModelTeamRememberedConfigKey]: team ?? previousHelpers ?? {} }
+				: {}),
+		};
+		if (draft) {
+			if (!previousConfig?.schema.properties[CopilotModelTeamConfigKey]) {
+				throw new Error(localize('modelTeam.configurationUnavailable', "The chat configuration is unavailable. Open the team picker and try again."));
+			}
+			const previousModelId = draft.getSelectedModelId();
+			const previousModelSource = draft.session.mainChat.get().modelSource.get() ?? ChatModelSource.CarriedOver;
+			const previousLeadConfiguration = draft.modelConfiguration.getModelConfigurationForRequest(leadModelId);
+			const inputModel = this._chatService.getSession(chatResource)?.inputModel;
+			const previousInputState = inputModel?.state.get();
+			const previousInputIntent = inputModel?.intendedModel;
+			transaction(() => {
+				draft.beginResolveConfigSync();
+				for (const [key, value] of Object.entries(changedValues)) {
+					draft.setConfigValue(key, value, true);
+				}
+				draft.setSelectedModelId(leadModelId, ChatModelSource.Chosen);
+				if (leadConfiguration !== undefined) {
+					draft.modelConfiguration.setModelConfigurationForRequest(leadModelId, leadConfiguration);
+				}
+				if (inputModel) {
+					this._applyModelTeamInputSelection(inputModel, leadModel, leadConfiguration);
+				}
+				this._onDidChangeSessionConfig.fire(sessionId);
+			});
+			try {
+				await draft.trackConfigResolution(this._refreshNewSessionConfig(draft, { expected: changedValues }));
+			} catch (error) {
+				if (this._getNewSession(sessionId) === draft) {
+					transaction(() => {
+						draft.restoreConfig(previousConfig);
+						draft.setSelectedModelId(previousModelId, previousModelSource);
+						if (leadConfiguration !== undefined) {
+							draft.modelConfiguration.setModelConfigurationForRequest(leadModelId, previousLeadConfiguration);
+						}
+						if (inputModel && inputModel === this._chatService.getSession(chatResource)?.inputModel) {
+							inputModel.setIntendedModel(previousInputIntent);
+							inputModel.setState({
+								selectedModel: previousInputState?.selectedModel,
+								modelConfiguration: previousInputState?.modelConfiguration,
+								selectedModelReason: previousInputState?.selectedModelReason,
+							});
+						}
+						this._onDidChangeSessionConfig.fire(sessionId);
+					});
+				}
+				throw error;
+			}
+			return;
+		}
+		const connection = this.connection;
+		if (!cached || !connection?.getPersistentTeamState) {
+			throw new Error(localize('modelTeam.connectionUnavailable', "The agent host connection is unavailable."));
+		}
+		const values = { ...previousConfig?.values, ...changedValues };
+		const resolved = await this._resolveRunningSessionConfig(sessionId, cached, values, { strict: true, publish: false });
+		if (!resolved || Object.entries(changedValues).some(([key, value]) => !equals(resolved.values[key], value))) {
+			throw new Error(localize('modelTeam.notAccepted', "The agent host did not accept the model team configuration."));
+		}
+		const store = new DisposableStore();
+		try {
+			const targets = [{ resource: chatResource, model: leadModel, configuration: leadConfiguration }];
+			const members = this.getModelTeam(sessionId, chatResource)?.members;
+			for (const role of ['worker', 'scout'] as const) {
+				const member = members?.find(member => member.role === role);
+				const selected = team?.[role];
+				const model = selected && models.find(model => model.metadata.id === selected.id);
+				if (member && model) {
+					targets.push({ resource: member.chatResource, model, configuration: selected?.config });
+				}
+			}
+			const inputs: { input: IInputModel; target: typeof targets[number] }[] = [];
+			for (const target of targets) {
+				const modelRef = await this._chatService.acquireOrLoadSession(target.resource, ChatAgentLocation.Chat, CancellationToken.None);
+				if (!modelRef) {
+					throw new Error(localize('modelTeam.inputUnavailable', "The chat input is unavailable. Open the chat before changing its team."));
+				}
+				store.add(modelRef);
+				inputs.push({ input: modelRef.object.inputModel, target });
+			}
+			if (this.connection !== connection || this._modelTeamTarget(sessionId, chatResource)?.cached !== cached) {
+				throw new CancellationError();
+			}
+			transaction(() => {
+				this._runningSessionConfigs.set(sessionId, resolved);
+				connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionConfigChanged, config: changedValues });
+				for (const { input, target } of inputs) {
+					cached.setChatModelId(target.resource, target.model.identifier, ChatModelSource.Chosen);
+					this._applyModelTeamInputSelection(input, target.model, target.configuration);
+				}
+				this._onDidChangeSessionConfig.fire(sessionId);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			});
+			const leadChat = this.getBackendChatResource(chatResource);
+			if (!leadChat) {
+				throw new Error(localize('modelTeam.inputUnavailable', "The chat input is unavailable. Open the chat before changing its team."));
+			}
+			const state = await connection.getPersistentTeamState(cached.backendUri, leadChat);
+			if (team && !state?.enabled) {
+				throw new Error(localize('modelTeam.setupIncomplete', "The agent host did not initialize the model team. Reopen the team picker and try again."));
+			}
+			if (state?.enabled && state.state === 'unavailable') {
+				throw new Error(state.error?.message ?? localize('modelTeam.historyUnavailable', "A teammate could not be restored. Open its chat for details, or explicitly reset it."));
+			}
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private _applyModelTeamInputSelection(inputModel: IInputModel, model: ILanguageModelChatMetadataAndIdentifier, configuration: Readonly<Record<string, unknown>> | undefined): void {
+		const previousState = inputModel.state.get();
+		const modelConfiguration = configuration !== undefined ? { ...configuration }
+			: previousState?.selectedModel?.identifier === model.identifier ? previousState.modelConfiguration : undefined;
+		// Record the choice before notifying the input so draft sync does not protect its old remote model.
+		inputModel.setIntendedModel({ modelId: model.identifier, model, configuration: modelConfiguration, reason: ModelSelectionReason.UserSelection });
+		inputModel.setState({ selectedModel: model, modelConfiguration, selectedModelReason: ModelSelectionReason.UserSelection });
+	}
+
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		// Agent-host models are registered against the session's resource
 		// scheme (the per-host/per-agent `targetChatSessionType`). Resolve the
@@ -4454,7 +4833,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (rather than `undefined`, which would leave an already-running chat pinned
 	 * to its stale backend model) so the request is explicitly reset to Auto.
 	 */
-	private _resolveSendModelId(sessionId: string, selectedModelId: string | undefined): string | undefined {
+	private _resolveSendModelId(sessionId: string, selectedModelId: string | undefined, chatResource?: URI): string | undefined {
 		if (!selectedModelId) {
 			return selectedModelId;
 		}
@@ -4462,6 +4841,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (snapshot.desiredModelResolution.kind !== 'unavailable') {
 			// Available, pending (list not yet populated) or not requested: keep the selection.
 			return selectedModelId;
+		}
+		if (chatResource && this.getModelTeam(sessionId, chatResource)?.selection) {
+			throw new Error(localize('modelTeam.leadUnavailable', "The selected Lead model is unavailable. Choose a replacement."));
 		}
 		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
 		const supportsAuto = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
@@ -4487,6 +4869,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
+		const team = this.getModelTeam(sessionId, chatResource);
+		if (team?.loading) {
+			throw new Error(localize('modelTeam.configurationLoading', "Wait for the chat configuration to finish loading before choosing a model."));
+		}
+		if (source === ChatModelSource.Chosen && (team?.selection || team?.error || this._modelTeamOperations.has(chatResource))) {
+			void this._queueModelTeamSelection(sessionId, chatResource, modelId, undefined).catch(error => {
+				if (!isCancellationError(error)) {
+					this._logService.error(`[${this.id}] Failed to leave the model team`, error);
+					void this._dialogService.error(localize('modelTeam.exitFailed', "Could Not Change the Model Team"), error instanceof Error ? error.message : String(error));
+				}
+			});
+			return;
+		}
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			const previousModelId = newSession.getSelectedModelId();
@@ -5020,6 +5415,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+		let modelTeamOperation: Promise<void> | undefined;
+		while ((modelTeamOperation = this._modelTeamOperations.get(chatResource))) {
+			await modelTeamOperation;
+		}
+		const team = this.getModelTeam(chatId, chatResource);
+		if (team?.error) {
+			throw new Error(team.error);
+		}
 		const newSession = this._getNewSession(chatId);
 		if (newSession) {
 			return this._sendNewSessionRequest(newSession, chatId, chatResource, options);
@@ -5039,7 +5442,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionType = chatResource.scheme;
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
-		const selectedModelId = this._resolveSendModelId(chatId, cached.getChatModelId(chatResource));
+		const selectedModelId = this._resolveSendModelId(chatId, cached.getChatModelId(chatResource), chatResource);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -5150,7 +5553,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
 
-		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
+		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId(), chatResource);
 		const selectedAgent = newSession.getSelectedAgent();
 
 		const { query, attachedContext } = options;
@@ -5649,6 +6052,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
+		if (!structuralEquals(previous?.inputNeeded, state.inputNeeded)) {
+			this._onDidChangeModelTeam.fire();
+		}
 		const previousAgentMerge = readAgentMergeSessionState(previous?.config?.values);
 		const currentAgentMerge = readAgentMergeSessionState(state.config?.values);
 		if (previousAgentMerge?.enabled !== currentAgentMerge?.enabled || !structuralEquals(previousAgentMerge?.overrides, currentAgentMerge?.overrides)) {

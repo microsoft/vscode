@@ -3847,6 +3847,45 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'correlated result');
 	});
 
+	test('source-qualified pending keys isolate colliding client tool call IDs', async () => {
+		const tool = registerToolForTest(service, store, 'sourceQualifiedTool', {
+			invoke: async invocation => ({ content: [{ kind: 'text', value: String(invocation.parameters.source) }] }),
+			handleToolStream: async () => ({ invocationMessage: 'Preparing' }),
+		});
+		const invocations = ['worker', 'scout'].map(source => ({
+			source,
+			invocation: service.beginToolCall({ toolCallId: 'same-call', invocationKey: `${source}/turn/same-call`, toolId: tool.id }),
+		}));
+		const results = await Promise.all(invocations.map(({ source }) => service.invokeTool({
+			callId: 'same-call', chatStreamToolCallId: 'same-call', invocationKey: `${source}/turn/same-call`,
+			toolId: tool.id, parameters: { source }, context: undefined,
+		}, async () => 0, CancellationToken.None)));
+		assert.deepStrictEqual({
+			distinct: invocations[0].invocation !== invocations[1].invocation,
+			states: invocations.map(({ invocation }) => invocation?.state.get().type),
+			values: results.map(result => result.content),
+		}, {
+			distinct: true,
+			states: [IChatToolInvocation.StateKind.Completed, IChatToolInvocation.StateKind.Completed],
+			values: [[{ kind: 'text', value: 'worker' }], [{ kind: 'text', value: 'scout' }]],
+		});
+	});
+
+	test('an explicit source request never falls back to a replacement turn', async () => {
+		let executions = 0;
+		const tool = registerToolForTest(service, store, 'sourceRequestTool', {
+			invoke: async () => {
+				executions++;
+				return { content: [] };
+			},
+		});
+		stubGetSession(chatService, 'source-session', { requestId: 'replacement-turn' });
+		const dto = tool.makeDto({}, { sessionId: 'source-session' });
+		dto.context = { sessionResource: LocalChatSessionUri.forSession('source-session'), requestId: 'stale-turn' };
+		await assert.rejects(service.invokeTool(dto, async () => 0, CancellationToken.None), /unknown chat request/);
+		assert.strictEqual(executions, 0);
+	});
+
 	test('getAllToolsIncludingDisabled returns tools regardless of when clause', () => {
 		contextKeyService.createKey('featureFlag', false);
 
@@ -5183,6 +5222,32 @@ suite('LanguageModelToolsService', () => {
 
 			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
 			await invokePromise;
+		});
+
+		test('an authoritative provider ask stays human and one-time even with autopilot and an allow hook', async () => {
+			let executions = 0;
+			const tool = registerToolForTest(preApprovedService, store, 'providerAskTool', {
+				invoke: async () => {
+					executions++;
+					return { content: [{ kind: 'text', value: 'approved' }] };
+				},
+				prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm action', message: 'Approve?', allowAutoConfirm: true } }),
+			});
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'provider-ask', { requestId: 'provider-ask-turn', capture, modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } });
+			const dto = tool.makeDto({}, { sessionId: 'provider-ask' });
+			dto.requiresUserConfirmation = true;
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+			dto.preToolUseResult = { permissionDecision: 'allow' };
+			const running = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+			const before = { executions, state: invocation.state.get().type, allowAutoConfirm: invocation.confirmationMessages?.allowAutoConfirm };
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await running;
+			assert.deepStrictEqual({ before, executions }, {
+				before: { executions: 0, state: IChatToolInvocation.StateKind.WaitingForConfirmation, allowAutoConfirm: false },
+				executions: 1,
+			});
 		});
 
 		test('a headless confirmable tool with dto.preApproved does not show a dialog', async () => {

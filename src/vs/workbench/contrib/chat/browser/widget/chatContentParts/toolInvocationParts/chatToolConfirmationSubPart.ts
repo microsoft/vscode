@@ -158,7 +158,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		const { message, disclaimer } = state.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
 
-		if (typeof message === 'string' && !disclaimer) {
+		if (typeof message === 'string' && !disclaimer && toolInvocation.toolSpecificData?.kind !== 'input') {
 			return message;
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -297,7 +297,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				}
 			}
 
-			const mdPart = this._makeMarkdownPart(elements.message, message!, codeBlockRenderOptions);
+			const mdPart = this._makeMarkdownPart(elements.message, message ?? '', codeBlockRenderOptions);
 
 			const messageSeeMoreObserver = this._register(new ElementSizeObserver(mdPart.domNode, undefined));
 			const updateSeeMoreDisplayed = () => {

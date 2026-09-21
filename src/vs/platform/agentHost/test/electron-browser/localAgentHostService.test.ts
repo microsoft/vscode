@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -25,8 +26,11 @@ import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientPro
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
 import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
+import type { IAgentHostPersistentTeamReset, IAgentHostPersistentTeamState } from '../../common/agentHostPersistentTeam.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
 class CapturingNotificationService extends TestNotificationService {
@@ -198,6 +202,59 @@ suite('registerAgentHostClientChannels', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService());
 		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+	});
+});
+
+suite('LocalAgentHostServiceClient', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes Team setup and reset through the same protocol client as draft changes', async () => {
+		const session = URI.parse('copilotcli:/team');
+		const leadChat = URI.parse(buildDefaultChatUri(session));
+		const state: IAgentHostPersistentTeamState = { version: 2, leadChat: leadChat.toString(), enabled: true, state: 'ready', members: [] };
+		const calls: { operation: string; session?: string; chat: string }[] = [];
+		const protocolClient = new class extends mock<AgentHostProtocolClient>() {
+			override readonly onDidChangeConnectionState = Event.None;
+			override readonly onDidFatalClose = Event.None;
+			override async connect(): Promise<void> { }
+			override dispatch(channel: string): void {
+				calls.push({ operation: 'draft', chat: channel });
+			}
+			override async getPersistentTeamState(session: URI, leadChat: URI): Promise<IAgentHostPersistentTeamState> {
+				calls.push({ operation: 'get', session: session.toString(), chat: leadChat.toString() });
+				return state;
+			}
+			override async resetPersistentTeamMember(request: IAgentHostPersistentTeamReset): Promise<IAgentHostPersistentTeamState> {
+				calls.push({ operation: 'reset', session: request.session, chat: request.expectedMemberChat });
+				return state;
+			}
+			override dispose(): void { }
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') });
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, { dispose() { } });
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = store.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		service.startAgentHost();
+
+		service.dispatch(leadChat.toString(), { type: ActionType.ChatDraftChanged, draft: { text: 'Keep my draft', origin: { kind: MessageKind.User } } });
+		const current = await service.getPersistentTeamState(session, leadChat);
+		const reset = await service.resetPersistentTeamMember({
+			session: session.toString(), leadChat: leadChat.toString(), role: 'worker', expectedMemberChat: buildChatUri(session, 'worker'),
+		});
+		assert.deepStrictEqual({ calls, current, reset }, {
+			calls: [
+				{ operation: 'draft', chat: leadChat.toString() },
+				{ operation: 'get', session: session.toString(), chat: leadChat.toString() },
+				{ operation: 'reset', session: session.toString(), chat: buildChatUri(session, 'worker') },
+			],
+			current: state,
+			reset: state,
+		});
 	});
 });
 

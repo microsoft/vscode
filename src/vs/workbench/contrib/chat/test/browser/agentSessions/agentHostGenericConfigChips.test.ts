@@ -10,12 +10,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey } from '../../../../../../platform/agentHost/common/copilotModelTeam.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { type ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { AgentHostGenericConfigChips } from '../../../browser/agentSessions/agentHost/agentHostGenericConfigChips.js';
+import { isClaimedByDedicatedPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -32,6 +34,12 @@ function createSubscription<T>(): IAgentSubscription<T> {
 
 suite('AgentHostGenericConfigChips', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('team configuration is kept in its dedicated picker', () => {
+		assert.deepStrictEqual([
+			CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey,
+		].map(property => isClaimedByDedicatedPicker(property, { type: 'object', title: property })), [true, true]);
+	});
 
 	test('moves its subscription when the provisional generation changes', () => {
 		const sessionResource = URI.parse('agent-host-copilot:/untitled-test');

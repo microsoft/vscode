@@ -22,6 +22,7 @@ import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
+import { IChatSessionInputRequests, IChatSessionInputSource } from './chatSessionInputRequests.js';
 
 export const enum ChatSessionsExtensions {
 	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
@@ -433,6 +434,9 @@ export interface IChatSession extends IDisposable {
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly isReadOnly?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+
+	/** Presents authoritative input requests from these chats without opening their widgets. */
+	observeInputRequests?(sources: IObservable<readonly IChatSessionInputSource[]>): IChatSessionInputRequests;
 
 	/**
 	 * Event fired when the server initiates a new request (e.g. from a consumed

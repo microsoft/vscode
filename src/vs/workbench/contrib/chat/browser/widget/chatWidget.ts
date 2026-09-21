@@ -1333,18 +1333,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	focusQuestionCarousel(): boolean {
-		if (!this.input.questionCarousel) {
-			return false;
-		}
-
 		return this.input.focusQuestionCarousel();
 	}
 
 	toggleQuestionCarouselFocus(): boolean {
-		if (!this.input.questionCarousel) {
-			return false;
-		}
-
 		if (this.input.isQuestionCarouselFocused()) {
 			this.focusInput();
 			return true;
@@ -2511,6 +2503,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			modelPickerDelegate: this.viewOptions.modelPickerDelegate,
 		};
 
 		if (this.viewModel?.editing) {

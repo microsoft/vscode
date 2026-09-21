@@ -30,6 +30,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostPersistentTeamService, IAgentHostPersistentTeamService } from '../../node/agentHostPersistentTeamService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -293,6 +294,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		services.set(IAgentHostPersistentTeamService, disposables.add(instantiationService.createInstance(AgentHostPersistentTeamService)));
 		// Blocked/unblocked tool-call telemetry is reported by
 		// `SessionInputNeededContribution`, so the built-in contributions must be
 		// registered for this graph to mirror production wiring.

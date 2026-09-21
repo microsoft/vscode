@@ -31,6 +31,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostPersistentTeamReset, IAgentHostPersistentTeamState } from '../common/agentHostPersistentTeam.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -426,6 +427,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	getPersistentTeamState(session: URI, leadChat: URI): Promise<IAgentHostPersistentTeamState | undefined> {
+		// Keep roster setup ordered after the chat's draft and configuration actions.
+		return this._requireClient().getPersistentTeamState(session, leadChat);
+	}
+
+	resetPersistentTeamMember(request: IAgentHostPersistentTeamReset): Promise<IAgentHostPersistentTeamState> {
+		return this._requireClient().resetPersistentTeamMember(request);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

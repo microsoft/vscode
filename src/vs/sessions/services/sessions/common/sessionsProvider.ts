@@ -13,7 +13,7 @@ import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, SessionStatus } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -102,6 +102,57 @@ export interface ISessionModelsSnapshot {
 	readonly desiredModelResolution: ModelIdentifierResolution;
 	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
 	readonly modelTarget: string | undefined;
+}
+
+export interface ISessionModelTeam {
+	readonly workerModelId: string;
+	readonly workerModelConfiguration?: Readonly<Record<string, unknown>>;
+	readonly scoutModelId?: string;
+	readonly scoutModelConfiguration?: Readonly<Record<string, unknown>>;
+}
+
+export type SessionModelTeamRole = 'worker' | 'scout';
+
+/** A durable teammate conversation, independent of its current assignment. */
+export interface ISessionModelTeamMember {
+	readonly role: SessionModelTeamRole;
+	readonly chatResource: URI;
+	readonly title?: string;
+	readonly status: SessionStatus;
+	readonly enabled: boolean;
+	readonly pendingInputCount?: number;
+	readonly historyUnavailable?: boolean;
+	/** Assignment progress does not change the chat's activity or permissions. */
+	readonly assignment?: {
+		readonly state: 'unassigned' | 'queued' | 'working' | 'reported' | 'blocked' | 'removed';
+		readonly objective?: string;
+		readonly deliverable?: string;
+		readonly revision?: number;
+		readonly delivered?: boolean;
+		readonly reviewed?: boolean;
+		readonly reviewFeedback?: string;
+		readonly error?: string;
+	};
+}
+
+export interface ISessionModelTeamState {
+	readonly supported: boolean;
+	readonly loading?: boolean;
+	readonly selection?: ISessionModelTeam;
+	readonly rememberedSelection?: ISessionModelTeam;
+	readonly leadModelConfiguration?: Readonly<Record<string, unknown>>;
+	readonly members?: readonly ISessionModelTeamMember[];
+	/** Current collaboration status, without provider turn or message identities. */
+	readonly task?: {
+		readonly state: 'working' | 'waiting' | 'reviewing' | 'integrating' | 'completed' | 'blocked' | 'cancelled';
+		readonly leadPhase?: 'manager' | 'integration';
+		readonly requestedLeadPhase?: 'manager' | 'integration';
+		readonly pendingInputCount?: number;
+		readonly leadStatus?: SessionStatus;
+		readonly error?: string;
+	};
+	readonly pending: boolean;
+	readonly error?: string;
 }
 
 export interface IAutomation {
@@ -395,6 +446,17 @@ export interface ISessionsProvider {
 	 * chose a model for.
 	 */
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void;
+
+	/** Returns team selection for the exact chat, or undefined when teams do not apply. */
+	getModelTeam?(sessionId: string, chatResource: URI): ISessionModelTeamState | undefined;
+
+	/** Stages the lead and helper selections together without starting a request. */
+	setModelTeam?(sessionId: string, chatResource: URI, leadModelId: string, team: ISessionModelTeam | undefined, leadModelConfiguration?: Readonly<Record<string, unknown>>): Promise<void>;
+
+	/** Resets one idle teammate only if its backing is still the one the user confirmed. */
+	resetModelTeamMember?(sessionId: string, chatResource: URI, role: SessionModelTeamRole, expectedMember: URI): Promise<void>;
+
+	readonly onDidChangeModelTeam?: Event<void>;
 
 	/**
 	 * Set the chat mode for a session.

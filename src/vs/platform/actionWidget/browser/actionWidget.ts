@@ -183,6 +183,9 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 		this._list.value = list;
 		if (this._list.value) {
+			if (this._list.value.customHeaderContainer) {
+				widget.appendChild(this._list.value.customHeaderContainer);
+			}
 			if (this._list.value.headerContainer) {
 				widget.appendChild(this._list.value.headerContainer);
 			}

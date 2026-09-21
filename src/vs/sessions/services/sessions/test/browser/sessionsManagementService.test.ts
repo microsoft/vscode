@@ -2044,6 +2044,86 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('send-follow preserves the selected chat when ordinary Team peers materialize', async () => {
+		const lead: IChat = { ...stubChat, resource: URI.parse('test:///chat/lead'), title: constObservable('Lead'), status: constObservable(SessionStatus.NeedsInput) };
+		const worker: IChat = { ...stubChat, resource: URI.parse('test:///chat/worker'), title: constObservable('Worker'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.User } };
+		const scout: IChat = { ...stubChat, resource: URI.parse('test:///chat/scout'), title: constObservable('Scout'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.User } };
+		const chats = observableValue<readonly IChat[]>('chats', [lead]);
+		const session = stubSession({
+			sessionId: 'team', providerId: 'test', status: constObservable(SessionStatus.NeedsInput),
+			chats, mainChat: constObservable(lead), capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(): Promise<ISession> {
+				started.complete();
+				await finish.p;
+				return session;
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+		const send = service.sendRequest(session, lead, { query: 'Use the team' });
+		await started.p;
+		chats.set([lead, worker], undefined);
+		const afterWorker = view.activeSession.get()?.activeChat.get().resource;
+		await view.openChat(session, worker.resource);
+		chats.set([lead, worker, scout], undefined);
+		const afterScout = view.activeSession.get()?.activeChat.get().resource;
+		await view.openChat(session, scout.resource);
+		const selectedScout = view.activeSession.get()?.activeChat.get().resource;
+		await view.openChat(session, lead.resource);
+		await finish.complete();
+		await send;
+		assert.deepStrictEqual({
+			afterWorker, afterScout, selectedScout,
+			selected: view.activeSession.get()?.activeChat.get().resource,
+			visibleTabs: view.activeSession.get()?.visibleChatTabs.get().map(chat => ({ title: chat.title.get(), interactivity: chat.interactivity.get() })),
+		}, {
+			afterWorker: lead.resource, afterScout: worker.resource, selectedScout: scout.resource, selected: lead.resource,
+			visibleTabs: [
+				{ title: 'Lead', interactivity: ChatInteractivity.Full },
+				{ title: 'Worker', interactivity: ChatInteractivity.Full },
+				{ title: 'Scout', interactivity: ChatInteractivity.Full },
+			],
+		});
+	});
+
+	test('send-follow still activates a newly created user chat', async () => {
+		const lead: IChat = { ...stubChat, resource: URI.parse('test:///chat/lead'), status: constObservable(SessionStatus.Completed) };
+		const draft: IChat = { ...stubChat, resource: URI.parse('test:///chat/new'), status: constObservable(SessionStatus.Untitled), origin: { kind: ChatOriginKind.User } };
+		const chats = observableValue<readonly IChat[]>('chats', [lead]);
+		const session = stubSession({
+			sessionId: 'user-chat', providerId: 'test', status: constObservable(SessionStatus.Completed),
+			chats, mainChat: constObservable(lead), capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async createNewChat(): Promise<IChat> {
+				chats.set([lead, draft], undefined);
+				return draft;
+			}
+			override async sendRequest(): Promise<ISession> {
+				started.complete();
+				await finish.p;
+				return session;
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+		const send = service.sendNewChatRequest(session, { query: 'A new user chat' });
+		await started.p;
+		const selectedDuringSend = view.activeSession.get()?.activeChat.get().resource;
+		await finish.complete();
+		await send;
+		assert.deepStrictEqual({
+			selectedDuringSend,
+			selected: view.activeSession.get()?.activeChat.get().resource,
+		}, { selectedDuringSend: draft.resource, selected: draft.resource });
+	});
+
 	test('createAndSendNewChatRequest sends without changing the active view', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

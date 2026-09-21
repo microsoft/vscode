@@ -87,6 +87,19 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		return effective;
 	}
 
+	/** Sets a request-scoped snapshot without changing profile-global model defaults. */
+	setModelConfigurationForRequest(modelId: string, values: IAutomationSessionTemplate['modelConfiguration']): void {
+		if (values === undefined) {
+			this.preferences.delete(modelId);
+		} else {
+			if (!isAutomationModelConfiguration(values)) {
+				throw new Error('Automation model configuration must contain only JSON primitive values.');
+			}
+			this.preferences.set(modelId, deepClone(values));
+		}
+		this._onDidChange.fire(modelId);
+	}
+
 	/** Carries preferences when a provider resolves a native model identifier to its editor-qualified identity. */
 	rebindModelConfiguration(previousModelId: string, modelId: string): void {
 		const preferences = this.preferences.get(previousModelId);

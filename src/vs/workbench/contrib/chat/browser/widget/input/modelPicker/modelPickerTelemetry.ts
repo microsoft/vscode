@@ -8,6 +8,28 @@ import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/c
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 
+type ChatModelChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the model picker is switched';
+	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
+	toModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat model' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current chat session, used to correlate the model switch with the session.' };
+};
+
+type ChatModelChangeEvent = {
+	fromModel: string | TelemetryTrustedValue<string> | undefined;
+	toModel: string | TelemetryTrustedValue<string>;
+	chatSessionId?: string;
+};
+
+export function logModelChange(telemetryService: ITelemetryService, previousModel: ILanguageModelChatMetadataAndIdentifier | undefined, model: ILanguageModelChatMetadataAndIdentifier, chatSessionId: string | undefined): void {
+	telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
+		fromModel: previousModel?.metadata.vendor === COPILOT_VENDOR_ID ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
+		toModel: model.metadata.vendor === COPILOT_VENDOR_ID ? new TelemetryTrustedValue(model.identifier) : 'unknown',
+		chatSessionId,
+	});
+}
+
 type ChatThinkingEffortChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when a model configuration value (e.g. thinking effort, or the Auto routing tier) is changed';

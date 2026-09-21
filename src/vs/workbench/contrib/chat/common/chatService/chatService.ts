@@ -576,6 +576,7 @@ export const enum ElicitationState {
 
 export interface IChatElicitationRequest {
 	kind: 'elicitation2'; // '2' because initially serialized data used the same kind
+	readonly resolveId?: string;
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;

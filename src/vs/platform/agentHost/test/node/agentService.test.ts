@@ -15055,6 +15055,11 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('copilot');
+			const reasons: ('restore' | undefined)[] = [];
+			localAgent.resolveChatConfig = async (params, reason?: 'restore') => {
+				reasons.push(reason);
+				return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
+			};
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
@@ -15078,7 +15083,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			// MockAgent.resolveSessionConfig echoes params.config back as values, so the
 			// persisted values are forwarded through and end up on state.config.values.
-			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
+			assert.deepStrictEqual({ values: state!.config?.values, reasons }, { values: { autoApprove: 'autoApprove' }, reasons: ['restore'] });
 		});
 
 		test.skip('restoreSession seeds the session changeset from persisted diffs', async () => {

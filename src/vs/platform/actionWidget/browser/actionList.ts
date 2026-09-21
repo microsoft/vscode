@@ -699,6 +699,9 @@ export interface IActionListOptions {
 	 * Optional text shown below the action list as a footer.
 	 */
 	readonly footerText?: string;
+	readonly renderFooter?: (container: HTMLElement) => IDisposable;
+	/** Renders interactive content above the banner and list. */
+	readonly renderHeader?: (container: HTMLElement) => IDisposable;
 
 	/**
 	 * Optional text shown above the action list as a header banner. When set, it is
@@ -786,6 +789,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private readonly _footerContainer: HTMLElement | undefined;
+	private readonly _customHeaderContainer: HTMLElement | undefined;
 	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
@@ -1109,10 +1113,24 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// Create footer text
-		if (this._options?.footerText) {
+		if (this._options?.footerText || this._options?.renderFooter) {
 			this._footerContainer = document.createElement('div');
-			this._footerContainer.className = 'action-list-footer';
-			this._footerContainer.textContent = this._options.footerText;
+			if (this._options.renderFooter) {
+				this._footerContainer.className = 'action-list-custom-footer';
+				this._register(this._options.renderFooter(this._footerContainer));
+				const observer = this._register(new dom.DisposableResizeObserver('ActionListWidget.footer', () => this._onDidRequestLayout.fire(), dom.getWindow(this._footerContainer)));
+				this._register(observer.observe(this._footerContainer, { box: 'border-box' }));
+			} else {
+				this._footerContainer.className = 'action-list-footer';
+				this._footerContainer.textContent = this._options.footerText ?? '';
+			}
+		}
+
+		if (this._options?.renderHeader) {
+			this._customHeaderContainer = dom.$('.action-list-custom-header');
+			this._register(this._options.renderHeader(this._customHeaderContainer));
+			const observer = this._register(new dom.DisposableResizeObserver('ActionListWidget.header', () => this._onDidRequestLayout.fire(), dom.getWindow(this._customHeaderContainer)));
+			this._register(observer.observe(this._customHeaderContainer, { box: 'border-box' }));
 		}
 
 		// Create header banner
@@ -1475,6 +1493,10 @@ export class ActionListWidget<T> extends Disposable {
 		return this._headerContainer;
 	}
 
+	get customHeaderContainer(): HTMLElement | undefined {
+		return this._customHeaderContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._filterInput;
 	}
@@ -1816,10 +1838,9 @@ export class ActionListWidget<T> extends Disposable {
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
 
-		// Keep the filter above the list. Skipped when the caller mounted the filter
-		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
+		// Moving an already-positioned filter blurs its input and dismisses the popup.
 		const listParent = this.domNode.parentElement;
-		if (listParent && this._filterContainer?.parentElement === listParent) {
+		if (listParent && this._filterContainer?.parentElement === listParent && this._filterContainer.nextSibling !== this.domNode) {
 			listParent.insertBefore(this._filterContainer, this.domNode);
 		}
 		this._layoutSubmenu?.();
@@ -2737,6 +2758,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.headerContainer;
 	}
 
+	get customHeaderContainer(): HTMLElement | undefined {
+		return this._widget.customHeaderContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -2874,9 +2899,11 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this._fixedContentHeight ?? this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
-		const footerHeight = this._widget.footerContainer ? 32 : 0;
+		const footerHeight = this._widget.footerContainer
+			? this._widget.footerContainer.classList.contains('action-list-custom-footer') ? this._widget.footerContainer.offsetHeight : 32
+			: 0;
 		const headerHeight = this._widget.headerContainer ? this._widget.headerContainer.offsetHeight || 36 : 0;
-		const chromeHeight = filterHeight + footerHeight + headerHeight;
+		const chromeHeight = filterHeight + footerHeight + headerHeight + (this._widget.customHeaderContainer?.offsetHeight ?? 0);
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 

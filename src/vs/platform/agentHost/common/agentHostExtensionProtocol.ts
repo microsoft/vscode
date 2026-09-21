@@ -7,6 +7,7 @@ import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../.
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import type { IAgentHostPersistentTeamState } from './agentHostPersistentTeam.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
@@ -20,6 +21,8 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const GetPersistentTeamStateExtensionMethod = 'vscode/getPersistentTeamState';
+export const ResetPersistentTeamMemberExtensionMethod = 'vscode/resetPersistentTeamMember';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -65,7 +68,23 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+const persistentTeamAddress = { session: vString(), leadChat: vString() };
+export const getPersistentTeamStateParamsValidator = vObj(persistentTeamAddress);
+export const resetPersistentTeamMemberParamsValidator = vObj({
+	...persistentTeamAddress,
+	role: vEnum('worker', 'scout'),
+	expectedMemberChat: vString(),
+});
+
 export interface IAgentHostExtensionCommandMap {
+	[GetPersistentTeamStateExtensionMethod]: {
+		params: ValidatorType<typeof getPersistentTeamStateParamsValidator>;
+		result: IAgentHostPersistentTeamState | undefined;
+	};
+	[ResetPersistentTeamMemberExtensionMethod]: {
+		params: ValidatorType<typeof resetPersistentTeamMemberParamsValidator>;
+		result: IAgentHostPersistentTeamState;
+	};
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;

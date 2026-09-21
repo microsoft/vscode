@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -502,6 +502,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			return;
 		}
 		this._listenedProvider = provider;
-		this._providerListener.value = provider?.onDidChangeModels(() => this._refresh('models'));
+		this._providerListener.value = provider
+			? Event.any(provider.onDidChangeModels, provider.onDidChangeModelTeam ?? Event.None)(() => this._refresh('models'))
+			: undefined;
 	}
 }

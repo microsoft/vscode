@@ -7,6 +7,50 @@
 	overflow: visible;
 }
 
+.model-picker-selection-segments,
+.model-picker-selection-segment {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.model-picker-selection-segments {
+	flex: 0 1 auto;
+	gap: 0;
+}
+
+.model-picker-selection-segment {
+	flex: 0 1 auto;
+	gap: var(--vscode-spacing-size60);
+	overflow: hidden;
+}
+
+.model-picker-selection-segment .codicon,
+.model-picker-selection-separator {
+	flex-shrink: 0;
+}
+
+.model-picker-selection-separator {
+	color: var(--vscode-descriptionForeground);
+	padding-inline: var(--vscode-spacing-size60);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section.model-picker-name .model-picker-selection-segment > .codicon + .chat-input-picker-label {
+	margin-inline: 0;
+}
+
+.chat-input-picker-item .action-label.model-picker-split.compact.multiple-models .model-picker-name {
+	flex: 0 1 auto;
+	width: auto;
+	padding-block: 0;
+	padding-inline: var(--vscode-spacing-size60);
+	justify-content: flex-start;
+}
+
+.action-widget.chat-model-picker-custom-content {
+	width: max-content;
+}
+
 .interactive-session .chat-input-toolbar .chat-input-picker-item.model-picker-item .action-label.model-picker-split {
 	box-sizing: border-box;
 	width: 100%;

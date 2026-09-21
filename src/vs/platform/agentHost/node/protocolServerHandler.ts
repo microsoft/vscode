@@ -21,8 +21,9 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, GetPersistentTeamStateExtensionMethod, getPersistentTeamStateParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, RequestAgentHostWorkspaceTrustExtensionMethod, ResetPersistentTeamMemberExtensionMethod, resetPersistentTeamMemberParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import type { IAgentHostPersistentTeamAddress } from '../common/agentHostPersistentTeam.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -119,6 +120,22 @@ function shouldLogFailedRequest(method: string, params: unknown, err: unknown): 
 /** True when `value` is a non-null params object (as opposed to an array or primitive). */
 function isParamsObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parsePersistentTeamAddress(params: IAgentHostPersistentTeamAddress, expectedChat?: string): { session: URI; leadChat: URI } {
+	let session: URI;
+	let leadChat: URI;
+	try {
+		session = URI.parse(params.session, true);
+		leadChat = URI.parse(params.leadChat, true);
+	} catch {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Persistent team addresses must be valid URIs');
+	}
+	if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2 || session.authority || session.query || session.fragment || parseChatUri(session)
+		|| parseChatUri(leadChat)?.session !== session.toString() || (expectedChat !== undefined && parseChatUri(expectedChat)?.session !== session.toString())) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'The Lead and teammate chat must belong to the requested Agent Session');
+	}
+	return { session, leadChat };
 }
 
 /**
@@ -317,9 +334,9 @@ export interface IProtocolServerConfig {
 	readonly defaultDirectory?: string;
 	/**
 	 * Whether to expose VS Code extension methods outside the Agent Host Protocol.
-	 * Defaults to `true` for existing remote listeners.
+	 * Defaults to `true` for existing remote listeners; a set permits only those methods.
 	 */
-	readonly allowExtensionMethods?: boolean;
+	readonly allowExtensionMethods?: boolean | ReadonlySet<string>;
 	/**
 	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
 	 * cause the client to issue a `completions` request. Announced to
@@ -679,7 +696,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(this._config.allowExtensionMethods !== false && !!this._agentService.removeSessionArtifact),
+				_meta: getAgentHostExtensionInitializeResultMeta(this._allowsExtensionMethod(RemoveSessionArtifactExtensionMethod) && !!this._agentService.removeSessionArtifact),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -1856,13 +1873,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return promise;
 	}
 
-	/**
-	 * Handle VS Code extension methods that are not yet part of the typed
-	 * protocol. Returns a Promise if the method was recognized, undefined
-	 * otherwise.
-	 */
+	private _allowsExtensionMethod(method: string): boolean {
+		const allowed = this._config.allowExtensionMethods;
+		return allowed === undefined || allowed === true || (allowed !== false && allowed.has(method));
+	}
+
+	/** Returns a promise for a recognized extension method, or undefined otherwise. */
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
-		if (this._config.allowExtensionMethods === false) {
+		if (!this._allowsExtensionMethod(method)) {
 			return undefined;
 		}
 
@@ -1912,6 +1930,37 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					}
 				}
 				return this._agentService.getSessionStateFile(session, chat).then(resource => ({ resource: resource?.toString() }));
+			}
+			case GetPersistentTeamStateExtensionMethod: {
+				if (!this._agentService.getPersistentTeamState) {
+					return undefined;
+				}
+				const validated = getPersistentTeamStateParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				let address: ReturnType<typeof parsePersistentTeamAddress>;
+				try {
+					address = parsePersistentTeamAddress(validated.content);
+				} catch (error) {
+					return Promise.reject(error);
+				}
+				return this._agentService.getPersistentTeamState(address.session, address.leadChat);
+			}
+			case ResetPersistentTeamMemberExtensionMethod: {
+				if (!this._agentService.resetPersistentTeamMember) {
+					return undefined;
+				}
+				const validated = resetPersistentTeamMemberParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				try {
+					parsePersistentTeamAddress(validated.content, validated.content.expectedMemberChat);
+				} catch (error) {
+					return Promise.reject(error);
+				}
+				return this._agentService.resetPersistentTeamMember(validated.content);
 			}
 			case RemoveSessionArtifactExtensionMethod: {
 				if (!this._agentService.removeSessionArtifact) {

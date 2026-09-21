@@ -6,7 +6,7 @@
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -21,6 +21,7 @@ import { IChatEntitlementService } from '../../../../../../services/chat/common/
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
+import type { IModelPickerAdditionalContent } from './modelPickerActionItem.js';
 import { ModelPickerAutoRow } from './modelPickerAutoRow.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
@@ -30,6 +31,7 @@ import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
 import { isAutoModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
+import { ModelPickerContentWidget } from './modelPickerContentWidget.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -38,6 +40,9 @@ const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
+	readonly additionalContent?: IModelPickerAdditionalContent;
+	/** Rebuilds the picker from its owning delegate after custom content changes. */
+	readonly reopen?: () => void;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	readonly recentModelIds: readonly string[];
@@ -81,6 +86,7 @@ export class TabbedModelPicker extends Disposable {
 	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _widget: TabbedActionListWidget;
+	private readonly _contentWidget: ModelPickerContentWidget;
 	private readonly _cards = this._register(new DisposableMap<string, ModelCard>());
 	private readonly _autoRow = this._register(new MutableDisposable<ModelPickerAutoRow>());
 	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
@@ -104,7 +110,7 @@ export class TabbedModelPicker extends Disposable {
 	private _lastExplicitModelId: string | undefined;
 
 	get isVisible(): boolean {
-		return this._widget.isVisible;
+		return this._widget.isVisible || this._contentWidget.isVisible;
 	}
 
 	constructor(
@@ -116,18 +122,22 @@ export class TabbedModelPicker extends Disposable {
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
+		this._contentWidget = this._register(instantiationService.createInstance(ModelPickerContentWidget));
 		this._register(this._widget.onDidChangeTab(id => { this._activeDestination = id; }));
-		this._register(this._widget.onDidHide(() => {
+		const onDidHide = () => {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
 			this._cards.clearAndDisposeAll();
 			this._onDidHide.fire();
-		}));
+		};
+		this._register(this._widget.onDidHide(onDidHide));
+		this._register(this._contentWidget.onDidHide(onDidHide));
 	}
 
 	hide(): void {
 		this._widget.hide();
+		this._contentWidget.hide();
 	}
 
 	show(anchor: HTMLElement, context: ITabbedModelPickerContext): void {
@@ -136,8 +146,9 @@ export class TabbedModelPicker extends Disposable {
 		}
 		this._anchor = anchor;
 		this._context = context;
-		if (context.selectedModelId && !this._isAutoSelected(context)) {
-			this._lastExplicitModelId = context.selectedModelId;
+		const selectedModel = context.models.find(model => model.identifier === context.selectedModelId);
+		if (selectedModel && !isAutoModel(selectedModel)) {
+			this._lastExplicitModelId = selectedModel.identifier;
 		}
 		this._showCurrent();
 	}
@@ -146,6 +157,16 @@ export class TabbedModelPicker extends Disposable {
 		const context = this._context;
 		const anchor = this._anchor;
 		if (!context || !anchor) {
+			return;
+		}
+
+		const additionalContentContext = {
+			anchor,
+			hide: () => this.hide(),
+			reopen: context.reopen ?? (() => this.show(anchor, context)),
+		};
+		if (context.additionalContent?.replaceModelList) {
+			this._contentWidget.show(context.additionalContent, additionalContentContext);
 			return;
 		}
 
@@ -160,6 +181,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 
 		const autoModel = context.models.find(isAutoModel);
+		const pickerWidth = context.additionalContent?.render ? 360 : PICKER_WIDTH;
 		this._widget.show<IActionWidgetDropdownAction>({
 			user: 'ChatTabbedModelPicker',
 			anchor,
@@ -178,7 +200,7 @@ export class TabbedModelPicker extends Disposable {
 			],
 			tabLabels: 'active',
 			filterInTabBar: true,
-			width: PICKER_WIDTH,
+			width: pickerWidth,
 			createActionList: activeTab => {
 				const current = this._context ?? context;
 				const currentDestinations = this._buildDestinations(current);
@@ -202,6 +224,9 @@ export class TabbedModelPicker extends Disposable {
 							this._searchVisible = true;
 							this._showCurrent(text);
 						},
+						renderHeader: current.additionalContent?.renderHeader
+							? container => current.additionalContent!.renderHeader!(container, additionalContentContext)
+							: undefined,
 						headerText: current.cacheBreakHint?.text,
 						headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
 						headerLink: current.cacheBreakHint?.link,
@@ -214,7 +239,7 @@ export class TabbedModelPicker extends Disposable {
 							}
 						},
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
-						maxWidth: PICKER_WIDTH,
+						maxWidth: pickerWidth,
 						hideDefaultKeybindingTooltip: true,
 						reserveSubmenuSpace: false,
 					}),
@@ -229,11 +254,20 @@ export class TabbedModelPicker extends Disposable {
 				container.appendChild(welcome.element);
 				return welcome;
 			},
-			renderFooter: autoModel ? container => this._renderAutoRow(container, autoModel, context) : undefined,
+			renderFooter: autoModel || context.additionalContent?.render ? container => {
+				const store = new DisposableStore();
+				if (context.additionalContent?.render) {
+					store.add(context.additionalContent.render(container, additionalContentContext));
+				}
+				if (autoModel) {
+					store.add(this._renderAutoRow(container, autoModel, context));
+				}
+				return store;
+			} : undefined,
 			delegate: {
 				onSelect: action => {
-					void action.run();
 					this._widget.hide();
+					void action.run();
 				},
 				onHide: () => { },
 			},
@@ -383,7 +417,8 @@ export class TabbedModelPicker extends Disposable {
 		section?: string,
 		providerLabel?: string,
 	): IActionListItem<IActionWidgetDropdownAction> {
-		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, context.onSelect, section, true);
+		const checkedModelId = context.selectedModelId;
+		const { action, ariaDescription } = createModelAction(model, checkedModelId, context.onSelect, section, true);
 		const badge = getModelBadge(model, { configurationAccess: context.configurationAccess, providerLabel });
 		// While Auto is choosing, a model's settings do not apply, so the card that edits
 		// them stays shut. The row is still selectable, which is what turns Auto off.

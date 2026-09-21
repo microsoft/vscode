@@ -19,6 +19,8 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { toAgentHostPersistentTeamMeta } from '../../common/meta/agentHostPersistentTeamMeta.js';
+import type { IAgentHostPersistentTeamState } from '../../common/agentHostPersistentTeam.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -1939,6 +1941,79 @@ suite('SessionServerTools', () => {
 		});
 		store.dispose();
 	});
+
+	test('Team dispatch requires current planned work and a settled manager phase', async () => {
+		const store = new DisposableStore();
+		try {
+			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+			const session = 'copilot:/s1';
+			const lead = buildDefaultChatUri(session);
+			const worker = buildChatUri(session, 'worker');
+			const team: IAgentHostPersistentTeamState = {
+				version: 2, leadChat: lead, enabled: true, state: 'ready',
+				members: [{ role: 'worker', chat: worker, enabled: true, model: { id: 'model' } }],
+				task: { leadTurnId: 'turn-1', state: 'working', leadPhase: 'manager', assignments: [{ role: 'worker', chat: worker, state: 'unassigned' }] },
+			};
+			stateManager.createSession({
+				resource: session, provider: 'copilot', title: 'Team', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), _meta: toAgentHostPersistentTeamMeta(team),
+			});
+			const prompts: string[] = [];
+			const group = createSessionServerToolGroup(createAccessor({ onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); } }));
+			const context = executionContext(session);
+			const input = { session: 'agent-host-session://copilot/s1?chat=worker', message: 'Implement the planned work' };
+			await assert.rejects(Promise.resolve(group.execute(stateManager, context, SessionServerToolName.SendMessage, input)), /Record an engineering assignment/);
+			const planned: IAgentHostPersistentTeamState = {
+				...team, task: { ...team.task!, assignments: [{ ...team.task!.assignments[0], objective: 'Implement', deliverable: 'Passing tests', revision: 1 }] },
+			};
+			stateManager.setSessionMeta(session, toAgentHostPersistentTeamMeta(planned));
+			await assert.rejects(Promise.resolve(group.execute(stateManager, { ...context, turnId: 'stale' }, SessionServerToolName.SendMessage, input)), /stale work/);
+			stateManager.setSessionMeta(session, toAgentHostPersistentTeamMeta({ ...planned, task: { ...planned.task!, requestedLeadPhase: 'integration' } }));
+			await assert.rejects(Promise.resolve(group.execute(stateManager, context, SessionServerToolName.SendMessage, input)), /manager phase/);
+			stateManager.setSessionMeta(session, toAgentHostPersistentTeamMeta({ ...planned, task: { ...planned.task!, state: 'blocked' } }));
+			await assert.rejects(Promise.resolve(group.execute(stateManager, context, SessionServerToolName.SendMessage, input)), /Retry the active task/);
+			stateManager.setSessionMeta(session, toAgentHostPersistentTeamMeta(planned));
+			await group.execute(stateManager, context, SessionServerToolName.SendMessage, input);
+			assert.deepStrictEqual(prompts, ['Implement the planned work']);
+		} finally {
+			store.dispose();
+		}
+	});
+
+	for (const taskState of ['blocked', 'cancelled'] as const) {
+		test(`send_message does not restart a ${taskState} Team task`, async () => {
+			const store = new DisposableStore();
+			try {
+				const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+				const target = 'copilot:/s2';
+				const chat = buildDefaultChatUri(target);
+				stateManager.createSession({
+					resource: target, provider: 'copilot', title: 'Team', status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+					_meta: toAgentHostPersistentTeamMeta({
+						version: 2, leadChat: chat, enabled: true, state: 'ready',
+						members: [{ role: 'worker', chat: buildChatUri(target, 'worker'), enabled: true, model: { id: 'model' } }],
+						task: {
+							leadTurnId: 'task', state: taskState,
+							assignments: [{ role: 'worker', chat: buildChatUri(target, 'worker'), state: 'working', turnId: 'assignment' }],
+						},
+					}),
+				});
+				const prompts: string[] = [];
+				const group = createSessionServerToolGroup(createAccessor({
+					listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+					onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
+				}));
+				const result = await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.SendMessage, { session: target, message: 'Report arrived' });
+				assert.deepStrictEqual({
+					result, prompts,
+					queued: stateManager.getChatState(chat)?.queuedMessages?.map(message => message.message.text),
+				}, { result: 'Message queued (agent-host-session://copilot/s2).', prompts: [], queued: ['Report arrived'] });
+			} finally {
+				store.dispose();
+			}
+		});
+	}
 
 	suite('get_session_context', () => {
 		const toolCall = (toolName: string, input: object): ToolCallState => ({

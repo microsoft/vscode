@@ -1739,9 +1739,7 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('presents a generic confirmation input read-only, since edits are never sent back', () => {
-			// The confirmation editor writes into `rawInput`, but this adapter never returns it as
-			// `editedToolInput` — an editable field would run the command the agent proposed.
+		test('honors host-authorized editing of a generic confirmation input', () => {
 			const tc: ToolCallPendingConfirmationState = {
 				toolCallId: 'tc-perm-path',
 				toolName: 'shell',
@@ -1749,7 +1747,6 @@ suite('stateToProgressAdapter', () => {
 				invocationMessage: 'Access paths',
 				status: ToolCallStatus.PendingConfirmation,
 				toolInput: '/a/one.ts, /a/two.ts',
-				// A host claiming otherwise does not change that: the round trip is what is missing.
 				editable: true,
 				_meta: { requestId: 'req-3', promptRequest: { kind: 'path', accessKind: 'shell' } },
 			};
@@ -1760,7 +1757,7 @@ suite('stateToProgressAdapter', () => {
 				editable: (invocation.toolSpecificData as IChatToolInputInvocationData | undefined)?.editable,
 			}, {
 				kind: 'input',
-				editable: false,
+				editable: true,
 			});
 		});
 

@@ -44,6 +44,7 @@ import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
+import { IAgentHostPersistentTeamService } from './agentHostPersistentTeamService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -124,6 +125,7 @@ export function createAgentServiceComposition(
 		owned.add(stateManager.onDidChangeSessionActiveTurn(event => changesetCoordinator.onSessionTurnActiveChanged(event.session, event.active)));
 
 		const completions = accessor.get(IAgentHostCompletions);
+		const persistentTeams = accessor.get(IAgentHostPersistentTeamService);
 
 		const terminalManager = accessor.get(IAgentHostTerminalManager);
 		const sideEffects = owned.add(instantiationService.createInstance(
@@ -136,7 +138,11 @@ export function createAgentServiceComposition(
 				localTurns,
 				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
-				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
+				resolveWorkingDirectoryBeforeSend: async params => {
+					const directories = await callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params);
+					await persistentTeams.prepareTurn(params.session, params.chat);
+					return directories;
+				},
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
@@ -162,7 +168,7 @@ export function createAgentServiceComposition(
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
+			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor, persistentTeams),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
@@ -184,6 +190,10 @@ export function createAgentServiceComposition(
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
+		const catalogHost = agentService;
+		owned.add(persistentTeams.registerHost({
+			createChat: (session, chat, options) => catalogHost.createChat(session, chat, options),
+		}));
 		owned.add(new AgentHostSessionLifecycle(
 			{
 				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),

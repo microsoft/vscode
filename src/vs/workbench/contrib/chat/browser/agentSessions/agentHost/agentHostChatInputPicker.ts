@@ -27,6 +27,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { AgentHostCopilotSandboxSettingId, getAgentHostCopilotSandboxSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey } from '../../../../../../platform/agentHost/common/copilotModelTeam.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -292,6 +293,8 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
  * suppress the generic chip.
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
+	CopilotModelTeamConfigKey,
+	CopilotModelTeamRememberedConfigKey,
 	SessionConfigKey.Mode,
 	SessionConfigKey.AutoApprove,
 	SessionConfigKey.Isolation,

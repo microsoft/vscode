@@ -21,6 +21,7 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } fro
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { AgentHostPersistentTeamContinuationPrefix, toAgentHostPersistentTeamMeta } from '../../common/meta/agentHostPersistentTeamMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -41,6 +42,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostPersistentTeamService, IAgentHostPersistentTeamService } from '../../node/agentHostPersistentTeamService.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
@@ -860,6 +862,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		sendTurnMessage: () => observed?.push('queueDrain'),
 	};
 	disposables.add(service.registerHost(host));
+	services.set(IAgentHostPersistentTeamService, disposables.add(instantiationService.createInstance(AgentHostPersistentTeamService)));
 	disposables.add(registerBuiltInChatContributions(service));
 	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test' };
 }
@@ -1448,6 +1451,134 @@ suite('AgentHostChatContributions', () => {
 			return undefined;
 		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
+	});
+
+	test('persistent team roles describe managerial ownership and capable engineers through message context', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const lead = buildDefaultChatUri(contributions.session);
+		const worker = buildChatUri(contributions.session, 'worker');
+		const scout = buildChatUri(contributions.session, 'scout');
+		for (const chat of [worker, scout]) {
+			contributions.stateManager.addChat(contributions.session, chat);
+		}
+		contributions.stateManager.setSessionMeta(contributions.session, toAgentHostPersistentTeamMeta({
+			version: 2, leadChat: lead, enabled: true, state: 'ready',
+			members: [
+				{ role: 'worker', chat: worker, enabled: true, model: { id: 'worker-model' } },
+				{ role: 'scout', chat: scout, enabled: true, model: { id: 'scout-model' } },
+			],
+		}));
+		const outputs = await Promise.all([lead, worker, scout].map(async chat => {
+			const message: Message = { text: 'direct user question', origin: { kind: MessageKind.User } };
+			const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, turnId: 'direct', message });
+			return {
+				admission: contributions.service.incomingRequest(incomingRequest(contributions.session, chat)).kind,
+				role: result.message.text.match(/You are the (?<role>engineering manager|Worker|Scout)/)?.groups?.role,
+				ordinaryTools: result.message.text.includes('retain normal tools, approvals, sandbox and policy'),
+				replyInPlace: result.message.text.includes('For a direct user message, answer here'),
+				requiresDelegation: result.message.text.includes('objective and deliverable for every enabled engineer'),
+				enforcedCompletion: result.message.text.includes('Receiving a report is not accepting it'),
+				origin: result.message.origin,
+				systemPromptChanged: result.instructions !== undefined,
+			};
+		}));
+		assert.deepStrictEqual(outputs, ['engineering manager', 'Worker', 'Scout'].map(role => ({
+			admission: 'accept', role, ordinaryTools: role !== 'engineering manager', replyInPlace: true,
+			requiresDelegation: role === 'engineering manager', enforcedCompletion: role === 'engineering manager',
+			origin: { kind: MessageKind.User }, systemPromptChanged: false,
+		})));
+	});
+
+	test('persistent team delegated work uses the existing message source and stops guidance when Off', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const lead = buildDefaultChatUri(contributions.session);
+		const worker = buildChatUri(contributions.session, 'worker');
+		const state = {
+			version: 2 as const, leadChat: lead, enabled: true, state: 'ready' as const,
+			members: [{ role: 'worker' as const, chat: worker, enabled: true, model: { id: 'worker-model' } }],
+		};
+		contributions.stateManager.addChat(contributions.session, worker);
+		contributions.stateManager.setSessionMeta(contributions.session, toAgentHostPersistentTeamMeta(state));
+		const message: Message = {
+			text: 'Please inspect this change', origin: { kind: MessageKind.Agent },
+			_meta: toAgentMessageDelegationMeta({ sourceSession: contributions.session, sourceChat: lead, sourceTurnId: 'lead-turn' }),
+		};
+		const turn = { session: contributions.session, chat: worker, turnId: 'delegated', message };
+		const enabled = await contributions.service.outgoingTurn(turn);
+		contributions.stateManager.setSessionMeta(contributions.session, toAgentHostPersistentTeamMeta({ ...state, enabled: false, members: state.members.map(member => ({ ...member, enabled: false })) }));
+		const disabled = await contributions.service.outgoingTurn(turn);
+		assert.deepStrictEqual({
+			reportToSource: enabled.message.text.includes('host forwards the final report for tracked Team assignments'),
+			noReplyLoop: enabled.message.text.includes('do not echo them back'),
+			delegation: readAgentMessageDelegationMeta(enabled.message),
+			disabled: disabled.message,
+		}, { reportToSource: true, noReplyLoop: true, delegation: readAgentMessageDelegationMeta(message), disabled: message });
+	});
+
+	test('restored blocked Team work remains retryable even if the SDK recorded a normal stop', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const lead = buildDefaultChatUri(contributions.session);
+		const worker = buildChatUri(contributions.session, 'worker');
+		contributions.stateManager.addChat(contributions.session, worker);
+		contributions.stateManager.setSessionMeta(contributions.session, toAgentHostPersistentTeamMeta({
+			version: 2, leadChat: lead, enabled: true, state: 'ready',
+			members: [{ role: 'worker', chat: worker, enabled: true, model: { id: 'worker-model' } }],
+			task: { leadTurnId: 'live-task', leadEventId: 'task', state: 'blocked', error: 'Worker must finish first', assignments: [{ role: 'worker', chat: worker, state: 'unassigned' }] },
+		}));
+		const turn: Turn = {
+			id: 'task', message: { text: 'Task', origin: { kind: MessageKind.User } }, usage: undefined,
+			state: TurnState.Complete, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Provisional answer' }],
+		};
+		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat: lead }, [turn]);
+		const ordinary = await contributions.service.hydrateTurns({ session: contributions.session, chat: worker }, [turn]);
+		const error = restored[0].responseParts.find(part => part.kind === ResponsePartKind.Error);
+		assert.deepStrictEqual({
+			state: restored[0].state, message: error?.error?.message, resumable: error?.resumable,
+			keepsAnswer: restored[0].responseParts[0], ordinaryState: ordinary[0].state,
+		}, {
+			state: TurnState.Error, message: 'Worker must finish first', resumable: true,
+			keepsAnswer: turn.responseParts[0], ordinaryState: TurnState.Complete,
+		});
+	});
+
+	test('restored Team continuations use recorded identities, not message-text guesses', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const lead = buildDefaultChatUri(contributions.session);
+		const worker = buildChatUri(contributions.session, 'worker');
+		contributions.stateManager.addChat(contributions.session, worker);
+		contributions.stateManager.setSessionMeta(contributions.session, toAgentHostPersistentTeamMeta({
+			version: 2, leadChat: lead, enabled: true, state: 'ready',
+			members: [{ role: 'worker', chat: worker, enabled: true, model: { id: 'worker-model' } }],
+			task: { leadTurnId: 'live-task', leadEventId: 'task-event', state: 'blocked', error: 'Retry Team', assignments: [{ role: 'worker', chat: worker, state: 'unassigned' }] },
+		}));
+		await contributions.database.setTurnEventId('live-task', 'task-event');
+		await contributions.database.setMetadata(`${AgentHostPersistentTeamContinuationPrefix}continuation-event`, 'live-task');
+		const turn = (id: string, text: string): Turn => ({
+			id, message: { text, origin: { kind: MessageKind.User } }, state: TurnState.Complete, usage: undefined,
+			responseParts: [{ id: `${id}-answer`, kind: ResponsePartKind.Markdown, content: text }],
+		});
+		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat: lead }, [
+			turn('task-event', 'Original request'),
+			turn('continuation-event', 'The host collected reports'),
+			turn('real-user-event', 'The host collected reports'),
+		]);
+		const delegated: Turn = {
+			...turn('delegated', 'Assignment'),
+			message: { text: 'Assignment', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: contributions.session, sourceChat: lead, sourceTurnId: 'live-task' }) },
+		};
+		const workerTurns = await contributions.service.hydrateTurns({ session: contributions.session, chat: worker }, [delegated]);
+		assert.deepStrictEqual({
+			turns: restored.map(turn => ({ id: turn.id, text: turn.message.text, state: turn.state })),
+			mergedContent: restored[0].responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content),
+			source: readAgentMessageDelegationMeta(workerTurns[0].message),
+		}, {
+			turns: [
+				{ id: 'task-event', text: 'Original request', state: TurnState.Error },
+				{ id: 'real-user-event', text: 'The host collected reports', state: TurnState.Complete },
+			],
+			mergedContent: ['Original request', 'The host collected reports'],
+			source: { sourceSession: contributions.session, sourceChat: lead, sourceTurnId: 'task-event' },
+		});
 	});
 
 	test('adds artifact guidance only to the first turn of a chat', async () => {

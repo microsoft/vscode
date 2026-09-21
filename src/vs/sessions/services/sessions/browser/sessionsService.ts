@@ -380,7 +380,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private _focusedActiveSessionId: string | undefined;
 
-	/** The in-flight foreground send's "keep newest chat active" follow. */
+	/** Follows a newly created chat draft during a foreground send. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
@@ -492,8 +492,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
-		// While a foreground send materialises new chats, keep the newest chat
-		// active in the visible slot so the user sees the chat being sent.
+		// Follow new foreground chat drafts, not unrelated peers added by the host.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
 		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
 
@@ -664,6 +663,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _startSendFollow(session: ISession): void {
 		const store = new DisposableStore();
 		let followId = session.sessionId;
+		const knownChats = new Set(session.chats.get().map(chat => this.uriIdentityService.extUri.getComparisonKey(chat.resource)));
 		// A foreground send can replace the session id (draft graduating into a
 		// committed session); keep following the new id.
 		store.add(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
@@ -675,9 +675,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const active = this._visibility.activeSession.read(reader);
 			if (active && active.sessionId === followId) {
 				const chats = active.visibleChatTabs.read(reader);
-				const lastChat = chats[chats.length - 1];
-				if (lastChat) {
-					this._visibility.setActiveChat(active, lastChat);
+				const newDraft = chats.findLast(chat =>
+					!knownChats.has(this.uriIdentityService.extUri.getComparisonKey(chat.resource))
+					&& chat.status.read(reader) === SessionStatus.Untitled);
+				for (const chat of chats) {
+					knownChats.add(this.uriIdentityService.extUri.getComparisonKey(chat.resource));
+				}
+				if (newDraft) {
+					this._visibility.setActiveChat(active, newDraft);
 				}
 			}
 		}));

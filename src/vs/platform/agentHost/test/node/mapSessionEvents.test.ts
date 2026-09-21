@@ -866,11 +866,13 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { interactionId: 'interaction-4', content: 'Ok.', toolRequests: [] } },
 			{ type: 'user.message', id: 'system-reminder', data: { interactionId: 'interaction-5', content: systemReminder } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-5', content: 'Hi.', toolRequests: [] } },
+			{ type: 'user.message', id: 'model-team', data: { interactionId: 'interaction-6', content: 'Implement this\n\n<model_team>\nYou are the Lead: coordinate the task.\n</model_team>' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-6', content: 'Done.', toolRequests: [] } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 
-		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text', 'hi']);
+		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text', 'hi', 'Implement this']);
 	});
 
 	test('terminal empty assistant message completes a tool-only turn', async () => {

@@ -74,6 +74,9 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
 			return actions;
 		}
+		if (state.confirmationMessages?.allowAutoConfirm === false) {
+			return actions;
+		}
 
 		// Get actions from confirmation service
 		const confirmActions = this.confirmationService.getPostConfirmActions({

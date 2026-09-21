@@ -17,6 +17,7 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { GetPersistentTeamStateExtensionMethod, ResetPersistentTeamMemberExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -244,7 +245,7 @@ async function startAgentHost(): Promise<void> {
 			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
-			allowExtensionMethods: false,
+			allowExtensionMethods: new Set([GetPersistentTeamStateExtensionMethod, ResetPersistentTeamMemberExtensionMethod]),
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.

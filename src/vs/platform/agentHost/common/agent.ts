@@ -1224,8 +1224,8 @@ export interface IAgent {
 
 	// ---- Configuration and customizations ----------------------------------
 
-	/** Resolve provider-owned chat configuration; host-owned worktree fields are omitted. */
-	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult>;
+	/** Resolve provider-owned configuration; restoration may preserve unavailable preferences without authorizing execution. */
+	resolveChatConfig(params: IAgentResolveChatConfigParams, reason?: 'restore'): Promise<ResolveSessionConfigResult>;
 
 	/** Select provider-owned configuration inherited by a newly created chat. */
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;

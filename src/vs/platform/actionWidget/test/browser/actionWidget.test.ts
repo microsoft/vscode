@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
@@ -23,13 +23,13 @@ import { MockContextKeyService, MockKeybindingService } from '../../../keybindin
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionListItemKind } from '../../browser/actionList.js';
+import { ActionListItemKind, IActionListOptions } from '../../browser/actionList.js';
 import { ActionWidgetService, IActionWidgetService } from '../../browser/actionWidget.js';
 
 suite('ActionWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function showWidget(filterAsCombobox?: boolean) {
+	function showWidget(filterAsCombobox?: boolean, renderFooter?: IActionListOptions['renderFooter'], renderHeader?: IActionListOptions['renderHeader']) {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionWidgetService)?.[1];
 		assert.ok(descriptor);
 		const container = document.createElement('div');
@@ -70,11 +70,62 @@ suite('ActionWidgetService', () => {
 			focusFilterOnOpen: true,
 			initialFilterValue: 'match',
 			filterAsCombobox,
+			renderFooter,
+			renderHeader,
 		});
 		const input = instantiationService.get(IContextViewService).getContextViewElement().querySelector<HTMLInputElement>('input');
 		assert.ok(input);
 		return { service, input, selected, cancelled };
 	}
+
+	test('keeps the popup open and preserves focus when a custom footer is laid out and resized', async () => {
+		const button = dom.$('button', { type: 'button' }, 'Worker model');
+		const { service, input, cancelled } = showWidget(true, container => {
+			container.appendChild(button);
+			return Disposable.None;
+		});
+		const targetWindow = dom.getWindow(input);
+		const waitForLayout = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+
+		await waitForLayout();
+		const afterOpening = { visible: service.isVisible, inputFocused: document.activeElement === input };
+		button.focus();
+		button.style.height = '80px';
+		await waitForLayout();
+
+		assert.deepStrictEqual({
+			afterOpening,
+			afterResizing: { visible: service.isVisible, buttonFocused: document.activeElement === button },
+			cancelled,
+		}, {
+			afterOpening: { visible: true, inputFocused: true },
+			afterResizing: { visible: true, buttonFocused: true },
+			cancelled: [],
+		});
+		service.hide();
+	});
+
+	test('an interactive header can take focus and resize without dismissing the popup', async () => {
+		const button = dom.$('button', { type: 'button' }, 'Team');
+		const { service, input, cancelled } = showWidget(true, undefined, container => {
+			container.appendChild(button);
+			return Disposable.None;
+		});
+		const targetWindow = dom.getWindow(input);
+		const waitForLayout = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+		await waitForLayout();
+		const initiallyFocused = document.activeElement === input;
+		const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		button.dispatchEvent(mouseDown);
+		button.focus();
+		button.style.height = '80px';
+		await waitForLayout();
+		assert.deepStrictEqual({
+			initiallyFocused, preventsFocus: mouseDown.defaultPrevented,
+			visible: service.isVisible, focused: document.activeElement === button, cancelled,
+		}, { initiallyFocused: true, preventsFocus: false, visible: true, focused: true, cancelled: [] });
+		service.hide();
+	});
 
 	for (const filterAsCombobox of [undefined, true]) {
 		test(`only combobox popups handle Escape before the shared keybindings: ${filterAsCombobox}`, () => {

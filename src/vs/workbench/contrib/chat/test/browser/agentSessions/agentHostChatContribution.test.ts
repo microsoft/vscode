@@ -101,6 +101,7 @@ import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } f
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -2174,7 +2175,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('debounces chat input state into AHP draft', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('debounces text but publishes explicit model configuration immediately', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', modelMetadata],
@@ -2253,6 +2254,27 @@ suite('AgentHostChatContribution', () => {
 				},
 			}]);
 
+			agentHostService.dispatchedActions.length = 0;
+			inputModel.setState({
+				modelConfiguration: { thinkingLevel: 'high' },
+				selectedModelReason: ModelSelectionReason.UserSelection,
+			});
+			const immediate = agentHostService.dispatchedActions.map(entry => entry.action);
+			await timeout(500);
+			assert.deepStrictEqual({
+				immediate,
+				afterDebounce: agentHostService.dispatchedActions.map(entry => entry.action),
+			}, {
+				immediate: [{
+					type: ActionType.ChatDraftChanged,
+					draft: {
+						text: 'draft body', origin: { kind: MessageKind.User },
+						model: { id: 'opus-4.7', config: { thinkingLevel: 'high' } },
+						agent: { uri: 'agent://reviewer' },
+					},
+				}],
+				afterDebounce: immediate,
+			});
 		}));
 
 		test('flushes pending chat input draft when the session is disposed', async () => {

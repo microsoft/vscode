@@ -423,6 +423,20 @@ suite('SessionModelSelection', () => {
 				modelConfiguration: {},
 			})), /model configuration requires a model identifier/);
 		});
+
+		test('request-scoped configuration can be applied and rolled back without changing defaults', () => {
+			const languageModelsService = new ConfigurationService();
+			const configuration = disposables.add(new AutomationModelConfiguration(languageModelsService));
+			configuration.setModelConfigurationForRequest(first.identifier, { thinkingLevel: 'low' });
+			const selected = configuration.getModelConfigurationForRequest(first.identifier);
+			configuration.setModelConfigurationForRequest(first.identifier, undefined);
+			assert.deepStrictEqual({
+				selected,
+				restored: configuration.getModelConfigurationForRequest(first.identifier),
+				global: languageModelsService.configuration,
+				writes: languageModelsService.writes,
+			}, { selected: { thinkingLevel: 'low' }, restored: undefined, global: { thinkingLevel: 'high' }, writes: [] });
+		});
 	});
 
 	suite('model selection conformance', () => {

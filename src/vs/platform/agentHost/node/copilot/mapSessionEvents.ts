@@ -70,6 +70,7 @@ function stripPromptScaffolding(text: string): string {
 		.replace(/<system[-_]reminder>[\s\S]*?<\/system[-_]reminder>\s*/g, '')
 		.replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
 		.replace(/<context>[\s\S]*?<\/context>\s*/g, '')
+		.replace(/\n\n<model_team>[\s\S]*?<\/model_team>\s*$/g, '')
 		.replace(/<current_datetime>[\s\S]*?<\/current_datetime>\s*/g, '')
 		.replace(/<pr_metadata[^>]*\/?>\s*/g, '');
 	const withoutRequest = withoutAux

@@ -28,7 +28,7 @@ export interface IModelConfigProperty {
  */
 export function getModelConfigProperty(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: Pick<IModelConfigurationAccess, 'getModelConfiguration'>,
 	group: string,
 ): IModelConfigProperty | undefined {
 	const properties = model?.metadata.configurationSchema?.properties;

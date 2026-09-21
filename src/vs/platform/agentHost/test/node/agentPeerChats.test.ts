@@ -40,4 +40,18 @@ suite('agentPeerChats', () => {
 
 		assert.deepStrictEqual(decodeProviderData(providerData), { sdkSessionId: 'sdk-session' });
 	});
+
+	test('prototype Team metadata does not change an exact ordinary backing', () => {
+		assert.deepStrictEqual(decodeProviderData(JSON.stringify({
+			sdkSessionId: 'saved-worker', model: { id: 'worker-model' },
+			persistentTeam: { kind: 'member', member: { ref: { sdkSessionId: 'saved-worker' } } },
+		})), { sdkSessionId: 'saved-worker', model: { id: 'worker-model' } });
+	});
+
+	test('only an explicit Start Over marker permits an empty resume', () => {
+		assert.deepStrictEqual([
+			decodeProviderData(encodeProviderData({ sdkSessionId: 'sdk-session', allowEmptyResume: true })),
+			decodeProviderData(JSON.stringify({ sdkSessionId: 'sdk-session', allowEmptyResume: 'true' })),
+		], [{ sdkSessionId: 'sdk-session', allowEmptyResume: true }, { sdkSessionId: 'sdk-session' }]);
+	});
 });

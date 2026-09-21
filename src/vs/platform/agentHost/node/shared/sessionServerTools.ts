@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readAgentHostPersistentTeamState } from '../../common/meta/agentHostPersistentTeamMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
@@ -1148,13 +1149,35 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	}
 	const sourceChat = currentChannel ? URI.parse(currentChannel) : undefined;
 	const sourceSession = sourceChat ? currentSessionUri(sourceChat.toString()) : undefined;
+	const sourceTeam = sourceSession && readAgentHostPersistentTeamState(stateManager?.getSessionState(sourceSession.toString()));
+	if (sourceTeam?.enabled && sourceTeam.task && sourceTeam.task.state !== 'completed') {
+		if (sourceTeam.leadChat === currentChannel) {
+			if (sourceTeam.task.state === 'blocked' || sourceTeam.task.state === 'cancelled'
+				|| (sourceTurnId !== sourceTeam.task.leadTurnId && sourceTurnId !== sourceTeam.task.leadEventId)) {
+				throw new Error('This Team task is no longer accepting assignments. Retry the active task explicitly instead of dispatching stale work.');
+			}
+			const assignment = sourceTeam.task.assignments.find(member => member.chat === chat.toString() && member.state === 'unassigned');
+			if (!assignment?.objective || !assignment.deliverable) {
+				throw new Error('Record an engineering assignment or rework decision with manage_team before messaging its owner. Team tasks reuse their existing engineers.');
+			}
+		}
+		if ((sourceTeam.task.leadPhase === 'integration' || sourceTeam.task.requestedLeadPhase)
+			&& sourceTeam.task.assignments.some(member => member.chat === chat.toString() && member.state !== 'removed')) {
+			throw new Error('Yield and return the Lead to the manager phase before dispatching engineering work.');
+		}
+	}
 	const delegation: IAgentMessageDelegationMeta | undefined = sourceSession ? {
 		sourceSession: sourceSession.toString(),
 		sourceChat: sourceChat?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
-	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
+	const team = readAgentHostPersistentTeamState(stateManager?.getSessionState(session.toString()));
+	const latestTurn = targetState?.turns.at(-1);
+	const teamRequiresRetry = team?.enabled && team.leadChat === chat.toString() && team.task
+		&& (team.task.state === 'blocked' || team.task.state === 'cancelled'
+			|| (latestTurn?.id === team.task.leadTurnId && (latestTurn.state === TurnState.Error || latestTurn.state === TurnState.Cancelled)));
+	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length || teamRequiresRetry)) {
 		const queuedMessage: Message = {
 			text: message,
 			origin: { kind: MessageKind.Agent },

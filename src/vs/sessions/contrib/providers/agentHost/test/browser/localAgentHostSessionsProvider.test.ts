@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -23,11 +24,14 @@ import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionInputRequestKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withSessionCreationReference, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { CopilotModelTeamConfigKey, CopilotModelTeamRememberedConfigKey, copilotModelTeamSchema } from '../../../../../../platform/agentHost/common/copilotModelTeam.js';
+import { IAgentHostPersistentTeamReset, IAgentHostPersistentTeamState } from '../../../../../../platform/agentHost/common/agentHostPersistentTeam.js';
+import { toAgentHostPersistentTeamMeta } from '../../../../../../platform/agentHost/common/meta/agentHostPersistentTeamMeta.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -39,12 +43,17 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatInputModelSelectionController } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputModelSelectionController.js';
+import { ChatModelConfigurationStore } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationStore.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatEditingService } from '../../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, type IChatModel, type IChatModelInputState, type IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { isInConversationModelChoice, ModelSelectionReason } from '../../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IChatAgentService } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -106,9 +115,29 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public automationCatalog: AutomationState = { entries: [] };
 	public disposedSessions: URI[] = [];
 	public onDisposeSession: ((session: URI) => void) | undefined;
+	public persistentTeamResult: IAgentHostPersistentTeamState | undefined;
+	public persistentTeamResets: IAgentHostPersistentTeamReset[] = [];
+	public persistentTeamReads: { session: URI; chat: URI }[] = [];
+	public persistentTeamReadError: Error | undefined;
+
+	override async getPersistentTeamState(session: URI, chat: URI): Promise<IAgentHostPersistentTeamState | undefined> {
+		this.persistentTeamReads.push({ session, chat });
+		if (this.persistentTeamReadError) {
+			throw this.persistentTeamReadError;
+		}
+		return this.persistentTeamResult;
+	}
+
+	override async resetPersistentTeamMember(request: IAgentHostPersistentTeamReset): Promise<IAgentHostPersistentTeamState> {
+		this.persistentTeamResets.push(request);
+		assert.ok(this.persistentTeamResult);
+		return this.persistentTeamResult;
+	}
+
 	public failDisposeSessionFor: string | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
+	public echoResolvedConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
@@ -248,7 +277,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
 		}
-		return this.resolveSessionConfigResult;
+		return this.echoResolvedConfig
+			? { ...this.resolveSessionConfigResult, values: { ...this.resolveSessionConfigResult.values, ...request.config } }
+			: this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
@@ -486,7 +517,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; getSession?: IChatService['getSession']; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -519,6 +550,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 	});
 	instantiationService.stub(IChatService, {
+		getSession: options?.getSession ?? (() => undefined),
 		acquireOrLoadSession: options?.acquireOrLoadSession ?? (async () => undefined),
 		sendRequest: options?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
@@ -2074,6 +2106,749 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:new-model');
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
+	});
+
+	suite('model teams', () => {
+		function teamCatalog(): Map<string, ILanguageModelChatMetadata> {
+			return new Map<string, ILanguageModelChatMetadata>(['lead', 'worker', 'scout'].map(id => [id, {
+				...createTestLanguageModel(id),
+				targetChatSessionType: 'agent-host-copilotcli',
+				configurationSchema: {
+					type: 'object',
+					properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium', group: 'navigation' } },
+				},
+			}]));
+		}
+
+		function createTeamChatModel(): ChatModel {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IChatAgentService, {});
+			instantiationService.stub(IChatEditingService, {});
+			instantiationService.stub(IChatService, {});
+			return disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		}
+
+		function bindTeamInput(inputModel: IInputModel, resource: URI, catalog: ReadonlyMap<string, ILanguageModelChatMetadata>) {
+			const models = [...catalog].map(([identifier, metadata]) => ({ identifier, metadata }));
+			const languageModels = new class extends mock<ILanguageModelsService>() {
+				override readonly onDidChangeLanguageModels = Event.None;
+				override lookupLanguageModel(id: string) { return catalog.get(id); }
+				override getModelConfiguration() { return { thinkingLevel: 'high' }; }
+			}();
+			const storage = disposables.add(new InMemoryStorageService());
+			const configuration = disposables.add(new ChatModelConfigurationStore(() => 'chat.modelConfiguration.test', languageModels, storage));
+			const controller = disposables.add(new ChatInputModelSelectionController({
+				getCurrentSessionType: () => resource.scheme,
+				isEmpty: () => false,
+				getModels: () => models,
+				getAllModels: () => models,
+				getConfiguredModelValue: () => undefined,
+				isModelSupportedHere: () => true,
+				getDeclaredDefaultModel: () => undefined,
+				getBoundConversationKey: () => resource.toString(),
+				getIntentHolder: () => inputModel,
+				restoreModelConfiguration: (modelId, values) => {
+					if (values) {
+						configuration.restoreModelConfiguration(modelId, values);
+					}
+				},
+				applyModel: () => { },
+			}));
+			disposables.add(autorun(reader => {
+				const state = inputModel.state.read(reader);
+				if (state?.selectedModel) {
+					const intended = inputModel.intendedModel;
+					const reason = intended?.modelId === state.selectedModel.identifier && isInConversationModelChoice(intended.reason)
+						? ModelSelectionReason.RestoredChoice : ModelSelectionReason.SessionRestore;
+					controller.syncFromConversationState(state.selectedModel, state.modelConfiguration, resource.scheme, resource.toString(), false, reason);
+				}
+			}));
+			return { configuration, controller };
+		}
+
+		async function createTeamDraft(options?: { readonly available?: boolean; readonly onSend?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<never>; readonly getSession?: () => IChatModel | undefined }) {
+			agentHost.echoResolvedConfig = true;
+			agentHost.resolveSessionConfigResult = { schema: options?.available === false ? { type: 'object', properties: {} } : copilotModelTeamSchema.toProtocol(), values: {} };
+			const globalWrites: string[] = [];
+			const catalog = teamCatalog();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				languageModelIds: [...catalog.keys()],
+				lookupLanguageModel: id => catalog.get(id),
+				sendRequest: options?.onSend,
+				getSession: options?.getSession,
+				languageModelsService: { setModelConfiguration: async modelId => { globalWrites.push(modelId); } },
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => options?.available === false ? !!config : !!config?.schema.properties[CopilotModelTeamConfigKey]);
+			provider.setModel(session.sessionId, session.mainChat.get().resource, 'lead', ChatModelSource.Chosen);
+			return { provider, session, chatResource: session.mainChat.get().resource, globalWrites };
+		}
+
+		async function createPersistentTeam(inputs?: ReadonlyMap<string, IChatModel>) {
+			const rawId = 'persistent-team';
+			agentHost.addSession(createSession(rawId, { summary: 'Persistent Team' }));
+			const catalog = teamCatalog();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				languageModelIds: [...catalog.keys()], lookupLanguageModel: id => catalog.get(id),
+				getSession: resource => inputs?.get(resource.toString()),
+				acquireOrLoadSession: async resource => {
+					const model = inputs?.get(resource.toString());
+					return model ? new ImmortalReference(model) : undefined;
+				},
+			});
+			fireSessionAdded(agentHost, rawId, { title: 'Persistent Team' });
+			const session = provider.getSessions().find(session => session.title.get() === 'Persistent Team');
+			assert.ok(session);
+			const backend = AgentSession.uri('copilotcli', rawId).toString();
+			const lead = buildDefaultChatUri(backend);
+			const worker = buildChatUri(backend, 'team-worker');
+			const scout = buildChatUri(backend, 'team-scout');
+			const previousWorker = buildChatUri(backend, 'team-old-worker');
+			const metadata: IAgentHostPersistentTeamState = {
+				version: 2, leadChat: lead, enabled: true, state: 'ready',
+				members: [
+					{ role: 'worker', chat: worker, enabled: true, model: { id: 'worker' } },
+					{ role: 'scout', chat: scout, enabled: false, model: { id: 'scout' } },
+				],
+			};
+			const state: SessionState = {
+				provider: 'copilotcli', title: 'Persistent Team', status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: lead,
+				chats: [
+					{ resource: lead, title: 'Lead', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() },
+					...[worker, scout, previousWorker].map(resource => ({
+						resource, title: resource === scout ? 'Scout' : 'Worker', status: ProtocolSessionStatus.Idle,
+						modifiedAt: new Date(0).toISOString(), interactivity: ProtocolChatInteractivity.Full,
+					})),
+				],
+				config: { schema: copilotModelTeamSchema.toProtocol(), values: { [CopilotModelTeamConfigKey]: { worker: { id: 'worker' } } } },
+				_meta: toAgentHostPersistentTeamMeta(metadata),
+			};
+			provider.getSessionConfig(session.sessionId);
+			agentHost.setSessionState(rawId, 'copilotcli', state);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[CopilotModelTeamConfigKey]);
+			agentHost.persistentTeamResult = metadata;
+			return { provider, session, backend, lead, worker, scout, metadata, state, rawId };
+		}
+
+		test('projects current roles onto ordinary editable chats', async () => {
+			const { provider, session } = await createPersistentTeam();
+			const state = provider.getModelTeam(session.sessionId, session.mainChat.get().resource);
+			assert.deepStrictEqual({
+				supported: state?.supported,
+				members: state?.members?.map(member => ({ role: member.role, chat: member.chatResource.fragment, enabled: member.enabled, status: member.status })),
+				chatCount: session.chats.get().length,
+				interactivity: session.chats.get().filter(chat => chat.resource.fragment).map(chat => chat.interactivity.get()),
+			}, {
+				supported: true,
+				members: [
+					{ role: 'worker', chat: 'team-worker', enabled: true, status: SessionStatus.Completed },
+					{ role: 'scout', chat: 'team-scout', enabled: false, status: SessionStatus.Completed },
+				],
+				chatCount: 4, interactivity: [ChatInteractivity.Full, ChatInteractivity.Full, ChatInteractivity.Full],
+			});
+		});
+
+		test('projects task progress without exposing assignment identities or changing chat capabilities', async () => {
+			const { provider, session, worker, metadata, state, rawId } = await createPersistentTeam();
+			const capabilities = session.capabilities.get();
+			const stages = [
+				{ task: 'working', assignment: 'unassigned', activity: ProtocolSessionStatus.Idle, status: SessionStatus.Completed },
+				{ task: 'waiting', assignment: 'queued', activity: ProtocolSessionStatus.InProgress, status: SessionStatus.InProgress },
+				{ task: 'waiting', assignment: 'working', activity: ProtocolSessionStatus.InProgress, status: SessionStatus.InProgress },
+				{ task: 'reviewing', assignment: 'reported', activity: ProtocolSessionStatus.Idle, status: SessionStatus.Completed },
+				{ task: 'completed', assignment: 'reported', activity: ProtocolSessionStatus.Idle, status: SessionStatus.Completed },
+				{ task: 'blocked', assignment: 'blocked', activity: ProtocolSessionStatus.Error, status: SessionStatus.Error },
+				{ task: 'cancelled', assignment: 'blocked', activity: ProtocolSessionStatus.Idle, status: SessionStatus.Completed },
+				{ task: 'completed', assignment: 'removed', activity: ProtocolSessionStatus.Idle, status: SessionStatus.Completed },
+			] as const;
+			const projections = [];
+			for (const stage of stages) {
+				const failure = stage.assignment === 'blocked' ? { error: 'Assignment interrupted.' } : {};
+				const changed = Event.toPromise(provider.onDidChangeModelTeam);
+				agentHost.setSessionState(rawId, 'copilotcli', {
+					...state,
+					chats: state.chats.map(chat => chat.resource === worker ? { ...chat, status: stage.activity } : chat),
+					_meta: toAgentHostPersistentTeamMeta({
+						...metadata,
+						task: {
+							leadTurnId: 'lead-turn', state: stage.task, assignmentReminderSent: true, ...failure,
+							assignments: [{
+								role: 'worker', chat: worker, state: stage.assignment, ...failure,
+								messageId: 'assignment-message', turnId: 'worker-turn', reportMessageId: 'report-message', reviewed: true,
+							}],
+						},
+					}),
+				});
+				await changed;
+				const projected = provider.getModelTeam(session.sessionId, session.resource);
+				const member = projected?.members?.find(member => member.role === 'worker');
+				projections.push({
+					task: projected?.task, assignment: member?.assignment, status: member?.status,
+					capabilities: session.capabilities.get(),
+					interactivity: session.chats.get().find(chat => isEqual(chat.resource, member?.chatResource))?.interactivity.get(),
+				});
+			}
+			assert.deepStrictEqual(projections, stages.map(stage => {
+				const failure = stage.assignment === 'blocked' ? { error: 'Assignment interrupted.' } : {};
+				return {
+					task: { state: stage.task, leadStatus: SessionStatus.Completed, ...failure }, assignment: { state: stage.assignment, reviewed: true, ...failure }, status: stage.status,
+					capabilities, interactivity: ChatInteractivity.Full,
+				};
+			}));
+		});
+
+		test('assignment status only follows the current role and chat generation', async () => {
+			const { provider, session, backend, worker, metadata, state, rawId } = await createPersistentTeam();
+			const projections = [];
+			for (const assignment of [
+				{ role: 'worker', chat: buildChatUri(backend, 'team-old-worker') },
+				{ role: 'scout', chat: worker },
+			] as const) {
+				agentHost.setSessionState(rawId, 'copilotcli', {
+					...state,
+					_meta: toAgentHostPersistentTeamMeta({
+						...metadata,
+						task: {
+							leadTurnId: 'lead-turn', state: 'reviewing',
+							assignments: [{ ...assignment, state: 'reported', turnId: 'old-turn', reportMessageId: 'old-report' }],
+						},
+					}),
+				});
+				projections.push(provider.getModelTeam(session.sessionId, session.resource)?.members?.map(member => member.assignment));
+			}
+			assert.deepStrictEqual(projections, [[undefined, undefined], [undefined, undefined]]);
+		});
+
+		test('ordinary approval notifications refresh the Team projection without changing its task', async () => {
+			const { provider, session, worker, metadata, state, rawId } = await createPersistentTeam();
+			const waiting: SessionState = {
+				...state,
+				_meta: toAgentHostPersistentTeamMeta({
+					...metadata,
+					task: { leadTurnId: 'lead-turn', state: 'waiting', assignments: [{ role: 'worker', chat: worker, state: 'working', messageId: 'assignment-message', turnId: 'worker-turn' }] },
+				}),
+			};
+			agentHost.setSessionState(rawId, 'copilotcli', waiting);
+			await timeout(0);
+			const changed = Event.toPromise(provider.onDidChangeModelTeam);
+			agentHost.setSessionState(rawId, 'copilotcli', {
+				...waiting,
+				chats: waiting.chats.map(chat => chat.resource === worker ? { ...chat, status: ProtocolSessionStatus.InputNeeded } : chat),
+			});
+			fireSessionSummaryChanged(agentHost, rawId, { status: ProtocolSessionStatus.InputNeeded });
+			await changed;
+			const projected = provider.getModelTeam(session.sessionId, session.resource);
+			assert.deepStrictEqual({
+				task: projected?.task,
+				assignment: projected?.members?.[0].assignment,
+				status: projected?.members?.[0].status,
+			}, { task: { state: 'waiting', leadStatus: SessionStatus.Completed }, assignment: { state: 'working' }, status: SessionStatus.NeedsInput });
+		});
+
+		test('authoritative queue counts refresh unopened teammate progress and distinguish delivery from acceptance', async () => {
+			const { provider, session, worker, scout, metadata, state, rawId } = await createPersistentTeam();
+			const pending: SessionState = {
+				...state,
+				inputNeeded: [
+					{ id: 'worker-one', chat: worker, kind: SessionInputRequestKind.ChatInput, request: { id: 'question-one', questions: [] } },
+					{ id: 'worker-two', chat: worker, kind: SessionInputRequestKind.ChatInput, request: { id: 'question-two', questions: [] } },
+					{ id: 'disabled-scout', chat: scout, kind: SessionInputRequestKind.ChatInput, request: { id: 'question-three', questions: [] } },
+					{
+						id: 'execution', chat: worker, kind: SessionInputRequestKind.ToolClientExecution, turnId: 'worker-turn', clientId: 'other-client',
+						toolCall: { status: ToolCallStatus.Running, toolCallId: 'tool', toolName: 'tool', displayName: 'Tool', invocationMessage: 'Running', confirmed: ToolCallConfirmationReason.NotNeeded },
+					},
+				],
+				_meta: toAgentHostPersistentTeamMeta({
+					...metadata,
+					task: {
+						leadTurnId: 'lead-turn', state: 'reviewing', leadPhase: 'manager', requestedLeadPhase: 'integration',
+						assignments: [{ role: 'worker', chat: worker, state: 'reported', objective: 'Implement', deliverable: 'Tests and code', revision: 2, delivered: true, reviewed: false, turnId: 'worker-turn', reportMessageId: 'report' }],
+					},
+				}),
+			};
+			agentHost.setSessionState(rawId, 'copilotcli', pending);
+			await timeout(0);
+			const before = provider.getModelTeam(session.sessionId, session.resource);
+			const changed = Event.toPromise(provider.onDidChangeModelTeam);
+			agentHost.setSessionState(rawId, 'copilotcli', { ...pending, inputNeeded: pending.inputNeeded?.slice(1) });
+			await changed;
+			assert.deepStrictEqual({
+				beforeCount: before?.task?.pendingInputCount,
+				afterCount: provider.getModelTeam(session.sessionId, session.resource)?.task?.pendingInputCount,
+				memberCount: before?.members?.[0].pendingInputCount,
+				phase: before?.task?.leadPhase,
+				requestedPhase: before?.task?.requestedLeadPhase,
+				assignment: before?.members?.[0].assignment,
+			}, {
+				beforeCount: 2, afterCount: 1, memberCount: 2, phase: 'manager', requestedPhase: 'integration',
+				assignment: { state: 'reported', objective: 'Implement', deliverable: 'Tests and code', revision: 2, delivered: true, reviewed: false },
+			});
+		});
+
+		test('task failures do not replace history errors or ordinary approval state', async () => {
+			const { provider, session, lead, worker, metadata, state, rawId } = await createPersistentTeam();
+			agentHost.setSessionState(rawId, 'copilotcli', {
+				...state,
+				chats: state.chats.map(chat => chat.resource === worker || chat.resource === lead ? { ...chat, status: ProtocolSessionStatus.InputNeeded } : chat),
+				_meta: toAgentHostPersistentTeamMeta({
+					...metadata, state: 'unavailable',
+					members: metadata.members.map(member => member.role === 'worker' ? { ...member, error: { code: 'historyUnavailable', message: 'History is incomplete.' } } : member),
+					task: {
+						leadTurnId: 'lead-turn', state: 'blocked', error: 'Team task interrupted.',
+						assignments: [{ role: 'worker', chat: worker, state: 'blocked', error: 'Worker stopped.' }],
+					},
+				}),
+			});
+			const projected = provider.getModelTeam(session.sessionId, session.resource);
+			assert.deepStrictEqual({
+				task: projected?.task,
+				assignment: projected?.members?.[0].assignment,
+				status: projected?.members?.[0].status,
+				historyUnavailable: projected?.members?.[0].historyUnavailable,
+				error: projected?.error,
+			}, {
+				task: { state: 'blocked', leadStatus: SessionStatus.NeedsInput, error: 'Team task interrupted.' },
+				assignment: { state: 'blocked', error: 'Worker stopped.' },
+				status: SessionStatus.NeedsInput, historyUnavailable: true, error: 'History is incomplete.',
+			});
+		});
+
+		test('reset forwards the exact current member and never an archived or other chat', async () => {
+			const { provider, session, backend, lead, worker } = await createPersistentTeam();
+			const resource = session.mainChat.get().resource;
+			await provider.resetModelTeamMember(session.sessionId, resource, 'worker', resource.with({ fragment: 'team-worker' }));
+			await assert.rejects(provider.resetModelTeamMember(session.sessionId, resource, 'worker', resource.with({ fragment: 'team-old-worker' })), /teammate changed/i);
+			assert.deepStrictEqual(agentHost.persistentTeamResets, [{
+				session: backend, leadChat: lead, role: 'worker', expectedMemberChat: worker,
+			}]);
+		});
+
+		test('role cards read the model and reasoning chosen in the teammate composer', async () => {
+			const inputs = new Map<string, IChatModel>();
+			const { provider, session } = await createPersistentTeam(inputs);
+			const worker = createTeamChatModel();
+			worker.inputModel.setState({
+				selectedModel: { identifier: 'scout', metadata: teamCatalog().get('scout')! },
+				selectedModelReason: ModelSelectionReason.UserSelection,
+				modelConfiguration: { thinkingLevel: 'high' },
+				inputText: 'A direct request',
+			});
+			inputs.set(session.resource.with({ fragment: 'team-worker' }).toString(), worker);
+			assert.deepStrictEqual(provider.getModelTeam(session.sessionId, session.resource)?.selection, {
+				workerModelId: 'scout', workerModelConfiguration: { thinkingLevel: 'high' },
+			});
+		});
+
+		test('role cards ignore remembered input defaults and preserve authoritative member models', async () => {
+			const inputs = new Map<string, IChatModel>();
+			const { provider, session, metadata, state, rawId } = await createPersistentTeam(inputs);
+			const catalog = teamCatalog();
+			const team = {
+				worker: { id: 'worker', config: { thinkingLevel: 'medium' } },
+				scout: { id: 'scout', config: { thinkingLevel: 'low' } },
+			};
+			agentHost.setSessionState(rawId, 'copilotcli', {
+				...state,
+				config: { schema: copilotModelTeamSchema.toProtocol(), values: { [CopilotModelTeamConfigKey]: team } },
+				_meta: toAgentHostPersistentTeamMeta({
+					...metadata,
+					members: metadata.members.map(member => ({ ...member, enabled: true, model: team[member.role] })),
+				}),
+			});
+			for (const fragment of ['team-worker', 'team-scout']) {
+				inputs.set(session.resource.with({ fragment }).toString(), createTeamChatModel());
+			}
+			const cases = [
+				{ reason: undefined, overridesMember: false },
+				{ reason: ModelSelectionReason.ConfiguredDefault, overridesMember: false },
+				{ reason: ModelSelectionReason.FirstAvailable, overridesMember: false },
+				{ reason: ModelSelectionReason.Remembered, overridesMember: false },
+				{ reason: ModelSelectionReason.SessionRestore, overridesMember: false },
+				{ reason: ModelSelectionReason.RestoredChoice, overridesMember: true },
+				{ reason: ModelSelectionReason.ProgrammaticSelection, overridesMember: true },
+				{ reason: ModelSelectionReason.UserSelection, overridesMember: true },
+			];
+			const projections = cases.map(({ reason }) => {
+				for (const input of inputs.values()) {
+					input.inputModel.setState({
+						selectedModel: { identifier: 'lead', metadata: catalog.get('lead')! },
+						selectedModelReason: reason,
+						modelConfiguration: { thinkingLevel: 'high' },
+					});
+				}
+				return { reason, selection: provider.getModelTeam(session.sessionId, session.resource)?.selection };
+			});
+			assert.deepStrictEqual(projections, cases.map(({ reason, overridesMember }) => ({
+				reason,
+				selection: overridesMember ? {
+					workerModelId: 'lead', workerModelConfiguration: { thinkingLevel: 'high' },
+					scoutModelId: 'lead', scoutModelConfiguration: { thinkingLevel: 'high' },
+				} : {
+					workerModelId: 'worker', workerModelConfiguration: { thinkingLevel: 'medium' },
+					scoutModelId: 'scout', scoutModelConfiguration: { thinkingLevel: 'low' },
+				},
+			})));
+		});
+
+		test('role-card choices update ordinary teammate composers without clearing their drafts', async () => {
+			const inputs = new Map<string, IChatModel>();
+			const { provider, session } = await createPersistentTeam(inputs);
+			agentHost.echoResolvedConfig = true;
+			agentHost.resolveSessionConfigResult = { schema: copilotModelTeamSchema.toProtocol(), values: {} };
+			const catalog = teamCatalog();
+			for (const [role, fragment] of [['lead', ''], ['worker', 'team-worker'], ['scout', 'team-scout']]) {
+				const model = createTeamChatModel();
+				model.inputModel.setState({
+					selectedModel: { identifier: role, metadata: catalog.get(role)! },
+					modelConfiguration: { thinkingLevel: 'medium' },
+					inputText: `Keep ${role} draft`,
+				});
+				inputs.set(session.resource.with({ fragment }).toString(), model);
+			}
+			await provider.setModelTeam(session.sessionId, session.resource, 'lead', {
+				workerModelId: 'scout', workerModelConfiguration: { thinkingLevel: 'high' },
+				scoutModelId: 'worker', scoutModelConfiguration: { thinkingLevel: 'low' },
+			}, { thinkingLevel: 'medium' });
+			assert.deepStrictEqual([...inputs.values()].map(model => {
+				const input = model.inputModel.state.get();
+				return { model: input?.selectedModel?.identifier, configuration: input?.modelConfiguration, text: input?.inputText };
+			}), [
+				{ model: 'lead', configuration: { thinkingLevel: 'medium' }, text: 'Keep lead draft' },
+				{ model: 'scout', configuration: { thinkingLevel: 'high' }, text: 'Keep worker draft' },
+				{ model: 'worker', configuration: { thinkingLevel: 'low' }, text: 'Keep scout draft' },
+			]);
+		});
+
+		test('unavailable history remains bound and offers explicit reset', async () => {
+			const { provider, session, backend, lead, worker, metadata, state, rawId } = await createPersistentTeam();
+			const pending: IAgentHostPersistentTeamState = {
+				...metadata, state: 'unavailable',
+				members: metadata.members.map(member => member.chat === worker ? { ...member, error: { code: 'historyUnavailable', message: 'History is incomplete.' } } : member),
+			};
+			agentHost.persistentTeamResult = pending;
+			agentHost.setSessionState(rawId, 'copilotcli', { ...state, _meta: toAgentHostPersistentTeamMeta(pending) });
+			const resource = session.mainChat.get().resource;
+			const projected = provider.getModelTeam(session.sessionId, resource);
+			await provider.resetModelTeamMember(session.sessionId, resource, 'worker', resource.with({ fragment: 'team-worker' }));
+			assert.deepStrictEqual({
+				unavailable: projected?.members?.find(member => member.role === 'worker')?.historyUnavailable,
+				error: projected?.error,
+				resets: agentHost.persistentTeamResets,
+			}, {
+				unavailable: true,
+				error: 'History is incomplete.',
+				resets: [{ session: backend, leadChat: lead, role: 'worker', expectedMemberChat: worker }],
+			});
+		});
+
+		for (const failure of ['setup', 'history', 'missing'] as const) {
+			test(`committed Team changes surface ${failure} failures without clearing drafts`, async () => {
+				const inputs = new Map<string, IChatModel>();
+				const { provider, session, metadata } = await createPersistentTeam(inputs);
+				agentHost.echoResolvedConfig = true;
+				agentHost.resolveSessionConfigResult = { schema: copilotModelTeamSchema.toProtocol(), values: {} };
+				for (const fragment of ['', 'team-worker']) {
+					const model = createTeamChatModel();
+					model.inputModel.setState({ inputText: 'Keep this draft' });
+					inputs.set(session.resource.with({ fragment }).toString(), model);
+				}
+				if (failure === 'setup') {
+					agentHost.persistentTeamReadError = new Error('Could not create teammate');
+				} else {
+					agentHost.persistentTeamResult = failure === 'missing' ? undefined : {
+						...metadata, state: 'unavailable', error: { code: 'chatUnavailable', message: 'History is unavailable' },
+					};
+				}
+				await assert.rejects(
+					provider.setModelTeam(session.sessionId, session.resource, 'lead', { workerModelId: 'worker' }),
+					failure === 'setup' ? /Could not create teammate/ : failure === 'history' ? /History is unavailable/ : /did not initialize/,
+				);
+				assert.deepStrictEqual([...inputs.values()].map(model => model.inputModel.state.get()?.inputText), ['Keep this draft', 'Keep this draft']);
+			});
+		}
+
+		test('ordinary model selection on an older host does not add a state subscription', () => {
+			const provider = createProvider(disposables, agentHost);
+			fireSessionAdded(agentHost, 'single-model-no-team', { title: 'Single Model' });
+			const session = provider.getSessions().find(session => session.title.get() === 'Single Model');
+			assert.ok(session);
+			const subscriptions = [...agentHost.sessionSubscribeCounts];
+			provider.setModel(session.sessionId, session.mainChat.get().resource, 'another-model', ChatModelSource.Chosen);
+			assert.deepStrictEqual([...agentHost.sessionSubscribeCounts], subscriptions);
+		});
+
+		test('offers teams through the host schema only for the primary chat', async () => {
+			const unsupported = await createTeamDraft({ available: false });
+			const before = unsupported.provider.getModelTeam(unsupported.session.sessionId, unsupported.chatResource);
+			await assert.rejects(unsupported.provider.setModelTeam(unsupported.session.sessionId, unsupported.chatResource, 'lead', { workerModelId: 'worker' }), /not available/);
+			const { provider, session, chatResource } = await createTeamDraft();
+			const resolveCalls = agentHost.resolveSessionConfigRequests.length;
+			assert.deepStrictEqual({
+				before,
+				after: provider.getModelTeam(session.sessionId, chatResource),
+				otherChat: provider.getModelTeam(session.sessionId, chatResource.with({ fragment: 'another-chat' })),
+				extraResolutions: agentHost.resolveSessionConfigRequests.length - resolveCalls,
+			}, {
+				before: undefined,
+				after: { supported: true, pending: false },
+				otherChat: undefined,
+				extraResolutions: 0,
+			});
+		});
+
+		test('stages lead and helper models without sending a request', async () => {
+			let sends = 0;
+			const { provider, session, chatResource } = await createTeamDraft({ onSend: async () => { sends++; throw new Error('unexpected send'); } });
+			await provider.setModelTeam(session.sessionId, chatResource, 'scout', { workerModelId: 'worker', scoutModelId: 'lead' });
+			assert.deepStrictEqual({
+				lead: session.mainChat.get().modelId.get(),
+				configuration: provider.getCreateSessionConfig(session.sessionId)?.[CopilotModelTeamConfigKey],
+				state: provider.getModelTeam(session.sessionId, chatResource),
+				sends,
+			}, {
+				lead: 'scout',
+				configuration: { worker: { id: 'worker' }, scout: { id: 'lead' } },
+				state: { supported: true, selection: { workerModelId: 'worker', scoutModelId: 'lead' }, pending: true },
+				sends: 0,
+			});
+		});
+
+		test('ordinary model selection exits a team without changing permissions', async () => {
+			const { provider, session, chatResource } = await createTeamDraft();
+			await provider.setModelTeam(session.sessionId, chatResource, 'lead', { workerModelId: 'worker' });
+			const permissions = provider.getSessionConfig(session.sessionId)?.values.autoApprove;
+			provider.setModel(session.sessionId, chatResource, 'scout', ChatModelSource.Chosen);
+			await waitForSessionConfig(provider, session.sessionId, config =>
+				equals(config?.values[CopilotModelTeamConfigKey], {})
+				&& !provider.isSessionConfigResolving(session.sessionId).get());
+			assert.deepStrictEqual({
+				lead: session.mainChat.get().modelId.get(),
+				team: provider.getCreateSessionConfig(session.sessionId)?.[CopilotModelTeamConfigKey],
+				permissions: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			}, { lead: 'scout', team: {}, permissions });
+		});
+
+		test('disabling and restoring a team retains independent helper settings', async () => {
+			const { provider, session, chatResource, globalWrites } = await createTeamDraft();
+			const selection = {
+				workerModelId: 'worker', workerModelConfiguration: { thinkingLevel: 'high' },
+				scoutModelId: 'scout', scoutModelConfiguration: { thinkingLevel: 'low' },
+			};
+			await provider.setModelTeam(session.sessionId, chatResource, 'lead', selection);
+			await provider.setModelTeam(session.sessionId, chatResource, 'lead', undefined);
+			const off = provider.getModelTeam(session.sessionId, chatResource);
+			const saved = provider.getCreateSessionConfig(session.sessionId)?.[CopilotModelTeamRememberedConfigKey];
+			await provider.setModelTeam(session.sessionId, chatResource, 'lead', off?.rememberedSelection);
+			assert.deepStrictEqual({
+				off: { selection: off?.selection, remembered: off?.rememberedSelection },
+				saved,
+				restored: provider.getModelTeam(session.sessionId, chatResource)?.selection,
+				globalWrites,
+			}, {
+				off: { selection: undefined, remembered: selection },
+				saved: { worker: { id: 'worker', config: { thinkingLevel: 'high' } }, scout: { id: 'scout', config: { thinkingLevel: 'low' } } },
+				restored: selection,
+				globalWrites: [],
+			});
+		});
+
+		test('Lead configuration reaches the request without changing global defaults', async () => {
+			let sentConfiguration: IChatSendRequestOptions['userSelectedModelConfiguration'];
+			const { provider, session, chatResource, globalWrites } = await createTeamDraft({
+				onSend: async (_resource, _message, options) => {
+					sentConfiguration = options?.userSelectedModelConfiguration;
+					throw new Error('captured-team-request');
+				},
+			});
+			await provider.setModelTeam(session.sessionId, chatResource, 'lead', {
+				workerModelId: 'lead', workerModelConfiguration: { thinkingLevel: 'high' },
+			}, { thinkingLevel: 'low' });
+			await assert.rejects(provider.sendRequest(session.sessionId, chatResource, { query: 'test' }), /captured-team-request/);
+			assert.deepStrictEqual({
+				sentConfiguration,
+				lead: provider.getModelTeam(session.sessionId, chatResource)?.leadModelConfiguration,
+				worker: provider.getModelTeam(session.sessionId, chatResource)?.selection?.workerModelConfiguration,
+				globalWrites,
+			}, { sentConfiguration: { thinkingLevel: 'low' }, lead: { thinkingLevel: 'low' }, worker: { thinkingLevel: 'high' }, globalWrites: [] });
+		});
+
+		test('draft team selection updates the actual chat composer and restores it on failure', async () => {
+			const chatModel = createTeamChatModel();
+			const inputModel = chatModel.inputModel;
+			inputModel.setState({
+				selectedModel: { identifier: 'lead', metadata: teamCatalog().get('lead')! },
+				modelConfiguration: { thinkingLevel: 'low' },
+				inputText: 'Keep this draft',
+			});
+			const inputState = inputModel.state;
+			const { provider, session, chatResource, globalWrites } = await createTeamDraft({ getSession: () => chatModel });
+			const { configuration, controller } = bindTeamInput(inputModel, chatResource, teamCatalog());
+			const selection = { workerModelId: 'worker' };
+			await provider.setModelTeam(session.sessionId, chatResource, 'scout', selection, { thinkingLevel: 'high' });
+			const selected = {
+				model: inputState.get()?.selectedModel?.identifier,
+				configuration: inputState.get()?.modelConfiguration,
+			};
+			agentHost.failResolveSessionConfig = true;
+			await assert.rejects(provider.setModelTeam(session.sessionId, chatResource, 'lead', selection, { thinkingLevel: 'medium' }), /resolveSessionConfig unavailable/);
+			assert.deepStrictEqual({
+				selected,
+				restored: { model: inputState.get()?.selectedModel?.identifier, configuration: inputState.get()?.modelConfiguration },
+				composerConfiguration: configuration.getModelConfiguration('scout'),
+				chosen: isInConversationModelChoice(controller.selectionReason),
+				draft: inputState.get()?.inputText,
+				globalWrites,
+			}, {
+				selected: { model: 'scout', configuration: { thinkingLevel: 'high' } },
+				restored: { model: 'scout', configuration: { thinkingLevel: 'high' } },
+				composerConfiguration: { thinkingLevel: 'high' },
+				chosen: true,
+				draft: 'Keep this draft',
+				globalWrites: [],
+			});
+		});
+
+		test('committed chats preserve canonical Lead settings and saved helpers', async () => {
+			agentHost.echoResolvedConfig = true;
+			agentHost.resolveSessionConfigResult = { schema: copilotModelTeamSchema.toProtocol(), values: {} };
+			const catalog = teamCatalog();
+			const leadMetadata = catalog.get('lead')!;
+			const chatModel = createTeamChatModel();
+			const inputModel = chatModel.inputModel;
+			inputModel.setState({
+				selectedModel: { identifier: 'lead', metadata: leadMetadata },
+				modelConfiguration: { thinkingLevel: 'high' },
+				inputText: 'Keep this draft',
+			});
+			const inputState = inputModel.state;
+			let acquired = 0;
+			let released = 0;
+			agentHost.addSession(createSession('committed-team', { summary: 'Committed Team' }));
+			const provider = createProvider(disposables, agentHost, undefined, {
+				languageModelIds: [...catalog.keys()],
+				lookupLanguageModel: id => catalog.get(id),
+				getSession: () => chatModel,
+				acquireOrLoadSession: async () => {
+					acquired++;
+					return { object: chatModel, dispose: () => { released++; } };
+				},
+			});
+			fireSessionAdded(agentHost, 'committed-team', { title: 'Committed Team', workingDirectory: 'file:///home/user/project' });
+			const session = provider.getSessions().find(session => session.title.get() === 'Committed Team');
+			assert.ok(session);
+			const initialTeam = { worker: { id: 'worker', config: {} } };
+			const leadChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'committed-team'));
+			agentHost.persistentTeamResult = {
+				version: 2, leadChat, enabled: true, state: 'ready',
+				members: [{ role: 'worker', chat: buildChatUri(AgentSession.uri('copilotcli', 'committed-team'), 'worker'), enabled: true, model: initialTeam.worker }],
+			};
+			agentHost.setSessionState('committed-team', 'copilotcli', {
+				provider: 'copilotcli', title: 'Committed Team', status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: leadChat,
+				chats: [{ resource: leadChat, title: 'Lead', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+				config: {
+					schema: copilotModelTeamSchema.toProtocol(),
+					values: {
+						[CopilotModelTeamConfigKey]: initialTeam,
+					},
+				},
+			});
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[CopilotModelTeamConfigKey]);
+			const resource = session.mainChat.get().resource;
+			const { configuration, controller } = bindTeamInput(inputModel, resource, catalog);
+			const hydrated = provider.getModelTeam(session.sessionId, resource);
+			await provider.setModelTeam(session.sessionId, resource, 'lead', {
+				workerModelId: 'worker', workerModelConfiguration: { thinkingLevel: 'high' },
+			}, { thinkingLevel: 'low' });
+			const active = provider.getModelTeam(session.sessionId, resource);
+			const chosenBeforeInputSync = isInConversationModelChoice(inputState.get()?.selectedModelReason);
+			inputModel.setState({
+				modelConfiguration: configuration.getModelConfiguration('lead'),
+				selectedModelReason: controller.selectionReason,
+			});
+			const savedInput = inputModel.toJSON();
+			await provider.setModelTeam(session.sessionId, resource, 'lead', undefined);
+			const disabled = provider.getModelTeam(session.sessionId, resource);
+			assert.deepStrictEqual({
+				hydratedLead: hydrated?.leadModelConfiguration,
+				hydratedPending: hydrated?.pending,
+				activeLead: active?.leadModelConfiguration,
+				input: inputState.get()?.modelConfiguration,
+				chosenBeforeInputSync,
+				chosenAfterInputSync: isInConversationModelChoice(controller.selectionReason),
+				savedConfiguration: savedInput?.selectedModel?.modelConfiguration,
+				draft: savedInput?.inputText,
+				active: disabled?.selection,
+				remembered: disabled?.rememberedSelection,
+				pending: disabled?.pending,
+				balanced: acquired === released,
+			}, {
+				hydratedLead: { thinkingLevel: 'high' }, hydratedPending: true,
+				activeLead: { thinkingLevel: 'low' }, input: { thinkingLevel: 'low' }, active: undefined,
+				chosenBeforeInputSync: true, chosenAfterInputSync: true, savedConfiguration: { thinkingLevel: 'low' }, draft: 'Keep this draft',
+				remembered: { workerModelId: 'worker', workerModelConfiguration: { thinkingLevel: 'high' } },
+				pending: false, balanced: true,
+			});
+		});
+
+		test('failed reasoning changes restore both role preferences and the Lead request configuration', async () => {
+			const { provider, session, chatResource, globalWrites } = await createTeamDraft();
+			const initial = { workerModelId: 'worker', workerModelConfiguration: { thinkingLevel: 'low' } };
+			await provider.setModelTeam(session.sessionId, chatResource, 'lead', initial, { thinkingLevel: 'medium' });
+			agentHost.failResolveSessionConfig = true;
+			await assert.rejects(provider.setModelTeam(session.sessionId, chatResource, 'lead', {
+				workerModelId: 'worker', workerModelConfiguration: { thinkingLevel: 'high' },
+			}, { thinkingLevel: 'high' }), /resolveSessionConfig unavailable/);
+			assert.deepStrictEqual({
+				selection: provider.getModelTeam(session.sessionId, chatResource)?.selection,
+				lead: provider.getModelTeam(session.sessionId, chatResource)?.leadModelConfiguration,
+				saved: provider.getCreateSessionConfig(session.sessionId)?.[CopilotModelTeamRememberedConfigKey],
+				globalWrites,
+			}, { selection: initial, lead: { thinkingLevel: 'medium' }, saved: { worker: { id: 'worker', config: { thinkingLevel: 'low' } } }, globalWrites: [] });
+		});
+
+		test('failed configuration restores the prior model and usable configuration schema', async () => {
+			const { provider, session, chatResource } = await createTeamDraft();
+			agentHost.failResolveSessionConfig = true;
+			await assert.rejects(provider.setModelTeam(session.sessionId, chatResource, 'scout', { workerModelId: 'worker' }), /resolveSessionConfig unavailable/);
+			assert.deepStrictEqual({
+				lead: session.mainChat.get().modelId.get(),
+				team: provider.getCreateSessionConfig(session.sessionId)?.[CopilotModelTeamConfigKey],
+				state: provider.getModelTeam(session.sessionId, chatResource),
+			}, { lead: 'lead', team: undefined, state: { supported: true, pending: false } });
+		});
+
+		test('unsupported and unavailable helper selections do not mutate the draft', async () => {
+			const unsupported = await createTeamDraft({ available: false });
+			await assert.rejects(unsupported.provider.setModelTeam(unsupported.session.sessionId, unsupported.chatResource, 'lead', { workerModelId: 'worker' }), /not available/);
+			const { provider, session, chatResource } = await createTeamDraft();
+			await assert.rejects(provider.setModelTeam(session.sessionId, chatResource, 'lead', { workerModelId: 'missing' }), /available model/);
+			assert.deepStrictEqual({
+				lead: session.mainChat.get().modelId.get(),
+				team: provider.getCreateSessionConfig(session.sessionId)?.[CopilotModelTeamConfigKey],
+			}, { lead: 'lead', team: undefined });
+		});
+
+		test('Send waits for the queued team configuration', async () => {
+			let sends = 0;
+			const { provider, session, chatResource } = await createTeamDraft({
+				onSend: async () => {
+					sends++;
+					throw new Error('intentional-send-boundary');
+				}
+			});
+			const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+			const configure = provider.setModelTeam(session.sessionId, chatResource, 'lead', { workerModelId: 'worker' });
+			const sent = assert.rejects(provider.sendRequest(session.sessionId, chatResource, { query: 'test' }), /intentional-send-boundary/);
+			await Promise.resolve();
+			const before = sends;
+			barrier.complete();
+			await configure;
+			await sent;
+			assert.deepStrictEqual({ before, after: sends }, { before: 0, after: 1 });
+		});
 	});
 
 	test('setModel updates cached selection for later message-level selection', () => {

@@ -86,12 +86,22 @@
 		}
 	}
 
+	.chat-tool-carousel-source-label {
+		flex: 0 1 auto;
+		min-width: 0;
+		font-size: var(--vscode-fontSize-label1);
+		color: var(--vscode-descriptionForeground);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	.chat-tool-carousel-overlay-actions {
 		margin-left: auto;
 	}
 
-	button:focus,
-	.monaco-button:focus {
+	button:focus:not(:focus-visible),
+	.monaco-button:focus:not(:focus-visible) {
 		outline: none !important;
 		box-shadow: none !important;
 	}
@@ -131,6 +141,14 @@
 			min-height: 0;
 			margin: 0;
 			border: none;
+		}
+
+		.chat-question-carousel-container {
+			flex: 1;
+			min-height: 0;
+			margin: 0;
+			border: none;
+			border-radius: 0;
 		}
 
 		.chat-confirmation-widget,

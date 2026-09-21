@@ -71,6 +71,10 @@ export interface IChatContentPartRenderContext {
 	readonly currentWidth: IObservable<number>;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly inlineTextModels: InlineTextModelCollection;
+	/** A projected request can expire independently of its source response. */
+	readonly isRequestActive?: () => boolean;
+	/** Restores focus to the presenting widget without changing the source context. */
+	readonly focusAfterAction?: () => void;
 }
 
 /**

@@ -10,10 +10,11 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { CHAT_CARD_HEADER_ACTIONS_CLASS, CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../../chatCard.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -31,21 +32,34 @@ export type ToolInvocationPartFactory = (tool: IChatToolInvocation) => ChatToolI
 export type RevealSubagentCallback = (subAgentInvocationId: string) => void;
 
 interface ICarouselToolItem {
-	readonly tool: IChatToolInvocation;
+	readonly tool?: IChatToolInvocation;
 	readonly toolCallId: string;
 	readonly disposables: DisposableStore;
+	request?: IChatInputCarouselRequest;
 	readonly subAgentInvocationId?: string;
 	readonly subagentTitle?: string;
 	readonly revealSubagent?: RevealSubagentCallback;
 	readonly revealSubagentLabel?: string;
 	ownsToolPart: boolean;
-	toolPart?: ChatToolInvocationPart;
+	toolPart?: IChatInputCarouselContent;
+}
+
+export interface IChatInputCarouselContent extends IDisposable {
+	readonly domNode: HTMLElement;
+}
+
+export interface IChatInputCarouselRequest {
+	readonly id: string;
+	readonly title: string;
+	readonly sourceLabel: string;
+	readonly isActive: IObservable<boolean>;
+	createContent(): IChatInputCarouselContent;
 }
 
 export class ChatToolConfirmationCarouselPart extends Disposable {
 	public readonly domNode: HTMLElement;
 
-	private readonly _onDidEmpty = this._register(new Emitter<void>());
+	private readonly _onDidEmpty = this._register(new Emitter<boolean>());
 	readonly onDidEmpty = this._onDidEmpty.event;
 	private readonly _onDidChangeActiveSubagent = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeActiveSubagent = this._onDidChangeActiveSubagent.event;
@@ -56,6 +70,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private readonly collapsedTitle: HTMLElement;
 	private readonly agentLabel: HTMLButtonElement;
+	private readonly sourceLabel: HTMLElement;
+	private readonly sourceHover = this._register(new MutableDisposable());
 	private readonly contentContainer: HTMLElement;
 	private readonly stepIndicator: HTMLElement;
 	private readonly prevButton: Button;
@@ -77,6 +93,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		private readonly initialRevealSubagentLabel?: string,
 		private readonly initialSubAgentInvocationId?: string,
 		private readonly initialSubagentTitle?: string,
+		private readonly hoverService?: IHoverService,
 	) {
 		super();
 
@@ -85,6 +102,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 				dom.h('.chat-tool-carousel-title-group@titleGroup', [
 					dom.h('span.chat-tool-carousel-collapsed-title@collapsedTitle'),
 					dom.h('button.chat-tool-carousel-agent-label@agentLabel'),
+					dom.h('span.chat-tool-carousel-source-label@sourceLabel'),
 				]),
 				dom.h(`.chat-tool-carousel-overlay-actions.${CHAT_CARD_HEADER_ACTIONS_CLASS}@overlayActions`, [
 					dom.h('.chat-tool-carousel-step-indicator@stepIndicator'),
@@ -100,6 +118,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.domNode.setAttribute('aria-label', localize('toolConfirmationCarousel', "Tool confirmation carousel"));
 		this.collapsedTitle = elements.collapsedTitle;
 		this.agentLabel = elements.agentLabel;
+		this.sourceLabel = elements.sourceLabel;
 		this.contentContainer = elements.content;
 		this.contentContainer.id = generateUuid();
 		this.stepIndicator = elements.stepIndicator;
@@ -170,6 +189,17 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.items[this.activeIndex]?.subAgentInvocationId;
 	}
 
+	get activeRequestId(): string | undefined {
+		return this.items[this.activeIndex]?.request?.id;
+	}
+
+	activateRequest(id: string): void {
+		const index = this.items.findIndex(item => item.request?.id === id);
+		if (index >= 0) {
+			this.setActiveIndex(index);
+		}
+	}
+
 	setMaxHeight(maxHeight: number | undefined): void {
 		this.maxHeight = maxHeight;
 		this.updateContentExpansionState();
@@ -210,7 +240,9 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		disposables.add(autorun(reader => {
 			const currentState = tool.state.read(reader);
-			if (currentState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			if (currentState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation
+				&& currentState.type !== IChatToolInvocation.StateKind.WaitingForPostApproval
+				&& currentState.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 				this.removeItem(tool.toolCallId);
 			}
 		}));
@@ -222,13 +254,50 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 	}
 
+	addRequest(request: IChatInputCarouselRequest): IDisposable {
+		if (this.toolCallIds.has(request.id)) {
+			return toDisposable(() => { });
+		}
+		const item: ICarouselToolItem = {
+			toolCallId: request.id,
+			disposables: new DisposableStore(),
+			request,
+			ownsToolPart: true,
+		};
+		this.items.push(item);
+		this.toolCallIds.add(request.id);
+		this.domNode.setAttribute('aria-label', localize('chatInputRequests', "Chat requests needing attention"));
+		item.disposables.add(autorun(reader => {
+			if (!request.isActive.read(reader)) {
+				this.removeItem(request.id);
+			}
+		}));
+		dom.show(this.domNode);
+		this.updateUI();
+		if (this.items.length === 1) {
+			this.setActiveIndex(0);
+		}
+		return toDisposable(() => this.removeItem(request.id));
+	}
+
+	updateRequestPresentation(id: string, title: string, sourceLabel: string): void {
+		const item = this.items.find(item => item.request?.id === id);
+		if (!item?.request || (item.request.title === title && item.request.sourceLabel === sourceLabel)) {
+			return;
+		}
+		item.request = { ...item.request, title, sourceLabel };
+		if (this.items[this.activeIndex] === item) {
+			this.updateUI();
+		}
+	}
+
 	private replaceExternalToolPart(item: ICarouselToolItem, toolPart: ChatToolInvocationPart): void {
 		if (item.toolPart === toolPart) {
 			return;
 		}
 
 		if (item.toolPart && item.ownsToolPart) {
-			item.toolPart.dispose();
+			item.disposables.delete(item.toolPart);
 		}
 
 		item.toolPart = toolPart;
@@ -261,9 +330,6 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	override dispose(): void {
 		for (const item of this.items) {
-			if (item.toolPart && item.ownsToolPart) {
-				item.toolPart.dispose();
-			}
 			item.disposables.dispose();
 		}
 		this.items.splice(0);
@@ -277,26 +343,32 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			return;
 		}
 
+		const activeItem = this.items[this.activeIndex];
+		const restoreFocus = index === this.activeIndex && dom.isAncestorOfActiveElement(this.contentContainer);
 		const [removed] = this.items.splice(index, 1);
 		this.toolCallIds.delete(toolCallId);
-		if (removed.toolPart && removed.ownsToolPart) {
-			removed.toolPart.dispose();
-		}
 		removed.disposables.dispose();
 
 		if (this.items.length === 0) {
+			this.activeContentDisposables.clear();
+			dom.clearNode(this.contentContainer);
 			dom.hide(this.domNode);
 			this._onDidChangeActiveSubagent.fire(undefined);
-			this._onDidEmpty.fire();
+			this._onDidEmpty.fire(restoreFocus);
 			return;
 		}
 
-		if (this.activeIndex >= this.items.length) {
-			this.activeIndex = this.items.length - 1;
-		}
+		this.activeIndex = activeItem && this.items.includes(activeItem)
+			? this.items.indexOf(activeItem)
+			: Math.min(this.activeIndex, this.items.length - 1);
 
 		this.updateUI();
-		this.renderActiveContent();
+		if (activeItem !== this.items[this.activeIndex]) {
+			this.renderActiveContent();
+		}
+		if (restoreFocus) {
+			this.focusActiveContent();
+		}
 		this._onDidChangeActiveSubagent.fire(this.activeSubAgentInvocationId);
 	}
 
@@ -377,6 +449,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
 		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
 
+		this.sourceHover.clear();
+		this.sourceLabel.textContent = item?.request ? `\u2014 ${item.request.sourceLabel}` : '';
+		dom.setVisibility(!!item?.request, this.sourceLabel);
+		if (item?.request) {
+			this.sourceHover.value = this.hoverService?.setupDelayedHover(this.sourceLabel, { content: item.request.sourceLabel });
+		}
 		if (item?.subagentTitle) {
 			this.agentLabel.textContent = `\u2014 ${item.subagentTitle}`;
 			this.agentLabel.disabled = !item.subAgentInvocationId || !item.revealSubagent;
@@ -398,7 +476,9 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		dom.setVisibility(multi, this.stepIndicator);
 		dom.setVisibility(multi, this.prevButton.element);
 		dom.setVisibility(multi, this.nextButton.element);
-		dom.setVisibility(multi, this.allowAllButton.element);
+		const hasProjectedRequests = this.items.some(item => item.request);
+		dom.setVisibility(multi && !hasProjectedRequests, this.allowAllButton.element);
+		dom.setVisibility(!hasProjectedRequests, this.dismissButton.element);
 		dom.setVisibility(this.canExpandContent, this.expandContentButton.element);
 
 		this.allowAllButton.label = multi
@@ -420,7 +500,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 
 		if (!item.toolPart) {
-			item.toolPart = this.toolPartFactory(item.tool);
+			item.toolPart = item.request ? item.request.createContent() : this.toolPartFactory(item.tool!);
 			if (item.ownsToolPart) {
 				item.disposables.add(item.toolPart);
 			}
@@ -540,13 +620,17 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	allowAll(): void {
 		for (const item of [...this.items]) {
-			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.UserAction });
+			if (!item.request) {
+				IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.UserAction });
+			}
 		}
 	}
 
 	private skipAll(): void {
 		for (const item of [...this.items]) {
-			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+			if (!item.request) {
+				IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+			}
 		}
 	}
 
@@ -554,7 +638,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		if (!item) {
 			return undefined;
 		}
-		const messages = IChatToolInvocation.getConfirmationMessages(item.tool);
+		if (item.request) {
+			return item.request.title;
+		}
+		const messages = item.tool && IChatToolInvocation.getConfirmationMessages(item.tool);
 		if (!messages?.title) {
 			return undefined;
 		}

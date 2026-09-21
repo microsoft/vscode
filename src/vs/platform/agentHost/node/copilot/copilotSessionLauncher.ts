@@ -22,6 +22,8 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
+import type { AgentHostTeamLeadPhase } from '../../common/agentHostPersistentTeam.js';
+import { ArtifactServerToolName, PersistentTeamToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -148,16 +150,8 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	if (!availableTools && !excludedTools) {
 		return names;
 	}
-	const matches = (patterns: readonly string[], name: string) => {
-		const sdkName = toSdkClientToolName(name);
-		return patterns.some(pattern =>
-			pattern === name ||
-			pattern === sdkName ||
-			pattern === `custom:${name}` ||
-			pattern === `custom:${sdkName}` ||
-			pattern === 'custom:*'
-		);
-	};
+	const matches = (patterns: readonly string[], name: string) =>
+		matchesToolFilter(patterns, 'custom', name) || matchesToolFilter(patterns, 'custom', toSdkClientToolName(name));
 	const result = new Set<string>();
 	for (const name of names) {
 		const allowed = !availableTools || matches(availableTools, name);
@@ -166,6 +160,36 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 		}
 	}
 	return result;
+}
+
+function matchesToolFilter(patterns: readonly string[], source: string, name: string): boolean {
+	return patterns.some(pattern => pattern === name || pattern === `${source}:${name}` || pattern === `${source}:*`);
+}
+
+export interface ICopilotSessionToolFilters {
+	readonly availableTools?: string[];
+	readonly excludedTools?: string[];
+}
+
+/** Narrows tool availability for the Lead without changing permission or sandbox policy. */
+export function getCopilotTeamToolFilters(configured: ICopilotSessionToolFilters, phase: AgentHostTeamLeadPhase | undefined): ICopilotSessionToolFilters {
+	if (!phase) {
+		return configured;
+	}
+	const tools = [
+		...['view', 'rg', 'grep', 'glob', 'web_fetch', 'web_search', 'skill', 'think', 'report_intent', 'ask_user', 'exit_plan_mode', 'task_complete'].map(name => `builtin:${name}`),
+		...[PersistentTeamToolName, SessionServerToolName.GetCurrentSession, SessionServerToolName.GetSessionContext, SessionServerToolName.ListSessions, ArtifactServerToolName.ListArtifactsAndReferences, SEMANTIC_SEARCH_TOOL_NAME].map(name => `custom:${name}`),
+		...(phase === 'manager'
+			? [`custom:${SessionServerToolName.SendMessage}`]
+			: ['apply_patch', 'git_apply_patch', 'edit', 'create', 'str_replace_editor'].map(name => `builtin:${name}`)),
+	];
+	return {
+		availableTools: tools.filter(tool => {
+			const separator = tool.indexOf(':');
+			return !configured.availableTools || matchesToolFilter(configured.availableTools, tool.slice(0, separator), tool.slice(separator + 1));
+		}),
+		excludedTools: configured.excludedTools,
+	};
 }
 
 /** The SDK-registered name for a client tool; only the tool-search tool differs. */
@@ -203,6 +227,8 @@ export interface ICopilotSessionRuntime {
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
+	handleAgentStop(): ReturnType<NonNullable<SessionHooks['onAgentStop']>>;
+	configureToolFilters?(filters: ICopilotSessionToolFilters): ICopilotSessionToolFilters;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -274,6 +300,8 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'resume';
+	/** An exact saved backing must never be replaced when its history cannot be read. */
+	readonly requireHistory?: boolean;
 	readonly workingDirectory: URI;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
@@ -656,7 +684,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Only a session with no events on disk may fall back to creating a
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
-			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+			if (plan.requireHistory || !shouldCreateEmptySessionAfterResumeError(resumeError)) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
@@ -931,10 +959,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const configuredSdkExcludedTools = plan.isEphemeral
 			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]
 			: toSdkToolFilterPatterns(excludedTools);
-		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
-		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
+		const configuredClientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
+		const sdkExcludedTools = configuredClientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
 			? configuredSdkExcludedTools
 			: [...new Set([...(configuredSdkExcludedTools ?? []), `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
+		const configuredToolFilters = { availableTools: sdkAvailableTools, excludedTools: sdkExcludedTools };
+		const toolFilters = runtime.configureToolFilters?.(configuredToolFilters) ?? configuredToolFilters;
+		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), toolFilters.availableTools, toolFilters.excludedTools);
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
@@ -1022,11 +1053,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
-				onPreToolUse: input => runtime.handlePreToolUse(input),
-				onPostToolUse: input => runtime.handlePostToolUse(input),
-				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
-			}),
+			hooks: {
+				...toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
+					onPreToolUse: input => runtime.handlePreToolUse(input),
+					onPostToolUse: input => runtime.handlePostToolUse(input),
+					onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
+				}), onAgentStop: () => runtime.handleAgentStop()
+			},
 			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
@@ -1043,8 +1076,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			managedSettings: {
 				permissions: managedSettingsPermissions,
 			},
-			availableTools: sdkAvailableTools,
-			excludedTools: sdkExcludedTools,
+			...toolFilters,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: promptOverrides.tools,

@@ -254,6 +254,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			this._onDidChangeContent.fire();
 		}));
 		this._setFocusedItem(item);
+		this._register(this._widget.input.onDidChangeSessionInputRequests(() => this._onDidChangeContent.fire()));
 	}
 
 	readonly id = AccessibleViewProviderId.PanelChat;
@@ -261,7 +262,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	readonly options = { type: AccessibleViewType.View };
 
 	provideContent(): string {
-		return this._getContent(this._focusedItem);
+		return [this._widget.input.getSessionInputRequestsAccessibleContent(), this._getContent(this._focusedItem)].filter(Boolean).join('\n\n');
 	}
 
 	private _setFocusedItem(item: ChatTreeItem): void {

@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { constObservable, observableValue, autorun, type IObservable } from '../../../../../../base/common/observable.js';
@@ -24,23 +24,30 @@ import { AgentSession, IAgentHostService } from '../../../../../../platform/agen
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, createErrorResponsePart, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput, type ToolCallPendingConfirmationState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatAgentService, IChatAgentResult } from '../../../common/participants/chatAgents.js';
+import { IChatModelReference, IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
+import { IChatSessionInputSource } from '../../../common/chatSessionInputRequests.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTypes.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
-import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { AgentHostSessionHandler, getEditedToolCallInput, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { toolCallStateToInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -541,8 +548,9 @@ suite('AgentHostClientTools', () => {
 				invokeTool: async (invocation: IToolInvocation, _countTokens, token?: CancellationToken) => {
 					invokedToolCalls.push(invocation);
 					invocationTokens.push(token ?? CancellationToken.None);
-					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
-					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
+					const invocationKey = invocation.invocationKey ?? invocation.chatStreamToolCallId ?? invocation.callId;
+					const toolInvocation = pendingToolCalls.get(invocationKey);
+					pendingToolCalls.delete(invocationKey);
 					if (options?.throwBeforeConfirmation) {
 						throw options.throwBeforeConfirmation;
 					}
@@ -612,7 +620,7 @@ suite('AgentHostClientTools', () => {
 						toolData,
 						subagentInvocationId: options.subagentInvocationId,
 					});
-					pendingToolCalls.set(options.toolCallId, invocation);
+					pendingToolCalls.set(options.invocationKey ?? options.toolCallId, invocation);
 					begunToolCalls.push(invocation);
 					// Record every state the invocation passes through so tests can
 					// assert it never flickers into `WaitingForConfirmation` when
@@ -773,6 +781,15 @@ suite('AgentHostClientTools', () => {
 			const connection = new MockAgentHostConnection();
 
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
+			const models = new ResourceMap<IChatModel>();
+			let loadModel: IChatService['acquireOrLoadSession'] = async () => undefined;
+			const openedUrls: { url: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
+			instantiationService.stub(IOpenerService, {
+				open: async (resource, options) => {
+					openedUrls.push({ url: resource.toString(), options });
+					return true;
+				},
+			});
 			const configValues: Record<string, unknown> = {};
 			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
 			const configService: Partial<IConfigurationService> = {
@@ -815,7 +832,8 @@ suite('AgentHostClientTools', () => {
 				registerProvider: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatService, {
-				getSession: () => undefined,
+				getSession: resource => models.get(resource),
+				acquireOrLoadSession: (...args) => loadModel(...args),
 				onDidCreateModel: Event.None,
 				removePendingRequest: () => { },
 			});
@@ -915,7 +933,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, models, openedUrls, getModelLoader: () => loadModel, setModelLoader: (loader: IChatService['acquireOrLoadSession']) => { loadModel = loader; } };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -1111,6 +1129,433 @@ suite('AgentHostClientTools', () => {
 					: { confirmed }),
 			});
 		}
+
+		async function createInputQueueFixture(requireConfirmation = true, loadBarrier?: DeferredPromise<void>) {
+			const fixture = createHandlerWithMocks(disposables, [testConfirmTool], { requireConfirmation });
+			const { handler, connection, models } = fixture;
+			const lead = URI.parse('agent-host-copilot:/session-1');
+			const backend = AgentSession.uri('copilot', 'session-1');
+			const loaded: URI[] = [];
+			const loads = new ResourceMap<Promise<IChatModel>>();
+			const sources = observableValue<readonly IChatSessionInputSource[]>('sources', []);
+			await handler.provideChatSessionContent(lead, CancellationToken.None);
+			fixture.setModelLoader(async resource => {
+				await loadBarrier?.p;
+				let model = models.get(resource);
+				if (!model) {
+					let loading = loads.get(resource);
+					if (!loading) {
+						loading = (async () => {
+							loaded.push(resource);
+							const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+							const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+							const response = new class extends mock<IChatResponseModel>() {
+								override readonly onDidChange = changed.event;
+								override readonly response = new class extends mock<IResponse>() {
+									override get value() {
+										return (session.progressObs?.get() ?? []).filter(part => part.kind === 'toolInvocation' || part.kind === 'questionCarousel' || part.kind === 'planReview' || part.kind === 'elicitation2');
+									}
+								}();
+							}();
+							const request = new class extends mock<IChatRequestModel>() {
+								override readonly id = 'turn-1';
+								override readonly response = response;
+							}();
+							const model = new class extends mock<IChatModel>() {
+								override readonly sessionResource = resource;
+								override readonly onDidChange = Event.None;
+								override getRequests() { return [request]; }
+							}();
+							models.set(resource, model);
+							disposables.add(autorun(reader => {
+								session.progressObs?.read(reader);
+								changed.fire({ reason: 'other' });
+							}));
+							return model;
+						})();
+						loads.set(resource, loading);
+					}
+					model = await loading;
+				}
+				assert.ok(model);
+				return { object: model, dispose: () => { } } satisfies IChatModelReference;
+			});
+			const addPeer = (role: string) => {
+				const resource = lead.with({ fragment: role });
+				const chat = buildChatUri(backend.toString(), role);
+				connection.applySessionAction(backend, {
+					type: ActionType.SessionChatAdded,
+					summary: createDefaultChatSummary({
+						resource: backend.toString(), provider: 'copilot', title: role, status: SessionStatus.Idle,
+						createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+					}, chat),
+				});
+				sources.set([...sources.get(), { resource, label: role }], undefined);
+				return { resource, chat };
+			};
+			const addClientRequest = (chat: string, id: string) => {
+				connection.applySessionAction(URI.parse(chat), {
+					type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'perform the assignment', origin: { kind: MessageKind.User } },
+				});
+				connection.applySessionAction(URI.parse(chat), {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'collision',
+					toolName: testConfirmTool.toolReferenceName!, displayName: testConfirmTool.displayName,
+					contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+				});
+				connection.applySessionAction(URI.parse(chat), {
+					type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'collision',
+					invocationMessage: 'Perform assignment', toolInput: JSON.stringify({ task: id }), confirmationTitle: 'Allow Once',
+				});
+				connection.applySessionAction(backend, {
+					type: ActionType.SessionInputNeededSet,
+					request: {
+						id, chat, turnId: 'turn-1', kind: SessionInputRequestKind.ToolConfirmation,
+						toolCall: {
+							status: ToolCallStatus.PendingConfirmation, toolCallId: 'collision',
+							toolName: testConfirmTool.toolReferenceName!, displayName: testConfirmTool.displayName,
+							invocationMessage: 'Perform assignment', toolInput: JSON.stringify({ task: id }), confirmationTitle: 'Allow Once',
+							contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+						},
+					},
+				});
+			};
+			return { ...fixture, lead, backend, loaded, sources, addPeer, addClientRequest };
+		}
+
+		test('projects unopened peer approvals with colliding tool IDs and the original execution scopes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const scout = fixture.addPeer('scout');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			fixture.addClientRequest(worker.chat, 'worker-request');
+			fixture.addClientRequest(scout.chat, 'scout-request');
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+			const requests = queue.requests.get();
+			const before = {
+				loaded: fixture.loaded.map(resource => resource.fragment).sort(),
+				sources: requests.map(request => request.source.resource.fragment).sort(),
+				uniqueIdentities: new Set(requests.map(request => request.id)).size,
+				executed: fixture.toolsService.executedToolCalls.length,
+				denied: fixture.connection.dispatchedActions.some(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.result.error?.code === 'clientUnavailable'),
+			};
+			for (const request of requests) {
+				if (request.content.kind === 'toolInvocation') {
+					IChatToolInvocation.confirmWith(request.content, { type: ToolConfirmKind.UserAction });
+				}
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				before,
+				executionScopes: fixture.toolsService.executedToolCalls.map(call => call.context?.sessionResource.fragment).sort(),
+				invocationKeys: new Set(fixture.toolsService.invokedToolCalls.map(call => call.invocationKey)).size,
+				confirmations: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed).map(entry => entry.channel).sort(),
+			}, {
+				before: { loaded: ['scout', 'worker'], sources: ['scout', 'worker'], uniqueIdentities: 2, executed: 0, denied: false },
+				executionScopes: ['scout', 'worker'],
+				invocationKeys: 2,
+				confirmations: [scout.chat, worker.chat].sort(),
+			});
+		}));
+
+		test('a claimed request is not denied while its unopened source model is loading', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const loading = new DeferredPromise<void>();
+			const fixture = await createInputQueueFixture(true, loading);
+			const worker = fixture.addPeer('worker');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			fixture.addClientRequest(worker.chat, 'request');
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS * 2);
+			const whileLoading = {
+				executions: fixture.toolsService.invokedToolCalls.length,
+				completions: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallComplete).length,
+			};
+			loading.complete();
+			await timeout(0);
+			await timeout(0);
+			const pending = queue.requests.get();
+			if (pending[0]?.content.kind === 'toolInvocation') {
+				IChatToolInvocation.confirmWith(pending[0].content, { type: ToolConfirmKind.Denied });
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ whileLoading, pending: pending.length }, { whileLoading: { executions: 0, completions: 0 }, pending: 1 });
+		}));
+
+		test('a new authoritative snapshot retries a failed source load without polling or denying it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const load = fixture.getModelLoader();
+			let attempts = 0;
+			fixture.setModelLoader(async (...args) => {
+				if (++attempts === 1) {
+					throw new Error('Connection interrupted');
+				}
+				return load(...args);
+			});
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			fixture.addClientRequest(worker.chat, 'request');
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS * 2);
+			const beforeReconnect = { attempts, executions: fixture.toolsService.invokedToolCalls.length };
+			fixture.connection.applySessionAction(fixture.backend, { type: ActionType.SessionTitleChanged, title: 'Reconnected session' });
+			await timeout(0);
+			await timeout(0);
+			const pending = queue.requests.get();
+			if (pending[0]?.content.kind === 'toolInvocation') {
+				IChatToolInvocation.confirmWith(pending[0].content, { type: ToolConfirmKind.Denied });
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ beforeReconnect, attempts, pending: pending.length }, { beforeReconnect: { attempts: 1, executions: 0 }, attempts: 2, pending: 1 });
+		}));
+
+		test('projected authentication is a source-owned sign-in blocker, not a tool approval', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			const contributor = { kind: ToolCallContributorKind.MCP as const, customizationId: 'repository' };
+			const auth = { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://repository.example/mcp', authorization_servers: [] } };
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'assignment', origin: { kind: MessageKind.User } },
+			});
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'authentication', toolName: 'repository.tool', displayName: 'Repository', contributor,
+			});
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'authentication', invocationMessage: 'Read repository', confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatToolCallAuthRequired, turnId: 'turn-1', toolCallId: 'authentication', auth,
+			});
+			fixture.connection.applySessionAction(fixture.backend, {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'authentication', chat: worker.chat, kind: SessionInputRequestKind.ToolAuthentication, turnId: 'turn-1',
+					toolCall: { toolCallId: 'authentication', toolName: 'repository.tool', displayName: 'Repository', invocationMessage: 'Read repository', contributor, auth, status: ToolCallStatus.AuthRequired, confirmed: ToolCallConfirmationReason.NotNeeded },
+				},
+			});
+			await timeout(0);
+			await timeout(0);
+			const pending = queue.requests.get()[0];
+			assert.ok(pending?.content.kind === 'toolInvocation');
+			const state = pending.content.state.get();
+			assert.ok(state.type === IChatToolInvocation.StateKind.WaitingForAuthentication);
+			state.cancel();
+			await timeout(0);
+			assert.deepStrictEqual({
+				source: pending.source.resource.toString(),
+				authResource: state.server.resource,
+				approvals: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed).length,
+				cancellations: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallComplete).map(entry => entry.channel),
+			}, { source: worker.resource.toString(), authResource: 'https://repository.example/mcp', approvals: 0, cancellations: [worker.chat] });
+		}));
+
+		test('URL authorization opens the normal flow and answers only the source request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			const request = { id: 'authorization', message: 'Sign in to continue', questions: [], url: 'https://auth.example/authorize' };
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'assignment', origin: { kind: MessageKind.User } },
+			});
+			fixture.connection.applySessionAction(URI.parse(worker.chat), { type: ActionType.ChatInputRequested, request });
+			fixture.connection.applySessionAction(fixture.backend, {
+				type: ActionType.SessionInputNeededSet,
+				request: { id: 'authorization', chat: worker.chat, kind: SessionInputRequestKind.ChatInput, request },
+			});
+			await timeout(0);
+			await timeout(0);
+			const pending = queue.requests.get()[0];
+			assert.ok(pending?.content.kind === 'elicitation2');
+			await pending.content.accept(true);
+			queue.dispose();
+			assert.deepStrictEqual({
+				opened: fixture.openedUrls,
+				answers: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted),
+			}, {
+				opened: [{ url: 'https://auth.example/authorize', options: { allowCommands: false } }],
+				answers: [{ channel: worker.chat, action: { type: ActionType.ChatInputCompleted, requestId: 'authorization', response: ChatInputResponseKind.Accept } }],
+			});
+		}));
+
+		test('releasing one projected view neither answers nor removes another view claim', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const first = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			const second = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => first.requests.read(reader)));
+			disposables.add(autorun(reader => second.requests.read(reader)));
+			fixture.addClientRequest(worker.chat, 'request');
+			await timeout(0);
+			await timeout(0);
+			const shared = first.requests.get()[0]?.content === second.requests.get()[0]?.content;
+			first.dispose();
+			await timeout(UNOBSERVED_CLIENT_TOOL_GRACE_MS + 1);
+			const pending = second.requests.get();
+			const before = fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete).length;
+			const tool = pending[0]?.content;
+			if (tool?.kind === 'toolInvocation') {
+				IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.Denied });
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				shared, before, pending: pending.length,
+				invoked: fixture.toolsService.invokedToolCalls.length,
+				executed: fixture.toolsService.executedToolCalls.length,
+				denials: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed && !entry.action.approved).length,
+			}, { shared: true, before: 0, pending: 1, invoked: 1, executed: 0, denials: 1 });
+		}));
+
+		test('external removal and roster reset invalidate projected controls without answering', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			fixture.addClientRequest(worker.chat, 'request');
+			await timeout(0);
+			await timeout(0);
+			const pending = queue.requests.get()[0];
+			fixture.connection.applySessionAction(fixture.backend, { type: ActionType.SessionInputNeededRemoved, id: 'request' });
+			const afterExternalAnswer = queue.requests.get().length;
+			fixture.sources.set([], undefined);
+			assert.deepStrictEqual({
+				hadRequest: !!pending,
+				active: pending?.isActive.get(),
+				afterExternalAnswer,
+				remaining: queue.requests.get().length,
+				confirmations: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed).length,
+			}, { hadRequest: true, active: false, afterExternalAnswer: 0, remaining: 0, confirmations: 0 });
+		}));
+
+		test('projected server decisions preserve edited parameters, custom options, and result phase', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			const toolCall: ToolCallPendingConfirmationState = {
+				status: ToolCallStatus.PendingConfirmation, toolCallId: 'native', toolName: 'native', displayName: 'Native Tool',
+				invocationMessage: 'Inspect the parameters', toolInput: '{"path":"original"}', editable: true,
+				options: [{ id: 'once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve }, { id: 'deny', label: 'Deny', kind: ConfirmationOptionKind.Deny }],
+			};
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'assignment', origin: { kind: MessageKind.User } },
+			});
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'native', toolName: 'native', displayName: 'Native Tool',
+			});
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'native', invocationMessage: toolCall.invocationMessage,
+				toolInput: toolCall.toolInput, editable: true, options: toolCall.options,
+			});
+			fixture.connection.applySessionAction(fixture.backend, {
+				type: ActionType.SessionInputNeededSet, request: { id: 'request', chat: worker.chat, turnId: 'turn-1', kind: SessionInputRequestKind.ToolConfirmation, toolCall },
+			});
+			await timeout(0);
+			await timeout(0);
+			const parameters = queue.requests.get()[0];
+			assert.ok(parameters?.content.kind === 'toolInvocation' && parameters.content.toolSpecificData?.kind === 'input');
+			parameters.content.toolSpecificData.rawInput = { path: 'edited' };
+			IChatToolInvocation.confirmWith(parameters.content, { type: ToolConfirmKind.UserAction, selectedButton: 'once' });
+			await timeout(0);
+			const result = { success: true, pastTenseMessage: 'Inspected', content: [{ type: ToolResultContentType.Text as const, text: 'Review this result' }] };
+			fixture.connection.applySessionAction(URI.parse(worker.chat), {
+				type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'native', result, requiresResultConfirmation: true,
+			});
+			fixture.connection.applySessionAction(fixture.backend, {
+				type: ActionType.SessionInputNeededSet,
+				request: {
+					id: 'request', chat: worker.chat, turnId: 'turn-1', kind: SessionInputRequestKind.ToolConfirmation,
+					toolCall: { ...toolCall, ...result, status: ToolCallStatus.PendingResultConfirmation, confirmed: ToolCallConfirmationReason.UserAction },
+				},
+			});
+			await timeout(0);
+			const review = queue.requests.get()[0];
+			assert.ok(review?.content.kind === 'toolInvocation');
+			const phase = review.content.state.get();
+			const reviewContent = phase.type === IChatToolInvocation.StateKind.WaitingForPostApproval ? phase.contentForModel : [];
+			IChatToolInvocation.confirmWith(review.content, { type: ToolConfirmKind.UserAction });
+			await timeout(0);
+			assert.deepStrictEqual({
+				distinctPhases: parameters.id !== review.id,
+				reviewContent,
+				actions: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallResultConfirmed),
+				clientExecutions: fixture.toolsService.executedToolCalls.length,
+			}, {
+				distinctPhases: true,
+				reviewContent: [{ kind: 'text', value: 'Review this result' }],
+				actions: [
+					{ channel: worker.chat, action: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'native', approved: true, confirmed: ToolCallConfirmationReason.UserAction, editedToolInput: '{"path":"edited"}', selectedOptionId: 'once' } },
+					{ channel: worker.chat, action: { type: ActionType.ChatToolCallResultConfirmed, turnId: 'turn-1', toolCallId: 'native', approved: true } },
+				],
+				clientExecutions: 0,
+			});
+		}));
+
+		test('questions and plan reviews use source request completions without opening a widget', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createInputQueueFixture();
+			const worker = fixture.addPeer('worker');
+			const scout = fixture.addPeer('scout');
+			const queue = disposables.add(fixture.handler.observeInputRequests(fixture.lead, fixture.sources));
+			disposables.add(autorun(reader => queue.requests.read(reader)));
+			const question: ChatInputRequestWithPlanReview = {
+				id: 'same-input', message: 'Choose a path', questions: [{ id: 'path', kind: ChatInputQuestionKind.Text, title: 'Path', message: 'Path' }],
+			};
+			const plan: ChatInputRequestWithPlanReview = {
+				id: 'same-input', message: 'Review the plan', questions: [],
+				planReview: { title: 'Plan', content: 'Proposed plan', actions: [{ id: 'accept', label: 'Approve' }], canProvideFeedback: true, answerQuestionId: 'plan' },
+			};
+			for (const { peer, request } of [{ peer: worker, request: question }, { peer: scout, request: plan }]) {
+				fixture.connection.applySessionAction(URI.parse(peer.chat), {
+					type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'assignment', origin: { kind: MessageKind.User } },
+				});
+				fixture.connection.applySessionAction(URI.parse(peer.chat), { type: ActionType.ChatInputRequested, request });
+				fixture.connection.applySessionAction(fixture.backend, {
+					type: ActionType.SessionInputNeededSet,
+					request: { id: `input-${peer.resource.fragment}`, chat: peer.chat, kind: SessionInputRequestKind.ChatInput, request },
+				});
+			}
+			await timeout(0);
+			await timeout(0);
+			const requests = queue.requests.get();
+			const carousel = requests.find(request => request.content.kind === 'questionCarousel')?.content;
+			const review = requests.find(request => request.content.kind === 'planReview')?.content;
+			assert.ok(carousel instanceof ChatQuestionCarouselData && review instanceof ChatPlanReviewData);
+			carousel.draftAnswers = { path: 'saved draft' };
+			carousel.completion.complete({ answers: { path: 'source answer' } });
+			review.completion.complete({ action: 'Approve', actionId: 'accept', rejected: false });
+			await timeout(0);
+			assert.deepStrictEqual({
+				kinds: requests.map(request => request.content.kind).sort(),
+				uniqueIdentities: new Set(requests.map(request => request.id)).size,
+				answers: fixture.connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({
+					chat: entry.channel, requestId: entry.action.type === ActionType.ChatInputCompleted ? entry.action.requestId : undefined,
+				})).sort((a, b) => a.chat.localeCompare(b.chat)),
+			}, {
+				kinds: ['planReview', 'questionCarousel'], uniqueIdentities: 2,
+				answers: [{ chat: scout.chat, requestId: 'same-input' }, { chat: worker.chat, requestId: 'same-input' }].sort((a, b) => a.chat.localeCompare(b.chat)),
+			});
+		}));
+
+		test('editable terminal confirmations retain all other parameters', () => {
+			const toolCall: ToolCallPendingConfirmationState = {
+				status: ToolCallStatus.PendingConfirmation, toolCallId: 'terminal', toolName: 'terminal', displayName: 'Terminal',
+				invocationMessage: 'Run', toolInput: '{"command":"old","cwd":"/workspace"}', editable: true, _meta: { toolKind: 'terminal' },
+			};
+			const invocation = toolCallStateToInvocation(toolCall, undefined, AgentSession.uri('copilot', 'session-1'), 'local');
+			const data = invocation.toolSpecificData;
+			assert.ok(data?.kind === 'terminal');
+			data.commandLine.userEdited = 'new';
+			assert.deepStrictEqual({
+				edited: getEditedToolCallInput(invocation, toolCall),
+				readOnly: getEditedToolCallInput(invocation, { ...toolCall, editable: false }),
+			}, { edited: '{"command":"new","cwd":"/workspace"}', readOnly: undefined });
+		});
 
 		test('maps tool data to protocol definitions', async () => {
 			const { connection } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
@@ -2172,6 +2617,38 @@ suite('AgentHostClientTools', () => {
 			// _beginClientToolInvocation takes over.
 			assert.ok(IChatToolInvocation.isComplete(snapshotInvocation),
 				'the initial snapshot invocation should be completed, not orphaned');
+		});
+
+		test('a failure after reconnect retains the original turn retry control', async () => {
+			const { handler, connection, models } = createHandlerWithMocks(disposables, []);
+			const resource = URI.parse('agent-host-copilot:/session-1');
+			const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1')));
+			connection.applySessionAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'restored-turn', startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Manage the engineering task', origin: { kind: MessageKind.User } },
+			});
+			const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+			let result: IChatAgentResult | undefined;
+			const response = new class extends mock<IChatResponseModel>() {
+				override get result() { return result; }
+				override setResult(value: IChatAgentResult) { result = value; }
+			}();
+			const request = new class extends mock<IChatRequestModel>() {
+				override readonly id = 'restored-turn';
+				override readonly response = response;
+			}();
+			models.set(resource, new class extends mock<IChatModel>() {
+				override getRequests() { return [request]; }
+			}());
+			connection.applySessionAction(chat, {
+				type: ActionType.ChatError, turnId: 'restored-turn', duration: 0,
+				part: createErrorResponsePart({ errorType: 'teamTaskBlocked', message: 'An engineer needs retry' }, true),
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				complete: session.isCompleteObs?.get(),
+				buttons: result?.errorDetails?.confirmationButtons?.map(button => ({ label: button.label, resend: button.resend, preserveRequestId: button.preserveRequestId })),
+			}, { complete: true, buttons: [{ label: 'Try Again', resend: true, preserveRequestId: true }] });
 		});
 
 		test('does not auto-deny an unclaimed session confirmation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

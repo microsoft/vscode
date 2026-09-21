@@ -5,14 +5,15 @@
 
 import { getActiveWindow } from '../../../../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../../../../base/browser/ui/hover/hover.js';
-import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
-import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
@@ -30,11 +31,35 @@ export interface IModelPickerPresentationOptions {
 	readonly showModelIcon: boolean;
 }
 
+export interface IModelPickerSelectionPresentation {
+	readonly label: string;
+	readonly ariaLabel: string;
+	readonly tooltip: string;
+	readonly segments?: readonly { readonly label: string; readonly icon: ThemeIcon }[];
+}
+
+export interface IModelPickerAdditionalContentContext {
+	/** The stable picker anchor, which remains connected when the popup is dismissed. */
+	readonly anchor: HTMLElement;
+	hide(): void;
+	reopen(): void;
+}
+
+export interface IModelPickerAdditionalContent {
+	renderHeader?(container: HTMLElement, context: IModelPickerAdditionalContentContext): IDisposable;
+	/** Renders a footer, or the entire body when {@link replaceModelList} is set. */
+	render?(container: HTMLElement, context: IModelPickerAdditionalContentContext): IDisposable;
+	readonly replaceModelList?: boolean;
+}
+
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
+	/** Overrides the displayed selection without replacing the model used for configuration. */
+	readonly selectionPresentation?: IObservable<IModelPickerSelectionPresentation | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 	getPresentationOptions(): IModelPickerPresentationOptions;
+	getAdditionalContent?(): IModelPickerAdditionalContent | undefined;
 	/**
 	 * The id of the current chat session, used to correlate model-picker
 	 * changes with the session in telemetry. Matches the `chatSessionId`
@@ -76,6 +101,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action);
 
@@ -89,6 +115,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		// Sync delegate → widget when model list or selection changes externally
 		this._register(autorun(t => {
 			const model = delegate.currentModel.read(t);
+			delegate.selectionPresentation?.read(t);
 			this._pickerWidget.setSelectedModel(model);
 			this._updateTooltip();
 		}));
@@ -170,7 +197,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		// it is shown — in particular the Restricted Mode / sign-in messages, which
 		// depend on workspace trust / entitlement changing without this item being
 		// re-rendered.
-		this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
+		this._managedHover.value = this.hoverService.setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
 			target,
 			() => this._getHoverContents()
@@ -192,6 +219,10 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		}
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
+		}
+		const selectionPresentation = this._pickerWidget.selectionPresentation;
+		if (selectionPresentation) {
+			return selectionPresentation.tooltip;
 		}
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};

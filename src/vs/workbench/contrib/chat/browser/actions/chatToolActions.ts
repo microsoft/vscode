@@ -55,6 +55,12 @@ abstract class ToolConfirmationAction extends Action2 {
 		const widget = context?.sessionResource
 			? chatWidgetService.getWidgetBySessionResource(context.sessionResource)
 			: chatWidgetService.lastFocusedWidget;
+		const projected = widget?.input.projectedToolConfirmation;
+		if (projected) {
+			IChatToolInvocation.confirmWith(projected, this.getReason());
+			widget?.focusInput();
+			return;
+		}
 		const lastItem = widget?.viewModel?.getItems().at(-1);
 		if (!isResponseVM(lastItem)) {
 			return;

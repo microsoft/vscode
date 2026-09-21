@@ -10,6 +10,7 @@ import type { ConfigPropertySchema, ModelSelection } from './state/protocol/stat
 
 /** Model-configuration key for the selected context-window size, in tokens. */
 export const ContextSizeConfigKey = 'contextSize';
+export const ThinkingLevelConfigKey = 'thinkingLevel';
 
 /**
  * Synthesizes the shared context-size picker property for a CAPI model with a
