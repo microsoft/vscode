@@ -25,7 +25,6 @@ import { DisposableStore } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
-import { hasKey } from '../../../common/types.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
 import { CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
@@ -95,6 +94,20 @@ export const unthemedMenuStyles: IMenuStyles = {
 interface ISubMenuData {
 	parent: Menu;
 	submenu?: Menu;
+}
+
+/**
+ * Shape of an action that asks the menu to stay open after it runs.
+ */
+interface IKeepOpenAction {
+	keepOpen: boolean;
+}
+
+/**
+ * Shape of an action that can re-evaluate its own state from context keys.
+ */
+interface IRefreshableAction {
+	refreshState(): void;
 }
 
 export class Menu extends ActionBar {
@@ -250,13 +263,11 @@ export class Menu extends ActionBar {
 
 		// When a keepOpen action runs, refresh the checked/enabled state of all items
 		this._register(this.onDidRun(e => {
-			if (e.action && hasKey(e.action, 'keepOpen') && e.action.keepOpen) {
+			if ((e.action as Partial<IKeepOpenAction> | undefined)?.keepOpen) {
 				for (const item of this.viewItems) {
 					if (item instanceof BaseMenuActionViewItem) {
 						// Re-evaluate the action's state from context keys
-						if (hasKey(item.action, 'refreshState')) {
-							(item.action as { refreshState(): void }).refreshState();
-						}
+						(item.action as Partial<IRefreshableAction>).refreshState?.();
 						// Update the visual state
 						item.refreshState();
 					}

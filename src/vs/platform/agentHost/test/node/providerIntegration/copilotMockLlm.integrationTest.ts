@@ -268,7 +268,8 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		// log) backed by a live SDK session that owns real per-session resources.
 		const firstProbe = 'MOCK_RELEASE_PROBE_1';
 		dispatchTurn(client, sessionUri, 'turn-release-1', `Reply with exactly: ${firstProbe}`, 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		const firstResult = await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'), 90_000);
+		assert.strictEqual(getActionEnvelope(firstResult).action.type, ActionType.ChatTurnComplete, JSON.stringify(getActionEnvelope(firstResult).action));
 
 		const before = await fetchSessionWithChat(client, sessionUri);
 		assert.match(assistantMarkdown(before.turns, 'turn-release-1'), new RegExp(`\\b${firstProbe}\\b`, 'i'), 'first turn should have completed before release');
@@ -292,7 +293,8 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		client.clearReceived();
 		const secondProbe = 'MOCK_RELEASE_PROBE_2';
 		dispatchTurn(client, sessionUri, 'turn-release-2', `Reply with exactly: ${secondProbe}`, 2);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		const secondResult = await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'), 90_000);
+		assert.strictEqual(getActionEnvelope(secondResult).action.type, ActionType.ChatTurnComplete, JSON.stringify(getActionEnvelope(secondResult).action));
 
 		const final = await fetchSessionWithChat(client, sessionUri);
 		assert.match(assistantMarkdown(final.turns, 'turn-release-2'), new RegExp(`\\b${secondProbe}\\b`, 'i'), 'a follow-up turn must complete after the release/resume cycle');

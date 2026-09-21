@@ -49,7 +49,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 
@@ -639,7 +639,7 @@ export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): s
 	const displayName = item.displayName ?? formatDisplayName(item.name);
 	const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
-	const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
+	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
 }
@@ -887,17 +887,11 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
-						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
-						const nameAndDesc = secondaryText
-							? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText)
-							: displayName;
+						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
-							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", nameAndDesc);
+							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", label);
 						}
-						return entry.item.disabled
-							? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDesc)
-							: nameAndDesc;
+						return label;
 					},
 					getWidgetAriaLabel: () => localize('listAriaLabel', "Agent Customizations"),
 				},
@@ -1146,8 +1140,11 @@ export class AICustomizationListWidget extends Disposable {
 		this.currentSectionSubscription.value = autorun(reader => {
 			const items = observable.read(reader);
 			this.allItems = items;
-			this.filterItems();
+			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(items.length);
+			if (!this.sectionLoading) {
+				this.announceItemCount(matchCount);
+			}
 		});
 		this.updateAddButton();
 		await this.itemsModel.whenSectionLoaded(modelSection);
@@ -1466,8 +1463,8 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Announces the current number of items (after search filtering) to
 	 * screen readers via an aria status message. Called when the section
-	 * is loaded and after the search filter changes so assistive technology
-	 * users hear the count, including "no results".
+	 * is loaded, its items change, and after the search filter changes so
+	 * assistive technology users hear the count, including "no results".
 	 */
 	private announceItemCount(count: number): void {
 		const isFiltering = this.searchQuery.trim().length > 0;
@@ -1834,7 +1831,7 @@ export class AICustomizationListWidget extends Disposable {
 		const heights = layoutVirtualizedSections(content, this.cardSectionLists.map(section => ({
 			container: section.container,
 			contentHeight: section.items.length * ITEM_HEIGHT,
-			minimumHeight: ITEM_HEIGHT,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.items, () => ITEM_HEIGHT),
 		})));
 		for (let index = 0; index < this.cardSectionLists.length; index++) {
 			const section = this.cardSectionLists[index];

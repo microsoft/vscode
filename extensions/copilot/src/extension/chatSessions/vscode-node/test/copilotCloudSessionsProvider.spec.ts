@@ -3,17 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, MockInstance, vi } from 'vitest';
 import * as vscode from 'vscode';
 import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
+import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
+import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
+import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { ICAPIClientService } from '../../../../platform/endpoint/common/capiClient';
+import { IDomainService } from '../../../../platform/endpoint/common/domainService';
+import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
+import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
+import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
+import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
+import { IGithubRepositoryService } from '../../../../platform/github/common/githubService';
+import { IOTelService } from '../../../../platform/otel/common/otelService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
+import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { Event } from '../../../../util/vs/base/common/event';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { CopilotCloudSessionsProvider, filterCloudSessions, formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRepositoryQuickPickItems, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
+import { CloudSessionData } from '../../vscode/cloudAgentBackend';
+import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
@@ -24,6 +47,14 @@ vi.mock('vscode', async () => {
 		...actual,
 		workspace: {
 			workspaceFolders: [],
+			get isAgentSessionsWorkspace() { return false; },
+		},
+		chat: {
+			createChatParticipant: () => ({ dispose() { } }),
+		},
+		commands: {
+			registerCommand: () => ({ dispose() { } }),
+			executeCommand: vi.fn(async () => undefined),
 		},
 	};
 });
@@ -42,6 +73,33 @@ class TestGitService extends mock<IGitService>() {
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
+	it('lists GitHub repositories directly and optionally accepts a pasted clone URL', () => {
+		const repositories = [
+			{ id: 'microsoft/vscode', name: 'microsoft/vscode' },
+			{ id: 'microsoft/vscode-docs', name: 'microsoft/vscode-docs' },
+		];
+
+		expect({
+			search: getRepositoryQuickPickItems(repositories, 'vscode', true),
+			url: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', true),
+			cloud: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', false),
+		}).toEqual({
+			search: [
+				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
+				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
+			],
+			url: [
+				{ label: 'Clone from URL', description: 'https://gitlab.com/example/project.git', cloneUrl: 'https://gitlab.com/example/project.git' },
+				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
+				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
+			],
+			cloud: [
+				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
+				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
+			],
+		});
+	});
+
 	it('formats every redesigned new-session context pill for the cloud request', () => {
 		const references = [
 			{ id: 'github-context:https://github.com/microsoft/vscode/issues/332805', name: 'Issue', value: 'GitHub context' },
@@ -152,6 +210,51 @@ describe('copilotCloudSessionsProvider helpers', () => {
 		});
 	});
 
+	it('reports only verified PR-closing issues in cloud session metadata', () => {
+		const linkedIssues = [{
+			url: 'https://github.com/microsoft/vscode/issues/335868',
+			title: 'Info spotlight not screen reader accessible',
+		}];
+		const pullRequest: PullRequestSearchItem = {
+			id: 'PR_example',
+			number: 336399,
+			title: 'Make spotlight info cards accessible',
+			state: 'OPEN',
+			url: 'https://github.com/microsoft/vscode/pull/336399',
+			createdAt: '2026-09-01T00:00:00Z',
+			updatedAt: '2026-09-02T00:00:00Z',
+			author: null,
+			repository: { owner: { login: 'microsoft' }, name: 'vscode' },
+			additions: 1,
+			deletions: 0,
+			files: { totalCount: 1 },
+			fullDatabaseId: 123,
+			headRefOid: 'head',
+			headRefName: 'copilot/fix-spotlight',
+			baseRefName: 'main',
+			body: 'Fixes #335868. Also mentions #123.',
+			closingIssuesReferences: { nodes: linkedIssues },
+		};
+
+		expect({
+			linked: getCloudSessionItemMetadata(undefined, undefined, pullRequest),
+			unlinked: getCloudSessionItemMetadata(undefined, undefined, { ...pullRequest, closingIssuesReferences: { nodes: [] } })?.linkedIssues,
+			unavailable: getCloudSessionItemMetadata(undefined, undefined, { ...pullRequest, closingIssuesReferences: undefined })?.linkedIssues,
+		}).toEqual({
+			linked: {
+				owner: 'microsoft',
+				name: 'vscode',
+				branch: 'copilot/fix-spotlight',
+				baseBranch: 'main',
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/336399',
+				pullRequestState: 'open',
+				linkedIssues,
+			},
+			unlinked: undefined,
+			unavailable: undefined,
+		});
+	});
+
 	it('keeps the task resource stable and reports the pull request URI for state migration', () => {
 		// A task keeps its `/task/<id>` identity for its whole life. Once it has a pull request
 		// it also reports the `/<prNumber>` URI it used to be listed under, so archive/pin/read
@@ -167,6 +270,340 @@ describe('copilotCloudSessionsProvider helpers', () => {
 				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
 				legacyResource: vscode.Uri.parse('copilot-cloud-agent:/325'),
 			},
+		});
+	});
+});
+
+describe('cloud session visibility', () => {
+	const now = Date.parse('2026-09-16T12:00:00Z');
+	const day = 24 * 60 * 60 * 1000;
+	const logService = new TestLogService();
+	const session = (taskId: string, lastActivity: number): CloudSessionData => ({
+		taskId,
+		title: taskId,
+		state: 'idle',
+		createdAt: new Date(now - 120 * day).toISOString(),
+		updatedAt: new Date(lastActivity).toISOString(),
+	});
+
+	it('defaults to sessions active in the last 30 days', () => {
+		const sessions = [session('recent', now - day), session('old', now - 31 * day)];
+		expect({
+			defaultValue: ConfigKey.CloudSessionVisibility.defaultValue,
+			visible: filterCloudSessions(sessions, ConfigKey.CloudSessionVisibility.defaultValue, logService, now).sessions.map(s => s.taskId),
+		}).toEqual({ defaultValue: '30days', visible: ['recent'] });
+	});
+
+	it.each([
+		['24hours', 1],
+		['7days', 7],
+		['30days', 30],
+		['90days', 90],
+	] satisfies [ConfigKey.CloudSessionVisibilityValue, number][])('uses an inclusive most-recent-activity cutoff for %s', (visibility, days) => {
+		const cutoff = now - days * day;
+		const sessions = [session('older', cutoff - 1), session('boundary', cutoff), session('newer', cutoff + 1)];
+		const result = filterCloudSessions(sessions, visibility, logService, now);
+		expect({
+			visible: result.sessions.map(s => s.taskId),
+			expiresAt: result.expiresAt,
+		}).toEqual({ visible: ['boundary', 'newer'], expiresAt: now });
+	});
+
+	it('disables the age limit with all', () => {
+		const sessions = [session('recent', now), session('old', now - 365 * day)];
+		expect(filterCloudSessions(sessions, 'all', logService, now)).toEqual({ sessions, expiresAt: Infinity });
+	});
+
+	describe('CopilotCloudSessionsProvider discovery', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		const now = Date.parse('2026-09-16T12:00:00Z');
+		const day = 24 * 60 * 60 * 1000;
+		let store: DisposableStore;
+		let configurationService: InMemoryConfigurationService;
+		let fetchSessionList: MockInstance<TaskApiBackend['fetchSessionList']>;
+		let getComparisonChangedFiles: ReturnType<typeof vi.fn<IPullRequestFileChangesService['getComparisonChangedFiles']>>;
+
+		const session = (taskId: string, lastActivity = now): CloudSessionData => ({
+			taskId,
+			title: taskId,
+			state: 'idle',
+			createdAt: new Date(now - 120 * day).toISOString(),
+			updatedAt: new Date(lastActivity).toISOString(),
+			repo: { owner: 'microsoft', name: 'vscode' },
+			diffRefs: { owner: 'microsoft', repo: 'vscode', baseRef: 'main', headRef: taskId },
+		});
+
+		beforeEach(() => {
+			vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			vi.setSystemTime(now);
+			store = new DisposableStore();
+			configurationService = store.add(new InMemoryConfigurationService(store.add(new DefaultsOnlyConfigurationService())));
+			fetchSessionList = vi.spyOn(TaskApiBackend.prototype, 'fetchSessionList').mockResolvedValue([]);
+			getComparisonChangedFiles = vi.fn(async () => []);
+		});
+
+		afterEach(async () => {
+			await new Promise<void>(resolve => setImmediate(resolve));
+			store.dispose();
+			vi.useRealTimers();
+			vi.restoreAllMocks();
+		});
+
+		function createProvider(): CopilotCloudSessionsProvider {
+			return store.add(new CopilotCloudSessionsProvider(
+				new MockOctoKitService(),
+				new TestGitService(),
+				new NullTelemetryService(),
+				new TestLogService(),
+				new class extends mock<IGitExtensionService>() { }(),
+				new class extends mock<IPullRequestFileChangesService>() {
+					override getComparisonChangedFiles = getComparisonChangedFiles;
+				}(),
+				new class extends mock<IAuthenticationService>() {
+					override readonly onDidAuthenticationChange = Event.None;
+				}(),
+				new class extends mock<IVSCodeExtensionContext>() { }(),
+				new class extends mock<IInstantiationService>() { }(),
+				new class extends mock<IGithubRepositoryService>() { }(),
+				new class extends mock<IChatDelegationSummaryService>() { }(),
+				new class extends mock<IExperimentationService>() { }(),
+				new class extends mock<IDomainService>() {
+					override readonly onDidChangeDomains = Event.None;
+				}(),
+				new class extends mock<IOTelService>() { }(),
+				new class extends mock<IFileSystemService>() { }(),
+				new class extends mock<ICAPIClientService>() { }(),
+				configurationService,
+			));
+		}
+
+		it('filters before fetching changes and refreshes when visibility changes', async () => {
+			fetchSessionList.mockResolvedValue([session('recent', now - 2 * day), session('old', now - 31 * day)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+
+			const defaultItems = await provider.provideChatSessionItems(CancellationToken.None);
+			const defaultChangeRequests = getComparisonChangedFiles.mock.calls.length;
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, '24hours');
+			const lastDayItems = await provider.provideChatSessionItems(CancellationToken.None);
+			const fetchesWithLastDayFilter = fetchSessionList.mock.calls.length;
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
+			const allItems = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({
+				defaultItems: defaultItems.map(item => item.label),
+				defaultChangeRequests,
+				lastDayItems,
+				fetchesWithLastDayFilter,
+				allItems: allItems.map(item => item.label),
+				changeEvents: changes.mock.calls.length,
+			}).toEqual({
+				defaultItems: ['recent'],
+				defaultChangeRequests: 1,
+				lastDayItems: [],
+				fetchesWithLastDayFilter: 2,
+				allItems: ['recent', 'old'],
+				changeEvents: 2,
+			});
+		});
+
+		it('expires cached sessions at the activity cutoff even if the backend count is unchanged', async () => {
+			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1)]);
+			const provider = createProvider();
+			const before = await provider.provideChatSessionItems(CancellationToken.None);
+			vi.setSystemTime(now + 2);
+			const after = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({ before: before.map(item => item.label), after, fetches: fetchSessionList.mock.calls.length })
+				.toEqual({ before: ['expiring'], after: [], fetches: 2 });
+		});
+
+		it.each([false, true])('refreshes at the cutoff without another catalog request (Agents Window: %s)', async isAgentSessionsWorkspace => {
+			vi.spyOn(vscode.workspace, 'isAgentSessionsWorkspace', 'get').mockReturnValue(isAgentSessionsWorkspace);
+			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			await vi.advanceTimersByTimeAsync(1000);
+			const eventsAtCutoff = changes.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(1);
+			const afterExpiry = { events: changes.mock.calls.length, fetches: fetchSessionList.mock.calls.length };
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({ eventsAtCutoff, afterExpiry, items, timers: vi.getTimerCount() }).toEqual({
+				eventsAtCutoff: 0,
+				afterExpiry: { events: 1, fetches: 1 },
+				items: [],
+				timers: 0,
+			});
+		});
+
+		it.each([
+			['30days', 30],
+			['90days', 90],
+		] satisfies [ConfigKey.CloudSessionVisibilityValue, number][])('handles %s expiry beyond the native timeout limit', async (visibility, days) => {
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, visibility);
+			fetchSessionList.mockResolvedValue([session('recent')]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			const maxTimeoutDelay = 2 ** 31 - 1;
+			await vi.advanceTimersByTimeAsync(maxTimeoutDelay);
+			const afterFirstChunk = { events: changes.mock.calls.length, timers: vi.getTimerCount() };
+			await vi.advanceTimersByTimeAsync(days * day - maxTimeoutDelay);
+			const eventsAtCutoff = changes.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(1);
+
+			expect({ afterFirstChunk, eventsAtCutoff, eventsAfterExpiry: changes.mock.calls.length, timers: vi.getTimerCount() }).toEqual({
+				afterFirstChunk: { events: 0, timers: 1 },
+				eventsAtCutoff: 0,
+				eventsAfterExpiry: 1,
+				timers: 0,
+			});
+		});
+
+		it('cancels and reschedules expiry when the cache is refreshed', async () => {
+			fetchSessionList.mockResolvedValue([session('original', now - 30 * day + 1000)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			provider.refresh();
+			const timersAfterRefresh = vi.getTimerCount();
+			fetchSessionList.mockResolvedValue([session('replacement', now - 30 * day + 2000)]);
+			await provider.provideChatSessionItems(CancellationToken.None);
+			changes.mockClear();
+			await vi.advanceTimersByTimeAsync(1001);
+			const eventsAtOldExpiry = changes.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(1000);
+
+			expect({ timersAfterRefresh, eventsAtOldExpiry, eventsAtNewExpiry: changes.mock.calls.length }).toEqual({
+				timersAfterRefresh: 0,
+				eventsAtOldExpiry: 0,
+				eventsAtNewExpiry: 1,
+			});
+		});
+
+		it('cancels expiry when the age limit is disabled', async () => {
+			fetchSessionList.mockResolvedValue([session('expiring', now - 30 * day + 1000)]);
+			const provider = createProvider();
+			const changes = vi.fn();
+			store.add(provider.onDidChangeChatSessionItems(changes));
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const timersBeforeChange = vi.getTimerCount();
+
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
+			const timersAfterChange = vi.getTimerCount();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			changes.mockClear();
+			await vi.advanceTimersByTimeAsync(90 * day);
+
+			expect({ timersBeforeChange, timersAfterChange, timers: vi.getTimerCount(), events: changes.mock.calls.length }).toEqual({
+				timersBeforeChange: 1,
+				timersAfterChange: 0,
+				timers: 0,
+				events: 0,
+			});
+		});
+
+		it('disposes the pending cache expiry timer', async () => {
+			fetchSessionList.mockResolvedValue([session('recent')]);
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const timersBeforeDisposal = vi.getTimerCount();
+			provider.dispose();
+
+			expect({ timersBeforeDisposal, timersAfterDisposal: vi.getTimerCount() }).toEqual({
+				timersBeforeDisposal: 1,
+				timersAfterDisposal: 0,
+			});
+		});
+
+		it('does not schedule an expiry when an in-flight fetch completes after disposal', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<CloudSessionData[]>();
+			fetchSessionList.mockImplementationOnce(() => {
+				started.complete();
+				return pending.p;
+			});
+			const provider = createProvider();
+			const items = provider.provideChatSessionItems(CancellationToken.None);
+			await started.p;
+			provider.dispose();
+			pending.complete([session('recent')]);
+			await items;
+
+			expect(vi.getTimerCount()).toBe(0);
+		});
+
+		it('does not let an obsolete fetch replace newer results after a setting change', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<CloudSessionData[]>();
+			fetchSessionList.mockImplementationOnce(() => {
+				started.complete();
+				return pending.p;
+			});
+			const provider = createProvider();
+			const obsolete = provider.provideChatSessionItems(CancellationToken.None);
+			await started.p;
+			await configurationService.setConfig(ConfigKey.CloudSessionVisibility, 'all');
+			fetchSessionList.mockResolvedValue([session('fresh')]);
+			const current = await provider.provideChatSessionItems(CancellationToken.None);
+			pending.complete([session('stale')]);
+			const previous = await obsolete;
+			const cached = await provider.provideChatSessionItems(CancellationToken.None);
+
+			expect({
+				current: current.map(item => item.label),
+				previous: previous.map(item => item.label),
+				cached: cached.map(item => item.label),
+				fetches: fetchSessionList.mock.calls.length,
+			}).toEqual({ current: ['fresh'], previous: ['fresh'], cached: ['fresh'], fetches: 2 });
+		});
+	});
+
+	it('falls back to completion and creation times when the update time is absent', () => {
+		const sessions: CloudSessionData[] = [
+			{ ...session('completed-recently', now), updatedAt: undefined, completedAt: new Date(now - day).toISOString() },
+			{ ...session('created-recently', now), updatedAt: undefined, createdAt: new Date(now - day).toISOString() },
+			{ ...session('created-long-ago', now), updatedAt: undefined },
+		];
+		expect(filterCloudSessions(sessions, '30days', logService, now).sessions.map(s => s.taskId))
+			.toEqual(['completed-recently', 'created-recently']);
+	});
+
+	it('expires the cache when the oldest visible session ages out', () => {
+		const sessions = [session('recent', now), session('expiring', now - 30 * day + 1), session('old', now - 31 * day)];
+		const result = filterCloudSessions(sessions, '30days', logService, now);
+		expect({
+			expiresAt: result.expiresAt,
+			visibleAfterExpiry: filterCloudSessions(result.sessions, '30days', logService, result.expiresAt + 1).sessions.map(s => s.taskId),
+		}).toEqual({ expiresAt: now + 1, visibleAfterExpiry: ['recent'] });
+	});
+
+	it('keeps sessions with unparseable activity visible and logs the missing age information', () => {
+		const log = new RecordingLogService();
+		const sessions = [{ ...session('invalid-date', now), updatedAt: 'not a timestamp' }];
+		expect(filterCloudSessions(sessions, '30days', log, now)).toEqual({ sessions, expiresAt: Infinity });
+		expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Cannot determine the last activity'));
+	});
+
+	it('validates the supported setting values', () => {
+		expect({
+			schema: ConfigKey.CloudSessionVisibility.validator?.toSchema(),
+			rejectsNone: ConfigKey.CloudSessionVisibility.validator?.validate('none').error !== undefined,
+			rejectsInvalidValue: ConfigKey.CloudSessionVisibility.validator?.validate('invalid').error !== undefined,
+		}).toEqual({
+			schema: { enum: ['24hours', '7days', '30days', '90days', 'all'] },
+			rejectsNone: true,
+			rejectsInvalidValue: true,
 		});
 	});
 });
@@ -483,6 +920,23 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it('preserves most recent activity for every task lifecycle state', async () => {
+		const states: AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'cancelled', 'timed_out'];
+		const tasks = states.map(state => ({
+			...makeTask([], state),
+			id: state,
+			updated_at: '2026-09-16T00:00:00Z',
+			html_url: `https://github.com/microsoft/vscode/agents/tasks/${state}`,
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		}));
+		const client = new FakeTaskApiClient({ globalTasks: tasks });
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const sessions = await backend.fetchSessionList(undefined, true);
+		expect(sessions.map(({ taskId, createdAt, updatedAt }) => ({ taskId, createdAt, updatedAt }))).toEqual(
+			states.map(taskId => ({ taskId, createdAt: '2026-03-27T00:00:00Z', updatedAt: '2026-09-16T00:00:00Z' })),
+		);
+	});
+
 	it('createSession sends create_pull_request: false so tasks do not auto-create PRs', async () => {
 		const client = new FakeTaskApiClient();
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);

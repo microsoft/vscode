@@ -14,8 +14,8 @@
  * must match `FLOATING_PANEL_MARGIN`, `FLOATING_PANEL_INNER_MARGIN` and the border
  * inset used there. The outermost
  * card on a cluster edge gets the density-specific outer gutter (`.floating-part-outer-*`).
- * Colors come from the generic `surface.*` tokens (shared with the agent
- * sessions window).
+ * Colors come from the generic `surface.*` tokens, with dedicated border
+ * tokens for parts that need independent theming.
  *
  * The default and compact gutter variables below must stay in sync with
  * `FLOATING_PANEL_MARGIN` and `COMPACT_FLOATING_PANEL_MARGIN` in code.
@@ -75,7 +75,7 @@
 /* Keep the panel surface aligned with the panel theme background in light theme. */
 .monaco-workbench.floating-panels .part.panel {
 	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
-	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-surface-border, var(--vscode-widget-border, transparent))) !important;
+	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernPanel-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)))) !important;
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background) !important;
 	color: var(--vscode-surface-foreground);
@@ -194,10 +194,10 @@
 	margin-right: var(--modern-ui-floating-card-outer-margin);
 }
 
-/* The title bar color forms the shell backdrop visible through the floating-card gutters. */
+/* The shell backdrop is visible through the floating-card gutters. */
 .monaco-workbench.floating-panels,
 .monaco-workbench.floating-panels > .monaco-grid-view {
-	background-color: var(--modern-ui-shell-background, var(--vscode-titleBar-activeBackground));
+	background-color: var(--modern-ui-shell-background, var(--vscode-modernUI-shellBackground, var(--vscode-titleBar-activeBackground)));
 }
 
 /* Panel title composite receives an inline border-top color; suppress it in floating mode. */
@@ -436,6 +436,10 @@
 	--modern-ui-floating-card-stroke-color: var(--vscode-surface-border, var(--vscode-widget-border, transparent));
 	--modern-ui-floating-card-left-border-color: transparent;
 	--modern-ui-floating-card-top-border-color: transparent;
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.panel {
+	--modern-ui-floating-card-stroke-color: var(--vscode-modernPanel-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)));
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {

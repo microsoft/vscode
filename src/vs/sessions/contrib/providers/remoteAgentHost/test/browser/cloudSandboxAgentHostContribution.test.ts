@@ -147,6 +147,14 @@ class StubSessionsProvidersService extends Disposable {
 	getProviders(): ISessionsProvider[] { return []; }
 }
 
+class TestLogService extends NullLogService {
+	readonly warnings: (string | Error)[] = [];
+
+	override warn(message: string | Error, ..._args: unknown[]): void {
+		this.warnings.push(message);
+	}
+}
+
 /** The single host filter entry every sandbox environment folds into. */
 const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
@@ -186,9 +194,11 @@ interface ITestHarness {
 async function createContribution(store: Pick<DisposableStore, 'add'>, sessions: readonly ICloudSandboxDiscoveredSession[], options?: {
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
+	readonly listSessions?: (token: CancellationToken) => Promise<ICloudSandboxDiscoveryResult>;
 	readonly getEnvironment?: (id: string, token: CancellationToken) => Promise<ICloudSandboxEnvironmentRecord>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
+	readonly logService?: ILogService;
 }): Promise<ITestHarness> {
 	const discoveryHandlers: (() => Promise<void>)[] = [];
 	const hostGroups: IAgentHostGroup[] = [];
@@ -222,7 +232,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	} as ITestHarness;
 
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
-		override async listSessions(_token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
+		override async listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
+			if (options?.listSessions) {
+				return options.listSessions(token);
+			}
 			return { kind: 'complete', sessions: harness.discovered };
 		}
 		override async getEnvironment(id: string, token: CancellationToken): Promise<ICloudSandboxEnvironmentRecord> {
@@ -298,7 +311,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			});
 		}
 	}());
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, options?.logService ?? new NullLogService());
 
 	const contribution = store.add(instantiationService.createInstance(TestCloudSandboxContribution));
 	// The constructor kicks off discovery eagerly; re-running the registered handler awaits it,
@@ -403,6 +416,22 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const { hostGroups } = await createContribution(store, [discoveredSession()], { enabled: false });
 
 		assert.deepStrictEqual([...hostGroups], []);
+	});
+
+	test('does not warn when discovery is cancelled', async () => {
+		const logService = new TestLogService();
+		const { contribution } = await createContribution(store, [], {
+			listSessions: async () => { throw new CancellationError(); },
+			logService,
+		});
+
+		assert.deepStrictEqual({
+			providers: [...contribution.stubProviders.keys()],
+			warnings: logService.warnings,
+		}, {
+			providers: [],
+			warnings: [],
+		});
 	});
 
 	test('serves a dormant environment from history instead of waking it to open a session', async () => {

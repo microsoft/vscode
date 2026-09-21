@@ -87,7 +87,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	}
 
 	if (!codePath) {
-		args.unshift(root);
+		args.unshift(options.sourceAppRoot ?? root);
 	}
 
 	if (extraArgs) {
@@ -190,6 +190,20 @@ export function getBuildElectronPath(root: string): string {
 		}
 		default:
 			throw new Error('Unsupported platform.');
+	}
+}
+
+export function getBuildProductPath(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return join(root, 'Contents', 'Resources', 'app', 'product.json');
+		case 'win32':
+			// On Windows the built app may nest the payload inside a subdirectory
+			// (e.g. VSCode-win32-x64), so search for product.json rather than
+			// assuming it lives directly under the root.
+			return findFilePath(root, join('resources', 'app', 'product.json'));
+		default:
+			return join(root, 'resources', 'app', 'product.json');
 	}
 }
 

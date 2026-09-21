@@ -117,13 +117,15 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
-	readonly authRecovery = new AgentHostAuthenticationRecovery();
+	readonly authRecovery: AgentHostAuthenticationRecovery;
 
 	constructor(
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
 	}
 }
 
@@ -332,10 +334,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// User-facing display name for this agent. We always include the
-		// agent's own name so that a host exposing multiple agents (e.g.
-		// `copilot` + `openai` from the same machine) produces distinct
-		// labels instead of collapsing to a single `configuredName`.
 		const hostLabel = configuredName || address;
 		const agentLabel = agent.displayName?.trim() || agent.provider;
 		const displayName = `${agentLabel} [${hostLabel}]`;
@@ -611,6 +609,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[RemoteAgentHostAutoConnectSettingId]: {
@@ -674,6 +673,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to (e.g. \"localhost:3000\"). SSH remote agent host details are managed by VS Code."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[TunnelAgentHostsSettingId]: {
@@ -719,6 +719,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 			default: {},
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 	},

@@ -65,13 +65,14 @@ const STORED_RESPONSE_HEADERS = new Set(['content-type']);
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
 const COPIED_PLUGIN_DIR_PLACEHOLDER = '${plugin_copy}';
-const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\\\)user-data(?:\/|\\\\)agentPlugins(?:\/|\\\\)[^\/\\"]+/g;
+const COPIED_PLUGIN_DIR_RE = /\$\{homedir\}(?:\/|\\{1,2})user-data(?:\/|\\{1,2})agentPlugins(?:\/|\\{1,2})(?<directory>[^\/\\"]+)/g;
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
 const PATH_SEPARATOR_PATTERN = '(?:\\\\\\\\|\\\\|/)';
-const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
+const GENERATED_VALUE_PLACEHOLDER_RE = /\$\{(?<kind>uuid|shell_output)_\d+\}/g;
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const SHELL_OUTPUT_PATH_PATTERN = '(?:[A-Za-z]:[\\\\/]|/|\\$\\{(?:homedir|workdir)\\}[\\\\/])[^"\\r\\n<>]*?[\\\\/]original-output-\\d+-[a-f0-9]{32}\\.txt';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
@@ -260,6 +261,7 @@ export class CapiReplayProxy {
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
 	private readonly _replayPlaceholderValues = new Map<string, string>();
+	private readonly _replayPluginDirectories = new Set<string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
@@ -373,6 +375,7 @@ export class CapiReplayProxy {
 		this._cacheMisses.length = 0;
 		this._requestMismatches.length = 0;
 		this._replayPlaceholderValues.clear();
+		this._replayPluginDirectories.clear();
 		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
@@ -562,6 +565,7 @@ export class CapiReplayProxy {
 	private _normalizeReplayPlaceholderValues(text: string): string {
 		let result = text;
 		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, escapeJsonString(value), placeholder);
 			result = replaceAll(result, value, placeholder);
 		}
 		return result;
@@ -722,7 +726,8 @@ export class CapiReplayProxy {
 		const built = this._recorded.map(exchange => this._toFixtureExchange(exchange));
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
-		this._normalizeUuids(exchanges);
+		this._normalizeGeneratedValues(exchanges, new RegExp(SHELL_OUTPUT_PATH_PATTERN, 'gi'), 'shell_output');
+		this._normalizeGeneratedValues(exchanges, new RegExp(UUID_PATTERN, 'gi'), 'uuid');
 		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
@@ -818,27 +823,20 @@ export class CapiReplayProxy {
 		}
 	}
 
-	/**
-	 * Replace ephemeral UUIDs (shell ids, session-state ids, ...) that appear in
-	 * captured request/response content with stable ordinal placeholders
-	 * (`${uuid_0}`, `${uuid_1}`, ...). They change on every re-record, so
-	 * normalizing them keeps committed fixtures diff-clean. Distinct UUIDs get
-	 * distinct placeholders; repeats of the same UUID reuse its placeholder.
-	 */
-	private _normalizeUuids(exchanges: IFixtureExchange[]): void {
+	/** Replaces generated identifiers and paths with stable, rebindable ordinal placeholders. */
+	private _normalizeGeneratedValues(exchanges: IFixtureExchange[], expression: RegExp, prefix: string): void {
 		const idMap = new Map<string, string>();
-		const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-		const mapUuid = (uuid: string): string => {
-			let mapped = idMap.get(uuid);
+		const mapValue = (value: string): string => {
+			let mapped = idMap.get(value);
 			if (mapped === undefined) {
-				mapped = `\${uuid_${idMap.size}}`;
-				idMap.set(uuid, mapped);
+				mapped = `\${${prefix}_${idMap.size}}`;
+				idMap.set(value, mapped);
 			}
 			return mapped;
 		};
 		const walk = (value: unknown): unknown => {
 			if (typeof value === 'string') {
-				return value.replace(uuidRe, mapUuid);
+				return value.replace(expression, mapValue);
 			}
 			if (Array.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
@@ -897,7 +895,7 @@ export class CapiReplayProxy {
 			if (block.type === 'text') {
 				return { type: 'text', text: this._normalizeValue(block.text) as string };
 			}
-			return { type: 'tool_use', id: block.id, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
+			return { ...block, name: normalizeShellToolNameForCapture(block.name), input: this._normalizeValue(block.input) };
 		});
 	}
 
@@ -954,7 +952,12 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = scrubUserName(result, this._options.userName);
 		}
-		result = result.replace(COPIED_PLUGIN_DIR_RE, `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`);
+		result = result.replace(COPIED_PLUGIN_DIR_RE, (_match: string, directory: string) => {
+			if (this._isReplaying && directory !== COPIED_PLUGIN_DIR_PLACEHOLDER) {
+				this._replayPluginDirectories.add(directory);
+			}
+			return `${HOMEDIR_PLACEHOLDER}/user-data/agentPlugins/${COPIED_PLUGIN_DIR_PLACEHOLDER}`;
+		});
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
 		result = result.replace(FILE_LISTING_DATE_RE, '${timestamp}');
@@ -996,7 +999,18 @@ export class CapiReplayProxy {
 	}
 
 	private _expandReplayPlaceholders(text: string): string {
-		let result = replaceAll(text, CAPI_PLACEHOLDER, this.url);
+		let result = text;
+		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, placeholder, value);
+		}
+		result = replaceAll(result, CAPI_PLACEHOLDER, this.url);
+		if (result.includes(COPIED_PLUGIN_DIR_PLACEHOLDER)) {
+			const directories = [...this._replayPluginDirectories];
+			if (directories.length !== 1) {
+				throw new Error(`[capi-replay] cannot resolve ${COPIED_PLUGIN_DIR_PLACEHOLDER}: expected one observed plugin directory, found ${directories.length}`);
+			}
+			result = replaceAll(result, COPIED_PLUGIN_DIR_PLACEHOLDER, directories[0]);
+		}
 		if (this._workingDirectory) {
 			const workspaceName = basename(this._workingDirectory);
 			const suffix = /-(?<suffix>[A-Za-z0-9]{6})$/.exec(workspaceName)?.groups?.suffix;
@@ -1029,9 +1043,6 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
 		}
-		for (const [placeholder, value] of this._replayPlaceholderValues) {
-			result = replaceAll(result, placeholder, value);
-		}
 		return result;
 	}
 }
@@ -1059,9 +1070,9 @@ function captureReplayPlaceholderValuesFromString(recorded: string, observed: st
 	const placeholders: string[] = [];
 	let pattern = '^';
 	let offset = 0;
-	for (const match of recorded.matchAll(UUID_PLACEHOLDER_RE)) {
+	for (const match of recorded.matchAll(GENERATED_VALUE_PLACEHOLDER_RE)) {
 		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
-		pattern += `(${UUID_PATTERN})`;
+		pattern += `(${match.groups?.kind === 'shell_output' ? SHELL_OUTPUT_PATH_PATTERN : UUID_PATTERN})`;
 		placeholders.push(match[0]);
 		offset = match.index + match[0].length;
 	}

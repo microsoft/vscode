@@ -476,30 +476,6 @@ src/vs/platform/webContentExtractor/test/electron-main/webPageLoader.test.ts
 src/vs/workbench/contrib/remote/browser/remoteStartEntry.ts
 src/vs/workbench/contrib/remoteTunnel/test/electron-browser/remoteTunnel.contribution.test.ts
 
-# Language feature extensions (22 files)
-extensions/css-language-features/client/src/node/cssClientMain.ts
-extensions/css-language-features/server/src/cssServer.ts
-extensions/css-language-features/server/src/node/cssServerNodeMain.ts
-extensions/emmet/src/abbreviationActions.ts
-extensions/emmet/src/defaultCompletionProvider.ts
-extensions/emmet/src/splitJoinTag.ts
-extensions/emmet/src/util.ts
-extensions/html-language-features/client/src/autoInsertion.ts
-extensions/html-language-features/client/src/node/htmlClientMain.ts
-extensions/html-language-features/server/src/modes/languageModes.ts
-extensions/html-language-features/server/src/node/htmlServerNodeMain.ts
-extensions/json-language-features/client/src/node/jsonClientMain.ts
-extensions/json-language-features/server/src/node/jsonServerNodeMain.ts
-extensions/markdown-language-features/src/extension.ts
-extensions/markdown-language-features/src/languageFeatures/copyFiles/copyFiles.ts
-extensions/markdown-language-features/src/languageFeatures/copyFiles/snippets.ts
-extensions/markdown-language-features/src/markdownEngine.ts
-extensions/merge-conflict/src/mergeDecorator.ts
-extensions/typescript-language-features/src/logging/telemetry.ts
-extensions/typescript-language-features/src/tsServer/serverProcess.electron.ts
-extensions/typescript-language-features/src/typescriptServiceClient.ts
-extensions/typescript-language-features/src/utils/platform.ts
-
 # Git extension (6 files)
 extensions/git/src/askpass-main.ts
 extensions/git/src/askpassManager.ts
@@ -508,27 +484,5 @@ extensions/git/src/ipc/ipcClient.ts
 extensions/git/src/ipc/ipcServer.ts
 extensions/git/src/util.ts
 
-# Workbench UI and remaining services (23 files)
-src/vs/workbench/browser/parts/editor/editor.ts
-src/vs/workbench/browser/parts/editor/editorGroupView.ts
-src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts
-src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane.ts
-src/vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek.ts
-src/vs/workbench/contrib/issue/electron-browser/nativeGitHubUploadService.ts
-src/vs/workbench/contrib/localization/electron-browser/localization.contribution.ts
-src/vs/workbench/contrib/policyExport/electron-browser/policyExport.contribution.ts
-src/vs/workbench/contrib/policyExport/test/node/policyExport.integrationTest.ts
-src/vs/workbench/contrib/search/browser/replaceService.ts
-src/vs/workbench/contrib/tags/electron-browser/workspaceTags.ts
-src/vs/workbench/contrib/tags/electron-browser/workspaceTagsService.ts
-src/vs/workbench/contrib/themes/browser/themes.contribution.ts
-src/vs/workbench/contrib/themes/test/node/colorRegistry.releaseTest.ts
-src/vs/workbench/contrib/typeHierarchy/browser/typeHierarchyPeek.ts
-src/vs/workbench/contrib/update/common/updateInfoParser.ts
-src/vs/workbench/contrib/webview/browser/pre/service-worker.js
-src/vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput.ts
+# Default account service tests (1 file)
 src/vs/workbench/services/accounts/test/browser/defaultAccount.test.ts
-src/vs/workbench/services/actions/common/menusExtensionPoint.ts
-src/vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig.ts
-src/vs/workbench/services/textfile/test/node/encoding/encoding.integrationTest.ts
-src/vs/workbench/services/themes/common/colorThemeData.ts

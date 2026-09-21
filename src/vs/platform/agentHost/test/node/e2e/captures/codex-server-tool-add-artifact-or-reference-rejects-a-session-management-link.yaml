@@ -6,37 +6,39 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".'
     response:
       content:
         - type: text
-          text: I’ll record that artifact now, then return the requested response.
+          text: Got it — I’ll add that single artifact entry now, then return the exact response.
         - type: tool_use
           id: toolcall_0
           name: add_artifact_or_reference
           input:
-            type: resource
-            label: Spawned session
-            isArtifact: true
-            uri: agent-host-session://copilot/spawned
+            items:
+              - type: resource
+                label: Spawned session
+                isArtifact: true
+                uri: agent-host-session://copilot/spawned
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".
+          content: 'Call add_artifact_or_reference exactly once with an items array containing one entry: type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".'
         - role: assistant
-          content: I’ll record that artifact now, then return the requested response.
+          content: Got it — I’ll add that single artifact entry now, then return the exact response.
         - role: assistant
           content:
             - type: tool_use
               name: add_artifact_or_reference
               input:
-                type: resource
-                label: Spawned session
-                isArtifact: true
-                uri: agent-host-session://copilot/spawned
+                items:
+                  - type: resource
+                    label: Spawned session
+                    isArtifact: true
+                    uri: agent-host-session://copilot/spawned
         - role: user
           content:
             - type: tool_result

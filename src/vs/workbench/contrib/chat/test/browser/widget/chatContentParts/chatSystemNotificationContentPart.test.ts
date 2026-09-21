@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -83,6 +83,30 @@ suite('ChatSystemNotificationContentPart', () => {
 				differentPresentation: false,
 			},
 		});
+	});
+
+	test('renders background agent titles as code without exposing markdown delimiters', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const names = ['Renderer reviewer', 'Review `permissions`', '[Renderer](command:unused)'];
+		const rendered = names.map(name => {
+			const content = new MarkdownString(`Background agent ${appendEscapedMarkdownInlineCode(name)} is complete`);
+			const part = disposables.add(instantiationService.createInstance(ChatSystemNotificationContentPart, { kind: 'systemNotification', content }, renderer));
+			return {
+				titles: [...part.domNode.querySelectorAll('code')].map(code => code.textContent),
+				text: part.domNode.textContent,
+				plaintext: renderAsPlaintext(content),
+				links: part.domNode.querySelectorAll('a').length,
+			};
+		});
+
+		assert.deepStrictEqual(rendered, names.map(name => ({
+			titles: [name],
+			text: `Background agent ${name} is complete`,
+			plaintext: `Background agent ${name} is complete`,
+			links: 0,
+		})));
 	});
 
 	test('renders collapsible notification details with accessible mouse and keyboard controls', () => {

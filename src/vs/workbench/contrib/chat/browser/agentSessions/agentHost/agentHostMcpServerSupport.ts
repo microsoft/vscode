@@ -116,6 +116,8 @@ export interface IAgentHostMcpServerSupport {
 	readonly delivery: AgentHostMcpServerDelivery;
 	/** Whether that delivery preserves the configuration's behavior. */
 	readonly compatibility: AgentHostMcpServerCompatibility;
+	/** The exact configuration projected through the current Agent Host delivery path. */
+	readonly projectedConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -166,7 +168,7 @@ export async function assessMcpServersForCopilotAgentHost(
 
 	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
 	return {
-		servers: resolved.map(({ server, source, applicability, delivery, compatibility }) => ({
+		servers: resolved.map(({ server, source, applicability, delivery, compatibility, projectedConfiguration }) => ({
 			id: server.definition.id,
 			name: server.definition.label,
 			collectionId: server.collection.id,
@@ -175,6 +177,7 @@ export async function assessMcpServersForCopilotAgentHost(
 			applicability,
 			delivery,
 			compatibility,
+			projectedConfiguration,
 		})),
 		discoveryComplete: lazyCollectionState === LazyCollectionState.AllKnown,
 	};
@@ -494,11 +497,12 @@ async function assessDisabledInstalledMcpServer(
 	configurationResolverService: IConfigurationResolverService,
 	workingDirectories: readonly URI[] | undefined,
 ): Promise<IAgentHostMcpServerSupport> {
-	const sourceKind = getMcpConfigurationSourceKind(server.configPath?.target);
+	const sourceKind = getMcpCollectionSourceKind(server.configPath?.provenance ?? getMcpCollectionProvenance(server.configPath?.target), undefined)
+		?? AgentHostMcpServerSourceKind.Unknown;
 	const compatibility = await getInstalledMcpServerCompatibility(server, sourceKind, configurationResolverService);
-	const collectionId = server.configPath
+	const collectionId = server.configPath?.collectionId ?? (server.configPath
 		? `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${server.configPath.id}`
-		: getCollectionIdFromInstalledServer(server);
+		: getCollectionIdFromInstalledServer(server));
 	return {
 		id: server.id,
 		name: server.name,
@@ -528,11 +532,6 @@ function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer
 	return server.id.endsWith(nameSuffix)
 		? server.id.slice(0, -nameSuffix.length)
 		: `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}unknown`;
-}
-
-function getMcpConfigurationSourceKind(configTarget: ConfigurationTarget | undefined): AgentHostMcpServerSourceKind {
-	return getMcpCollectionSourceKind(getMcpCollectionProvenance(configTarget), undefined)
-		?? AgentHostMcpServerSourceKind.Unknown;
 }
 
 async function getInstalledMcpServerCompatibility(
