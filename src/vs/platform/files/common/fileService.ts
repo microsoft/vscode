@@ -1319,6 +1319,17 @@ export class FileService extends Disposable implements IFileService {
 		return new Promise((resolve, reject) => {
 			let pendingWrite = Promise.resolve();
 			let streamEnded = false;
+			let firstError: Error | undefined;
+
+			const finish = (error?: Error) => {
+				streamEnded = true;
+				firstError ??= error;
+				// The stream can finish before its last asynchronous write settles.
+				pendingWrite.then(
+					() => firstError ? reject(firstError) : resolve(),
+					error => reject(firstError ?? error)
+				);
+			};
 
 			listenStream(stream, {
 				onData: chunk => {
@@ -1340,20 +1351,10 @@ export class FileService extends Disposable implements IFileService {
 							}
 						});
 					});
-					pendingWrite.catch(error => {
-						streamEnded = true;
-						reject(error);
-					});
+					pendingWrite.catch(finish);
 				},
-				onError: error => {
-					streamEnded = true;
-					pendingWrite.then(() => reject(error), reject);
-				},
-				onEnd: () => {
-					streamEnded = true;
-					// The stream can end while its last asynchronous write is still pending.
-					pendingWrite.then(resolve, reject);
-				}
+				onError: finish,
+				onEnd: finish
 			});
 		});
 	}
