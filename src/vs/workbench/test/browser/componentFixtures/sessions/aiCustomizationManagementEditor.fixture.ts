@@ -1515,6 +1515,10 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
 			}());
+			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+				override readonly local = [];
+				override readonly onChange = Event.None;
+			}());
 			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = false;
@@ -1797,6 +1801,10 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable([]);
+			}());
+			reg.defineInstance(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+				override readonly local = [];
+				override readonly onChange = Event.None;
 			}());
 			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
