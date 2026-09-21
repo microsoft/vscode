@@ -653,7 +653,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		const allowFindRegex = this._editor.getOption(EditorOption.selectedTextOccurrenceMatching) === 'find'
+			|| !this._editor.hasTextFocus();
+		if (allowFindRegex && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 			const editorModel = this._editor.getModel();
 			if (findState.searchScope) {
 				matches = editorModel.findMatches(findState.searchString, findState.searchScope, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);

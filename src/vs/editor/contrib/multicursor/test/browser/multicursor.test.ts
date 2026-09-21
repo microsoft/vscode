@@ -918,6 +918,22 @@ suite('Multicursor selection', () => {
 			}, { hasTextFocus: false, selectedTextOccurrenceMatching: 'caseSensitive' });
 		});
 
+		test('Find-focused regex select all follows Find options in both independent matching modes', () => {
+			for (const [selectedTextOccurrenceMatching, matchCase, expectedLines] of [
+				['caseSensitive', false, [1, 4, 5]],
+				['caseInsensitive', true, [1, 5]],
+			] as const) {
+				testMulticursor(text, (editor, findController) => {
+					findController.getState().change({ searchString: '^foo$', isRevealed: true, matchCase, isRegex: true }, false);
+					editor.setSelection(new Selection(1, 1, 1, 4));
+
+					selectHighlights.run(null!, editor);
+
+					assert.deepStrictEqual(editor.getSelections().map(fromRange), expectedLines.map(line => [line, 1, line, 4]));
+				}, { hasTextFocus: false, selectedTextOccurrenceMatching });
+			}
+		});
+
 		test('add next occurrence does not highlight unrelated Find options', () => {
 			assertFindOptionsFeedback(editor => addSelectionToNext.run(null!, editor), 1, [1, 2], true);
 		});
