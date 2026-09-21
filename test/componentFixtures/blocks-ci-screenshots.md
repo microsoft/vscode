@@ -495,12 +495,6 @@
 #### sessions/sessionsList/SessionsList_CompactUnreadStatusIcons/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/088aba94bfd5a4898d7ddf77b30db16bb9f04577c8e5fcc505aa8d7f754fd518)
 
-#### sessions/sessionsList/SessionsList_CompactUnreadStatusIcons/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/03ad6e33c388baebc88d49e76819dc66fb47b21dd100875ddd6406aa239e56ae)
-
-#### sessions/sessionsList/SessionsList_CompactUnreadStatusIcons/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ce2b762bfd7e9e4a0dfdfeffbf20ab644ff98865b5d0963b2d9047753963c066)
-
 #### sessions/sessionsList/SessionsList_LightweightNewButton/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/0e7bd1a77f3f01449a15df6d7ba089d20d77abc05a302deaf2e253034ae30aab)
 
@@ -551,12 +545,6 @@
 
 #### sessions/sessionsList/SessionsList_UnreadStatusIcons/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bc827301062dd5d0e87c4a7b201aa238a8ed51729f660a3216e2ceb45e0634c2)
-
-#### sessions/sessionsList/SessionsList_UnreadStatusIcons/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/9929e487455f09d8b6067c9cc9b549f3f0e2d196a7e298d42223edc292a44ef5)
-
-#### sessions/sessionsList/SessionsList_UnreadStatusIcons/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/92757d4c74e994660cb11b847d80949633019d9b4594c4bfd2a07226466be8ac)
 
 #### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/19848fef9455de199ef49620b6e5f94f77093eddcfc1ffa2dd6732f355c516f3)
