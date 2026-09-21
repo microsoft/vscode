@@ -55,6 +55,8 @@ their context by address, request an explicit reconnect, and wait for the servic
 
 The provider exposes connection state through `IAgentHostSessionsProvider` and delegates protocol operations to the live connection. Disconnecting clears live state without manufacturing successful operation results.
 
+Providers may expose `showConnectionLog` for the connection recovery surface. The provider owns log routing, so restored Dev Container providers can open their source workspace's output channel before a live connection exists.
+
 On web, an intentional tunnel disconnect keeps the host cached and selectable while suppressing automatic reconnect. Reconnecting explicitly clears that suppression. Picker dismissal remains a separate persistent Hide operation and must have an explicit Restore path.
 
 ## Session lifecycle

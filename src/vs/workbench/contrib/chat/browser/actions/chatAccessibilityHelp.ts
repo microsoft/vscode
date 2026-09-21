@@ -68,6 +68,9 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive): string {
 	const content = [];
+	if (isSessionsWindow) {
+		content.push(localize('chat.sessionPreparation', "While a session is being prepared, a progress message appears in the transcript. Use Tab or Shift+Tab to reach Show Log, when available, and press Enter or Space to open the output log. Use Stop to cancel preparation. The chat input and attachment controls are disabled until preparation finishes."));
+	}
 	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.agentsParallelWork', "When another Agent Host session is running, a new Agent Host chat may show an invitation to run agents side by side. Only one chat input shows the invitation at a time. Use Tab to reach Open Agents Window, Ignore, or Dismiss notification. Open Agents Window copies the current prompt and attachments from that input without sending them or clearing it. An existing draft in the Agents Window is kept. Ignore turns off future invitations; Dismiss notification only hides the invitation for this chat until the window reloads."));
 	}

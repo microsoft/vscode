@@ -156,7 +156,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._contentContainer = $('.chat-group-view-content');
 		this.element.appendChild(this._contentContainer);
-		this._remoteHostUnavailableEmptyState = this._register(new RemoteHostUnavailableEmptyState());
+		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 		this._contentContainer.appendChild(this._remoteHostUnavailableEmptyState.domNode);
 
 		this._register(this._compositeBar.onDidChangeVisibility(() => this._layoutChildren()));

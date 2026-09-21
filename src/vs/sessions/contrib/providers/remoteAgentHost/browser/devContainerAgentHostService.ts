@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -220,11 +220,16 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return this._ensureConnection(workspaceUri, token).then(active => this._acquireConnection(getComparisonKey(workspaceUri), active));
 	}
 
+	async showLog(workspaceUri: URI): Promise<void> {
+		const connector = this._connector ?? await this._waitForConnector(CancellationToken.None);
+		await connector.showLog(workspaceUri);
+	}
+
 	private _ensureConnection(workspaceUri: URI, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
 		const key = getComparisonKey(workspaceUri);
 		const active = this._activeConnections.get(key);
 		if (active && this._isConnectedOrReconnecting(active.address)) {
-			return Promise.resolve(active);
+			return this._waitForReconnection(active, token);
 		}
 		const pending = this._pendingConnections.get(key);
 		if (pending) {
@@ -241,6 +246,23 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			() => this._completePendingConnection(key, pendingConnection),
 		);
 		return promise;
+	}
+
+	private async _waitForReconnection(active: IActiveDevContainerAgentHost, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
+		const { connection, canceled } = await waitForState(
+			observableFromEvent(this, Event.any(this._remoteAgentHostService.onDidChangeConnections, listener => token.onCancellationRequested(listener)), () => ({
+				connection: this._remoteAgentHostService.connections.find(connection => connection.address === active.address),
+				canceled: token.isCancellationRequested,
+			})),
+			({ connection, canceled }) => canceled || !connection || (!RemoteAgentHostConnectionStatus.isReconnecting(connection.status) && !RemoteAgentHostConnectionStatus.isConnecting(connection.status)),
+		);
+		if (canceled) {
+			throw new CancellationError();
+		}
+		if (!connection || !RemoteAgentHostConnectionStatus.isConnected(connection.status)) {
+			throw new Error(localize('devContainerAgentHost.reconnectionFailed', "The Dev Container Agent Host disconnected while reconnecting."));
+		}
+		return active;
 	}
 
 	private _completePendingConnection(key: string, pending: IPendingDevContainerAgentHost): void {
@@ -381,6 +403,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				await this._ensureConnection(workspaceUri, CancellationToken.None);
 			},
 			disconnectOnDemand: () => this.disconnect(workspaceUri),
+			showConnectionLog: () => this.showLog(workspaceUri),
 		}));
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
