@@ -182,7 +182,7 @@ suite('AgentHostFilterContribution', () => {
 		assert.strictEqual(document.activeElement, secondHost());
 
 		for (const selector of ['.host-picker-sheet-action', '.host-picker-sheet-information', '.host-picker-sheet-close:not(.host-picker-sheet-information)']) {
-			const control = sheet.querySelector<HTMLElement>(selector);
+			const control: HTMLElement | null = sheet.querySelector<HTMLElement>(selector);
 			assert.ok(control);
 			control.focus();
 			updateStatus();
