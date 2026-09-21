@@ -234,12 +234,23 @@
 	column-gap: var(--vscode-spacing-size160);
 }
 
-.agent-finder-widget a {
+.agent-finder-widget .agent-finder-card-actions > .agent-finder-install-button {
+	width: auto;
+}
+
+.agent-finder-widget .agent-finder-install-error {
+	margin: 0;
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.agent-finder-widget a[href] {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 }
 
-.agent-finder-widget a:hover {
+.agent-finder-widget a[href]:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }

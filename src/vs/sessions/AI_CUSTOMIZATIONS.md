@@ -91,7 +91,9 @@ Prompt-based items use the prompts service adapter. MCP servers, tools, plugins,
 
 AgentFinder is a separate discovery catalog, owned by the platform `IAgentFinderService`. Desktop windows use the shared process for bounded, cancellable HTTP requests; web windows use the workbench request service and its remote fallback. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install.
 
-Contributed management sections can implement `setVisible` to scope work to the selected section in a visible editor. Sections that perform remote discovery must cancel in-flight work when hidden or disposed and must not start discovery while AI features are disabled.
+The shared workbench `IAgentFinderInstallService` routes explicit install actions to the owning flows. MCP servers resolve by name against the configured registry, plugins retain the existing trust and managed-marketplace gates, and skills are imported as complete packages into a selected harness-provided workspace or user location. Installation requires validated catalog provenance; unsupported resource formats remain available for discovery without an install action.
+
+Contributed management sections can implement `setVisible` to scope work to the selected section in a visible editor. Sections that perform remote discovery must cancel discovery requests when hidden or disposed and must not start discovery while AI features are disabled. Confirmed installs belong to their services rather than the section widget; skill imports revalidate their initiating context before committing files.
 
 ## Active-session context
 

@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { untildify } from '../../../../base/common/labels.js';
 import { posix, win32 } from '../../../../base/common/path.js';
+import { isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -71,9 +72,15 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+		if (options?.path !== undefined && (options.path.length > 8192 || options.path.startsWith('/') || /[:\\\u0000-\u001f\u007f]/.test(options.path) || options.path.split('/').some(segment => segment === '.' || segment === '..' || segment.toLowerCase() === '.git' || (!segment && options.path !== '')))) {
+			return { success: false, message: localize('invalidPluginSubdirectory', "The plugin's repository directory is invalid.") };
+		}
 		const reference = parseMarketplaceReference(source);
 		if (reference && reference.kind !== MarketplaceReferenceKind.LocalFileUri) {
 			return this._doInstallFromSource(reference, options);
+		}
+		if (options?.path !== undefined) {
+			return { success: false, message: localize('pluginSubdirectoryRequiresRepository', "Installing a plugin subdirectory requires a Git repository source.") };
 		}
 
 		const local = await this._resolveLocalDirectorySource(source);
@@ -90,8 +97,8 @@ export class PluginInstallService implements IPluginInstallService {
 	private async _doInstallFromSource(reference: IMarketplaceReference, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
 		// Build a source descriptor for the git clone.
 		const sourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
-			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo! }
-			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl };
+			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo!, ...(reference.ref ? { ref: reference.ref } : {}) }
+			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl, ...(reference.ref ? { ref: reference.ref } : {}) };
 
 		// Build a temporary plugin object for the trust gate and clone step.
 		const tempPlugin: IMarketplacePlugin = {
@@ -133,6 +140,32 @@ export class PluginInstallService implements IPluginInstallService {
 			};
 		}
 
+		if (options?.path !== undefined) {
+			let pluginDir = repoDir;
+			for (const segment of options.path ? options.path.split('/') : []) {
+				pluginDir = joinPath(pluginDir, segment);
+				const stat = await this._fileService.resolve(pluginDir);
+				if (!stat.isDirectory || stat.isSymbolicLink || !isEqualOrParent(pluginDir, repoDir)) {
+					return { success: false, message: localize('unsafePluginSubdirectory', "The plugin directory must be a directory inside its repository, without symbolic links.") };
+				}
+			}
+			const manifest = await this._pluginMarketplaceService.readSinglePluginManifest(pluginDir, reference);
+			if (!manifest || options.plugin && options.plugin !== manifest.name) {
+				return { success: false, message: localize('pluginManifestNotFound', "No supported plugin manifest was found in '{0}'.", options.path || reference.displayLabel) };
+			}
+			const plugin: IMarketplacePlugin = {
+				...manifest,
+				source: options.path,
+				sourceDescriptor: { ...sourceDescriptor, path: options.path || undefined },
+			};
+			await this.installPlugin(plugin);
+			const installedUri = this.getPluginInstallUri(plugin);
+			if (!this._pluginMarketplaceService.installedPlugins.get().some(installed => isEqual(installed.pluginUri, installedUri))) {
+				return { success: false, message: localize('pluginSourceInstallIncomplete', "The plugin could not be installed. Review the installation error and try again.") };
+			}
+			return { success: true, matchedPlugin: plugin };
+		}
+
 		// Scan for marketplace.json to discover plugins.
 		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
 
@@ -142,7 +175,8 @@ export class PluginInstallService implements IPluginInstallService {
 			// marketplaces, so we do NOT register the reference under the
 			// `chat.plugins.marketplaces` config — updates flow through
 			// `updatePluginSource` via the plugin's git source descriptor.
-			const singlePlugin = await this._pluginMarketplaceService.readSinglePluginManifest(repoDir, reference);
+			const manifest = await this._pluginMarketplaceService.readSinglePluginManifest(repoDir, reference);
+			const singlePlugin = manifest ? { ...manifest, sourceDescriptor } : undefined;
 			if (singlePlugin) {
 				if (options?.plugin && options.plugin !== singlePlugin.name) {
 					return {

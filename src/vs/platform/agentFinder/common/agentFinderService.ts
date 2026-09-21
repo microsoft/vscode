@@ -26,6 +26,11 @@ export const AgentFinderMediaType = {
 
 export type AgentFinderMediaType = typeof AgentFinderMediaType[keyof typeof AgentFinderMediaType];
 
+/** Validated installation provenance; GitHub paths name the resource directory, not its manifest. */
+export type AgentFinderInstallation =
+	| { readonly kind: 'skill' | 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'mcp'; readonly name: string };
+
 export interface IAgentFinderResource {
 	readonly identifier: string;
 	readonly displayName: string;
@@ -43,6 +48,7 @@ export interface IAgentFinderResource {
 	readonly publisher?: string;
 	readonly version?: string;
 	readonly stars?: number;
+	readonly installation?: AgentFinderInstallation;
 }
 
 export type IAgentFinderCursor =
@@ -255,6 +261,7 @@ function parseResource(value: unknown): IAgentFinderResource {
 	}
 	const metadata = isRecord(value.metadata) ? value.metadata : undefined;
 	const url = parseHttpUri(value.url);
+	const externalUrl = url && typeof value.url === 'string' ? value.url : undefined;
 	const sourceSet = text(metadata?.sourceSet);
 	const repository = (sourceSet && !sourceSet.includes('://') ? githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true) : undefined) ?? githubRepository(url);
 	const publisher = repository?.path.split('/')[1];
@@ -267,12 +274,77 @@ function parseResource(value: unknown): IAgentFinderResource {
 		capabilities: strings(value.capabilities),
 		representativeQueries: strings(value.representativeQueries),
 		url,
-		externalUrl: url && typeof value.url === 'string' ? value.url : undefined,
+		externalUrl,
 		repository,
 		icon: publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}.png`, query: 'size=64' }) : undefined,
 		publisher,
 		version: text(value.version) ?? text(metadata?.version),
+		installation: parseInstallation(mediaType, metadata, url, externalUrl),
 	};
+}
+
+function parseInstallation(mediaType: string, metadata: Record<string, unknown> | undefined, url: URI | undefined, externalUrl: string | undefined): AgentFinderInstallation | undefined {
+	if (!metadata || !url || !externalUrl || url.scheme !== Schemas.https || url.query || url.fragment) {
+		return undefined;
+	}
+	if (mediaType === AgentFinderMediaType.McpServer) {
+		const name = metadata.serverName;
+		if (typeof name !== 'string' || name.length > 512 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name) || !isSafeSourcePath(name)) {
+			return undefined;
+		}
+		const prefix = `https://api.mcp.github.com/oss/v0.1/servers/${encodeURIComponent(name)}/versions/`;
+		const version = metadata.version;
+		if (externalUrl === `${prefix}latest` || (typeof version === 'string' && version.length <= 128 &&
+			!version.includes('/') && isSafeSourcePath(version) && externalUrl === `${prefix}${encodeURIComponent(version)}`)) {
+			return { kind: 'mcp', name };
+		}
+		return undefined;
+	}
+
+	const kind = mediaType === AgentFinderMediaType.Skill ? 'skill' : 'plugin';
+	const manifest = mediaType === AgentFinderMediaType.Skill ? 'SKILL.md'
+		: mediaType === AgentFinderMediaType.CopilotPlugin ? 'plugin.json'
+			: mediaType === AgentFinderMediaType.ClaudePlugin ? '.claude-plugin/plugin.json'
+				: undefined;
+	const sourceSet = metadata.sourceSet;
+	const repoPath = metadata.repoPath;
+	if (!manifest || url.authority.toLowerCase() !== 'github.com' || /%2f|%5c/i.test(externalUrl) ||
+		typeof sourceSet !== 'string' || typeof repoPath !== 'string' || !isSafeSourcePath(repoPath) || !isSafeSourcePath(url.path.slice(1))) {
+		return undefined;
+	}
+	const repository = githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true);
+	if (repository?.path !== `/${sourceSet}` || (repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
+		return undefined;
+	}
+	const [, owner, name, view, ...parts] = url.path.split('/');
+	if (`${owner}/${name}`.toLowerCase() !== sourceSet.toLowerCase() || (view !== 'blob' && view !== 'tree')) {
+		return undefined;
+	}
+	const path = repoPath === manifest ? '' : repoPath.slice(0, -manifest.length - 1);
+	if (mediaType === AgentFinderMediaType.CopilotPlugin && ['.claude-plugin', '.cursor-plugin', '.plugin'].includes(path.split('/').at(-1) ?? '')) {
+		return undefined;
+	}
+	const refAndPath = parts.join('/');
+	const refs = [refBeforePath(refAndPath, repoPath)];
+	if (kind === 'plugin') {
+		refs.push(path ? refBeforePath(refAndPath, path) : !refAndPath.includes('/') ? refAndPath : undefined);
+	}
+	const validRefs = refs.filter((ref): ref is string => ref !== undefined && isSafeGitRef(ref));
+	return validRefs.length === 1 ? { kind, repository: sourceSet, ref: validRefs[0], path } : undefined;
+}
+
+function refBeforePath(refAndPath: string, path: string): string | undefined {
+	return refAndPath.endsWith(`/${path}`) ? refAndPath.slice(0, -path.length - 1) : undefined;
+}
+
+function isSafeSourcePath(path: string): boolean {
+	return path.length > 0 && path.length <= 4096 && /^[a-z0-9._+-]+(?:\/[a-z0-9._+-]+)*$/i.test(path) &&
+		path.split('/').every(part => part !== '.' && part !== '..' && part.toLowerCase() !== '.git' && !part.startsWith('-') && !part.endsWith('.'));
+}
+
+function isSafeGitRef(ref: string): boolean {
+	return ref.length <= 1024 && isSafeSourcePath(ref) && !ref.includes('..') &&
+		ref.split('/').every(part => !part.startsWith('.') && !part.toLowerCase().endsWith('.lock'));
 }
 
 function parseHttpUri(value: unknown): URI | undefined {

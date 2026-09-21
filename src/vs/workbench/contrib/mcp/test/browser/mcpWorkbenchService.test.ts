@@ -331,6 +331,38 @@ suite('McpWorkbenchService', () => {
 		await timeout(0);
 	}
 
+	test('resolves an installable MCP server by exact name from the configured gallery', async () => {
+		const { service, galleryService, openedEditors } = await createFixture([]);
+		const gallery = createGallery('io.example/tools');
+		galleryService.queryItems = [createGallery('io.example/other'), gallery];
+
+		const server = await service.getMcpServerFromGallery(gallery.name);
+		const missing = await service.getMcpServerFromGallery('io.example/missing');
+
+		assert.deepStrictEqual({
+			name: server?.name,
+			gallery: server?.gallery === gallery,
+			missing,
+			opened: openedEditors.length,
+		}, { name: gallery.name, gallery: true, missing: undefined, opened: 0 });
+	});
+
+	test('does not return an MCP install candidate resolved from a superseded registry', async () => {
+		const { service, galleryService, manifestService } = await createFixture([]);
+		const barrier = new DeferredPromise<void>();
+		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+			await barrier.p;
+			return [createGallery('io.example/tools')];
+		});
+		store.add(toDisposable(() => lookup.restore()));
+
+		const candidate = service.getMcpServerFromGallery('io.example/tools');
+		manifestService.fireChange();
+		await barrier.complete();
+
+		await assert.rejects(candidate, /registry changed/i);
+	});
+
 	test('sanitizes local MCP server configurations from install URIs', async () => {
 		const { service, openedEditors } = await createFixture([]);
 		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({

@@ -30,6 +30,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { AgentFinderWidget } from '../../../browser/aiCustomization/agentFinderWidget.js';
+import { AgentFinderInstallState, IAgentFinderInstallService } from '../../../common/agentFinderInstallService.js';
 
 interface IRecordedQuery {
 	readonly options: IAgentFinderQuery;
@@ -44,6 +45,31 @@ class TestAgentFinderService extends mock<IAgentFinderService>() {
 		const result = new DeferredPromise<IAgentFinderPage>();
 		this.requests.push({ options, token, result });
 		return result.p;
+	}
+}
+
+class TestAgentFinderInstallService extends Disposable implements IAgentFinderInstallService {
+	declare readonly _serviceBrand: undefined;
+	private readonly changeEmitter = this._register(new Emitter<void>());
+	readonly onDidChange = this.changeEmitter.event;
+	private readonly states = new Map<string, AgentFinderInstallState>();
+	readonly requests: { resource: IAgentFinderResource; result: DeferredPromise<void> }[] = [];
+	readonly stateReads: string[] = [];
+
+	getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
+		this.stateReads.push(resource.identifier);
+		return this.states.get(resource.identifier) ?? { kind: 'available' };
+	}
+
+	install(resource: IAgentFinderResource): Promise<void> {
+		const result = new DeferredPromise<void>();
+		this.requests.push({ resource, result });
+		return result.p;
+	}
+
+	setState(identifier: string, state: AgentFinderInstallState): void {
+		this.states.set(identifier, state);
+		this.changeEmitter.fire();
 	}
 }
 
@@ -76,6 +102,17 @@ function getCardNames(container: HTMLElement): string[] {
 	return Array.from(container.querySelectorAll('.agent-finder-name'), element => element.textContent ?? '');
 }
 
+function getInstallPresentation(container: HTMLElement) {
+	const button = getElement(container, '.agent-finder-install-button');
+	const error = getElement(container, '.agent-finder-install-error');
+	return {
+		label: button.textContent,
+		enabled: button.getAttribute('aria-disabled') === 'false',
+		busy: button.getAttribute('aria-busy') === 'true',
+		error: error.hidden ? '' : error.textContent,
+	};
+}
+
 function setSearch(container: HTMLElement, value: string): HTMLInputElement {
 	const input = getElement<HTMLInputElement>(container, '.agent-finder-search input');
 	input.value = value;
@@ -99,6 +136,7 @@ suite('AgentFinderWidget', () => {
 		container.style.height = '600px';
 
 		const service = new TestAgentFinderService();
+		const installService = store.add(new TestAgentFinderInstallService());
 		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override readonly sentiment = { hidden };
@@ -157,9 +195,10 @@ suite('AgentFinderWidget', () => {
 			configuration,
 			keybindingService,
 			signalService,
+			installService,
 		));
 		return {
-			container, widget, service, opened, notifications, signals, configuration, hovers,
+			container, widget, service, installService, opened, notifications, signals, configuration, hovers,
 			setAIHidden(value: boolean) {
 				entitlement.sentiment.hidden = value;
 				sentimentChanged.fire();
@@ -548,6 +587,288 @@ suite('AgentFinderWidget', () => {
 		}, { error: '', retryVisible: false, busy: 'false', signals: [] });
 	});
 
+	test('installation actions follow service state without interpreting catalog provenance', async () => {
+		const { container, widget, service, installService, hovers } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Review')] });
+		const button = getElement(container, '.agent-finder-install-button');
+		const presentations = [getInstallPresentation(container)];
+		for (const kind of ['installing', 'installed'] as const) {
+			installService.setState('Review', { kind });
+			button.click();
+			presentations.push(getInstallPresentation(container));
+		}
+		const reason = 'Installation is disabled by your organization.';
+		installService.setState('Review', { kind: 'unavailable', message: reason });
+		button.click();
+		presentations.push(getInstallPresentation(container));
+		const hover = hovers.find(([target]) => target === button)?.[1];
+
+		assert.deepStrictEqual({
+			presentations,
+			calls: installService.requests.length,
+			label: button.getAttribute('aria-label'),
+			hover: typeof hover === 'function' ? hover().content : hover?.content,
+			accessibleStatus: widget.getAccessibilityContent().split('\n').at(-1),
+		}, {
+			presentations: [
+				{ label: 'Install', enabled: true, busy: false, error: '' },
+				{ label: 'Installing...', enabled: false, busy: true, error: '' },
+				{ label: 'Installed', enabled: false, busy: false, error: '' },
+				{ label: 'Install', enabled: false, busy: false, error: '' },
+			],
+			calls: 0,
+			label: `Install Review. ${reason}`,
+			hover: `Installation unavailable. ${reason}`,
+			accessibleStatus: `Installation unavailable. ${reason}`,
+		});
+	});
+
+	test('installation suppresses duplicate activation and preserves focus and catalog controls', async () => {
+		const { container, widget, service, installService, opened } = createWidget();
+		const resource = createResource('Review', { url: URI.parse('https://example.com/review') });
+		widget.setVisible(true);
+		pressKey(setSearch(container, 'review'), 'Enter', 13);
+		await service.requests[1].result.complete({ items: [resource] });
+		const button = getElement(container, '.agent-finder-install-button');
+		button.focus();
+		pressKey(button, 'Enter', 13);
+		button.click();
+		pressKey(button, ' ', 32);
+		const pending = getInstallPresentation(container);
+		installService.setState(resource.identifier, { kind: 'installed' });
+		await installService.requests[0].result.complete();
+		const installationKeptFocus = DOM.getActiveElement() === button;
+		getElement<HTMLAnchorElement>(container, '.agent-finder-card a[href]').click();
+
+		assert.deepStrictEqual({
+			calls: installService.requests.map(request => request.resource),
+			pending,
+			completed: getInstallPresentation(container),
+			installationKeptFocus,
+			query: getElement<HTMLInputElement>(container, '.agent-finder-search input').value,
+			names: getCardNames(container),
+			catalogCalls: service.requests.length,
+			opened,
+		}, {
+			calls: [resource],
+			pending: { label: 'Installing...', enabled: false, busy: true, error: '' },
+			completed: { label: 'Installed', enabled: false, busy: false, error: '' },
+			installationKeptFocus: true,
+			query: 'review',
+			names: ['Review'],
+			catalogCalls: 2,
+			opened: [[resource.url, { openExternal: true, allowCommands: false, allowContributedOpeners: false }]],
+		});
+	});
+
+	test('cancelled installation restores Install without an error or a success state', async () => {
+		const { container, widget, service, installService, notifications, signals } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Review')] });
+		const button = getElement(container, '.agent-finder-install-button');
+		button.focus();
+		button.click();
+		await installService.requests[0].result.error(new CancellationError());
+
+		assert.deepStrictEqual({
+			action: getInstallPresentation(container),
+			focused: DOM.getActiveElement() === button,
+			notifications,
+			signals,
+			accessibleStatus: widget.getAccessibilityContent().split('\n').at(-1),
+		}, {
+			action: { label: 'Install', enabled: true, busy: false, error: '' },
+			focused: true,
+			notifications: [],
+			signals: [],
+			accessibleStatus: 'Available to install',
+		});
+	});
+
+	test('failed installation shows an inline retry without clearing the catalog or marking it installed', async () => {
+		const { container, widget, service, installService, notifications, signals } = createWidget();
+		widget.setVisible(true);
+		pressKey(setSearch(container, 'review'), 'Enter', 13);
+		await service.requests[1].result.complete({ items: [createResource('Review')] });
+		const button = getElement(container, '.agent-finder-install-button');
+		button.focus();
+		button.click();
+		await installService.requests[0].result.error(new Error('Destination is not writable'));
+		const failed = getInstallPresentation(container);
+		const error = getElement(container, '.agent-finder-install-error');
+		const errorAssociatedWithButton = button.getAttribute('aria-describedby') === error.id;
+		const accessibleError = widget.getAccessibilityContent().split('\n').at(-1);
+		button.click();
+		const retrying = getInstallPresentation(container);
+		installService.setState('Review', { kind: 'installed' });
+		await installService.requests[1].result.complete();
+
+		assert.deepStrictEqual({
+			failed,
+			errorAssociatedWithButton,
+			accessibleError,
+			retrying,
+			completed: getInstallPresentation(container),
+			query: getElement<HTMLInputElement>(container, '.agent-finder-search input').value,
+			names: getCardNames(container),
+			requests: installService.requests.length,
+			focused: DOM.getActiveElement() === button,
+			notifications,
+			signals,
+		}, {
+			failed: {
+				label: 'Retry Install', enabled: true, busy: false,
+				error: 'Could not install Review. Destination is not writable',
+			},
+			errorAssociatedWithButton: true,
+			accessibleError: 'Could not install Review. Destination is not writable',
+			retrying: { label: 'Installing...', enabled: false, busy: true, error: '' },
+			completed: { label: 'Installed', enabled: false, busy: false, error: '' },
+			query: 'review',
+			names: ['Review'],
+			requests: 2,
+			focused: true,
+			notifications: [],
+			signals: [[AccessibilitySignal.taskFailed, { modality: 'sound' }]],
+		});
+	});
+
+	test('a resolved install promise alone never marks a resource Installed', async () => {
+		const { container, widget, service, installService, notifications, signals } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Review')] });
+		getElement(container, '.agent-finder-install-button').click();
+		await installService.requests[0].result.complete();
+
+		assert.deepStrictEqual({
+			action: getInstallPresentation(container),
+			accessibleStatus: widget.getAccessibilityContent().split('\n').at(-1),
+			notifications,
+			signals,
+		}, {
+			action: { label: 'Install', enabled: true, busy: false, error: '' },
+			accessibleStatus: 'Available to install',
+			notifications: [],
+			signals: [],
+		});
+	});
+
+	test('hiding cancels catalog paging but leaves installation owned by its service', async () => {
+		const { container, widget, service, installService, notifications, signals } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({
+			items: [createResource('Review')],
+			nextCursor: { kind: 'browse', offset: 24 },
+		});
+		getElement(container, '.agent-finder-install-button').click();
+		getButton(container, 'Load More').click();
+		widget.setVisible(false);
+		const installationStillPending = !installService.requests[0].result.isSettled;
+		installService.setState('Review', { kind: 'installed' });
+		await installService.requests[0].result.complete();
+		await service.requests[1].result.complete({ items: [createResource('Hidden result')] });
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			installationStillPending,
+			catalogCancelled: service.requests[1].token.isCancellationRequested,
+			action: getInstallPresentation(container),
+			names: getCardNames(container),
+			installCalls: installService.requests.length,
+			catalogCalls: service.requests.length,
+			notifications,
+			signals,
+		}, {
+			installationStillPending: true,
+			catalogCancelled: true,
+			action: { label: 'Installed', enabled: false, busy: false, error: '' },
+			names: ['Review'],
+			installCalls: 1,
+			catalogCalls: 2,
+			notifications: [],
+			signals: [],
+		});
+	});
+
+	test('disposing unsubscribes installation updates and prevents late mutations of destroyed cards', async () => {
+		const { container, widget, service, installService, notifications, signals } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Review')] });
+		getElement(container, '.agent-finder-install-button').click();
+		const card = getElement(container, '.agent-finder-card');
+		widget.dispose();
+		const disposedMarkup = card.innerHTML;
+		installService.stateReads.length = 0;
+		installService.setState('Review', { kind: 'installed' });
+		await installService.requests[0].result.complete();
+
+		assert.deepStrictEqual({
+			mutated: card.innerHTML !== disposedMarkup,
+			stateReads: installService.stateReads,
+			notifications,
+			signals,
+		}, { mutated: false, stateReads: [], notifications: [], signals: [] });
+	});
+
+	test('changing catalog search releases old installation views while the service operation continues', async () => {
+		const { container, widget, service, installService } = createWidget();
+		widget.setVisible(true);
+		await service.requests[0].result.complete({ items: [createResource('Review')] });
+		getElement(container, '.agent-finder-install-button').click();
+		const oldCard = getElement(container, '.agent-finder-card');
+		pressKey(setSearch(container, 'browser'), 'Enter', 13);
+		const oldMarkup = oldCard.innerHTML;
+		await service.requests[1].result.complete({ items: [createResource('Browser')] });
+		installService.stateReads.length = 0;
+		installService.setState('Review', { kind: 'installed' });
+		await installService.requests[0].result.complete();
+
+		assert.deepStrictEqual({
+			oldCardMutated: oldCard.innerHTML !== oldMarkup,
+			updatedResources: [...new Set(installService.stateReads)],
+			names: getCardNames(container),
+			action: getInstallPresentation(container),
+			installCalls: installService.requests.length,
+		}, {
+			oldCardMutated: false,
+			updatedResources: ['Browser'],
+			names: ['Browser'],
+			action: { label: 'Install', enabled: true, busy: false, error: '' },
+			installCalls: 1,
+		});
+	});
+
+	for (const lifecycle of ['hidden', 'disposed'] as const) {
+		test(`installation failures remain visible as notifications after the widget is ${lifecycle}`, async () => {
+			const { container, widget, service, installService, notifications, signals } = createWidget();
+			widget.setVisible(true);
+			await service.requests[0].result.complete({ items: [createResource('Review')] });
+			getElement(container, '.agent-finder-install-button').click();
+			if (lifecycle === 'hidden') {
+				widget.setVisible(false);
+			} else {
+				widget.dispose();
+			}
+			const beforeFailure = container.innerHTML;
+			await installService.requests[0].result.error(new Error('Installation failed'));
+
+			assert.deepStrictEqual({
+				notifications,
+				signals,
+				disposedMarkupUnchanged: lifecycle !== 'disposed' || container.innerHTML === beforeFailure,
+				presentation: lifecycle === 'hidden' ? getInstallPresentation(container) : undefined,
+			}, {
+				notifications: ['Could not install Review. Installation failed'],
+				signals: [],
+				disposedMarkupUnchanged: true,
+				presentation: lifecycle === 'hidden' ? {
+					label: 'Retry Install', enabled: true, busy: false, error: 'Could not install Review. Installation failed',
+				} : undefined,
+			});
+		});
+	}
+
 	test('renders untrusted content as text and opens only external resource links', async () => {
 		const { container, widget, service, opened } = createWidget();
 		const resource = createResource('unsafe-text', {
@@ -562,7 +883,7 @@ suite('AgentFinderWidget', () => {
 		});
 		widget.setVisible(true);
 		await service.requests[0].result.complete({ items: [resource] });
-		const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('.agent-finder-card a'));
+		const links = Array.from(container.querySelectorAll<HTMLAnchorElement>('.agent-finder-card a[href]'));
 		for (const link of links) {
 			link.click();
 		}
@@ -600,7 +921,7 @@ suite('AgentFinderWidget', () => {
 		await service.requests[0].result.complete({
 			items: [createResource('Review', { url: URI.parse('https://example.com/review') })],
 		});
-		getElement<HTMLAnchorElement>(container, '.agent-finder-card a').click();
+		getElement<HTMLAnchorElement>(container, '.agent-finder-card a[href]').click();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
@@ -623,7 +944,7 @@ suite('AgentFinderWidget', () => {
 				externalUrl,
 			})],
 		});
-		const link = getElement<HTMLAnchorElement>(container, '.agent-finder-card a');
+		const link = getElement<HTMLAnchorElement>(container, '.agent-finder-card a[href]');
 		const hoverOptions = hovers.find(([target]) => target === link)?.[1];
 		link.click();
 
@@ -706,7 +1027,7 @@ suite('AgentFinderWidget', () => {
 			pressKey(DOM.getActiveElement() as HTMLElement, key, keyCode);
 			focused.push(cards.indexOf(DOM.getActiveElement() as HTMLElement));
 		}
-		const link = getElement<HTMLAnchorElement>(cards[1], 'a');
+		const link = getElement<HTMLAnchorElement>(cards[1], 'a[href]');
 		link.focus();
 		const linkKey = pressKey(link, 'ArrowRight', 39);
 		const tabKey = pressKey(cards[0], 'Tab', 9);
@@ -826,6 +1147,7 @@ suite('AgentFinderWidget', () => {
 					'Browser tools', 'MCP server', 'Example Publisher', 'Description of Browser tools',
 					'Version 2.4.0', '12 GitHub stars',
 					...resource.tags, ...resource.capabilities, ...resource.representativeQueries,
+					'Available to install',
 					'https://example.com/browser', 'https://github.com/example/browser',
 				].join('\n'),
 			].join('\n\n'),

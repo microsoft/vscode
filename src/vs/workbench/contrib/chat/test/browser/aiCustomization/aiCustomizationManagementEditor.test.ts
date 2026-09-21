@@ -319,9 +319,10 @@ suite('aiCustomizationManagementEditor', () => {
 		const visibilityChanges: boolean[] = [];
 		const focusedVisibility: boolean[] = [];
 		const state = { created: 0, visible: false, promptsFocused: 0 };
-		const harnessId = 'agent-finder-lifecycle-test';
+		const section = AICustomizationManagementSection.HarnessSettings;
+		const harnessId = 'contributed-section-lifecycle-test';
 		editor.harnessService.activeHarness.set(harnessId, undefined);
-		editor.contributedSectionContainers.set(AICustomizationManagementSection.AgentFinder, document.createElement('div'));
+		editor.contributedSectionContainers.set(section, document.createElement('div'));
 		Object.assign(editor, {
 			inEditorContextKey: { set() { } },
 			sectionContextKey: { set() { } },
@@ -332,9 +333,9 @@ suite('aiCustomizationManagementEditor', () => {
 		Object.assign(editor.workspaceService, { clearOverrideProjectRoot() { } });
 		editor.refreshCustomizationMigrationInfo = async () => { };
 		store.add(aiCustomizationManagementSectionRegistry.register({
-			id: AICustomizationManagementSection.AgentFinder,
-			label: 'Test catalog',
-			description: 'Test catalog lifecycle',
+			id: section,
+			label: 'Test harness settings',
+			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
 			supportsHarness: id => id === harnessId,
 			create: () => {
@@ -349,13 +350,13 @@ suite('aiCustomizationManagementEditor', () => {
 				};
 			},
 		}));
-		return { editor, state, visibilityChanges, focusedVisibility };
+		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
 	for (const visible of [false, true]) {
 		test(`initializes contributed widget visibility before focusing in a ${visible ? 'visible' : 'hidden'} editor`, () => {
-			const { editor, state, visibilityChanges, focusedVisibility } = createContributedSectionEditor();
-			editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+			const { editor, section, state, visibilityChanges, focusedVisibility } = createContributedSectionEditor();
+			editor.selectedSection = section;
 			editor.setVisible(visible);
 			const createdBeforeFocus = state.created;
 			editor.focus();
@@ -381,10 +382,10 @@ suite('aiCustomizationManagementEditor', () => {
 	}
 
 	test('reopening input reactivates the selected contributed widget without a visibility transition', async () => {
-		const { editor, state, visibilityChanges } = createContributedSectionEditor();
+		const { editor, section, state, visibilityChanges } = createContributedSectionEditor();
 		const firstInput = store.add(new AICustomizationManagementEditorInput());
 		const reopenedInput = store.add(new AICustomizationManagementEditorInput());
-		editor.selectedSection = AICustomizationManagementSection.AgentFinder;
+		editor.selectedSection = section;
 		editor.setVisible(true);
 		editor.focus();
 		await editor.setInput(firstInput, undefined, {}, CancellationToken.None);
@@ -413,9 +414,9 @@ suite('aiCustomizationManagementEditor', () => {
 	});
 
 	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {
-		const { editor, state, focusedVisibility } = createContributedSectionEditor();
+		const { editor, section, state, focusedVisibility } = createContributedSectionEditor();
 		editor.setVisible(true);
-		editor.selectSection(AICustomizationManagementSection.AgentFinder);
+		editor.selectSection(section);
 
 		assert.deepStrictEqual({
 			created: state.created,

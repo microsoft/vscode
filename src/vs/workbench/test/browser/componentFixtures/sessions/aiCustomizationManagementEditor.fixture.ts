@@ -53,6 +53,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AgentFinderInstallState, IAgentFinderInstallService } from '../../../../contrib/chat/common/agentFinderInstallService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -830,6 +831,7 @@ interface IRenderEditorOptions {
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
 	readonly selectedSection?: AICustomizationManagementSection;
 	readonly agentFinderState?: 'ready' | 'empty' | 'error' | 'loading';
+	readonly agentFinderInstallationState?: 'mixed' | 'error';
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
@@ -927,6 +929,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 	let agentFinderQueryCount = 0;
+	const agentFinderInstallChanged = ctx.disposableStore.add(new Emitter<void>());
+	const agentFinderInstallStates = new Map<string, AgentFinderInstallState>([
+		['example/design-review', { kind: 'unavailable', message: 'Cursor plugins cannot be installed in VS Code.' }],
+		['example/project-notes', { kind: 'unavailable', message: 'This resource does not provide trusted installation information.' }],
+	]);
+	if (options.agentFinderInstallationState === 'mixed') {
+		agentFinderInstallStates.set('example/repository-review', { kind: 'installing' });
+		agentFinderInstallStates.set('example/browser-tools', { kind: 'installed' });
+	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -967,6 +978,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						total: resources.length,
 						nextCursor: offset + pageSize < resources.length ? { kind: 'browse', offset: offset + pageSize } : undefined,
 					};
+				}
+			}());
+			reg.defineInstance(IAgentFinderInstallService, new class extends mock<IAgentFinderInstallService>() {
+				override readonly onDidChange = agentFinderInstallChanged.event;
+				override getInstallState(resource: IAgentFinderResource): AgentFinderInstallState {
+					return agentFinderInstallStates.get(resource.identifier) ?? { kind: 'available' };
+				}
+				override async install(resource: IAgentFinderResource): Promise<void> {
+					if (options.agentFinderInstallationState === 'error') {
+						throw new Error('Choose a writable installation destination and try again.');
+					}
+					agentFinderInstallStates.set(resource.identifier, { kind: 'installing' });
+					agentFinderInstallChanged.fire();
+					await Promise.resolve();
+					agentFinderInstallStates.set(resource.identifier, { kind: 'installed' });
+					agentFinderInstallChanged.fire();
 				}
 			}());
 			if (options.migrationActivity) {
@@ -1368,6 +1395,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(finder.querySelectorAll('img').length === 0, 'AgentFinder fixtures must not request remote images.');
 		if (!options.agentFinderState || options.agentFinderState === 'ready') {
 			assert(finder.querySelectorAll('.agent-finder-card').length === agentFinderResources.length, 'The catalog must render deterministic mock resources.');
+		}
+		if (options.agentFinderInstallationState === 'error') {
+			const install = finder.querySelector<HTMLElement>('.agent-finder-install-button');
+			assert(install !== null, 'The resource must provide an Install action.');
+			install.click();
+			await Promise.resolve();
+			const error = finder.querySelector<HTMLElement>('.agent-finder-install-error');
+			assert(error !== null && !error.hidden && install.textContent === 'Retry Install', 'A failed mock installation must show an inline error and retry action.');
 		}
 	}
 
@@ -2575,7 +2610,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	AgentFinderTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['AgentFinder shows a search field, a resource type filter, and discovery-only cards with metadata, tags, Details, and external links. There is no Install action.'],
+		expectedVisualDescriptions: ['AgentFinder shows a search field, a resource type filter, and cards with metadata, tags, Details, neutral secondary Install buttons, and external source links. Installation uses existing VS Code prompts and destination choices.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.AgentFinder,
@@ -2626,6 +2661,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.AgentFinder,
 			agentFinderState: 'loading',
+		}),
+	}),
+
+	AgentFinderInstallStates: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The first resource shows Installing and the second shows Installed. Remaining resources have neutral Install actions, with unsupported resources disabled and explained through accessibility labels and hovers.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderInstallationState: 'mixed',
+		}),
+	}),
+
+	AgentFinderInstallError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The first resource has an inline installation error and Retry Install action. Resource cards, search controls, and external source links remain available.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.AgentFinder,
+			agentFinderInstallationState: 'error',
 		}),
 	}),
 

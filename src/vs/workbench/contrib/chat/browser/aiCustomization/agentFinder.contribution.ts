@@ -15,12 +15,15 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IAgentFinderInstallService } from '../../common/agentFinderInstallService.js';
 import { AICustomizationManagementSection, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { aiCustomizationManagementSectionRegistry } from './aiCustomizationManagementSectionRegistry.js';
+import { AgentFinderInstallService } from './agentFinderInstallService.js';
 import { AgentFinderWidget } from './agentFinderWidget.js';
 
 registerSingleton(IAgentFinderService, AgentFinderService, InstantiationType.Delayed);
+registerSingleton(IAgentFinderInstallService, AgentFinderInstallService, InstantiationType.Delayed);
 
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.AgentFinder,
@@ -57,7 +60,10 @@ class AgentFinderAccessibleView implements IAccessibleViewImplementation {
 				localize('agentFinder.help.search', "Type in the search field to find resources, or clear it to browse. Press Enter to search immediately. The resource type selector filters both browsing and search."),
 				localize('agentFinder.help.navigation', "Use Tab and Shift+Tab to move between controls and result cards. When a card is focused, use the arrow keys, Home, and End to navigate the results."),
 				localize('agentFinder.help.metadata', "Each card shows catalog metadata. Expand Details with Enter or Space for capabilities and example queries. GitHub images identify repository owners, not verified publishers."),
-				localize('agentFinder.help.links', "Open Resource and View Repository open external websites. Review the source and compatibility before installing a resource through its separate installation flow."),
+				localize('agentFinder.help.install', "Review a resource's source and compatibility, then choose Install. Installation uses VS Code's existing prompts, including destination and trust choices when required. Each card and the Accessible View report installation progress and availability."),
+				localize('agentFinder.help.installUnavailable', "An unavailable Install action explains why it is disabled. Cursor plugins and resources without trusted installation information cannot be installed here."),
+				localize('agentFinder.help.installRetry', "Installing becomes Installed only when the installation service confirms success. Cancelling restores the action without an error. Failed installations show an error and Retry Install without clearing the catalog. Installation can continue after leaving AgentFinder."),
+				localize('agentFinder.help.links', "Open Resource and View Repository open external websites so you can review their contents before installing."),
 				localize('agentFinder.help.paging', "Load More adds the next page of results. Retry repeats a failed request without removing previously loaded results. Refresh reloads the current search from the first page."),
 				localize('agentFinder.help.view', "Use {0} to read all loaded results, including their descriptions and metadata, in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : widget.getAccessibilityContent(),

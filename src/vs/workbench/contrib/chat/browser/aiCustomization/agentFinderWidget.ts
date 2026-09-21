@@ -16,10 +16,11 @@ import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AgentFinderMediaType, IAgentFinderPage, IAgentFinderResource, IAgentFinderService } from '../../../../../platform/agentFinder/common/agentFinderService.js';
@@ -32,6 +33,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { AgentFinderInstallState, IAgentFinderInstallService } from '../../common/agentFinderInstallService.js';
 
 const resourceTypes: readonly { readonly mediaType: AgentFinderMediaType | undefined; readonly label: string }[] = [
 	{ mediaType: undefined, label: localize('agentFinder.allTypes', "All Resource Types") },
@@ -53,6 +55,15 @@ function getResourceTypeLabel(mediaType: string): string {
 	}
 }
 
+function getInstallStateDescription(state: AgentFinderInstallState): string {
+	switch (state.kind) {
+		case 'available': return localize('agentFinder.installAvailable', "Available to install");
+		case 'installing': return localize('agentFinder.installing', "Installing...");
+		case 'installed': return localize('agentFinder.installed', "Installed");
+		case 'unavailable': return localize('agentFinder.installUnavailable', "Installation unavailable. {0}", state.message);
+	}
+}
+
 export class AgentFinderWidget extends Disposable {
 	readonly element: HTMLElement;
 	private readonly searchInput: InputBox;
@@ -66,6 +77,7 @@ export class AgentFinderWidget extends Disposable {
 	private readonly scrollable: DomScrollableElement;
 	private readonly requestDisposables = this._register(new DisposableStore());
 	private readonly cardDisposables = this._register(new DisposableStore());
+	private readonly installActions = new Map<string, { update(): void; getAccessibilityContent(): string }>();
 	private readonly searchScheduler = this._register(new RunOnceScheduler(() => void this.loadPage(), 300));
 	private items: readonly IAgentFinderResource[] = [];
 	private nextCursor: IAgentFinderPage['nextCursor'];
@@ -88,6 +100,7 @@ export class AgentFinderWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IAgentFinderInstallService private readonly installService: IAgentFinderInstallService,
 	) {
 		super();
 		this.element = DOM.append(container, DOM.$('.agent-finder-widget'));
@@ -130,7 +143,7 @@ export class AgentFinderWidget extends Disposable {
 		}));
 		this.scrollable.getDomNode().classList.add('agent-finder-scrollable');
 		this.element.appendChild(this.scrollable.getDomNode());
-		DOM.append(this.element, DOM.$('p.agent-finder-disclaimer')).textContent = localize('agentFinder.disclaimer', "Discovery only. Review each resource's source and compatibility before installing. Repository images identify GitHub owners, not verified publishers.");
+		DOM.append(this.element, DOM.$('p.agent-finder-disclaimer')).textContent = localize('agentFinder.disclaimer', "Review each resource's source before installing. Install uses VS Code's existing prompts and destination choices. Repository images identify GitHub owners, not verified publishers.");
 
 		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AgentFinderWidget', () => this.layout()));
 		this._register(resizeObserver.observe(this.element));
@@ -168,6 +181,12 @@ export class AgentFinderWidget extends Disposable {
 			}
 		}));
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
+		this._register(this.installService.onDidChange(() => {
+			for (const action of this.installActions.values()) {
+				action.update();
+			}
+			this.layout();
+		}));
 		this.updateSearchAriaLabel();
 		this.updateVisibility();
 		this.renderStatus();
@@ -380,6 +399,7 @@ export class AgentFinderWidget extends Disposable {
 			this.cardDisposables.add(DOM.addDisposableListener(details, 'toggle', () => this.layout()));
 		}
 		const actions = DOM.append(card, DOM.$('.agent-finder-card-actions'));
+		this.renderInstallAction(card, actions, item);
 		const resourceUrl = item.externalUrl ?? item.url;
 		if (resourceUrl) {
 			this.renderLink(actions, localize('agentFinder.openResource', "Open Resource"), resourceUrl);
@@ -388,6 +408,93 @@ export class AgentFinderWidget extends Disposable {
 			this.renderLink(actions, localize('agentFinder.viewRepository', "View Repository"), item.repository);
 		}
 		return card;
+	}
+
+	private renderInstallAction(card: HTMLElement, actions: HTMLElement, item: IAgentFinderResource): void {
+		const disposables = this.cardDisposables.add(new DisposableStore());
+		const button = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, small: true }));
+		button.element.classList.add('agent-finder-install-button');
+		const errorElement = DOM.append(card, DOM.$('p.agent-finder-install-error'));
+		errorElement.id = `agent-finder-install-error-${generateUuid()}`;
+		let pending = false;
+		let errorMessage: string | undefined;
+		const getState = (): AgentFinderInstallState => {
+			const state = this.installService.getInstallState(item);
+			return pending && state.kind === 'available' ? { kind: 'installing' } : state;
+		};
+		const getAccessibilityContent = () => [getInstallStateDescription(getState()), errorMessage].filter(Boolean).join('\n');
+		const update = () => {
+			const state = getState();
+			if (state.kind === 'installed') {
+				errorMessage = undefined;
+			}
+			button.label = state.kind === 'installing' || state.kind === 'installed' ? getInstallStateDescription(state)
+				: errorMessage && state.kind === 'available' ? localize('agentFinder.retryInstall', "Retry Install")
+					: localize('agentFinder.install', "Install");
+			button.enabled = state.kind === 'available';
+			button.setAriaLabel(state.kind === 'unavailable'
+				? localize('agentFinder.unavailableInstallLabel', "Install {0}. {1}", item.displayName, state.message)
+				: localize('agentFinder.installLabel', "{0}: {1}", button.label, item.displayName));
+			button.element.setAttribute('aria-busy', String(state.kind === 'installing'));
+			errorElement.textContent = errorMessage ?? '';
+			errorElement.hidden = !errorMessage;
+			if (errorMessage) {
+				button.element.setAttribute('aria-describedby', errorElement.id);
+			} else {
+				button.element.removeAttribute('aria-describedby');
+			}
+		};
+		this.installActions.set(item.identifier, { update, getAccessibilityContent });
+		disposables.add(toDisposable(() => this.installActions.delete(item.identifier)));
+		disposables.add(this.hoverService.setupDelayedHover(button.element, () => ({
+			content: getState().kind === 'available' && !errorMessage
+				? localize('agentFinder.installHint', "Review the source, then follow VS Code's installation prompts to choose where to install.")
+				: getAccessibilityContent(),
+		})));
+
+		const install = async () => {
+			if (disposables.isDisposed || !this.visible || this.chatEntitlementService.sentiment.hidden
+				|| pending || this.installService.getInstallState(item).kind !== 'available') {
+				return;
+			}
+			pending = true;
+			errorMessage = undefined;
+			update();
+			this.layout();
+			status(localize('agentFinder.installStarted', "Installing {0}.", item.displayName));
+			try {
+				await this.installService.install(item);
+				if (!disposables.isDisposed && this.visible && !this.chatEntitlementService.sentiment.hidden
+					&& this.installService.getInstallState(item).kind === 'installed') {
+					status(localize('agentFinder.installComplete', "Installed {0}.", item.displayName));
+				}
+			} catch (error) {
+				if (isCancellationError(error)) {
+					if (!disposables.isDisposed && this.visible && !this.chatEntitlementService.sentiment.hidden) {
+						status(localize('agentFinder.installCancelled', "Installation cancelled for {0}.", item.displayName));
+					}
+				} else {
+					const message = localize('agentFinder.installFailed', "Could not install {0}. {1}", item.displayName, getErrorMessage(error));
+					if (!disposables.isDisposed) {
+						errorMessage = message;
+					}
+					if (!disposables.isDisposed && this.visible && !this.chatEntitlementService.sentiment.hidden) {
+						alert(message);
+						void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
+					} else {
+						this.notificationService.error(message);
+					}
+				}
+			} finally {
+				pending = false;
+				if (!disposables.isDisposed) {
+					update();
+					this.layout();
+				}
+			}
+		};
+		disposables.add(button.onDidClick(() => void install().catch(onUnexpectedError)));
+		update();
 	}
 
 	private renderLink(parent: HTMLElement, label: string, uri: URI | string): void {
@@ -455,6 +562,7 @@ export class AgentFinderWidget extends Disposable {
 				...item.tags,
 				...item.capabilities,
 				...item.representativeQueries,
+				this.installActions.get(item.identifier)?.getAccessibilityContent(),
 				item.externalUrl ?? item.url?.toString(true),
 				item.repository?.toString(true),
 			].filter(Boolean).join('\n')),

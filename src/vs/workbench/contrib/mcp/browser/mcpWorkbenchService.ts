@@ -665,6 +665,23 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return [...result.values()];
 	}
 
+	async getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined> {
+		if (!this.mcpGalleryService.isEnabled()) {
+			return undefined;
+		}
+		const registryGeneration = this.registryGeneration;
+		const servers = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
+		if (registryGeneration !== this.registryGeneration) {
+			throw new Error(localize('mcpRegistryChangedDuringLookup', "The MCP registry changed. Try installing the server again."));
+		}
+		const gallery = servers.find(server => server.name === name);
+		if (!gallery) {
+			return undefined;
+		}
+		this.rememberGallerySource(gallery, registryGeneration);
+		return this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+	}
+
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString {
 		if (!(mcpServer instanceof McpWorkbenchServer)) {
 			return new MarkdownString().appendText(localize('not an extension', "The provided object is not an mcp server."));
@@ -963,15 +980,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private async handleMcpServerByName(name: string): Promise<boolean> {
 		try {
-			const registryGeneration = this.registryGeneration;
-			const [gallery] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
-			if (!gallery) {
+			const server = await this.getMcpServerFromGallery(name);
+			if (!server) {
 				this.logService.info(`MCP server '${name}' not found`);
 				return true;
 			}
-			this.rememberGallerySource(gallery, registryGeneration);
-			const local = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
-			this.open(local);
+			this.open(server);
 		} catch (e) {
 			// ignore
 			this.logService.error(e);

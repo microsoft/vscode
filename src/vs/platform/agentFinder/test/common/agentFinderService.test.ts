@@ -121,6 +121,7 @@ suite('AgentFinderService', () => {
 				icon: 'https://github.com/ChromeDevTools.png?size%3D64',
 				publisher: 'ChromeDevTools',
 				version: undefined,
+				installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
 			}],
 			total: 1678,
 			nextCursor: { kind: 'browse', offset: 1 },
@@ -180,6 +181,205 @@ suite('AgentFinderService', () => {
 			[AgentFinderMediaType.CopilotPlugin, 'https://github.com/github/awesome-copilot', 'github', undefined],
 			[AgentFinderMediaType.CursorPlugin, 'https://github.com/ChromeDevTools/chrome-devtools-mcp', 'ChromeDevTools', undefined],
 		]);
+	});
+
+	suite('installation provenance', () => {
+		const copilotPlugin = {
+			...skill,
+			type: AgentFinderMediaType.CopilotPlugin,
+			mediaType: AgentFinderMediaType.CopilotPlugin,
+			url: 'https://github.com/github/awesome-copilot/blob/main/plugins/accessibility-kanban/plugin.json',
+			metadata: { sourceSet: 'github/awesome-copilot', repoPath: 'plugins/accessibility-kanban/plugin.json' },
+		};
+		const claudePlugin = {
+			...skill,
+			type: AgentFinderMediaType.ClaudePlugin,
+			mediaType: AgentFinderMediaType.ClaudePlugin,
+			url: 'https://github.com/JetBrains/go-modern-guidelines/blob/main/claude/modern-go-guidelines',
+			metadata: { sourceSet: 'JetBrains/go-modern-guidelines', repoPath: 'claude/modern-go-guidelines/.claude-plugin/plugin.json' },
+		};
+
+		async function resources(values: readonly object[]): Promise<readonly IAgentFinderResource[]> {
+			const { service } = createService({ results: values, total: values.length, offset: 0, pageSize: 100 });
+			return (await service.query({ pageSize: 100 }, CancellationToken.None)).items;
+		}
+
+		test('derives observed skill and supported plugin roots, but not Cursor plugins', async () => {
+			const result = await resources([
+				skill,
+				copilotPlugin,
+				claudePlugin,
+				{
+					...skill,
+					type: AgentFinderMediaType.CursorPlugin,
+					mediaType: AgentFinderMediaType.CursorPlugin,
+					url: 'https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main',
+					metadata: { sourceSet: 'ChromeDevTools/chrome-devtools-mcp', repoPath: '.cursor-plugin/plugin.json' },
+				},
+			]);
+
+			assert.deepStrictEqual(result.map(item => item.installation), [
+				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
+				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
+				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
+				undefined,
+			]);
+		});
+
+		test('supports repository-root skills and plugins without guessing a default branch', async () => {
+			const result = await resources([
+				{ ...skill, url: 'https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/release/SKILL.md', metadata: { ...skill.metadata, repoPath: 'SKILL.md' } },
+				{ ...copilotPlugin, url: 'https://github.com/github/awesome-copilot/blob/v1.2.3/plugin.json', metadata: { ...copilotPlugin.metadata, repoPath: 'plugin.json' } },
+				{ ...claudePlugin, url: 'https://github.com/JetBrains/go-modern-guidelines/tree/develop', metadata: { ...claudePlugin.metadata, repoPath: '.claude-plugin/plugin.json' } },
+			]);
+
+			assert.deepStrictEqual(result.map(item => item.installation), [
+				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release', path: '' },
+				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'v1.2.3', path: '' },
+				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'develop', path: '' },
+			]);
+		});
+
+		test('accepts blob and tree plugin links to the directory or exact manifest', async () => {
+			const variants = ['blob', 'tree'].flatMap(view => [
+				{ ...copilotPlugin, url: `https://github.com/github/awesome-copilot/${view}/main/plugins/accessibility-kanban` },
+				{ ...copilotPlugin, url: `https://github.com/github/awesome-copilot/${view}/main/plugins/accessibility-kanban/plugin.json` },
+				{ ...claudePlugin, url: `https://github.com/JetBrains/go-modern-guidelines/${view}/main/claude/modern-go-guidelines` },
+				{ ...claudePlugin, url: `https://github.com/JetBrains/go-modern-guidelines/${view}/main/claude/modern-go-guidelines/.claude-plugin/plugin.json` },
+			]);
+			const result = await resources(variants);
+
+			assert.deepStrictEqual(result.map(item => item.installation), ['blob', 'tree'].flatMap(() => [
+				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
+				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
+				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
+				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
+			]));
+		});
+
+		test('preserves unambiguous slash refs, tags, commit hashes and path casing', async () => {
+			const refs = ['feature/catalog', 'refs/tags/v1.2.3', 'v1.2.3', '0123456789abcdef0123456789abcdef01234567'];
+			const result = await resources([
+				...refs.map(ref => ({ ...skill, url: skill.url.replace('/blob/main/', `/blob/${ref}/`) })),
+				{ ...claudePlugin, url: claudePlugin.url.replace('/blob/main/', '/tree/release/next/') },
+				{ ...copilotPlugin, url: 'https://github.com/github/awesome-copilot/blob/feature/catalog/plugin.json', metadata: { ...copilotPlugin.metadata, repoPath: 'plugin.json' } },
+				{ ...skill, url: skill.url.replace('ChromeDevTools/chrome-devtools-mcp', 'chromedevtools/CHROME-DEVTOOLS-MCP') },
+			]);
+
+			assert.deepStrictEqual(result.map(item => item.installation), [
+				...refs.map(ref => ({ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref, path: 'skills/a11y-debugging' })),
+				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'release/next', path: 'claude/modern-go-guidelines' },
+				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'feature/catalog', path: '' },
+				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
+			]);
+		});
+
+		test('rejects mismatched or incomplete GitHub provenance while retaining display metadata', async () => {
+			const variants = [
+				{ ...skill, metadata: undefined },
+				{ ...skill, metadata: { sourceSet: skill.metadata.sourceSet } },
+				{ ...skill, metadata: { repoPath: skill.metadata.repoPath } },
+				{ ...skill, metadata: { ...skill.metadata, sourceSet: 'other/repository' } },
+				{ ...skill, metadata: { ...skill.metadata, sourceSet: `${skill.metadata.sourceSet}.git` } },
+				{ ...skill, metadata: { ...skill.metadata, sourceSet: [skill.metadata.sourceSet] } },
+				{ ...skill, metadata: { ...skill.metadata, repoPath: [skill.metadata.repoPath] } },
+				{ ...skill, metadata: { ...skill.metadata, repoPath: 'skills/another/SKILL.md' } },
+				{ ...skill, metadata: { ...skill.metadata, repoPath: 'skills/a11y-debugging/skill.md' } },
+				{ ...skill, metadata: { ...skill.metadata, repoPath: 'README.md' } },
+				{ ...skill, url: skill.url.replace('https:', 'http:') },
+				{ ...skill, url: skill.url.replace('github.com', 'github.com.evil.example') },
+				{ ...skill, url: skill.url.replace('github.com', 'github.com:443') },
+				{ ...skill, url: skill.url.replace('github.com', 'user@github.com') },
+				{ ...skill, url: `${skill.url}?ref=other` },
+				{ ...skill, url: `${skill.url}#fragment` },
+				{ ...skill, url: 'https://github.com/ChromeDevTools/chrome-devtools-mcp' },
+				{ ...skill, url: undefined },
+				{ ...skill, metadata: undefined, installation: { kind: 'skill', repository: 'other/repository', ref: 'main', path: '' } },
+			];
+			const result = await resources(variants);
+
+			assert.deepStrictEqual(result.map(item => ({ displayName: item.displayName, description: item.description, installation: item.installation })),
+				variants.map(() => ({ displayName: skill.displayName, description: skill.description, installation: undefined })));
+		});
+
+		test('rejects absolute, traversal, encoded separator, control and Git metadata paths', async () => {
+			const paths = [
+				'', '/skills/a11y/SKILL.md', './skills/a11y/SKILL.md', '../skills/a11y/SKILL.md',
+				'skills/../a11y/SKILL.md', 'skills//a11y/SKILL.md', 'skills\\a11y\\SKILL.md',
+				'skills/%2e%2e/a11y/SKILL.md', 'skills/%2Fa11y/SKILL.md', 'skills/%252Fa11y/SKILL.md',
+				'skills/.git/SKILL.md', 'skills/.GIT/SKILL.md', 'C:/skills/a11y/SKILL.md',
+				'skills/-c/SKILL.md', 'skills/\u0000a11y/SKILL.md', 'skills/a11y/SKILL.md/',
+			];
+			const result = await resources([
+				...paths.map(repoPath => ({ ...skill, metadata: { ...skill.metadata, repoPath }, url: `https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/${repoPath}` })),
+				{ ...skill, url: skill.url.replace('skills/a11y-debugging', 'skills%2Fa11y-debugging') },
+				{ ...skill, url: skill.url.replace('skills/a11y-debugging', 'skills%5Ca11y-debugging') },
+				{ ...skill, url: skill.url.replace('skills/a11y-debugging', 'skills%252Fa11y-debugging') },
+			]);
+
+			assert.deepStrictEqual(result.map(item => item.installation), Array.from({ length: paths.length + 3 }, () => undefined));
+		});
+
+		test('rejects unsafe refs and option injection rather than substituting a default ref', async () => {
+			const refs = [
+				'-main', '--upload-pack=other', '-c', 'main~1', 'main^0', 'main:name', 'main..other', 'main.',
+				'feature/.private', 'feature/main.lock', 'feature/main.LOCK', 'feature/../main', 'feature//main',
+				'refs/heads/-main', '%2Dmain', 'release%2Fnext', 'feature%252Fnext', 'main%00',
+				'$(command)', '@{-1}', 'main?ref=other', 'main#other', 'feature/.git/main', 'main;command', 'x'.repeat(1025),
+			];
+			const result = await resources(refs.map(ref => ({ ...skill, url: skill.url.replace('/blob/main/', `/blob/${ref}/`) })));
+
+			assert.deepStrictEqual(result.map(item => item.installation), refs.map(() => undefined));
+		});
+
+		test('rejects ambiguous ref suffixes and manifests for a different plugin format', async () => {
+			const result = await resources([
+				{ ...copilotPlugin, url: 'https://github.com/github/awesome-copilot/blob/main/plugin.json/plugin.json', metadata: { ...copilotPlugin.metadata, repoPath: 'plugin.json/plugin.json' } },
+				{ ...copilotPlugin, url: 'https://github.com/github/awesome-copilot/blob/release/next', metadata: { ...copilotPlugin.metadata, repoPath: 'plugin.json' } },
+				{ ...claudePlugin, url: 'https://github.com/JetBrains/go-modern-guidelines/blob/release/next', metadata: { ...claudePlugin.metadata, repoPath: '.claude-plugin/plugin.json' } },
+				{ ...claudePlugin, metadata: { ...claudePlugin.metadata, repoPath: 'claude/modern-go-guidelines/plugin.json' } },
+				{ ...copilotPlugin, url: 'https://github.com/github/awesome-copilot/blob/main/.cursor-plugin/plugin.json', metadata: { ...copilotPlugin.metadata, repoPath: '.cursor-plugin/plugin.json' } },
+				{ ...copilotPlugin, url: 'https://github.com/github/awesome-copilot/blob/main/.claude-plugin/plugin.json', metadata: { ...copilotPlugin.metadata, repoPath: '.claude-plugin/plugin.json' } },
+			]);
+
+			assert.deepStrictEqual(result.map(item => item.installation), Array.from({ length: 6 }, () => undefined));
+		});
+
+		test('only derives MCP gallery names from matching canonical server and version URLs', async () => {
+			const result = await resources([
+				mcpServer,
+				{ ...mcpServer, url: 'https://api.mcp.github.com/oss/v0.1/servers/ai.bittlebits%2Fbittlebits/versions/latest', metadata: { ...mcpServer.metadata, serverName: 'ai.bittlebits/bittlebits' } },
+				{ ...mcpServer, url: mcpServer.url.replace('/versions/latest', '/versions/1.0.0') },
+			]);
+
+			assert.deepStrictEqual(result.map(item => item.installation), [
+				{ kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp' },
+				{ kind: 'mcp', name: 'ai.bittlebits/bittlebits' },
+				{ kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp' },
+			]);
+		});
+
+		test('rejects mismatched MCP identities, arbitrary URLs and noncanonical paths', async () => {
+			const variants = [
+				{ ...mcpServer, metadata: undefined },
+				{ ...mcpServer, metadata: { ...mcpServer.metadata, serverName: 'ai.bittlebits/bittlebits' } },
+				{ ...mcpServer, metadata: { ...mcpServer.metadata, serverName: ['io.github.pgEdge/postgres-mcp'] } },
+				{ ...mcpServer, metadata: { ...mcpServer.metadata, serverName: 'io.github.pgEdge/-c' } },
+				{ ...mcpServer, url: 'https://example.com/mcp.json' },
+				{ ...mcpServer, url: mcpServer.url.replace('https:', 'http:') },
+				{ ...mcpServer, url: mcpServer.url.replace('api.mcp.github.com', 'api.mcp.github.com.evil.example') },
+				{ ...mcpServer, url: mcpServer.url.replace('api.mcp.github.com', 'user@api.mcp.github.com') },
+				{ ...mcpServer, url: mcpServer.url.replace('%2F', '/') },
+				{ ...mcpServer, url: mcpServer.url.replace('%2F', '%252F') },
+				{ ...mcpServer, url: mcpServer.url.replace('/versions/latest', '/versions/2.0.0') },
+				{ ...mcpServer, url: `${mcpServer.url}/extra` },
+				{ ...mcpServer, url: `${mcpServer.url}?config=arbitrary` },
+				{ ...mcpServer, url: mcpServer.url.replace('/oss/v0.1/', '/other/v0.1/') },
+			];
+			const result = await resources(variants);
+
+			assert.deepStrictEqual(result.map(item => item.installation), variants.map(() => undefined));
+		});
 	});
 
 	test('uses a default page size of 30 and caps requested pages at 100', async () => {
@@ -268,7 +468,7 @@ suite('AgentFinderService', () => {
 		assert.deepStrictEqual(page.items.map(resourceSnapshot), [{
 			identifier: 'test', displayName: 'Test', mediaType: 'application/future-agent', description: '',
 			tags: ['valid'], capabilities: [], representativeQueries: ['query'],
-			url: undefined, externalUrl: undefined, repository: undefined, icon: undefined, publisher: undefined, version: undefined,
+			url: undefined, externalUrl: undefined, repository: undefined, icon: undefined, publisher: undefined, version: undefined, installation: undefined,
 		}]);
 	});
 

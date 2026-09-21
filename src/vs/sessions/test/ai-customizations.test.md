@@ -25,9 +25,14 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 6. Interrupt a request, change tabs, or close the editor. Hidden/disposed sections cancel their requests. Returning to the tab can load again.
 7. Simulate offline, rate-limited, and malformed responses. An explicit error and **Retry** appear; failed pagination preserves previously loaded cards.
 8. Use Tab, Shift+Tab, arrow keys on cards, and Enter/Space on **Details**. Open Accessibility Help and Accessible View, then close them and verify focus returns.
-9. Open a resource or repository. It opens externally; browsing never installs or enables anything. Switch harnesses and confirm the tab remains usable.
+9. Open a resource or repository. It opens externally; browsing alone never installs or enables anything. Switch harnesses and confirm the tab remains usable.
 10. Disable AI features. The AgentFinder content is hidden and does not make catalog or image requests.
 11. Check narrow editor widths, dark/light themes, and high-contrast focus/borders.
+12. Install a skill into a selected workspace or user location. Confirm the source, revision, and destination; verify that `SKILL.md` and supporting files are preserved, repository `.git` data is not copied, and an existing destination is never overwritten.
+13. Cancel the destination/source confirmation or progress notification, or change the active session during a skill import. No incomplete skill should appear in its destination.
+14. Install a Copilot or Claude plugin from a catalog subdirectory. The existing trust and managed-marketplace restrictions must apply, and only that plugin should be installed.
+15. Install an MCP server. It must be resolved against the configured registry and use the normal MCP installation flow, not executable configuration supplied by the catalog.
+16. Check that installation errors allow retry without losing search results, cancellations do not announce success, and unsupported formats such as Cursor plugins explain why installation is unavailable.
 
 ### Scenario 1: Empty state — no session, no customizations
 

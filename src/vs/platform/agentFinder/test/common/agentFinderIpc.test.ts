@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_FINDER_CHANNEL_NAME, AgentFinderChannel, AgentFinderChannelClient } from '../../common/agentFinderIpc.js';
-import { AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from '../../common/agentFinderService.js';
+import { AgentFinderInstallation, AgentFinderMediaType, IAgentFinderPage, IAgentFinderQuery, IAgentFinderService } from '../../common/agentFinderService.js';
 
 function createClient(service: IAgentFinderService): AgentFinderChannelClient {
 	const server = new AgentFinderChannel(service);
@@ -137,6 +137,30 @@ suite('AgentFinderIpc', () => {
 		const client = createClient({ _serviceBrand: undefined, query: async () => page });
 
 		assert.deepStrictEqual(await client.query({}, CancellationToken.None), page);
+	});
+
+	test('preserves installation provenance, root paths and exact refs through IPC', async () => {
+		const installations: AgentFinderInstallation[] = [
+			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
+			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
+			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits' },
+		];
+		const page: IAgentFinderPage = {
+			items: installations.map(installation => ({
+				identifier: installation.kind,
+				displayName: installation.kind,
+				description: '',
+				mediaType: AgentFinderMediaType.Skill,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				installation,
+			})),
+		};
+		const client = createClient({ _serviceBrand: undefined, query: async () => page });
+		const result = await client.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual(result.items.map(item => item.installation), installations);
 	});
 
 	test('propagates service errors without falling back or retrying', async () => {
