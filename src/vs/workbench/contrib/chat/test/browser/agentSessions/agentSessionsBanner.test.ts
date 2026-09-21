@@ -170,10 +170,12 @@ suite('AgentsBanner', () => {
 	}
 
 	test('does not offer sign-in when agent mode is disabled', async () => {
-		const banner = createBanner(null, { configuration: new TestConfigurationService({
-			[ChatConfiguration.AgentEnabled]: false,
-			[ChatConfiguration.WelcomePageSignInEnabled]: true,
-		}) });
+		const banner = createBanner(null, {
+			configuration: new TestConfigurationService({
+				[ChatConfiguration.AgentEnabled]: false,
+				[ChatConfiguration.WelcomePageSignInEnabled]: true,
+			})
+		});
 		await Promise.resolve();
 		banner.button.click();
 
