@@ -1200,6 +1200,7 @@ suite('mcpListWidget', () => {
 				ctx.render({ type: 'server-item', server });
 				return {
 					path: ctx.templateData.sourcePath.textContent,
+					hover: ctx.readSource().hover,
 					ariaLabel: ctx.read().ariaLabel,
 				};
 			};
@@ -1210,10 +1211,12 @@ suite('mcpListWidget', () => {
 			}, {
 				workspace: {
 					path: '.vscode/mcp.json',
+					hover: '/workspace/.vscode/mcp.json',
 					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
 				},
 				home: {
 					path: '~/.config/mcp.json',
+					hover: '/Users/test/.config/mcp.json',
 					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
 				},
 			});

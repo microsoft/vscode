@@ -962,7 +962,7 @@ function getMcpEntrySource(element: IMcpInstalledEntry, labelService: ILabelServ
 		return undefined;
 	}
 	const label = labelService.getUriLabel(sourceUri, { relative: true });
-	return { label, hover: label };
+	return { label, hover: labelService.getUriLabel(sourceUri, { noPrefix: true }) };
 }
 
 function getMcpEntryLabelWithSource(element: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
