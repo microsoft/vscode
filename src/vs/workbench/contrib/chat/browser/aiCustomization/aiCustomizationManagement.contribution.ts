@@ -66,6 +66,7 @@ import {
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMigrationAccessibility.js';
+import './permissions/chatPermissions.contribution.js';
 
 //#region Telemetry
 
