@@ -2121,18 +2121,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private getPendingToolConfirmationCount(parts: ReadonlyArray<IChatRendererContent | IChatProgressResponseContent>, includeSubagentConfirmations: boolean): number {
-		return parts.filter(part => {
-			if (part.kind !== 'toolInvocation') {
-				return false;
-			}
-
-			const state = part.state.get();
-			return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation &&
-				!!state.confirmationMessages?.title &&
-				part.presentation !== 'hidden' &&
-				part.source.type !== 'mcp' &&
-				(isSubagentToolInvocation(part) === includeSubagentConfirmations);
-		}).length;
+		return parts.filter(part => part.kind === 'toolInvocation' && isCarouselToolConfirmation(part) && isSubagentToolInvocation(part) === includeSubagentConfirmations).length;
 	}
 
 	private getConfirmationPendingLabel(count: number): string {
@@ -3973,7 +3962,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (toolInvocation.kind !== 'toolInvocation' || !isResponseVM(context.element)) {
 			return;
 		}
-		if (isParentSubagentTool(toolInvocation) || toolInvocation.presentation === 'hidden' || toolInvocation.source.type === 'mcp') {
+		if (isParentSubagentTool(toolInvocation) || toolInvocation.presentation === 'hidden' || isMcpToolInvocation(toolInvocation)) {
 			return;
 		}
 
@@ -4460,7 +4449,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// transcript copy hidden while the carousel hosts the confirmation.
 		if (this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
-			toolInvocation.source.type !== 'mcp') {
+			!isMcpToolInvocation(toolInvocation)) {
 			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
 			if (widget) {
 				const factory = this.createCarouselToolPartFactory(context, codeBlockStartIndex);
@@ -5568,10 +5557,10 @@ function isParentFlowContent(part: IChatRendererContent): boolean {
 
 /**
  * The persistent footer text while the parent waits on background work rather than working itself:
- * its own flow ends with a running subagent, with a `read_agent` call blocking on a background agent,
- * with the end of a response round while background agents are still active, or with a read that
- * blocks on a background terminal. Reasoning, tools, or text arriving after those mean the parent is
- * working alongside them, so the regular working phrases apply instead.
+ * its own flow ends with a subagent launch while agents are still running, with a `read_agent` call
+ * blocking on a background agent, with the end of a response round while background agents are still
+ * active, or with a read that blocks on a background terminal. Reasoning, tools, or text arriving
+ * after those mean the parent is working alongside them, so the regular working phrases apply instead.
  */
 export function getPersistentWaitingLabel(parts: readonly IChatRendererContent[]): IMarkdownString | undefined {
 	const lastPart = findLast(parts, isParentFlowContent);
@@ -5584,7 +5573,9 @@ export function getPersistentWaitingLabel(parts: readonly IChatRendererContent[]
 	if (pendingTool && isReadTerminalToolInvocation(pendingTool)) {
 		return new MarkdownString().appendText(localize('persistentProgress.waitingForTerminal', "Waiting for terminal output"));
 	}
-	const isWaitingForAgents = ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isActiveSubagentToolInvocation(lastPart))
+	// A trailing launch counts even once it has finished: agents can complete out of launch order,
+	// and the count already excludes the completed ones.
+	const isWaitingForAgents = ((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && isParentSubagentTool(lastPart) && activeAgentCount > 0)
 		|| (!!pendingTool && isReadAgentToolInvocation(pendingTool))
 		|| (isEmptyThinkingPart(lastPart) && activeAgentCount > 0);
 	if (!isWaitingForAgents) {

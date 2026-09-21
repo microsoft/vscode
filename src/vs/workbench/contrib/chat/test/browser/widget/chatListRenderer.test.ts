@@ -1324,6 +1324,9 @@ suite('ChatListRenderer', () => {
 			parentText: label([agent('faint', true), { kind: 'markdownContent', content: new MarkdownString('Checking the notes myself.') }]),
 			roundEnded: label([agent('faint', true), agent('evidence', true), { kind: 'markdownContent', content: new MarkdownString('Launched the agents.') }, roundEnded]),
 			roundEndedWithoutAgents: label([agent('faint', false), roundEnded]),
+			// Agents can finish out of launch order; the trailing launch is done while an earlier one still runs.
+			lastFinishedFirst: label([agent('faint', true), agent('evidence', false)]),
+			allFinished: label([agent('faint', false), agent('evidence', false)]),
 			readAgent: label([agent('faint', true), { kind: 'markdownContent', content: new MarkdownString('Reading the result.') }, await readTool('read_agent', false)]),
 			readUnknownAgent: label([await readTool('read_agent', false)]),
 			readComplete: label([agent('faint', false), await readTool('read_agent', true)]),
@@ -1339,6 +1342,8 @@ suite('ChatListRenderer', () => {
 			parentText: undefined,
 			roundEnded: 'Waiting for 2 subagents',
 			roundEndedWithoutAgents: undefined,
+			lastFinishedFirst: 'Waiting for 1 subagent',
+			allFinished: undefined,
 			readAgent: 'Waiting for 1 subagent',
 			readUnknownAgent: 'Waiting for 1 subagent',
 			readComplete: undefined,
@@ -6030,6 +6035,27 @@ suite('ChatListRenderer', () => {
 			assert.deepStrictEqual({ ...countVisibleToolParts(context.template), pending: context.carousel?.pendingCount ?? 0 }, {
 				toolParts: 1, confirmations: 1, pending: 0,
 			});
+		});
+
+		test('keeps agent host MCP confirmations inline while the carousel is enabled', async () => {
+			const context = createConfirmationRenderer();
+			// Agent host protocol tools all carry an internal source; MCP calls are recognizable only by
+			// their `mcp__<server>__<tool>` id, like extension-hosted MCP tools are by their source.
+			const mcpTool = new ChatToolInvocation(
+				{ invocationMessage: 'Query the database', confirmationMessages: { title: 'Run the query?', message: new MarkdownString('Runs a read-only query.') } },
+				{ id: 'mcp__database__query', displayName: 'Query', modelDescription: 'Query', source: ToolDataSource.Internal },
+				'mcp-check', undefined, {},
+			);
+			context.model.acceptResponseProgress(context.request, mcpTool);
+			context.model.acceptResponseProgress(context.request, createPendingTool('carousel-check'));
+			context.render();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				...countVisibleToolParts(context.template),
+				pending: context.carousel?.pendingCount ?? 0,
+				carouselHostsMcp: context.carousel?.hasToolInvocation(mcpTool.toolCallId) ?? false,
+			}, { toolParts: 1, confirmations: 1, pending: 1, carouselHostsMcp: false });
 		});
 
 		test('respects read-only rendering and the carousel setting without approving hidden tools', () => {

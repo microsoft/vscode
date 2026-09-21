@@ -770,27 +770,38 @@ suite('Response', () => {
 	});
 
 	test('mergeable thinking across nested subagent progress', () => {
-		const response = store.add(new Response([]));
-		response.updateContent({ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid' });
-		response.updateContent(ChatToolInvocation.createStreaming({
-			toolCallId: 'child-tool',
-			toolId: 'view',
-			toolData: {
-				id: 'view',
-				modelDescription: 'Read a file',
-				displayName: 'Reading',
-				source: ToolDataSource.Internal,
-			},
-			subagentInvocationId: 'parent-tool',
-		}));
-		response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' base stats.' });
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid' });
+			clock.tick(500);
+			response.updateContent(ChatToolInvocation.createStreaming({
+				toolCallId: 'child-tool',
+				toolId: 'view',
+				toolData: {
+					id: 'view',
+					modelDescription: 'Read a file',
+					displayName: 'Reading',
+					source: ToolDataSource.Internal,
+				},
+				subagentInvocationId: 'parent-tool',
+			}));
+			clock.tick(500);
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' base stats.' });
+			clock.tick(1000);
+			// The parent's own content ends the section, so the timer covers the whole merged block.
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
 
-		assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking'
-			? { kind: part.kind, id: part.id, value: part.value }
-			: { kind: part.kind }), [
-			{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.' },
-			{ kind: 'toolInvocation' },
-		]);
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking'
+				? { kind: part.kind, id: part.id, value: part.value, reasoningDurationMs: part.reasoningDurationMs }
+				: { kind: part.kind }), [
+				{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.', reasoningDurationMs: 2000 },
+				{ kind: 'toolInvocation' },
+				{ kind: 'markdownContent' },
+			]);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('not mergeable markdown', async () => {
