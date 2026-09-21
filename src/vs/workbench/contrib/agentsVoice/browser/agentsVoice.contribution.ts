@@ -377,7 +377,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				AGENTS_VOICE_ENABLED,
-				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				ContextKeyExpr.or(AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -404,7 +404,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ContextKeyExpr.or(AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING),
 					VOICE_ACTIVE_ON_SURFACE,
 					// Don't disconnect voice while a request is running — pressing
 					// Escape there is meant to interrupt/cancel that request, not

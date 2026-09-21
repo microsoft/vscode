@@ -360,7 +360,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
 			: this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID));
 		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('connecting')
-			? localize('voiceInputMode.connecting', "Connecting to Voice Mode…")
+			? this._getLabelWithKeybinding(localize('voiceInputMode.connecting', "Connecting to Voice Mode…"), VOICE_DISCONNECT_COMMAND_ID)
 			: this._voiceCell.classList.contains('on')
 				? this._getLabelWithKeybinding(localize('voiceInputMode.disconnect', "Turn Off Voice Mode"), VOICE_DISCONNECT_COMMAND_ID)
 				: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
@@ -454,7 +454,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				const ownsVoice = this._options?.isVoiceActive?.get() ?? this._options?.isActive?.get() ?? true;
 				const connectedish = (ownsVoice && (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get())) || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
 				return getVoiceModeHoverContent(connectedish
-					? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+					? this._getLabelWithKeybinding(localize('voiceInputMode.disconnect', "Turn Off Voice Mode"), VOICE_DISCONNECT_COMMAND_ID)
 					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
 			}));
 		// The voice button is a plain power toggle (connect / disconnect). Listening is
