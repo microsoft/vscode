@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -31,6 +32,30 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
+
+	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
+		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
+	}
+
+	override async archiveSession(sessionId: string): Promise<void> {
+		this._setLocalArchived(sessionId, true);
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		this._setLocalArchived(sessionId, false);
+	}
+
+	private _setLocalArchived(sessionId: string, isArchived: boolean): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+
+		// TODO: Reconcile local archive state with Mission Control so sessions are archived across clients.
+		session.isArchived.set(isArchived, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+	}
 
 	/**
 	 * Seed a session this client just provisioned. It is cached so a later discovery pass
