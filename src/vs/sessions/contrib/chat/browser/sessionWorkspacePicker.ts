@@ -1526,9 +1526,6 @@ export class WorkspacePicker extends Disposable {
 			const actionId = `workspacePicker.devContainer.${providerId}.${devContainerActionIndex++}`;
 			const selectMode = (preferDevContainer: boolean): void => {
 				item.preferDevContainer = preferDevContainer;
-				if (useRemoteSubmenu && workspace.group === SESSION_WORKSPACE_GROUP_REMOTE) {
-					setRemotePickerItem(item);
-				}
 			};
 			return [
 				toAction({
@@ -1592,32 +1589,6 @@ export class WorkspacePicker extends Disposable {
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
 			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
 			const modeActions = createWorkspaceModeActions(workspace, folderUri, providerId, item);
-			if (useRemoteSubmenu && workspace.group === SESSION_WORKSPACE_GROUP_REMOTE) {
-				const unavailable = this._isProviderUnavailable(providerId);
-				const actionId = `workspacePicker.remote.workspace.${providerId}.${remoteSubmenuActions.length}`;
-				const submenuAction = modeActions ? new SubmenuAction(actionId, workspace.label, modeActions) : toAction({
-					id: actionId,
-					label: workspace.label,
-					tooltip: typeof workspace.description === 'string' ? workspace.description : undefined,
-					enabled: !unavailable,
-					run: () => setRemotePickerItem({ folderUri, providerId }),
-				});
-				Object.assign(submenuAction, {
-					icon,
-					onRemove: () => this._removeRecentWorkspace(folderUri),
-				});
-				remoteSubmenuActions.push(submenuAction);
-				remoteFilterItems.push({
-					kind: ActionListItemKind.Action,
-					label: workspace.label,
-					description: workspace.description,
-					group: { title: '', icon },
-					disabled: unavailable,
-					item: { folderUri, providerId },
-					onRemove: () => this._removeRecentWorkspace(folderUri),
-				});
-				continue;
-			}
 			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
 			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });

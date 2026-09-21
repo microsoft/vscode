@@ -922,9 +922,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				picker.getItems();
 				await timeout(0);
 
-				const selectMode = (label: string) => consolidated
-					? picker.selectSubmenu('Remote', ['remote/project', label])
-					: picker.selectSubmenu('remote/project', label);
+				const selectMode = (label: string) => picker.selectSubmenu('remote/project', label);
 				await selectMode('Use Dev Container');
 				const selected = {
 					providerId: picker.selectedResolved?.providerId,
@@ -4913,7 +4911,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('shows GitHub sign-in with remote and GitHub workspaces when groups are combined', () => {
+	test('promotes remote workspaces alongside GitHub workspaces when groups are combined', () => {
 		const storage = disposables.add(new TestStorageService());
 		const remoteUri = URI.parse('vscode-remote://host/remote-project');
 		const gitHubUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
@@ -4968,6 +4966,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			})) : undefined,
 		}, {
 			items: [
+				'remote-project',
 				'microsoft/vscode/HEAD',
 				'Sign in to GitHub',
 				'Repository',
@@ -4975,7 +4974,6 @@ suite('WorkspacePicker - Tab discovery', () => {
 				'Remote',
 			],
 			remoteItems: [
-				{ label: 'remote-project', enabled: false, removable: true },
 				{ label: 'Select Remote', enabled: false, removable: false },
 				{ label: 'Manage Provider agenthost-menu', enabled: true, removable: false },
 			],
