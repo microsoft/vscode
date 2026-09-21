@@ -20,7 +20,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AccountPolicyGateState, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -39,15 +39,14 @@ suite('Sessions policy update explanation', () => {
 		const services = store.add(new TestInstantiationService());
 		const root = append(mainWindow.document.body, $('div'));
 		store.add(toDisposable(() => root.remove()));
-		const banner = append(root, $('div'));
 		const content = append(root, $('div'));
 		const layoutEvent = store.add(new Emitter<{ width: number; height: number }>());
 		const layout = new class extends TestLayoutService {
 			override mainContainer = root;
-			override mainContainerOffset = { top: 56, quickPickTop: 56 };
+			override mainContainerOffset = { top: 30, quickPickTop: 30 };
 			override onDidLayoutMainContainer = layoutEvent.event;
 		}();
-		layout.getContainer = (_window?: Window, part?: Parts) => part === Parts.BANNER_PART ? banner : content;
+		layout.getContainer = () => content;
 		const updateInfo = observableValue<IManagedSettingsUpdateInfo | undefined>('updateInfo', initial);
 		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: agentEnabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -73,7 +72,7 @@ suite('Sessions policy update explanation', () => {
 		return { root, content, updateInfo, opened, contribution, layout, layoutEvent, gateChange };
 	}
 
-	test('initially blocked Agents shows versions, a keyboard-focusable update action and space below the banner', () => {
+	test('initially blocked Agents shows versions and a keyboard-focusable update action below the title bar', () => {
 		const { root, content, opened, contribution, layout, layoutEvent } = setup(info);
 		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
 		const button = overlay.querySelector<HTMLElement>('.monaco-button')!;
@@ -87,14 +86,14 @@ suite('Sessions policy update explanation', () => {
 			inert: content.inert,
 		};
 		button.click();
-		layout.mainContainerOffset = { top: 30, quickPickTop: 30 };
+		layout.mainContainerOffset = { top: 48, quickPickTop: 48 };
 		layoutEvent.fire({ width: 800, height: 600 });
 		const newTop = overlay.style.top;
 		contribution.dispose();
 		assert.deepStrictEqual({ initial, opened, newTop, inert: content.inert, overlays: root.querySelectorAll('.sessions-policy-blocked-overlay').length }, {
-			initial: { title: info.title, message: info.message, details: [info.message, info.detail], button: 'Check for Updates', focused: true, top: '56px', inert: true },
+			initial: { title: info.title, message: info.message, details: [info.message, info.detail], button: 'Check for Updates', focused: true, top: '30px', inert: true },
 			opened: ['command:update.checkForUpdate'],
-			newTop: '30px',
+			newTop: '48px',
 			inert: false,
 			overlays: 0,
 		});

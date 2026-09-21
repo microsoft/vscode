@@ -19,6 +19,7 @@ import { FocusedViewContext, IsSessionsWindowContext } from '../../../common/con
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IBannerService } from '../../banner/browser/bannerService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IManagedSettingsUpdateService, MANAGED_SETTINGS_UPDATE_VIEW_ID, ManagedSettingsUpdateRequiredContext } from '../common/managedSettingsUpdate.js';
 
 export class ManagedSettingsUpdateContribution extends Disposable implements IWorkbenchContribution {
@@ -29,6 +30,7 @@ export class ManagedSettingsUpdateContribution extends Disposable implements IWo
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBannerService bannerService: IBannerService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		const context = ManagedSettingsUpdateRequiredContext.bindTo(contextKeyService);
@@ -37,12 +39,17 @@ export class ManagedSettingsUpdateContribution extends Disposable implements IWo
 		let lastMessage: string | undefined;
 		this._register(toDisposable(() => {
 			context.reset();
-			bannerService.hide(ManagedSettingsUpdateContribution.ID);
+			if (!environmentService.isSessionsWindow) {
+				bannerService.hide(ManagedSettingsUpdateContribution.ID);
+			}
 		}));
 		this._register(autorun(reader => {
 			const info = updateService.updateInfo.read(reader);
 			const visible = !!info && !hidden.read(reader);
 			context.set(visible);
+			if (environmentService.isSessionsWindow) {
+				return;
+			}
 			if (!visible) {
 				dismissed = false;
 				lastMessage = undefined;
@@ -82,12 +89,14 @@ AccessibleViewRegistry.register({
 			return undefined;
 		}
 		const previousFocus = getActiveElement();
+		const isSessionsWindow = accessor.get(IWorkbenchEnvironmentService).isSessionsWindow;
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.PanelChat,
 			{ type: AccessibleViewType.Help },
 			() => [
 				info.title, info.message, info.detail, info.updateStatus,
-				localize('managedSettingsUpdate.help', "Chat is read-only while this requirement is active. Use Tab or Shift+Tab to reach the update action, then press Enter or Space. The window banner is also available with the Focus Banner command. In the banner, use the arrow keys to reach its actions. Closing the banner does not dismiss the explanation in Chat or change your organization's requirement."),
+				localize('managedSettingsUpdate.help', "Chat is read-only while this requirement is active. Use Tab or Shift+Tab to reach the update action, then press Enter or Space."),
+				!isSessionsWindow ? localize('managedSettingsUpdate.bannerHelp', "The window banner is also available with the Focus Banner command. In the banner, use the arrow keys to reach its actions. Closing the banner does not dismiss the explanation in Chat or change your organization's requirement.") : undefined,
 			].filter(Boolean).join('\n'),
 			() => { if (isHTMLElement(previousFocus) && previousFocus.isConnected) { previousFocus.focus(); } },
 			'accessibility.verbosity.chat',

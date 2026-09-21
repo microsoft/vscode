@@ -61,11 +61,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			this.overlay.setAttribute('aria-modal', 'true');
 		}
 		this.overlay.tabIndex = -1;
-		const banner = options.reason === SessionsBlockedReason.UpdateRequired ? layoutService.getContainer(mainWindow, Parts.BANNER_PART) : undefined;
-		const focusOverlay = !banner?.contains(mainWindow.document.activeElement);
-		if (focusOverlay) {
-			this.overlay.focus();
-		}
+		this.overlay.focus();
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const workbenchRoot = layoutService.mainContainer;
@@ -99,7 +95,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			if (options.reason === SessionsBlockedReason.UpdateRequired) {
 				return;
 			}
-			if (card.contains(e.target as Node) || banner?.contains(e.target as Node)) {
+			if (card.contains(e.target as Node)) {
 				return;
 			}
 			e.preventDefault();
@@ -130,9 +126,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				break;
 			case SessionsBlockedReason.UpdateRequired: {
 				const button = this._renderUpdateRequired(card, options.updateInfo!);
-				if (focusOverlay) {
-					button.focus();
-				}
+				button.focus();
 				break;
 			}
 		}

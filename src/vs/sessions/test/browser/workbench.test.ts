@@ -146,8 +146,6 @@ suite('Sessions - Workbench', () => {
 			viewportClass: { get(): string };
 		};
 		titleBarPartView: { minimumHeight: number };
-		bannerVisible: boolean;
-		bannerPartView: { maximumHeight: number };
 	}
 
 	interface IProportionalResizeTestHarness {
@@ -739,41 +737,12 @@ suite('Sessions - Workbench', () => {
 		host.titleBarPartView = { minimumHeight: 30 };
 
 		const descriptor = createDesktopGridDescriptor.call(host, 1200, 800);
-		const contentSection = descriptor.root.data[2] as { data: readonly unknown[] };
+		const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 		const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 		const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
 		const editorNode = topRightSection.data[1] as { size: number; visible: boolean };
 
 		assert.deepStrictEqual({ size: editorNode.size, visible: editorNode.visible }, { size: 300, visible: true });
-	});
-
-	test('window banner reserves its own row in classic, single-pane and small layouts without negative content sizes', () => {
-		const results = [];
-		for (const single of [false, true]) {
-			const host = createHost({ single }) as IGridDescriptorTestHarness;
-			host.layoutPolicy = {
-				getPartSizes: () => ({ sideBarSize: 280, auxiliaryBarSize: 340, panelSize: 300 }),
-				viewportClass: { get: () => 'desktop' },
-			};
-			host.titleBarPartView = { minimumHeight: 30 };
-			host.bannerPartView = { maximumHeight: 26 };
-			for (const height of [800, 40]) {
-				for (const visible of [false, true]) {
-					host.bannerVisible = visible;
-					const descriptor = createDesktopGridDescriptor.call(host, 1200, height);
-					const banner = descriptor.root.data[1];
-					const content = descriptor.root.data[2] as { size: number };
-					results.push({ banner, content: content.size });
-				}
-			}
-		}
-		const expected = [
-			{ banner: { type: 'leaf', data: { type: Parts.BANNER_PART }, size: 0, visible: false }, content: 770 },
-			{ banner: { type: 'leaf', data: { type: Parts.BANNER_PART }, size: 26, visible: true }, content: 744 },
-			{ banner: { type: 'leaf', data: { type: Parts.BANNER_PART }, size: 0, visible: false }, content: 10 },
-			{ banner: { type: 'leaf', data: { type: Parts.BANNER_PART }, size: 26, visible: true }, content: 0 },
-		];
-		assert.deepStrictEqual(results, [...expected, ...expected]);
 	});
 
 	test('single-pane container resize preserves the sessions/editor ratio', () => {
@@ -864,7 +833,7 @@ suite('Sessions - Workbench', () => {
 		host.titleBarPartView = { minimumHeight: 30 };
 
 		const descriptor = createDesktopGridDescriptor.call(host, 1200, 800);
-		const contentSection = descriptor.root.data[2] as { data: readonly unknown[] };
+		const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 		const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 		const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
 		const editorNode = topRightSection.data[1] as { size: number; visible: boolean };
@@ -885,7 +854,7 @@ suite('Sessions - Workbench', () => {
 		host.titleBarPartView = { minimumHeight: 30 };
 
 		const descriptor = createDesktopGridDescriptor.call(host, 1600, 800);
-		const contentSection = descriptor.root.data[2] as { data: readonly unknown[] };
+		const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 		const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 		const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
 		const editorNode = topRightSection.data[1] as { size: number; visible: boolean };
@@ -907,7 +876,7 @@ suite('Sessions - Workbench', () => {
 			};
 			host.titleBarPartView = { minimumHeight: 30 };
 			const descriptor = createDesktopGridDescriptor.call(host, 1600, 800);
-			const contentSection = descriptor.root.data[2] as { data: readonly unknown[] };
+			const contentSection = descriptor.root.data[1] as { data: readonly unknown[] };
 			const rightSection = contentSection.data[1] as { data: readonly unknown[] };
 			const topRightSection = rightSection.data[0] as { data: readonly unknown[] };
 			return (topRightSection.data[1] as { size: number }).size;

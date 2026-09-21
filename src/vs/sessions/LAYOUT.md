@@ -12,7 +12,6 @@ Exact dimensions, styling, action placement, and regression behavior belong in c
 
 ```text
 Title bar
-Banner (when a window-level notice is active)
 Content
 ├── Sidebar
 └── Main region
@@ -20,12 +19,11 @@ Content
     └── Panel
 ```
 
-The workbench omits the standard Activity Bar and Status Bar. It shares the workbench Banner part, reserving space below the title bar when a window-level notice is active. Part positions are fixed by the Agents Window rather than user settings.
+The workbench omits the standard Activity Bar, Status Bar, and Banner. Part positions are fixed by the Agents Window rather than user settings.
 
 | Part | Ownership |
 |------|-----------|
 | Title bar | Window navigation and window-scoped actions |
-| Banner | Shared window-level notices and their recovery actions |
 | Sidebar | Sessions list and Sessions-owned sidebar views |
 | Sessions Part | One or more visible session surfaces |
 | Editor | File, browser, diff, and other editor inputs |
