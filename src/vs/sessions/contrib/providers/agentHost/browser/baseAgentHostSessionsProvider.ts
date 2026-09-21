@@ -3098,8 +3098,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 		}));
-		this._register(recentWorkspacesService.onDidChangeRecentWorkspaces(
-			() => this._reconcileWorkspaceIsolations(recentWorkspacesService)));
+		this._register(recentWorkspacesService.onDidRemoveRecentWorkspaces(
+			workspaceUris => this._forgetWorkspaceIsolations(workspaceUris)));
 		this._register(this._storageService.onWillSaveState(() => {
 			if (this._sessionCacheStorageKey && this._cacheDirty) {
 				this._persistCache();
@@ -4105,20 +4105,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._storageService.store(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, JSON.stringify(nextWorkspaceIsolations), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	private _reconcileWorkspaceIsolations(recentWorkspacesService: ISessionsRecentWorkspacesService): void {
-		const recentWorkspaceKeys = new Set(recentWorkspacesService.getRecentWorkspaces().flatMap(recent => {
-			const folder = recent.workspace.folders[0];
-			return folder ? [this._uriIdentityService.extUri.getComparisonKey(folder.root)] : [];
-		}));
-
+	private _forgetWorkspaceIsolations(workspaceUris: readonly URI[]): void {
+		const removedKeys = new Set(workspaceUris.map(workspaceUri => this._uriIdentityService.extUri.getComparisonKey(workspaceUri)));
 		const workspaceIsolations = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE, {});
 		const nextWorkspaceIsolations = Object.create(null) as Record<string, SessionIsolation>;
 		let didRemove = false;
 		for (const [workspaceKey, rememberedIsolation] of Object.entries(workspaceIsolations)) {
-			if (recentWorkspaceKeys.has(workspaceKey) && isSessionIsolation(rememberedIsolation)) {
-				nextWorkspaceIsolations[workspaceKey] = rememberedIsolation;
-			} else {
+			if (removedKeys.has(workspaceKey)) {
 				didRemove = true;
+			} else if (isSessionIsolation(rememberedIsolation)) {
+				nextWorkspaceIsolations[workspaceKey] = rememberedIsolation;
 			}
 		}
 		if (!didRemove) {

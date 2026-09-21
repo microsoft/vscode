@@ -292,7 +292,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 	instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
 		onDidChangeRecentWorkspaces: Event.None,
-		getRecentWorkspaces: () => [],
+		onDidRemoveRecentWorkspaces: Event.None,
 	}));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {

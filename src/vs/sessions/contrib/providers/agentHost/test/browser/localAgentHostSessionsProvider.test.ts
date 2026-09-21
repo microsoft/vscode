@@ -548,7 +548,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
 	instantiationService.stub(ISessionsRecentWorkspacesService, options?.recentWorkspacesService ?? upcastPartial<ISessionsRecentWorkspacesService>({
 		onDidChangeRecentWorkspaces: Event.None,
-		getRecentWorkspaces: () => [],
+		onDidRemoveRecentWorkspaces: Event.None,
 	}));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IAutomationStorageService, new TestAutomationStorageService(storageService));
@@ -4300,6 +4300,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const configurationService = new TestConfigurationService({ [USE_WORKTREE_SETTING]: true });
 		const onDidChangeRecentWorkspaces = disposables.add(new Emitter<void>());
+		const onDidRemoveRecentWorkspaces = disposables.add(new Emitter<readonly URI[]>());
 		const workspaceA = URI.file('/project-a');
 		const workspaceB = URI.file('/project-b');
 		const workspaceAKey = extUriIgnorePathCase.getComparisonKey(workspaceA);
@@ -4308,30 +4309,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			[workspaceAKey]: 'folder',
 			[workspaceBKey]: 'folder',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
-		const recentWorkspaceUris = [URI.file('/PROJECT-B')];
 		const provider = createProvider(disposables, agentHost, undefined, {
 			storageService,
 			configurationService,
 			recentWorkspacesService: upcastPartial<ISessionsRecentWorkspacesService>({
 				onDidChangeRecentWorkspaces: onDidChangeRecentWorkspaces.event,
-				getRecentWorkspaces: () => recentWorkspaceUris.map(uri => ({
-					workspace: provider.resolveWorkspace(uri)!,
-					providerId: provider.id,
-					checked: false,
-					source: 'agents',
-				})),
+				onDidRemoveRecentWorkspaces: onDidRemoveRecentWorkspaces.event,
 			}),
 		});
 
 		onDidChangeRecentWorkspaces.fire();
+		const afterGenericChange = storageService.getObject(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE, {});
+		onDidRemoveRecentWorkspaces.fire([URI.file('/PROJECT-A')]);
 		const sessionA = provider.createNewSession(workspaceA, provider.sessionTypes[0].id);
 		const sessionB = provider.createNewSession(workspaceB, provider.sessionTypes[0].id);
 
 		assert.deepStrictEqual({
+			afterGenericChange,
 			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, StorageScope.PROFILE, {}),
 			workspaceA: provider.getSessionConfig(sessionA.sessionId)?.values.isolation,
 			workspaceB: provider.getSessionConfig(sessionB.sessionId)?.values.isolation,
 		}, {
+			afterGenericChange: {
+				[workspaceAKey]: 'folder',
+				[workspaceBKey]: 'folder',
+			},
 			remembered: { [workspaceBKey]: 'folder' },
 			workspaceA: 'worktree',
 			workspaceB: 'folder',
