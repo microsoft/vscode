@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { WorkingDirectoryOriginKind } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -176,6 +177,11 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			modifiedTime: 0,
 			workingDirectory: directories?.[0] ? toAgentHostUri(directories[0], 'test') : undefined,
 			workingDirectories: directories?.map(directory => toAgentHostUri(directory, 'test')),
+			workingDirectoryInfo: directories?.map(root => ({
+				uri: toAgentHostUri(root, 'test').toString(),
+				repo: 'file:///sources/app',
+				origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: toAgentHostUri(directory, 'test').toString() },
+			})),
 		}));
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
@@ -197,10 +203,20 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		instantiationService.set(IInstantiationService, instantiationService);
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
 
-		assert.deepStrictEqual(await service.listSessions(), sessions.map((session, index) => ({
+		const serialize = (session: IAgentSessionMetadata & { readonly workingDirectory?: URI }) => ({
 			...session,
-			workingDirectory: directorySets[index]?.[0],
-			workingDirectories: directorySets[index],
+			workingDirectory: session.workingDirectory?.toString(),
+			workingDirectories: session.workingDirectories?.map(directory => directory.toString()),
+		});
+		assert.deepStrictEqual((await service.listSessions()).map(serialize), sessions.map((session, index) => ({
+			...session,
+			workingDirectory: directorySets[index]?.[0]?.toString(),
+			workingDirectories: directorySets[index]?.map(directory => directory.toString()),
+			workingDirectoryInfo: directorySets[index]?.map(root => ({
+				uri: root.toString(),
+				repo: 'file:///sources/app',
+				origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: directory.toString() },
+			})),
 		})));
 	});
 });

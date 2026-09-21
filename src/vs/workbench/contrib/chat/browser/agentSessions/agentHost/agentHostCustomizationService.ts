@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUris } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -546,7 +547,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const subscriptionValue = subscription?.value;
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
 		const provisionalWorkingDirectories = sessionState ? undefined : this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource);
-		const workingDirectories = sessionState?.workingDirectories ?? provisionalWorkingDirectories?.map(root => root.toString()) ?? [];
+		const workingDirectories = getWorkingDirectoryUris(sessionState?.workingDirectories) ?? provisionalWorkingDirectories?.map(root => root.toString()) ?? [];
 		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => {
 			const root = URI.parse(directory);
 			// Editor remote transports already map snapshot roots into the workspace's URI space.

@@ -10,6 +10,7 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type SessionState } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { GitRefType, IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -42,7 +43,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
-		const workingDirectory = URI.parse(workingDirectoryStr);
+		const workingDirectory = URI.parse(getWorkingDirectoryUri(workingDirectoryStr));
 
 		const gitState = readSessionGitState(sessionState._meta);
 		const branchName = await (this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory));

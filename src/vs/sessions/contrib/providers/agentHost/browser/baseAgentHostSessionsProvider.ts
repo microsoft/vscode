@@ -22,7 +22,8 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVI
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRepositorySource, parseRepositorySources, validateRepositories } from '../../../../../platform/agentHost/common/agentHostRepositorySource.js';
+import { IRepositorySource, validateRepositories } from '../../../../../platform/agentHost/common/agentHostRepositorySource.js';
+import { getWorkingDirectoryInfo, getWorkingDirectoryUri, getWorkingDirectoryUris, mapWorkingDirectory } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -64,7 +65,7 @@ import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../.
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
-import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, withAgentHostWorkingDirectoryInfo } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
@@ -202,6 +203,7 @@ interface ISerializedSessionMetadata {
 	readonly modifiedTime: number;
 	readonly summary?: string;
 	readonly workingDirectory?: string;
+	readonly workingDirectories?: IAgentSessionMetadata['workingDirectoryInfo'];
 	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
 	readonly status?: ProtocolSessionStatus;
 	/** @deprecated Superseded by the `IsRead` bit on {@link status}. */
@@ -240,6 +242,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
+		workingDirectories: meta.workingDirectoryInfo ?? getWorkingDirectoryInfo(meta.workingDirectories?.map(directory => directory.toString())),
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		changes: meta.changes,
@@ -269,7 +272,8 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			startTime: raw.startTime,
 			modifiedTime: raw.modifiedTime,
 			summary: raw.summary,
-			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
+			workingDirectories: raw.workingDirectories?.map(directory => URI.parse(directory.uri)) ?? (raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined),
+			workingDirectoryInfo: raw.workingDirectories,
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 			changes: raw.changes,
@@ -663,10 +667,11 @@ function toPresentedSessionStatus(owner: object, status: IObservable<SessionStat
 	});
 }
 
-type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'project' | 'workingDirectories' | '_meta'>;
+type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'project' | 'workingDirectories' | 'workingDirectoryInfo' | '_meta'>;
 type AgentHostSessionSummaryWorkspaceMetadata = {
 	project?: IAgentSessionMetadata['project'];
 	workingDirectories?: IAgentSessionMetadata['workingDirectories'];
+	workingDirectoryInfo?: IAgentSessionMetadata['workingDirectoryInfo'];
 };
 
 /**
@@ -963,6 +968,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// See `_applySessionMetadataFromState` / `applySessionStateMetadata`.
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectories: readonly URI[] | undefined;
+	private _workingDirectoryInfo: IAgentSessionMetadata['workingDirectoryInfo'];
+	get workingDirectoryInfo(): IAgentSessionMetadata['workingDirectoryInfo'] { return this._workingDirectoryInfo; }
 	/** Working-directory set used to resolve session customizations. */
 	get workingDirectories(): readonly URI[] { return this._workingDirectories ?? []; }
 	// The directory that the current `mode` custom-agent URI is rooted at. Used to
@@ -1064,6 +1071,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._activity = observableValue('activity', metadata.activity);
 		this._project = metadata.project;
 		this._workingDirectories = metadata.workingDirectories;
+		this._workingDirectoryInfo = metadata.workingDirectoryInfo;
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
@@ -1142,7 +1150,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Until the host reports the worktree, the workspace is still the checkout it was started from.
 		this.worktreePending = derived(this, reader =>
 			this._worktreeIsolation.read(reader)
-			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
+			&& !this.workspace.read(reader)?.folders.some(folder => folder.origin?.kind === 'worktree' || !!folder.gitRepository?.workTreeUri));
 		this.loading = derived(this, reader => {
 			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource));
 			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
@@ -1688,6 +1696,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			this._project = metadata.project;
 			this._workingDirectories = metadata.workingDirectories;
+			this._workingDirectoryInfo = metadata.workingDirectoryInfo;
 			// Only update `_meta` when the source actually provides one — an
 			// undefined value means "not included" (e.g. a summary path that
 			// omits it), not "cleared". The authoritative git-state `_meta`
@@ -1798,6 +1807,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			if (metadata.workingDirectories !== undefined || previous?.workingDirectories !== undefined) {
 				this._workingDirectories = metadata.workingDirectories;
+				this._workingDirectoryInfo = metadata.workingDirectoryInfo;
 			}
 			if (metadata._meta !== undefined || previous?._meta !== undefined) {
 				didChange = this.setMeta(metadata._meta, tx);
@@ -1831,6 +1841,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				this._workingDirectories = workingDirectories;
 				didChange = true;
 			}
+		}
+		if (Object.prototype.hasOwnProperty.call(metadata, 'workingDirectoryInfo') && !equals(this._workingDirectoryInfo, metadata.workingDirectoryInfo)) {
+			this._workingDirectoryInfo = metadata.workingDirectoryInfo;
+			didChange = true;
 		}
 		if (didChange) {
 			this._setWorkspace(this._computeWorkspace(), tx);
@@ -1906,7 +1920,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * assigned; workspace sessions build from project/git metadata.
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
-		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+		return this._kind.computeWorkspace(() => withAgentHostWorkingDirectoryInfo(
+			this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)),
+			this._workingDirectoryInfo,
+		));
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -4768,7 +4785,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return sessionState?.workingDirectories?.[0];
+		const directory = sessionState?.workingDirectories?.[0];
+		return directory !== undefined ? getWorkingDirectoryUri(directory) : undefined;
 	}
 
 	getBackendChatResource(chatResource: URI): URI | undefined {
@@ -4799,7 +4817,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return sessionState?.workingDirectories ?? [];
+		return getWorkingDirectoryUris(sessionState?.workingDirectories) ?? [];
 	}
 
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
@@ -6005,7 +6023,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				displayName: state.project.displayName,
 				uri: this.mapProjectUri(URI.parse(state.project.uri)),
 			} : undefined,
-			workingDirectories: state.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
+			workingDirectories: getWorkingDirectoryUris(state.workingDirectories)?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
+			workingDirectoryInfo: getWorkingDirectoryInfo(state.workingDirectories?.map(directory => mapWorkingDirectory(directory, uri => this.mapWorkingDirectoryUri(uri)))),
 			_meta: state._meta,
 		};
 		if (cached.applySessionStateMetadata(metadata, previous)) {
@@ -6158,6 +6177,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				project: adapter.project ?? base.project,
 				// Session-state and summary updates can relocate an existing session.
 				workingDirectories: adapter.workingDirectories,
+				workingDirectoryInfo: adapter.workingDirectoryInfo,
 				status: withSessionStatusFlag(
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,
@@ -6457,7 +6477,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _handleSessionAdded(summary: SessionSummary): void {
-		const workingDirs = summary.workingDirectories?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
+		const workingDirs = getWorkingDirectoryUris(summary.workingDirectories)?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
 		const rawMeta: IAgentSessionMetadata = {
 			session: URI.parse(summary.resource),
 			startTime: Date.parse(summary.createdAt),
@@ -6472,7 +6492,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			} : {}),
 			workingDirectories: workingDirs,
-			...(summary.repositories !== undefined ? { repositories: parseRepositorySources(summary.repositories) } : {}),
+			workingDirectoryInfo: getWorkingDirectoryInfo(summary.workingDirectories?.map(directory => mapWorkingDirectory(directory, uri => this.mapWorkingDirectoryUri(uri)))),
 			changes: summary.changes,
 			// Carry `_meta` so a new adapter seeds its session-kind from it and an
 			// existing one can be promoted by it.
@@ -6624,7 +6644,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				} : undefined;
 			}
 			if (Object.prototype.hasOwnProperty.call(changes, 'workingDirectories')) {
-				workspaceMetadata.workingDirectories = changes.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory)));
+				workspaceMetadata.workingDirectories = getWorkingDirectoryUris(changes.workingDirectories)?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory)));
+				workspaceMetadata.workingDirectoryInfo = getWorkingDirectoryInfo(changes.workingDirectories?.map(directory => mapWorkingDirectory(directory, uri => this.mapWorkingDirectoryUri(uri))));
 			}
 			if (cached.applySessionSummaryWorkspaceMetadata(workspaceMetadata, tx)) {
 				didChange = true;

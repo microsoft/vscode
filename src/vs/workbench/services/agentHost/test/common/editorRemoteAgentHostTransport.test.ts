@@ -13,6 +13,7 @@ import { CustomizationEnablementKind, CustomizationType, MessageKind, SessionLif
 import { isJsonRpcNotification, ReconnectResultType, type AhpRequest, type AhpServerNotification, type AhpSuccessResponse, type ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SESSION_META_FOLDER_PICKER_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { WorkingDirectoryOriginKind, type WorkingDirectory } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
 
 const authority = 'wsl+ubuntu';
@@ -155,6 +156,63 @@ suite('EditorRemoteAgentHostTransport', () => {
 		store.add(transport.onMessage(message => received.push(message)));
 		return { underlying, transport, received };
 	}
+
+	test('maps rich snapshots, listings and summary notifications without rewriting repository sources', () => {
+		const { underlying, transport, received } = createTransport();
+		const messages = (directory: string, mainWorktree: string): ProtocolMessage[] => {
+			const info: WorkingDirectory = { uri: directory, repo: fileDirectory, origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree } };
+			const summary: SessionSummary = { ...sessionSummary([directory]), workingDirectories: [info] };
+			const snapshot: Snapshot = {
+				resource: session,
+				fromSeq: 10,
+				state: {
+					provider: 'copilot', title: opaqueText, status: SessionStatus.Idle,
+					lifecycle: SessionLifecycle.Ready, activeClients: [], workingDirectories: [info],
+					chats: [chatSummary([directory])], _meta: folderPickerMeta(directory),
+				},
+			};
+			return [
+				{ jsonrpc: '2.0', id: 1, result: { protocolVersion: '0.7.0', serverSeq: 11, snapshots: [snapshot] } },
+				{ jsonrpc: '2.0', id: 2, result: { snapshot } },
+				{ jsonrpc: '2.0', id: 3, result: { type: ReconnectResultType.Snapshot, snapshots: [snapshot] } },
+				{ jsonrpc: '2.0', id: 4, result: { items: [summary] } },
+				{ jsonrpc: '2.0', method: 'root/sessionAdded', params: { channel: 'ahp-root://', summary } },
+				{ jsonrpc: '2.0', method: 'root/sessionSummaryChanged', params: { channel: 'ahp-root://', session, changes: { workingDirectories: [info] } } },
+			];
+		};
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { channel: 'ahp-root://', protocolVersions: ['0.7.0'], clientId: 'client' } });
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'subscribe', params: { channel: session } });
+		transport.send({ jsonrpc: '2.0', id: 3, method: 'reconnect', params: { channel: 'ahp-root://', clientId: 'client', lastSeenServerSeq: 0, subscriptions: [session] } });
+		transport.send({ jsonrpc: '2.0', id: 4, method: 'listSessions', params: { channel: 'ahp-root://' } });
+		const input = messages(fileDirectory, fileReplacement);
+		const original = structuredClone(input);
+		input.forEach(message => underlying.messageEmitter.fire(message));
+		assert.deepStrictEqual({ received, input }, { received: messages(remoteDirectory, remoteReplacement), input: original });
+	});
+
+	test('round-trips rich directory actions and reconnect replay without changing sequence or source', () => {
+		const { underlying, transport, received } = createTransport();
+		const actions = (directory: string, replacement: string): StateAction[] => [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: { uri: directory, repo: fileDirectory, origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: replacement } } },
+			{ type: ActionType.SessionWorkingDirectoryReplaced, directory, replacement: { uri: replacement, repo: fileDirectory } },
+		];
+		const hostActions = actions(fileDirectory, fileReplacement);
+		const clientActions = actions(remoteDirectory, remoteReplacement);
+		hostActions.forEach((action, index) => underlying.messageEmitter.fire({ jsonrpc: '2.0', method: 'action', params: envelope(action, index) }));
+		clientActions.forEach((action, index) => transport.send({ jsonrpc: '2.0', method: 'dispatchAction', params: { channel: session, action, clientSeq: index + 1 } }));
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: { channel: 'ahp-root://', clientId: 'client', lastSeenServerSeq: 0, subscriptions: [session] } });
+		underlying.messageEmitter.fire({ jsonrpc: '2.0', id: 1, result: { type: ReconnectResultType.Replay, actions: hostActions.map(envelope) } });
+		assert.deepStrictEqual({
+			received,
+			sent: underlying.messages.slice(0, clientActions.length),
+		}, {
+			received: [
+				...clientActions.map((action, index) => ({ jsonrpc: '2.0', method: 'action', params: envelope(action, index) })),
+				{ jsonrpc: '2.0', id: 1, result: { type: ReconnectResultType.Replay, actions: clientActions.map(envelope) } },
+			],
+			sent: hostActions.map((action, index) => ({ jsonrpc: '2.0', method: 'dispatchAction', params: { channel: session, action, clientSeq: index + 1 } })),
+		});
+	});
 
 	test('round-trips directory actions when the remote authority contains uppercase characters', () => {
 		const { underlying, transport, received } = createTransport('wsl+Ubuntu');

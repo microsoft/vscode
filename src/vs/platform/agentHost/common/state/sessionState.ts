@@ -18,6 +18,7 @@ import type { IProductService } from '../../../product/common/productService.js'
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
+import { getWorkingDirectoryUris } from '../agentHostWorkingDirectories.js';
 import {
 	MessageKind,
 	ResponsePartKind,
@@ -955,7 +956,6 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	if (summary.activity !== undefined) { state.activity = summary.activity; }
 	if (summary.project !== undefined) { state.project = summary.project; }
 	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
-	if (summary.repositories !== undefined) { state.repositories = summary.repositories; }
 	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
 	if (summary._meta !== undefined) { state._meta = summary._meta; }
 	return state;
@@ -1317,6 +1317,7 @@ export function isAhpChatChannel(uri: string): boolean {
  * full set).
  */
 export interface ISessionWithDefaultChat extends SessionState {
+	workingDirectories?: ProtocolURI[];
 	/** Completed turns of this chat. */
 	turns: Turn[];
 	/** Currently in-progress turn of this chat. */
@@ -1340,7 +1341,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
 	return {
 		...session,
-		workingDirectories: chat?.workingDirectories ?? session.workingDirectories,
+		workingDirectories: chat?.workingDirectories ?? getWorkingDirectoryUris(session.workingDirectories),
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,

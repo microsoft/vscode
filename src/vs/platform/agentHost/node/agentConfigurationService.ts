@@ -21,6 +21,7 @@ import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platform
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { ISessionSandboxPolicy } from './sessionSandbox.js';
@@ -31,25 +32,17 @@ export const IAgentConfigurationService = createDecorator<IAgentConfigurationSer
  * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
  */
 export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager, session: ProtocolURI): string | undefined {
-	const own = stateManager.getSessionState(session)?.workingDirectories?.[0];
-	if (own !== undefined) {
-		return own;
-	}
-	const parentInfo = parseSubagentSessionUri(session);
-	if (parentInfo) {
-		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
-	}
-	return undefined;
+	return getEffectiveWorkingDirectories(stateManager, session)?.[0];
 }
 
 export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
 	const own = stateManager.getSessionState(session)?.workingDirectories;
 	if (own !== undefined) {
-		return own;
+		return own.map(getWorkingDirectoryUri);
 	}
 	const parentInfo = parseSubagentSessionUri(session);
 	if (parentInfo) {
-		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.map(getWorkingDirectoryUri);
 	}
 	return undefined;
 }

@@ -8,6 +8,7 @@
 
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -52,17 +53,29 @@ export interface ChatState {
 	/**
 	 * The subset of the session's
 	 * {@link SessionState.workingDirectories | `workingDirectories`} that this
-	 * chat's agent has tool access to. Every entry MUST be present in the owning
-	 * session's `workingDirectories`; servers MUST reject a
+	 * chat's agent has tool access to. Every URI MUST match a URI string or a
+	 * record's `uri` in the owning session's set; servers MUST reject a
 	 * `chat/workingDirectorySet` action that violates this constraint.
 	 *
 	 * When absent, the chat inherits the full session set. When present but empty
 	 * (not recommended), the chat has no working-directory tool access at all.
 	 *
+	 * Directory metadata belongs to the session, not the chat.
 	 * Dispatch `chat/workingDirectorySet` / `chat/workingDirectoryRemoved` to
 	 * update the subset on a running chat.
 	 */
 	workingDirectories?: URI[];
+	/**
+	 * Catalogue of changesets the server can produce for this chat. Each entry
+	 * advertises a subscribable view of file changes scoped to the chat's
+	 * effective working directories and the URI template the client expands
+	 * before subscribing. See {@link Changeset} for the full shape and
+	 * {@link /guide/changesets | Changesets} for an overview of the model.
+	 *
+	 * This catalogue is intentionally absent from {@link ChatSummary}; clients
+	 * obtain it by subscribing to the chat channel.
+	 */
+	changesets?: Changeset[];
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */

@@ -11,7 +11,7 @@ import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resou
 import { compare } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory, getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
@@ -121,7 +121,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 		if (!workingDirectoryStrings?.length) {
 			return [];
 		}
-		const roots = resolveAgentHostFileCompletionRoots(workingDirectoryStrings.map(workingDirectory => URI.parse(workingDirectory)));
+		const roots = resolveAgentHostFileCompletionRoots(workingDirectoryStrings.map(workingDirectory => URI.parse(getWorkingDirectoryUri(workingDirectory))));
 		if (roots.enumerationRoots.length === 0) {
 			return [];
 		}

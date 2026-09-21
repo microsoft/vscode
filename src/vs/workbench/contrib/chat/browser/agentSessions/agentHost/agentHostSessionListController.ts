@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUri } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
@@ -203,7 +204,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	private _makeItemFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
-		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
+		const directory = summary.workingDirectories?.[0];
+		const workingDir = directory !== undefined ? URI.parse(getWorkingDirectoryUri(directory)) : undefined;
 		return this._makeItem(rawId, {
 			title: summary.title,
 			status: summary.status,

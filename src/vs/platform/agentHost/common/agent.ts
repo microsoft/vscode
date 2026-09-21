@@ -15,6 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IRepositorySource } from './agentHostRepositorySource.js';
+import type { WorkingDirectory } from './state/protocol/channels-session/state.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -171,7 +172,7 @@ export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<Re
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
-	readonly repositories?: readonly IRepositorySource[];
+	readonly workingDirectoryInfo?: readonly WorkingDirectory[];
 }
 
 export interface IAgentSessionProjectInfo {

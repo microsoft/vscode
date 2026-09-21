@@ -8,6 +8,7 @@ import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorkingDirectoryUris } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostShellToolInitScriptEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -168,7 +169,7 @@ export class AgentHostShellInitSynchronizer extends Disposable implements IAgent
 	}
 
 	private _resolveFolder(state: SessionState): IWorkspaceFolder | undefined {
-		for (const value of [state.project?.uri, ...(state.workingDirectories ?? [])]) {
+		for (const value of [state.project?.uri, ...(getWorkingDirectoryUris(state.workingDirectories) ?? [])]) {
 			if (value) {
 				const folder = this._workspaceContextService.getWorkspaceFolder(URI.parse(value));
 				if (folder) {

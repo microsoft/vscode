@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { WorkingDirectory } from '../../common/state/protocol/channels-session/state.js';
+import { getWorkingDirectoryUris } from '../../common/agentHostWorkingDirectories.js';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -776,18 +778,25 @@ suite('AgentHostProtocolClient', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date(1000).toISOString(),
 					modifiedAt: new Date(2000).toISOString(),
-					repositories: [{ source: 'file:///sources/project', revision: 'main' }],
-					workingDirectories: ['file:///worktrees/project'],
+					workingDirectories: [{
+						uri: 'file:///worktrees/project/packages/api',
+						repo: 'file:///sources/project',
+						origin: { kind: 'worktree', mainWorktree: 'file:///checkouts/project' },
+					}],
 				}],
 			},
 		});
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(session => ({
-			repositories: session.repositories?.map(repository => ({ source: repository.source.toString(), revision: repository.revision })),
+			information: session.workingDirectoryInfo,
 			directories: session.workingDirectories,
 		})), [{
-			repositories: [{ source: 'file:///sources/project', revision: 'main' }],
-			directories: [toAgentHostUri(URI.file('/worktrees/project'), agentHostAuthority('test.example:1234'))],
+			information: [{
+				uri: toAgentHostUri(URI.file('/worktrees/project/packages/api'), agentHostAuthority('test.example:1234')).toString(),
+				repo: 'file:///sources/project',
+				origin: { kind: 'worktree', mainWorktree: toAgentHostUri(URI.file('/checkouts/project'), agentHostAuthority('test.example:1234')).toString() },
+			}],
+			directories: [toAgentHostUri(URI.file('/worktrees/project/packages/api'), agentHostAuthority('test.example:1234'))],
 		}]);
 	});
 
@@ -804,7 +813,7 @@ suite('AgentHostProtocolClient', () => {
 			modifiedAt: new Date(2000).toISOString(),
 			workingDirectories: [remoteDirectory.toString(), hostDirectory.toString()],
 		};
-		let liveWorkingDirectories: readonly string[] | undefined;
+		let liveWorkingDirectories: readonly (string | WorkingDirectory)[] | undefined;
 		disposables.add(client.onDidNotification(notification => {
 			if (notification.type === 'root/sessionAdded') {
 				liveWorkingDirectories = notification.summary.workingDirectories;
@@ -829,7 +838,7 @@ suite('AgentHostProtocolClient', () => {
 		const [session] = await resultPromise;
 		assert.deepStrictEqual({
 			liveWorkingDirectories,
-			liveVisibleInWorkspace: liveWorkingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
+			liveVisibleInWorkspace: getWorkingDirectoryUris(liveWorkingDirectories)?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(directory), remoteDirectory)),
 			workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
 			restoredVisibleInWorkspace: session.workingDirectories?.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, remoteDirectory)),
 		}, {
@@ -996,7 +1005,7 @@ suite('AgentHostProtocolClient', () => {
 			const creation = client.createSession({
 				provider: 'copilot',
 				session,
-				repositories: [{ source: repositorySource, revision: 'refs/tags/v1' }],
+				repositories: [{ source: repositorySource, revision: 'refs/tags/v1', subdirectory: 'packages/api' }],
 				config: { mode: 'plan' },
 			});
 			const request = transport.sentMessages[0] as JsonRpcRequest;
@@ -1005,7 +1014,7 @@ suite('AgentHostProtocolClient', () => {
 				provider: 'copilot',
 				_meta: undefined,
 				workingDirectories: undefined,
-				repositories: [{ source: repositorySource.toString(), revision: 'refs/tags/v1' }],
+				repositories: [{ source: repositorySource.toString(), revision: 'refs/tags/v1', subdirectory: 'packages/api' }],
 				config: { mode: 'plan' },
 				activeClient: undefined,
 				progressToken: undefined,
@@ -1022,7 +1031,7 @@ suite('AgentHostProtocolClient', () => {
 				provider: 'copilot',
 				workingDirectory: URI.file('/existing/checkout'),
 				repositories: [
-					{ source: URI.parse('https://git.example.org:8443/team/app.git'), revision: 'main' },
+					{ source: URI.parse('https://git.example.org:8443/team/app.git'), revision: 'main', subdirectory: 'packages/api' },
 					{ source: URI.file('/source/other') },
 				],
 				config: { target: 'worktree' },
@@ -1038,7 +1047,7 @@ suite('AgentHostProtocolClient', () => {
 					provider: 'copilot',
 					workingDirectory: 'file:///existing/checkout',
 					repositories: [
-						{ source: 'https://git.example.org:8443/team/app.git', revision: 'main' },
+						{ source: 'https://git.example.org:8443/team/app.git', revision: 'main', subdirectory: 'packages/api' },
 						{ source: 'file:///source/other' },
 					],
 					config: { target: 'worktree' },
@@ -1464,11 +1473,12 @@ suite('AgentHostProtocolClient', () => {
 
 		const sent = transport.sentMessages[0] as JsonRpcRequest;
 		assert.strictEqual(sent.method, 'initialize');
-		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation; _meta?: Record<string, unknown> };
+		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation; capabilities?: { workingDirectoryInfo?: Record<string, never> }; _meta?: Record<string, unknown> };
 		assert.deepStrictEqual({
 			protocolVersions: params.protocolVersions,
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
+			capabilities: params.capabilities,
 			_meta: params._meta,
 		}, {
 			// Every compatible version is offered so an older host can negotiate down,
@@ -1476,6 +1486,7 @@ suite('AgentHostProtocolClient', () => {
 			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
 			clientId: 'renderer-client-id',
 			clientInfo,
+			capabilities: { workingDirectoryInfo: {} },
 			_meta: {
 				'vscode.clientConnectionKind': 'dev_tunnel',
 				'vscode.telemetryLevel': 'all',
@@ -3240,9 +3251,11 @@ suite('AgentHostProtocolClient', () => {
 				const initialize = await waitForRequest(reconnectTransport, 'initialize');
 				assert.deepStrictEqual({
 					clientInfo: (initialize.params as { clientInfo?: Implementation }).clientInfo,
+					capabilities: (initialize.params as { capabilities?: { workingDirectoryInfo?: Record<string, never> } }).capabilities,
 					meta: (initialize.params as { _meta?: Record<string, unknown> })._meta,
 				}, {
 					clientInfo: agentsWindowAgentHostClientInfo,
+					capabilities: { workingDirectoryInfo: {} },
 					meta: {
 						'vscode.telemetryLevel': 'all',
 						'vscode.clientMachineId': 'client-machine-id',

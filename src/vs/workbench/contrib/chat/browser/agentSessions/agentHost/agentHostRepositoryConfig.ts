@@ -11,11 +11,11 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IRepositorySource, parseRepositorySources, validateRepositories } from '../../../../../../platform/agentHost/common/agentHostRepositorySource.js';
+import { IRepositorySource, validateRepositories } from '../../../../../../platform/agentHost/common/agentHostRepositorySource.js';
+import { getWorkingDirectoryUri } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { RepositorySource } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { RepositoryPreparationCapabilities } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInteractivity, DEFAULT_CHAT_ID, getSessionChatResource, SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
 export function getRepositoryPreparationCapability(connection: IAgentConnection): RepositoryPreparationCapabilities | undefined {
 	const capability = connection.initializeResult.get()?.repositoryPreparation;
@@ -41,12 +41,6 @@ export function getRepositoriesFromSelection(connection: IAgentConnection, selec
 		&& getRepositoryPreparationCapability(connection) ? [{ source: selected }] : undefined;
 }
 
-/** Read immutable requested intent from session metadata, including restored sessions. */
-export function getSessionRepositories(state: Pick<SessionState, 'repositories'> | undefined): readonly RepositorySource[] | undefined {
-	parseRepositorySources(state?.repositories);
-	return state?.repositories;
-}
-
 /** Resolve provider configuration with typed repository context, without preparing a checkout. */
 export async function resolveAgentHostRepositoryConfig(connection: IAgentConnection, provider: string, repositories: readonly IRepositorySource[], config: Record<string, unknown> | undefined, token: CancellationToken): Promise<Record<string, unknown>> {
 	if (token.isCancellationRequested) {
@@ -59,8 +53,7 @@ export async function resolveAgentHostRepositoryConfig(connection: IAgentConnect
 	return resolved.values;
 }
 
-/** Wait for opted-in repository initialization, preserving other sessions' existing lifecycle handling. */
-export function waitForRepositorySessionReady(subscription: IAgentSubscription<SessionState>, token: CancellationToken, expectedRepositories?: readonly IRepositorySource[]): Promise<SessionState> {
+export function waitForSessionPreparation(subscription: IAgentSubscription<SessionState>, token: CancellationToken, repositoryCreation = false): Promise<SessionState> {
 	return new Promise<SessionState>((resolve, reject) => {
 		const store = new DisposableStore();
 		const fail = (error: unknown) => {
@@ -79,23 +72,21 @@ export function waitForRepositorySessionReady(subscription: IAgentSubscription<S
 				if (!state) {
 					return;
 				}
-				const repositories = getSessionRepositories(state);
-				if (repositories !== undefined || expectedRepositories !== undefined) {
-					if (expectedRepositories && (!repositories || repositories.length !== expectedRepositories.length
-						|| repositories.some((repository, index) => repository.source !== expectedRepositories[index].source.toString() || repository.revision !== expectedRepositories[index].revision))) {
-						throw new Error(localize('agentHost.repositoryMismatch', "The agent host returned a session for different repository inputs."));
-					}
-					if (state.lifecycle === SessionLifecycle.Creating) {
+				if (state.lifecycle === SessionLifecycle.Creating) {
+					const defaultChat = getSessionChatResource(state, DEFAULT_CHAT_ID);
+					const chat = state.chats.find(chat => chat.resource === defaultChat);
+					// Native drafts already expose an interactive chat; their first turn materializes the backing session.
+					if (repositoryCreation || !chat || chat.interactivity !== undefined && chat.interactivity !== ChatInteractivity.Full) {
 						return;
 					}
-					if (state.lifecycle === SessionLifecycle.Failed) {
-						throw new Error(state.creationError?.message ?? localize('agentHost.repositoryCreationFailed', "The agent host could not prepare this repository session."));
-					}
-					if (state.lifecycle !== SessionLifecycle.Ready || !repositories
-						|| !Array.isArray(state.workingDirectories) || !state.workingDirectories.length
-						|| state.workingDirectories.some(directory => typeof directory !== 'string' || !URI.parse(directory).scheme)) {
-						throw new Error(localize('agentHost.repositoryNotReady', "The agent host did not report a ready checkout for the selected repository."));
-					}
+				}
+				if (state.lifecycle === SessionLifecycle.Failed) {
+					throw new Error(state.creationError?.message ?? localize('agentHost.sessionCreationFailed', "The agent host could not prepare this session."));
+				}
+				if (repositoryCreation && (state.lifecycle !== SessionLifecycle.Ready
+					|| !Array.isArray(state.workingDirectories) || !state.workingDirectories.length
+					|| state.workingDirectories.some(directory => !URI.parse(getWorkingDirectoryUri(directory), true).scheme))) {
+					throw new Error(localize('agentHost.repositoryNotReady', "The agent host did not report a ready checkout for the selected repository."));
 				}
 				store.dispose();
 				resolve(state);

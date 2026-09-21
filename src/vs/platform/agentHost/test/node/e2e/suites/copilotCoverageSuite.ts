@@ -14,6 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
+import { getWorkingDirectoryUri } from '../../../../common/agentHostWorkingDirectories.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -178,7 +179,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-workspaceless-scratch', 'Reply exactly "ready".', 1);
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = subscribed.snapshot!.state as SessionState;
-		const scratchDirectory = state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]).fsPath : undefined;
+		const scratchDirectory = state.workingDirectories?.[0] ? URI.parse(getWorkingDirectoryUri(state.workingDirectories[0])).fsPath : undefined;
 		assert.ok(scratchDirectory && existsSync(scratchDirectory));
 
 		await context.client.call('disposeSession', { channel: sessionUri }, 30_000);

@@ -10,6 +10,7 @@ import { localize } from '../../../../nls.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { getWorkingDirectoryUri } from '../../common/agentHostWorkingDirectories.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseBangCommand } from '../agentHostBangCommand.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, shellTypeForExecutable, type IShellCommandResult } from '../shared/shellCommandExecution.js';
@@ -58,7 +59,7 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 		let terminalCreated = false;
 		try {
 			const workingDirStr = ctx.getState(sessionChannel)?.workingDirectories?.[0];
-			const cwd = workingDirStr ? URI.parse(workingDirStr).fsPath : undefined;
+			const cwd = workingDirStr ? URI.parse(getWorkingDirectoryUri(workingDirStr)).fsPath : undefined;
 			const shellPath = await ctx.terminalManager.getDefaultShell();
 			const shellType = shellTypeForExecutable(shellPath);
 

@@ -293,8 +293,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
-				workingDirectories: resolvedWorkingDir ? [resolvedWorkingDir] : undefined,
-				...(config.repositories !== undefined ? { repositories: config.repositories.map(repository => ({ source: repository.source.toString(), ...(repository.revision !== undefined ? { revision: repository.revision } : {}) })) } : {}),
+				workingDirectories: resolvedWorkingDir ? [config.repositories
+					? { uri: resolvedWorkingDir, repo: config.repositories[0].source.toString() }
+					: resolvedWorkingDir] : undefined,
 			};
 			const state: SessionState = {
 				...this._withDefaultChatCatalog(createSessionState(summary), session.toString()),
@@ -11308,13 +11309,17 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectories?.[0]?.toString(), URI.file('/custom/working/dir').toString());
 		}));
 
-		for (const alreadyExists of [false, true]) {
+		for (const { alreadyExists, authenticationRequired } of [
+			{ alreadyExists: false, authenticationRequired: false },
+			{ alreadyExists: true, authenticationRequired: false },
+			{ alreadyExists: true, authenticationRequired: true },
+		]) {
 			for (const hasDefaultDirectory of [false, true]) {
-				test(`repository session uses typed source inputs and reattaches after a lost response (${alreadyExists}, default directory ${hasDefaultDirectory})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				test(`repository session ${alreadyExists ? 'requires explicit reopen after duplicate creation' : 'uses the prepared subdirectory'} (default directory ${hasDefaultDirectory}, auth retry ${authenticationRequired})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 					const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 					agentHostService.enableRepositorySource();
 					const repository = URI.parse('https://example.com/owner/repo');
-					const checkout = URI.file('/host/checkout');
+					const checkout = URI.file('/host/checkout/packages/api');
 					const customizations: ClientPluginCustomization[] = [{ type: CustomizationType.Plugin, id: 'checkout-plugin', uri: 'file:///checkout-plugin', name: 'Checkout plugin' }];
 					disposables.add(seedActiveClient('repository-session', { customizations: constObservable(customizations) }, [checkout]));
 					disposables.add(seedActiveClient('repository-session', {
@@ -11325,7 +11330,7 @@ suite('AgentHostChatContribution', () => {
 					}
 					agentHostService.nextResolvedWorkingDirectory = checkout;
 					if (alreadyExists) {
-						agentHostService.nextCreateSessionResponseError = new ProtocolError(AhpErrorCodes.SessionAlreadyExists, 'Session already created');
+						agentHostService.nextCreateSessionResponseError = new ProtocolError(authenticationRequired ? AhpErrorCodes.AuthRequired : AhpErrorCodes.SessionAlreadyExists, 'Session creation refused');
 					}
 					agentHostService.repositorySessionConfig = {
 						schema: {
@@ -11343,13 +11348,30 @@ suite('AgentHostChatContribution', () => {
 						connection: agentHostService,
 						connectionAuthority: 'local',
 						resolveWorkingDirectory: () => hasDefaultDirectory ? URI.file('/unrelated/current-workspace') : repository,
+						resolveAuthentication: authenticationRequired ? async () => {
+							agentHostService.nextCreateSessionResponseError = new ProtocolError(AhpErrorCodes.SessionAlreadyExists, 'Session already created');
+							return true;
+						} : undefined,
 					}));
 					const resource = URI.from({ scheme: 'repository-session', path: '/new-repository' });
 					const chat = await handler.provideChatSessionContent(resource, CancellationToken.None);
 					disposables.add(toDisposable(() => chat.dispose()));
 					const registered = chatAgentService.registeredAgents.get('repository-session');
 					assert.ok(registered);
-					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource, agentHostRepositories: [{ source: repository, revision: 'main' }] }), () => { }, [], CancellationToken.None);
+					const turn = registered.impl.invoke(makeRequest({ agentId: 'repository-session', sessionResource: resource, agentHostRepositories: [{ source: repository, revision: 'main', subdirectory: 'packages/api' }] }), () => { }, [], CancellationToken.None);
+					if (alreadyExists) {
+						await assert.rejects(turn, /This session already exists\. Open it from the session list before sending a message\./);
+						assert.deepStrictEqual({
+							turns: agentHostService.turnActions,
+							reconciliation: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionActiveClientSet),
+							creationCount: agentHostService.createSessionCalls.length,
+						}, {
+							turns: [],
+							reconciliation: [],
+							creationCount: authenticationRequired ? 2 : 1,
+						});
+						return;
+					}
 					await timeout(25);
 					const dispatch = agentHostService.turnActions[0];
 					assert.ok(dispatch);
@@ -11369,10 +11391,10 @@ suite('AgentHostChatContribution', () => {
 					}, {
 						config: {},
 						initialCustomizations: [],
-						repositories: [{ source: repository, revision: 'main' }],
+						repositories: [{ source: repository, revision: 'main', subdirectory: 'packages/api' }],
 						workingDirectories: undefined,
 						discoveryDirectories: [undefined],
-						discoverySources: [[{ source: repository, revision: 'main' }]],
+						discoverySources: [[{ source: repository, revision: 'main', subdirectory: 'packages/api' }]],
 						customizations,
 					});
 				}));

@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { RepositorySource } from './state/protocol/channels-session/state.js';
+import { RepositorySource } from './state/protocol/channels-session/commands.js';
 import { RepositoryPreparationCapabilities } from './state/protocol/common/commands.js';
 import { JsonRpcErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
@@ -13,9 +13,10 @@ import { ProtocolError } from './state/sessionProtocol.js';
 export interface IRepositorySource {
 	readonly source: URI;
 	readonly revision?: string;
+	readonly subdirectory?: string;
 }
 
-type RepositorySources = readonly { readonly source: URI | string; readonly revision?: string }[];
+type RepositorySources = readonly { readonly source: URI | string; readonly revision?: string; readonly subdirectory?: string }[];
 
 export function parseRepositorySources(repositories: RepositorySources): readonly IRepositorySource[];
 export function parseRepositorySources(repositories: RepositorySources | undefined): readonly IRepositorySource[] | undefined;
@@ -41,7 +42,12 @@ export function parseRepositorySources(repositories: RepositorySources | undefin
 		if (revision !== undefined && (typeof revision !== 'string' || !revision.trim())) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('repositories.invalidRevision', "A repository revision must be a nonempty string."));
 		}
-		return { source, ...(revision !== undefined ? { revision } : {}) };
+		const subdirectory = repository.subdirectory;
+		if (subdirectory !== undefined && (typeof subdirectory !== 'string' || !subdirectory.trim() || subdirectory.startsWith('/')
+			|| /[:\\\x00-\x1f]/.test(subdirectory) || subdirectory.split('/').some(part => !part || part === '.' || part === '..'))) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('repositories.invalidSubdirectory', "Select a relative subdirectory within the repository."));
+		}
+		return { source, ...(revision !== undefined ? { revision } : {}), ...(subdirectory !== undefined ? { subdirectory } : {}) };
 	});
 }
 
@@ -49,6 +55,7 @@ export function serializeRepositorySources(repositories: readonly IRepositorySou
 	return repositories?.map(repository => ({
 		source: repository.source.toString(),
 		...(repository.revision !== undefined ? { revision: repository.revision } : {}),
+		...(repository.subdirectory !== undefined ? { subdirectory: repository.subdirectory } : {}),
 	}));
 }
 

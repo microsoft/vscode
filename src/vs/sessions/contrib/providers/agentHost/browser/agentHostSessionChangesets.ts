@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { getWorkingDirectoryUris, isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -546,7 +546,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!sessionState || sessionState instanceof Error) {
 				return undefined;
 			}
-			return sessionState.workingDirectories;
+			return getWorkingDirectoryUris(sessionState.workingDirectories);
 		});
 
 		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {

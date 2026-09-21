@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { WorkingDirectory, WorkingDirectoryOriginKind } from '../../common/state/protocol/channels-session/state.js';
 import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual, resolveSessionWorkingDirectoryAction } from '../../common/state/sessionWorkingDirectories.js';
 
 suite('Session working directories', () => {
@@ -67,6 +68,33 @@ suite('Session working directories', () => {
 			{ type: ActionType.SessionWorkingDirectorySet, directory: secondary },
 			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: secondary },
 		]);
+	});
+
+	test('canonicalizes rich set and replace actions without losing directory metadata', () => {
+		const info: WorkingDirectory = { uri: 'file:///workspace/%73econdary', origin: { kind: WorkingDirectoryOriginKind.Local } };
+		assert.deepStrictEqual([
+			resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectorySet, directory: info },
+				[{ uri: primary }, { uri: secondary }],
+				capImmutable,
+			),
+			resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectoryReplaced, directory: secondary, replacement: { ...info, uri: 'file:///workspace/%72eplacement' } },
+				[{ uri: primary }, { uri: secondary }, { uri: replacement }],
+				capImmutable,
+			),
+		], [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: { ...info, uri: secondary } },
+			{ type: ActionType.SessionWorkingDirectoryReplaced, directory: secondary, replacement: { ...info, uri: replacement } },
+		]);
+	});
+
+	test('rich directory records preserve the immutable primary restriction', () => {
+		assert.throws(() => resolveSessionWorkingDirectoryAction(
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: primary },
+			[{ uri: primary, repo: 'https://example.com/team/app' }, { uri: secondary }],
+			capImmutable,
+		), /primary working directory cannot be removed/);
 	});
 
 	test('canonicalizes new sets and absent removes', () => {

@@ -14,6 +14,7 @@ import { CheckoutOperationPreAction, checkoutOperationDirtyWorkingTreeErrorData,
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import type { SessionState } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 
 export class AgentHostCheckoutOperationHandler implements IChangesetOperationHandler {
 
@@ -48,7 +49,7 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.checkout.branchMissing', "Select a branch to check out."));
 		}
 
-		const workingDirectory = URI.parse(workingDirectoryValue);
+		const workingDirectory = URI.parse(getWorkingDirectoryUri(workingDirectoryValue));
 		if (treeish.startsWith('-') || !await this._gitService.branchExists(workingDirectory, treeish)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.checkout.branchInvalid', "Branch '{0}' is not an existing local branch.", treeish));
 		}

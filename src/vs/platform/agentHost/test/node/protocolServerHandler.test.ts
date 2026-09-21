@@ -19,7 +19,8 @@ import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, ty
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
-import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
+import type { AutomationCapabilities, ClientCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
+import { WorkingDirectoryOriginKind, type WorkingDirectory } from '../../common/state/protocol/channels-session/state.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -419,13 +420,14 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>): MockProtocolTransport {
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, capabilities?: ClientCapabilities): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId,
 			clientInfo,
+			capabilities,
 			_meta: {
 				'vscode.telemetryLevel': 'all',
 				...meta,
@@ -1536,6 +1538,248 @@ suite('ProtocolServerHandler', () => {
 			action: { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///tmp/extra-root' },
 			clientType: AgentHostClientType.EditorWindow,
 			rejectionReason: undefined,
+		});
+	});
+
+	suite('working-directory information', () => {
+		const directory: WorkingDirectory = {
+			uri: 'file:///workspace/repository.worktrees/feature/src',
+			repo: 'https://example.com/team/repository',
+			origin: { kind: WorkingDirectoryOriginKind.Worktree, mainWorktree: 'file:///workspace/repository' },
+		};
+
+		for (const rich of [false, true]) {
+			const clientId = rich ? 'rich-directory-client' : 'legacy-directory-client';
+			const capabilities = rich ? { workingDirectoryInfo: {} } : undefined;
+			const expectedDirectories = [rich ? directory : directory.uri];
+
+			test(`${clientId} receives initialize, subscribe, and list projections`, async () => {
+				stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [directory] });
+				agentService.listedSessions.push({
+					session: URI.parse(sessionUri),
+					startTime: 0,
+					modifiedTime: 0,
+					workingDirectories: [URI.parse(directory.uri)],
+					workingDirectoryInfo: [directory],
+				});
+				const transport = connectClient(clientId, [sessionUri], undefined, undefined, capabilities);
+				const initialized = findResponse(transport.sent, 1) as { result: InitializeResult };
+				const initial = initialized.result.snapshots[0].state;
+				assert.ok(hasKey(initial, { provider: true }));
+				const subscribedPromise = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+				const subscribed = await subscribedPromise as { result: SubscribeResult };
+				const subscribedState = subscribed.result.snapshot?.state;
+				assert.ok(subscribedState && hasKey(subscribedState, { provider: true }));
+				const listedPromise = waitForResponse(transport, 3);
+				transport.simulateMessage(request(3, 'listSessions', {}));
+				const listed = await listedPromise as { result: ListSessionsResult };
+
+				assert.deepStrictEqual({
+					initial: initial.workingDirectories,
+					subscribed: subscribedState.workingDirectories,
+					listed: listed.result.items[0].workingDirectories,
+					canonical: stateManager.getSessionSummary(sessionUri)?.workingDirectories,
+				}, {
+					initial: expectedDirectories,
+					subscribed: expectedDirectories,
+					listed: expectedDirectories,
+					canonical: [directory],
+				});
+			});
+
+			test(`${clientId} keeps its projection through replay and snapshot reconnects`, async () => {
+				stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [directory] });
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				const initialTransport = connectClient(clientId, [sessionUri], undefined, undefined, capabilities);
+				const initialized = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+				initialTransport.simulateClose();
+				const added: WorkingDirectory = { uri: 'file:///workspace/other', origin: { kind: WorkingDirectoryOriginKind.Local } };
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: added });
+				const replayTransport = new MockProtocolTransport();
+				server.simulateConnection(replayTransport);
+				const replayPromise = waitForResponse(replayTransport, 2);
+				replayTransport.simulateMessage(request(2, 'reconnect', { clientId, lastSeenServerSeq: initialized.result.serverSeq, subscriptions: [sessionUri] }));
+				const replay = await replayPromise as { result: ReconnectResult };
+				assert.ok(replay.result.type === 'replay');
+				const replayedAction = replay.result.actions.at(-1)?.action;
+				replayTransport.simulateClose();
+
+				const snapshotTransport = new MockProtocolTransport();
+				server.simulateConnection(snapshotTransport);
+				const snapshotPromise = waitForResponse(snapshotTransport, 3);
+				snapshotTransport.simulateMessage(request(3, 'reconnect', { clientId, lastSeenServerSeq: 0, subscriptions: [sessionUri] }));
+				const reset = await snapshotPromise as { result: ReconnectResult };
+				assert.ok(reset.result.type === 'snapshot');
+				const resetState = reset.result.snapshots[0].state;
+				assert.ok(hasKey(resetState, { provider: true }));
+				assert.deepStrictEqual({
+					replay: replayedAction,
+					reset: resetState.workingDirectories,
+					canonical: stateManager.getSessionSummary(sessionUri)?.workingDirectories,
+				}, {
+					replay: { type: ActionType.SessionWorkingDirectorySet, directory: rich ? added : added.uri },
+					reset: [...expectedDirectories, rich ? added : added.uri],
+					canonical: [directory, added],
+				});
+			});
+		}
+
+		test('mixed clients receive independent action and notification projections', async () => {
+			const legacy = connectClient('mixed-legacy', [sessionUri]);
+			const rich = connectClient('mixed-rich', [sessionUri], undefined, undefined, { workingDirectoryInfo: {} });
+			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [directory] });
+			const addedLegacy = legacy.sent.find(message => isJsonRpcNotification(message) && message.method === 'root/sessionAdded');
+			const addedRich = rich.sent.find(message => isJsonRpcNotification(message) && message.method === 'root/sessionAdded');
+			assert.ok(addedLegacy && isJsonRpcNotification(addedLegacy) && addedLegacy.method === 'root/sessionAdded');
+			assert.ok(addedRich && isJsonRpcNotification(addedRich) && addedRich.method === 'root/sessionAdded');
+
+			const replacement: WorkingDirectory = { uri: 'file:///workspace/converted', origin: { kind: WorkingDirectoryOriginKind.Local } };
+			const summaryPromise = Event.toPromise(Event.filter(rich.onDidSend, message => isJsonRpcNotification(message) && message.method === 'root/sessionSummaryChanged'));
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectoryReplaced, directory: directory.uri, replacement });
+			const summaryRich = await summaryPromise;
+			const summaryLegacy = legacy.sent.find(message => isJsonRpcNotification(message) && message.method === 'root/sessionSummaryChanged');
+			assert.ok(isJsonRpcNotification(summaryRich) && summaryRich.method === 'root/sessionSummaryChanged');
+			assert.ok(summaryLegacy && isJsonRpcNotification(summaryLegacy) && summaryLegacy.method === 'root/sessionSummaryChanged');
+			const actionLegacy = legacy.sent.find(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.action.type === ActionType.SessionWorkingDirectoryReplaced);
+			const actionRich = rich.sent.find(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.action.type === ActionType.SessionWorkingDirectoryReplaced);
+			assert.ok(actionLegacy && isJsonRpcNotification(actionLegacy) && actionLegacy.method === 'action');
+			assert.ok(actionRich && isJsonRpcNotification(actionRich) && actionRich.method === 'action');
+
+			rich.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: 9, action: { type: ActionType.SessionWorkingDirectorySet, directory } }));
+			const rejectedLegacy = legacy.sent.find(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.origin?.clientSeq === 9);
+			const rejectedRich = rich.sent.find(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.origin?.clientSeq === 9);
+			assert.ok(rejectedLegacy && isJsonRpcNotification(rejectedLegacy) && rejectedLegacy.method === 'action');
+			assert.ok(rejectedRich && isJsonRpcNotification(rejectedRich) && rejectedRich.method === 'action');
+
+			assert.deepStrictEqual({
+				added: [addedLegacy.params.summary.workingDirectories, addedRich.params.summary.workingDirectories],
+				changed: [summaryLegacy.params.changes.workingDirectories, summaryRich.params.changes.workingDirectories],
+				actions: [actionLegacy.params.action, actionRich.params.action],
+				sequencesMatch: actionLegacy.params.serverSeq === actionRich.params.serverSeq,
+				rejections: [rejectedLegacy.params.action, rejectedRich.params.action],
+				rejectionOrigins: [rejectedLegacy.params.origin, rejectedRich.params.origin],
+				rejectionReasons: [rejectedLegacy.params.rejectionReason, rejectedRich.params.rejectionReason],
+				rejectionSequencesMatch: rejectedLegacy.params.serverSeq === rejectedRich.params.serverSeq,
+				canonical: stateManager.getSessionSummary(sessionUri)?.workingDirectories,
+			}, {
+				added: [[directory.uri], [directory]],
+				changed: [[replacement.uri], [replacement]],
+				actions: [
+					{ type: ActionType.SessionWorkingDirectoryReplaced, directory: directory.uri, replacement: replacement.uri },
+					{ type: ActionType.SessionWorkingDirectoryReplaced, directory: directory.uri, replacement },
+				],
+				sequencesMatch: true,
+				rejections: [
+					{ type: ActionType.SessionWorkingDirectorySet, directory: directory.uri },
+					{ type: ActionType.SessionWorkingDirectorySet, directory },
+				],
+				rejectionOrigins: [{ clientId: 'mixed-rich', clientSeq: 9 }, { clientId: 'mixed-rich', clientSeq: 9 }],
+				rejectionReasons: ['Working-directory repository metadata is host-owned.', 'Working-directory repository metadata is host-owned.'],
+				rejectionSequencesMatch: true,
+				canonical: [replacement],
+			});
+		});
+
+		test('null capability values do not opt a client into rich directory information', () => {
+			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [directory] });
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: 'null-directory-capability',
+				capabilities: { workingDirectoryInfo: null },
+				initialSubscriptions: [sessionUri],
+			}));
+			const initialized = findResponse(transport.sent, 1) as { result: InitializeResult };
+			const initial = initialized.result.snapshots[0].state;
+			assert.ok(hasKey(initial, { provider: true }));
+			assert.deepStrictEqual(initial.workingDirectories, [directory.uri]);
+		});
+
+		test('forwards URI-only creation directories to providers', async () => {
+			const transport = connectClient('local-directory-client');
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				channel: 'copilot:/local-directory',
+				workingDirectories: ['file:///workspace/first', 'file:///workspace/second'],
+			}));
+			await responsePromise;
+			const directories = agentService.createSessionConfigs[0]?.workingDirectories;
+			assert.deepStrictEqual({
+				uris: directories?.map(directory => directory.toString()),
+				uriInstances: directories?.every(directory => URI.isUri(directory)),
+			}, {
+				uris: ['file:///workspace/first', 'file:///workspace/second'],
+				uriInstances: true,
+			});
+		});
+
+		test('rejects descriptor entries in URI-only creation requests before calling the host', async () => {
+			const transport = connectClient('descriptor-creation-client');
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				channel: 'copilot:/descriptor-creation',
+				workingDirectories: [{ uri: 'file:///workspace/local', origin: { kind: WorkingDirectoryOriginKind.Local } }],
+			}));
+			const response = await responsePromise;
+			assert.deepStrictEqual({
+				error: isJsonRpcResponse(response) && hasKey(response, { error: true }) ? response.error?.code : undefined,
+				creates: agentService.createSessionConfigs,
+			}, {
+				error: JsonRpcErrorCodes.InvalidParams,
+				creates: [],
+			});
+		});
+
+		test('rejects forged directory provenance before creation or action dispatch', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('forged-directory-client', [sessionUri], editorWindowAgentHostClientInfo, undefined, { workingDirectoryInfo: {} });
+			const forged = [
+				directory,
+				{ uri: 'file:///workspace/local', repo: 'https://example.com/forged', origin: { kind: WorkingDirectoryOriginKind.Local } },
+				{ uri: 'file:///workspace/local', origin: { kind: WorkingDirectoryOriginKind.Repo } },
+			];
+			const errors: Array<number | undefined> = [];
+			for (const [index, value] of forged.entries()) {
+				const id = index + 2;
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, 'createSession', { channel: `copilot:/forged-${index}`, workingDirectories: [value] }));
+				const response = await responsePromise;
+				errors.push(isJsonRpcResponse(response) && hasKey(response, { error: true }) ? response.error?.code : undefined);
+				transport.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: id, action: { type: ActionType.SessionWorkingDirectorySet, directory: value } }));
+			}
+			const rejected = transport.sent.filter(message => isJsonRpcNotification(message) && message.method === 'action');
+			assert.deepStrictEqual({
+				errors,
+				creates: agentService.createSessionConfigs.length,
+				dispatched: agentService.handledActions.length,
+				rejections: rejected.map(message => isJsonRpcNotification(message) && message.method === 'action' ? { rejected: !!message.params.rejectionReason, clientSeq: message.params.origin?.clientSeq } : undefined),
+				canonical: stateManager.getSessionSummary(sessionUri)?.workingDirectories,
+			}, {
+				errors: forged.map(() => JsonRpcErrorCodes.InvalidParams),
+				creates: 0,
+				dispatched: 0,
+				rejections: forged.map((_, index) => ({ rejected: true, clientSeq: index + 2 })),
+				canonical: undefined,
+			});
+		});
+
+		test('rejecting a malformed directory still sends a legacy reconciliation envelope', () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('malformed-directory-client', [sessionUri]);
+			transport.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: 1, action: { type: ActionType.SessionWorkingDirectorySet, directory: null } }));
+			const rejected = transport.sent.find(message => isJsonRpcNotification(message) && message.method === 'action');
+			assert.ok(rejected && isJsonRpcNotification(rejected) && rejected.method === 'action');
+			assert.deepStrictEqual({
+				origin: rejected.params.origin,
+				rejected: !!rejected.params.rejectionReason,
+				dispatched: agentService.handledActions,
+			}, {
+				origin: { clientId: 'malformed-directory-client', clientSeq: 1 },
+				rejected: true,
+				dispatched: [],
+			});
 		});
 	});
 

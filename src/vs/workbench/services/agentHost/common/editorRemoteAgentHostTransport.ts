@@ -10,6 +10,8 @@ import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
+import { mapWorkingDirectory } from '../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { WorkingDirectory } from '../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type SessionActiveClient, type Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ReconnectResultType, type CommandMap, type ProtocolMessage } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -116,11 +118,11 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	}
 
 	/** Copies a payload with mapped working directories and folder-picker primary, preserving unrelated fields and metadata. */
-	private _mapDirectories<T extends { workingDirectories?: string[]; _meta?: Record<string, unknown> }>(value: T, map: (uri: string) => string): T {
+	private _mapDirectories<T extends { workingDirectories?: (string | WorkingDirectory)[]; _meta?: Record<string, unknown> }>(value: T, map: (uri: string) => string): T {
 		const decision = readSessionFolderPickerDecision(value._meta);
 		return {
 			...value,
-			...(value.workingDirectories ? { workingDirectories: value.workingDirectories.map(map) } : {}),
+			...(value.workingDirectories ? { workingDirectories: value.workingDirectories.map(directory => mapWorkingDirectory(directory, uri => URI.parse(map(uri.toString())))) } : {}),
 			...(decision?.primary ? { _meta: withSessionFolderPickerDecision(value._meta, { ...decision, primary: map(decision.primary) }) } : {}),
 		};
 	}
@@ -129,12 +131,13 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	private _mapAction(action: StateAction, map: (uri: string) => string): StateAction {
 		switch (action.type) {
 			case ActionType.SessionWorkingDirectorySet:
+				return { ...action, directory: mapWorkingDirectory(action.directory, uri => URI.parse(map(uri.toString()))) };
 			case ActionType.SessionWorkingDirectoryRemoved:
 			case ActionType.ChatWorkingDirectorySet:
 			case ActionType.ChatWorkingDirectoryRemoved:
 				return { ...action, directory: map(action.directory) };
 			case ActionType.SessionWorkingDirectoryReplaced:
-				return { ...action, directory: map(action.directory), replacement: map(action.replacement) };
+				return { ...action, directory: map(action.directory), replacement: mapWorkingDirectory(action.replacement, uri => URI.parse(map(uri.toString()))) };
 			case ActionType.SessionChatAdded:
 				return { ...action, summary: this._mapDirectories(action.summary, map) };
 			case ActionType.SessionChatUpdated:

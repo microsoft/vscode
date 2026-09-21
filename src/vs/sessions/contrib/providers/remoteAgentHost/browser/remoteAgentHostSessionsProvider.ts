@@ -32,6 +32,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { getRepositoriesFromSelection } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -790,6 +791,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (this.connection && getRepositoriesFromSelection(this.connection, repositoryUri)) {
+			return {
+				...this._buildWorkspaceFromUri(repositoryUri),
+				icon: Codicon.repo,
+				isVirtualWorkspace: true,
+				requiresWorkspaceTrust: false,
+			};
+		}
 		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
 			return undefined;
 		}

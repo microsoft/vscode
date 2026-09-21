@@ -12,6 +12,7 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -195,7 +196,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			);
 		}
 
-		const workingDirectory = URI.parse(workingDirectoryStr);
+		const workingDirectory = URI.parse(getWorkingDirectoryUri(workingDirectoryStr));
 		const storedGitState = readSessionGitState(sessionState._meta);
 		const effectiveBaseBranch = await this._resolveBaseBranchName(sessionUri);
 

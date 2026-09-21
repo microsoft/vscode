@@ -32,6 +32,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { getWorkingDirectoryUri } from '../common/agentHostWorkingDirectories.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
@@ -460,7 +461,7 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 
-		await this._gitStateService.attachSessionGitHubPullRequest(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
+		await this._gitStateService.attachSessionGitHubPullRequest(session, state.workingDirectories?.[0] ? URI.parse(getWorkingDirectoryUri(state.workingDirectories[0])) : undefined);
 		if (!this._isCurrentRuntime(session, runtime)) {
 			return;
 		}
@@ -766,7 +767,7 @@ export class AgentMergeController extends Disposable {
 		}
 		runtime.didRefreshForMissingBranch = true;
 		this._logService.debug(`[AgentMergeController] Refreshing git state because the session reports no branch: session=${session}`);
-		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(state.workingDirectories[0]) : undefined);
+		await this._gitStateService.refreshSessionGitState(session, state.workingDirectories?.[0] ? URI.parse(getWorkingDirectoryUri(state.workingDirectories[0])) : undefined);
 		if (!this._isCurrentRuntime(session, runtime)) {
 			return undefined;
 		}
@@ -1034,7 +1035,7 @@ export class AgentMergeController extends Disposable {
 			if (!workingDirectory) {
 				return undefined;
 			}
-			const repositoryRoot = await this._gitService.getRepositoryRoot(URI.parse(workingDirectory));
+			const repositoryRoot = await this._gitService.getRepositoryRoot(URI.parse(getWorkingDirectoryUri(workingDirectory)));
 			return repositoryRoot ? await this._gitService.revParse(repositoryRoot, 'HEAD') : undefined;
 		} catch (error) {
 			this._logService.warn(`[AgentMergeController] Failed to resolve the local commit: session=${session}`, error);

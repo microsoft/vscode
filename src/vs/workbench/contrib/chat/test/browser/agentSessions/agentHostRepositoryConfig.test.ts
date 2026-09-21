@@ -19,8 +19,8 @@ import { RepositoryPreparationCapabilities } from '../../../../../../platform/ag
 import { JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
-import { AgentInfo, RootState, SessionLifecycle, SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { getSessionRepositories, getRepositoryPreparationCapability, getRepositoriesFromSelection, resolveAgentHostRepositoryConfig, waitForRepositorySessionReady } from '../../../browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
+import { AgentInfo, ChatInteractivity, RootState, SessionLifecycle, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getRepositoryPreparationCapability, getRepositoriesFromSelection, resolveAgentHostRepositoryConfig, waitForSessionPreparation } from '../../../browser/agentSessions/agentHost/agentHostRepositoryConfig.js';
 
 const repository = URI.parse('https://example.com/owner/repo');
 const repositories: readonly IRepositorySource[] = [{ source: repository }];
@@ -67,7 +67,7 @@ suite('AgentHostRepositoryConfig', () => {
 
 	test('sends typed repositories outside provider config', async () => {
 		const h = connectionWithResponses([{ schema, values: { mode: 'plan', branch: 'feature', extra: 'host-default' } }]);
-		const inputs = [{ source: repository, revision: 'main' }];
+		const inputs = [{ source: repository, revision: 'main', subdirectory: 'packages/api' }];
 		const config = await resolveAgentHostRepositoryConfig(h.connection, 'provider', inputs, { branch: 'feature', mode: 'plan' }, CancellationToken.None);
 		assert.deepStrictEqual({ calls: h.calls, config }, {
 			calls: [{ provider: 'provider', repositories: inputs, config: { branch: 'feature', mode: 'plan' } }],
@@ -213,23 +213,26 @@ suite('AgentHostRepositoryConfig', () => {
 		assert.deepStrictEqual(h.calls, []);
 	});
 
-	for (const value of [null, [], [{}], [{ revision: 'main' }], [{ source: '' }], [{ source: '   ' }]]) {
-		test(`rejects malformed repository metadata (${JSON.stringify(value)})`, () => {
-			const state = Object.assign(session(SessionLifecycle.Ready), { repositories: value });
-			assert.throws(() => getSessionRepositories(state), /nonempty list|absolute source URI/);
+	for (const subdirectory of ['', '.', '..', '../outside', 'packages/../outside', '/absolute', 'C:/absolute', 'file:///absolute', 'packages\\api', 'packages//api', null]) {
+		test(`rejects invalid repository subdirectory (${JSON.stringify(subdirectory)}) before querying the host`, async () => {
+			const h = connectionWithResponses([]);
+			const input = Object.assign({ source: repository, subdirectory: 'packages/api' }, { subdirectory });
+			await assert.rejects(resolveAgentHostRepositoryConfig(h.connection, 'provider', [input], undefined, CancellationToken.None), /relative subdirectory/);
+			assert.deepStrictEqual(h.calls, []);
 		});
 	}
 
-	test('reads immutable inputs independently of provider configuration', () => {
-		const state = { ...session(SessionLifecycle.Ready), config: { schema, values: { repositories: [{ source: 'https://example.com/not-the-source' }] } } };
-		assert.deepStrictEqual(getSessionRepositories(state), serializeRepositorySources(repositories));
+	test('serializes the requested subdirectory without modifying the source or revision', () => {
+		assert.deepStrictEqual(serializeRepositorySources([{ source: repository, revision: 'release/next', subdirectory: 'packages/api' }]), [
+			{ source: repository.toString(), revision: 'release/next', subdirectory: 'packages/api' },
+		]);
 	});
 
-	function session(lifecycle: SessionLifecycle, withRepositories = true): SessionState {
+	function session(lifecycle: SessionLifecycle): SessionState {
 		return upcastPartial<SessionState>({
 			lifecycle,
+			chats: [],
 			workingDirectories: lifecycle === SessionLifecycle.Ready ? ['file:///checkout/repo'] : undefined,
-			repositories: withRepositories ? serializeRepositorySources(repositories) : undefined,
 			config: { schema, values: {} },
 		});
 	}
@@ -257,7 +260,7 @@ suite('AgentHostRepositoryConfig', () => {
 	test('waits for ready directory state, not merely the creation acknowledgement', async () => {
 		const h = subscription(session(SessionLifecycle.Creating));
 		let resolved = false;
-		const result = waitForRepositorySessionReady(h.sub, CancellationToken.None, repositories).then(state => { resolved = true; return state; });
+		const result = waitForSessionPreparation(h.sub, CancellationToken.None, true).then(state => { resolved = true; return state; });
 		await Promise.resolve();
 		const beforeReady = resolved;
 		const ready = session(SessionLifecycle.Ready);
@@ -267,7 +270,7 @@ suite('AgentHostRepositoryConfig', () => {
 
 	test('a joining client also waits for repository preparation', async () => {
 		const h = subscription(session(SessionLifecycle.Creating));
-		const result = waitForRepositorySessionReady(h.sub, CancellationToken.None);
+		const result = waitForSessionPreparation(h.sub, CancellationToken.None);
 		const ready = session(SessionLifecycle.Ready);
 		h.set(ready);
 		assert.strictEqual(await result, ready);
@@ -275,7 +278,7 @@ suite('AgentHostRepositoryConfig', () => {
 
 	test('propagates a shared creation failure instead of sending a turn', async () => {
 		const h = subscription(session(SessionLifecycle.Creating));
-		const result = waitForRepositorySessionReady(h.sub, CancellationToken.None);
+		const result = waitForSessionPreparation(h.sub, CancellationToken.None);
 		h.set({ ...session(SessionLifecycle.Failed), creationError: { errorType: 'repository', message: 'Repository access denied' } });
 		await assert.rejects(result, /Repository access denied/);
 		assert.strictEqual(h.hasListeners(), false);
@@ -283,7 +286,7 @@ suite('AgentHostRepositoryConfig', () => {
 
 	test('propagates subscription failure without waiting forever', async () => {
 		const h = subscription(session(SessionLifecycle.Creating));
-		const result = waitForRepositorySessionReady(h.sub, CancellationToken.None);
+		const result = waitForSessionPreparation(h.sub, CancellationToken.None);
 		h.fail(new Error('Connection closed'));
 		await assert.rejects(result, /Connection closed/);
 		assert.strictEqual(h.hasListeners(), false);
@@ -292,7 +295,7 @@ suite('AgentHostRepositoryConfig', () => {
 	test('cancels the local readiness wait without disposing the shared session', async () => {
 		const h = subscription(session(SessionLifecycle.Creating));
 		const cts = store.add(new CancellationTokenSource());
-		const result = waitForRepositorySessionReady(h.sub, cts.token);
+		const result = waitForSessionPreparation(h.sub, cts.token);
 		cts.cancel();
 		await assert.rejects(result, CancellationError);
 		assert.strictEqual(h.hasListeners(), false);
@@ -300,60 +303,63 @@ suite('AgentHostRepositoryConfig', () => {
 
 	test('a claimed ready repository must have resolved working directories', async () => {
 		const h = subscription({ ...session(SessionLifecycle.Ready), workingDirectories: [] });
-		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None), /did not report a ready checkout/);
-	});
-
-	for (const lifecycle of [SessionLifecycle.Creating, SessionLifecycle.Ready, SessionLifecycle.Failed]) {
-		test(`lost-response recovery rejects another repository before accepting ${lifecycle}`, async () => {
-			const h = subscription({ ...session(lifecycle), repositories: [{ source: 'https://example.com/another/repo' }] });
-			await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, repositories), /different repository inputs/);
-			assert.strictEqual(h.hasListeners(), false);
-		});
-	}
-
-	test('lost-response recovery preserves an explicitly requested revision', async () => {
-		const h = subscription({ ...session(SessionLifecycle.Ready), repositories: [{ source: repository.toString(), revision: 'other' }] });
-		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, [{ source: repository, revision: 'main' }]), /different repository inputs/);
-	});
-
-	test('lost-response recovery distinguishes an omitted revision from an explicit one', async () => {
-		const h = subscription({ ...session(SessionLifecycle.Ready), repositories: [{ source: repository.toString(), revision: 'main' }] });
-		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, repositories), /different repository inputs/);
-	});
-
-	test('lost-response recovery retains revision validation without provider config', async () => {
-		const h = subscription({ ...session(SessionLifecycle.Ready), config: undefined });
-		await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, [{ source: repository, revision: 'main' }]), /different repository inputs/);
-	});
-
-	test('lost-response recovery verifies every entry and its order', async () => {
-		const expected = [{ source: repository, revision: 'main' }, { source: repository, revision: 'other' }];
-		for (const actual of [expected.slice(0, 1), [...expected].reverse(), [...expected, ...repositories]]) {
-			const h = subscription({ ...session(SessionLifecycle.Ready), repositories: serializeRepositorySources(actual) });
-			await assert.rejects(waitForRepositorySessionReady(h.sub, CancellationToken.None, expected), /different repository inputs/);
-		}
+		await assert.rejects(waitForSessionPreparation(h.sub, CancellationToken.None, true), /did not report a ready checkout/);
 	});
 
 	test('one repository can resolve to multiple working directories', async () => {
-		const state = { ...session(SessionLifecycle.Ready), workingDirectories: ['file:///checkout/repo/packages/api', 'file:///checkout/repo/packages/web'] };
-		assert.strictEqual(await waitForRepositorySessionReady(subscription(state).sub, CancellationToken.None, repositories), state);
+		const state = {
+			...session(SessionLifecycle.Ready),
+			workingDirectories: [
+				{ uri: 'file:///checkout/repo/packages/api', repo: repository.toString() },
+				{ uri: 'file:///checkout/repo/packages/web', repo: repository.toString() },
+			],
+		};
+		assert.strictEqual(await waitForSessionPreparation(subscription(state).sub, CancellationToken.None, true), state);
 	});
 
-	test('repository entries do not map to directories by position', async () => {
-		const inputs = [...repositories, { source: URI.parse('https://example.com/other/repo') }];
-		const state = { ...session(SessionLifecycle.Ready), repositories: serializeRepositorySources(inputs), workingDirectories: ['file:///workspace'] };
-		assert.strictEqual(await waitForRepositorySessionReady(subscription(state).sub, CancellationToken.None, inputs), state);
+	test('explicitly reopening a ready session needs only its authoritative state', async () => {
+		const state = { ...session(SessionLifecycle.Ready), config: undefined };
+		assert.strictEqual(await waitForSessionPreparation(subscription(state).sub, CancellationToken.None), state);
 	});
 
-	test('provider config does not opt a directory session into repository initialization', async () => {
-		const state = { ...session(SessionLifecycle.Creating, false), config: { schema, values: { repositories: serializeRepositorySources(repositories) } } };
-		assert.strictEqual(await waitForRepositorySessionReady(subscription(state).sub, CancellationToken.None), state);
+	test('ready workspaceless sessions do not require directories', async () => {
+		const state = { ...session(SessionLifecycle.Ready), workingDirectories: [] };
+		assert.strictEqual(await waitForSessionPreparation(subscription(state).sub, CancellationToken.None), state);
 	});
 
-	test('keeps the existing lifecycle behavior for non-repository sessions', async () => {
-		const state = session(SessionLifecycle.Creating, false);
+	test('directory session creation also observes ready rather than provider configuration', async () => {
+		const h = subscription({ ...session(SessionLifecycle.Creating), config: undefined });
+		const pending = waitForSessionPreparation(h.sub, CancellationToken.None);
+		const ready = { ...session(SessionLifecycle.Ready), config: undefined };
+		h.set(ready);
+		assert.deepStrictEqual({ state: await pending, hasListeners: h.hasListeners() }, { state: ready, hasListeners: false });
+	});
+
+	for (const interactivity of [undefined, ChatInteractivity.Full]) {
+		test(`native deferred creation can start through its interactive chat (${interactivity})`, async () => {
+			const state: SessionState = {
+				...session(SessionLifecycle.Creating),
+				defaultChat: 'ahp-chat:/default',
+				chats: [{ resource: 'ahp-chat:/default', title: '', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), interactivity }],
+			};
+			const h = subscription(state);
+			assert.deepStrictEqual({ state: await waitForSessionPreparation(h.sub, CancellationToken.None), listeners: h.hasListeners() }, { state, listeners: false });
+		});
+	}
+
+	test('explicit repository creation waits for ready even if a placeholder chat is already visible', async () => {
+		const state: SessionState = {
+			...session(SessionLifecycle.Creating),
+			defaultChat: 'ahp-chat:/default',
+			chats: [{ resource: 'ahp-chat:/default', title: '', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		};
 		const h = subscription(state);
-		assert.strictEqual(await waitForRepositorySessionReady(h.sub, CancellationToken.None), state);
-		assert.strictEqual(h.hasListeners(), false);
+		let resolved = false;
+		const pending = waitForSessionPreparation(h.sub, CancellationToken.None, true).then(result => { resolved = true; return result; });
+		await Promise.resolve();
+		const beforeReady = resolved;
+		const ready = { ...state, lifecycle: SessionLifecycle.Ready, workingDirectories: [{ uri: 'file:///checkout/app/packages/api', repo: repository.toString() }] };
+		h.set(ready);
+		assert.deepStrictEqual({ beforeReady, state: await pending }, { beforeReady: false, state: ready });
 	});
 });

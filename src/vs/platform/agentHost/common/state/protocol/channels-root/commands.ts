@@ -8,7 +8,8 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams, PaginatedParams, PaginatedResult } from '../common/commands.js';
-import type { RepositorySource, SessionSummary, SessionConfigSchema } from '../channels-session/state.js';
+import type { SessionSummary, SessionConfigSchema } from '../channels-session/state.js';
+import type { RepositorySource } from '../channels-session/commands.js';
 
 // Re-export schema types so the legacy `commands.ts` aggregator continues to
 // expose them from the same import path.
@@ -79,9 +80,6 @@ export interface ListSessionsResult extends PaginatedResult {
  * the full current property set (not a delta). The returned `values` contain
  * server-resolved defaults to pass to `createSession`.
  *
- * `resolveSessionConfig` and `sessionConfigCompletions` MUST NOT clone or
- * prepare repositories: editing a draft should not create checkouts.
- *
  * @category Commands
  * @method resolveSessionConfig
  * @direction Client → Server
@@ -134,8 +132,7 @@ export interface ResolveSessionConfigParams extends BaseParams {
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/**
-	 * Non-empty repository context, subject to
-	 * {@link InitializeResult.repositoryPreparation}. May accompany `workingDirectory`.
+	 * Repositories used as configuration context.
 	 *
 	 * @minItems 1
 	 */
@@ -206,8 +203,7 @@ export interface SessionConfigCompletionsParams extends BaseParams {
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/**
-	 * Non-empty repository context, subject to
-	 * {@link InitializeResult.repositoryPreparation}. May accompany `workingDirectory`.
+	 * Repositories used as configuration context.
 	 *
 	 * @minItems 1
 	 */
