@@ -61,6 +61,7 @@ import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
+const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 28;
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.
@@ -312,6 +313,7 @@ export class ChatView extends AbstractChatView {
 			const enabled = isExperimentalSessionComposerLayoutEnabled(this.configurationService);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
+			this._widget.inputPart.setInputEditorTrailingSpace(enabled ? EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE : 0);
 		};
 		updateExperimentalComposerLayout();
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
