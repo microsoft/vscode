@@ -346,4 +346,22 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 		assert.deepStrictEqual(sources.map(source => source.uri.toString()), [legacyPlugin.toString()]);
 	});
+
+	test('supports legacy snake-case state and marketplace cache layout', async () => {
+		const legacyPlugin = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(legacyPlugin, 'spark');
+		await fileService.writeFile(configFile, VSBuffer.fromString(JSON.stringify({
+			installed_plugins: [{
+				name: 'spark',
+				marketplace: 'copilot-plugins',
+				version: '1.0.0',
+				installed_at: '2026-01-19T00:00:00Z',
+				enabled: true,
+			}],
+		})));
+
+		const sources = await createDiscovery().discoverPluginSources();
+
+		assert.deepStrictEqual(sources.map(source => source.uri.toString()), [legacyPlugin.toString()]);
+	});
 });

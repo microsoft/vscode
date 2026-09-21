@@ -945,7 +945,7 @@ class CopilotCliInstalledPluginsStore extends Disposable {
 			return undefined;
 		}
 
-		const installedPlugins = Reflect.get(parsed, 'installedPlugins');
+		const installedPlugins = Reflect.get(parsed, 'installedPlugins') ?? Reflect.get(parsed, 'installed_plugins');
 		if (installedPlugins === undefined) {
 			return [];
 		}
@@ -975,7 +975,11 @@ class CopilotCliInstalledPluginsStore extends Disposable {
 			if (typeof cachePath === 'string' && cachePath.trim()) {
 				uri = toTargetResource(await this._pathService.fileURI(cachePath), userHome);
 			} else if (marketplace) {
-				uri = joinPath(installedPluginsRoot, `${name}@${marketplace}`);
+				const canonicalLegacyUri = joinPath(installedPluginsRoot, `${name}@${marketplace}`);
+				const marketplaceLegacyUri = joinPath(installedPluginsRoot, marketplace, name);
+				uri = await this._fileService.exists(canonicalLegacyUri) || !(await this._fileService.exists(marketplaceLegacyUri))
+					? canonicalLegacyUri
+					: marketplaceLegacyUri;
 			} else {
 				this._logService.warn(`[CopilotCliInstalledPluginsStore] Skipping legacy direct plugin '${name}' without a cache path`);
 				continue;
