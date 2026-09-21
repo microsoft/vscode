@@ -2430,6 +2430,48 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('uses direct strip geometry for connected rows while retaining upper-row pill gutters', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container wrapping');
+		const tabs = appendElement(row, 'tabs-container');
+		const upperTab = appendElement(tabs, 'tab active connected-tab-upper-row');
+		const upperFill = appendElement(upperTab, 'tab-fill');
+		const inactiveBottomTab = appendElement(tabs, 'tab');
+		const inactiveBottomFill = appendElement(inactiveBottomTab, 'tab-fill');
+		const activeBottomTab = appendElement(tabs, 'tab active');
+		const activeBottomFill = appendElement(activeBottomTab, 'tab-fill');
+		const targetWindow = getWindow(root);
+		const geometry = (tab: HTMLElement, fill: HTMLElement) => {
+			const tabStyle = targetWindow.getComputedStyle(tab);
+			const fillStyle = targetWindow.getComputedStyle(fill);
+			return {
+				tabBorders: [tabStyle.borderTopWidth, tabStyle.borderBottomWidth],
+				fillInsets: [fillStyle.top, fillStyle.bottom],
+			};
+		};
+
+		assert.deepStrictEqual({
+			upper: geometry(upperTab, upperFill),
+			inactiveBottom: geometry(inactiveBottomTab, inactiveBottomFill),
+			activeBottom: geometry(activeBottomTab, activeBottomFill),
+		}, {
+			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'] },
+			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'] },
+			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'] },
+		});
+	});
+
 	test('keeps the right shoulder curved and the left edge straight at row boundaries', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
