@@ -53,4 +53,56 @@ suite('AhpSnapshotRecorder', () => {
 			includesSuccess: false,
 		});
 	});
+
+	test('canonicalizes opted-in server action interleaving across channels', () => {
+		const turns = [
+			{ channel: 'ahp-chat://session/parent', turnId: 'parent-turn-1' },
+			{ channel: 'ahp-chat://session/child', turnId: 'child-turn' },
+			{ channel: 'ahp-chat://session/parent', turnId: 'parent-turn-2' },
+		] as const;
+		const serialize = (completionOrder: readonly (typeof turns)[number][], canonicalize: boolean): string => {
+			const recorder = new AhpSnapshotRecorder();
+			for (const turn of turns) {
+				recorder.record('s2c', {
+					method: 'action',
+					params: {
+						channel: turn.channel,
+						action: {
+							type: ActionType.ChatTurnStarted,
+							turnId: turn.turnId,
+							message: { text: turn.turnId, origin: { kind: 'user' } },
+						},
+					},
+				});
+			}
+			for (const turn of completionOrder) {
+				recorder.record('s2c', {
+					method: 'action',
+					params: {
+						channel: turn.channel,
+						action: {
+							type: ActionType.ChatTurnComplete,
+							turnId: turn.turnId,
+						},
+					},
+				});
+			}
+			return recorder.serialize(canonicalize ? {
+				orderIndependentActionTypes: [ActionType.ChatTurnComplete],
+			} : undefined);
+		};
+
+		const recordedOrder = [turns[0], turns[1], turns[2]];
+		const crossChannelReorder = [turns[1], turns[0], turns[2]];
+		const sameChannelReorder = [turns[2], turns[1], turns[0]];
+		assert.deepStrictEqual({
+			exactCrossChannelOrderMatches: serialize(recordedOrder, false) === serialize(crossChannelReorder, false),
+			canonicalCrossChannelOrderMatches: serialize(recordedOrder, true) === serialize(crossChannelReorder, true),
+			canonicalPerChannelOrderMatches: serialize(recordedOrder, true) === serialize(sameChannelReorder, true),
+		}, {
+			exactCrossChannelOrderMatches: false,
+			canonicalCrossChannelOrderMatches: true,
+			canonicalPerChannelOrderMatches: false,
+		});
+	});
 });

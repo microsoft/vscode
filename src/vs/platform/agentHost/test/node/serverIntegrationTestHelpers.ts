@@ -842,7 +842,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -859,6 +859,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			matchModelRequestsByProjection: options.capiReplay.matchModelRequestsByProjection,
 			recordingModelResponse: options.capiReplay.recordingModelResponse,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
@@ -871,6 +872,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			workDir: options.capiReplay.workDir,
 			allowPosixCommands: options.capiReplay.allowPosixCommands,
 			allowStaleRecordedRequest: options.capiReplay.allowStaleRecordedRequest,
+			matchModelRequestsByProjection: options.capiReplay.matchModelRequestsByProjection,
 			homeDir: options.homeDir,
 			userName: userInfo().username,
 			upstreamUrl: mockLlmServer!.url,
