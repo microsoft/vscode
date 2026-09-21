@@ -690,6 +690,20 @@ describe('normalizeProviderMessages attachment parts', () => {
 		expect(noDimensions[0].parts[0]).toMatchObject({ type: 'uri', size_bytes: 10, estimated_tokens: 1105 });
 	});
 
+	it('falls through to the file id when a Responses data URL has no payload', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [
+				{ type: 'input_image', image_url: 'data:image/png;base64,', file_id: 'file-img' },
+				{ type: 'input_file', file_data: 'data:application/pdf;base64,', file_id: 'file-pdf' },
+			],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'file', modality: 'image', mime_type: null, file_id: 'file-img' },
+			{ type: 'file', modality: 'document', mime_type: null, file_id: 'file-pdf' },
+		]);
+	});
+
 	it('keeps the resolver estimate when its dimensions cannot be priced', () => {
 		const result = normalizeProviderMessages([{
 			role: 'user',

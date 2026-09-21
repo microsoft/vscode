@@ -463,8 +463,9 @@ function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?
 		}
 		case 'input_image': {
 			const url = nonEmptyString(b.image_url);
-			if (url !== undefined) {
-				return referencedPart('image', url, undefined, asDetail(b.detail), resolveAttachment);
+			const part = url === undefined ? undefined : referencedPart('image', url, undefined, asDetail(b.detail), resolveAttachment);
+			if (part !== undefined) {
+				return part;
 			}
 			const fileId = nonEmptyString(b.file_id);
 			if (fileId !== undefined) {
@@ -474,8 +475,9 @@ function normalizeAttachmentBlock(b: Record<string, unknown>, resolveAttachment?
 		}
 		case 'input_file': {
 			const fileData = nonEmptyString(b.file_data);
-			if (fileData !== undefined) {
-				return referencedPart('document', fileData, undefined, undefined, resolveAttachment);
+			const part = fileData === undefined ? undefined : referencedPart('document', fileData, undefined, undefined, resolveAttachment);
+			if (part !== undefined) {
+				return part;
 			}
 			const fileId = nonEmptyString(b.file_id);
 			if (fileId !== undefined) {
