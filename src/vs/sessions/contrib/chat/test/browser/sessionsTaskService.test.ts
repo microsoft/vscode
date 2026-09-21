@@ -33,10 +33,12 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 			gitRepository: { uri: opts.repository, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 		} satisfies ISessionFolder],
 		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(workspace),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),

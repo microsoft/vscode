@@ -299,6 +299,11 @@ const metadataValidator = plainObject(vObj({
 	[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: vOptionalProp(devContainerWorktreeValidator),
 }));
 
+const workingDirectoriesValidator = new RefinedValidator(
+	boundedArray(uriString(), AGENT_HOST_CATALOG_CHILD_LIMIT),
+	value => hasUniqueValues(value, directory => directory) ? value : { message: 'Working directories must be unique.' },
+);
+
 const chatValidator = plainObject(vObj({
 	uri: uriString(),
 	order: safeInteger(),
@@ -307,6 +312,7 @@ const chatValidator = plainObject(vObj({
 	titleSource: vOptionalProp(vEnum('user', 'agent', 'auto')),
 	origin: vOptionalProp(jsonValue()),
 	inheritedTurnId: vOptionalProp(boundedString(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT)),
+	workingDirectories: vOptionalProp(workingDirectoriesValidator),
 }));
 
 const chatsValidator = new RefinedValidator(
@@ -321,11 +327,6 @@ const chatsValidator = new RefinedValidator(
 		}
 		return sorted;
 	},
-);
-
-const workingDirectoriesValidator = new RefinedValidator(
-	boundedArray(uriString(), AGENT_HOST_CATALOG_CHILD_LIMIT),
-	value => hasUniqueValues(value, directory => directory) ? value : { message: 'Working directories must be unique.' },
 );
 
 export const agentHostCatalogDataValidator = plainObject(vObj({

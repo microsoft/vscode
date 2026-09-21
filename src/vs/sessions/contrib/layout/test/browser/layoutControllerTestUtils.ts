@@ -74,6 +74,7 @@ export function makeSession(resource: URI, opts?: {
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
+		workspace: constObservable(opts?.workspace),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
