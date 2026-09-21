@@ -1,5 +1,5 @@
-version: 2
-updates:
+version: 1
+updates: all time-zones
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
