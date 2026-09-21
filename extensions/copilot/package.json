@@ -5410,7 +5410,7 @@
             "policyReference": {
               "name": "CopilotOtelResourceAttributes"
             },
-            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES` (env values take precedence, including over enterprise-managed values). Requires window reload.",
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. When enterprise OTel settings apply, personal OTel settings are ignored. Merged per-key with env var `OTEL_RESOURCE_ATTRIBUTES`: enterprise-managed values take precedence over environment values, which take precedence over personal settings. Requires window reload.",
             "tags": [
               "advanced"
             ]

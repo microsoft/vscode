@@ -155,7 +155,9 @@ removed when capture is off, even if explicitly supplied as resource attributes.
 
 Enabling capture still requires the normal reload/recovery flow. Disabling is
 checked before subsequent exports and local completion events, including queued
-spans, logs, metrics, and SQLite export. Already exported or persisted data cannot
+spans, logs, metrics, and SQLite export. Once observed, a denial stays in effect
+for that service instance, even if policy later allows capture or is withdrawn;
+re-enabling capture requires a reload. Already exported or persisted data cannot
 be recalled, and an export already handed to its transport cannot be cancelled.
 The nullable default preserves omission versus explicit managed `false` through
 the editor's configuration API; it does not enable capture.

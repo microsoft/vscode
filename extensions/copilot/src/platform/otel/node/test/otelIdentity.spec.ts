@@ -160,7 +160,7 @@ describe('governed OTel identity', () => {
 				const { service, spanExporter } = await start({ settingExporterType: exporterType, settingCaptureContent: captureContent });
 				const content = Object.fromEntries([
 					GenAiAttr.INPUT_MESSAGES, GenAiAttr.OUTPUT_MESSAGES, GenAiAttr.SYSTEM_INSTRUCTIONS,
-					GenAiAttr.TOOL_DEFINITIONS, GenAiAttr.TOOL_CALL_ARGUMENTS, GenAiAttr.TOOL_CALL_RESULT,
+					GenAiAttr.TOOL_DEFINITIONS, GenAiAttr.TOOL_DESCRIPTION, GenAiAttr.TOOL_CALL_ARGUMENTS, GenAiAttr.TOOL_CALL_RESULT,
 					CopilotChatAttr.USER_REQUEST, CopilotChatAttr.REASONING_CONTENT, CopilotChatAttr.PROMPT_CONTEXT,
 					CopilotChatAttr.PROMPT_INSTRUCTIONS, CopilotChatAttr.MARKDOWN_CONTENT,
 					CopilotChatAttr.HOOK_INPUT, CopilotChatAttr.HOOK_OUTPUT, 'content', 'toolDefinitions',
@@ -217,6 +217,53 @@ describe('governed OTel identity', () => {
 			expect(resource.attributes).not.toHaveProperty(StdAttr.PROCESS_USER_NAME);
 		}
 	});
+
+	for (const restoredPolicy of [true, undefined]) {
+		it(`keeps identity denied until reconstruction after policy ${restoredPolicy === undefined ? 'withdrawal' : 're-enablement'}`, async () => {
+			const input: Partial<OTelConfigInput> = {
+				settingCaptureIdentity: true,
+				env: { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' },
+				policyCaptureIdentity: true,
+			};
+			const allowed = () => config(input).captureIdentity;
+			const { service, spanExporter, logExporter, metricExporter } = await start(input, allowed);
+			input.policyCaptureIdentity = false;
+			service.startSpan('denied').end();
+			await service.flush();
+			spanExporter.spans.length = 0;
+
+			input.policyCaptureIdentity = restoredPolicy;
+			const attributes = { [StdAttr.USER_NAME]: 'account', 'enduser.pseudo.id': 'unchanged' };
+			const completions: ICompletedSpanData[] = [];
+			const listener = service.onDidCompleteSpan(span => completions.push(span));
+			service.startSpan('still-denied', { attributes }).end();
+			service.emitLogRecord('still-denied', attributes);
+			service.incrementCounter('test.restored', 1, attributes);
+			await service.flush();
+			listener.dispose();
+			const metric = metricExporter.metrics.flatMap(batch => batch.scopeMetrics.flatMap(scope => scope.metrics))
+				.find(metric => metric.descriptor.name === 'test.restored');
+			expect({
+				span: spanExporter.spans[0].attributes,
+				completion: completions[0].attributes,
+				log: logExporter.logs[0].attributes,
+				metric: metric?.dataPoints[0].attributes,
+				resource: filterIdentityAttributes(spanExporter.spans[0].resource.attributes, false),
+			}).toEqual({
+				span: { 'enduser.pseudo.id': 'unchanged' },
+				completion: { 'enduser.pseudo.id': 'unchanged' },
+				log: { 'enduser.pseudo.id': 'unchanged' },
+				metric: { 'enduser.pseudo.id': 'unchanged' },
+				resource: spanExporter.spans[0].resource.attributes,
+			});
+
+			await service.shutdown();
+			const restarted = await start(input, allowed);
+			restarted.service.startSpan('restored', { attributes }).end();
+			await restarted.service.flush();
+			expect(restarted.spanExporter.spans[0].attributes).toEqual(attributes);
+		});
+	}
 
 	it('filters the local SQLite boundary without removing debug content or mutating source spans', async () => {
 		const { service, spanExporter } = await start({ settingCaptureIdentity: true, settingCaptureContent: true });

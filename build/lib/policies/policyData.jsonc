@@ -257,7 +257,7 @@
             "key": "chat.agentHost.otel.captureIdentity",
             "name": "CopilotOtelCaptureIdentity",
             "category": "InteractiveSession",
-            "minimumVersion": "1.139",
+            "minimumVersion": "1.140",
             "localization": {
                 "description": {
                     "key": "chat.agentHost.otel.captureIdentity.policy",

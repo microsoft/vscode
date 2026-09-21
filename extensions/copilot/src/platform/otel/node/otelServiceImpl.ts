@@ -59,6 +59,7 @@ export class NodeOTelService implements IOTelService {
 	private _otelApi: typeof import('@opentelemetry/api') | undefined;
 	private _initialized = false;
 	private _initFailed = false;
+	private _identityDenied = false;
 	private static readonly _MAX_BUFFER_SIZE = 1000;
 	private readonly _log: OTelLogFn;
 	private readonly _sqliteStore: OTelSqliteStore | undefined;
@@ -92,7 +93,10 @@ export class NodeOTelService implements IOTelService {
 		void this._initialize();
 	}
 
-	private readonly _identityAllowed = (): boolean => this.config.captureIdentity && this._currentIdentityAllowed();
+	private readonly _identityAllowed = (): boolean => {
+		this._identityDenied ||= !this.config.captureIdentity || !this._currentIdentityAllowed();
+		return !this._identityDenied;
+	};
 
 	private async _initialize(): Promise<void> {
 		if (this._initialized || !this.config.enabled) {

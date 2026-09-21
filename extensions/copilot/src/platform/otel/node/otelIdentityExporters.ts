@@ -16,7 +16,7 @@ type FilterResource = (resource: Resource) => Resource;
 // The local debug pipeline deliberately records these even with content export off.
 const contentAttributes = new Set<string>([
 	GenAiAttr.INPUT_MESSAGES, GenAiAttr.OUTPUT_MESSAGES, GenAiAttr.SYSTEM_INSTRUCTIONS,
-	GenAiAttr.TOOL_DEFINITIONS, GenAiAttr.TOOL_CALL_ARGUMENTS, GenAiAttr.TOOL_CALL_RESULT,
+	GenAiAttr.TOOL_DEFINITIONS, GenAiAttr.TOOL_DESCRIPTION, GenAiAttr.TOOL_CALL_ARGUMENTS, GenAiAttr.TOOL_CALL_RESULT,
 	CopilotChatAttr.USER_REQUEST, CopilotChatAttr.REASONING_CONTENT, CopilotChatAttr.PROMPT_CONTEXT,
 	CopilotChatAttr.PROMPT_INSTRUCTIONS, CopilotChatAttr.MARKDOWN_CONTENT,
 	CopilotChatAttr.HOOK_INPUT, CopilotChatAttr.HOOK_OUTPUT,

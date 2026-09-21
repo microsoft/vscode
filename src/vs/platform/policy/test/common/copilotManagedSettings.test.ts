@@ -223,12 +223,14 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 					continue;
 				}
 				test(`telemetry selects one whole ${native ? 'native' : 'server'} block: ${JSON.stringify(higher)}, lower identity ${lowerIdentity}`, () => {
-					const lower = normalizeManagedSettings({ telemetry: {
-						enabled: true, capture: { identity: lowerIdentity }, captureContent: true,
-						lockCaptureContent: true, endpoint: 'https://lower.example', protocol: 'grpc',
-						serviceName: 'lower', resourceAttributes: { 'host.name': 'lower-host', extra: 'lower' },
-						headers: { authorization: 'lower' },
-					} });
+					const lower = normalizeManagedSettings({
+						telemetry: {
+							enabled: true, capture: { identity: lowerIdentity }, captureContent: true,
+							lockCaptureContent: true, endpoint: 'https://lower.example', protocol: 'grpc',
+							serviceName: 'lower', resourceAttributes: { 'host.name': 'lower-host', extra: 'lower' },
+							headers: { authorization: 'lower' },
+						}
+					});
 					const pick = native
 						? pickManagedSettings(selected, lower, lower)
 						: pickManagedSettings(undefined, selected, lower);

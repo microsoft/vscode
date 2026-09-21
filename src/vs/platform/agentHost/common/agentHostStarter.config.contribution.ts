@@ -476,7 +476,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'CopilotOtelCaptureIdentity',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.139',
+				minimumVersion: '1.140',
 				value: managedSettingValue(COPILOT_OTEL_CAPTURE_IDENTITY_KEY),
 				managedSettings: {
 					[COPILOT_OTEL_CAPTURE_IDENTITY_KEY]: { type: 'boolean' },
