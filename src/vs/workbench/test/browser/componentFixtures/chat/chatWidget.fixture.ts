@@ -1462,7 +1462,7 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
-		ParallelSubagents: scenario(parallelSubagentMessages(), {}, false),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		// The legacy fixed-scrolling thinking container reports a ResizeObserver loop when
 		// subagent pills expand inside it (independent of this setting), which the headless
@@ -1633,7 +1633,26 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Weav
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
 		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING),
-		ParallelSubagents: scenario(parallelSubagentMessages()),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }),
+		// A single background agent is counted while the parent has nothing of its own in flight.
+		BackgroundAgent: scenario(tools([
+			{ kind: 'thinking', text: '**Delegating the investigation**\nHand the faint chronology to a research agent while the plan is drafted.' },
+			{ kind: 'markdown', text: 'I started a research agent to trace every faint.' },
+			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
+		]), { expectedText: 'Waiting for 1 subagent' }),
+		// Reading a background agent blocks the parent until the agent reports back.
+		ReadBackgroundAgent: scenario(tools([
+			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
+			{ kind: 'thinking', text: '**Reviewing the plan**\nCheck the drafted plan against the notes before reading the agent result.' },
+			{ kind: 'markdown', text: 'The plan is ready. I will wait for the research agent before deciding on the battle strategy.' },
+			tool('read_agent', 'Read agent `faint-census`'),
+		]), { expectedText: 'Waiting for 1 subagent' }),
+		// Reading a background terminal blocks the parent on its output.
+		ReadBackgroundTerminal: scenario(tools([
+			...before,
+			{ kind: 'markdown', text: 'The build is running in a background terminal. I will check its output before continuing.' },
+			tool('get_terminal_output', 'Checking terminal output'),
+		]), { expectedText: 'Waiting for terminal output' }),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true)),
 		ReducedMotion: scenario(interwoven, { reducedMotion: true }),
 	});
