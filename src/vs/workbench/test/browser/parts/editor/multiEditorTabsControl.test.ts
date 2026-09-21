@@ -370,6 +370,7 @@ suite('MultiEditorTabsControl', () => {
 
 		await layoutConnectedGroup(group, 400);
 		const multiple = measure();
+		const shoulder = Number.parseFloat(mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tab.active > .tab-fill')!, '::after').width);
 
 		const secondEditor = model.getEditorByIndex(1)!;
 		model.closeEditor(secondEditor);
@@ -405,31 +406,30 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({
 			single: {
 				top: single.top === multiple.top,
-				right: single.right === multiple.right,
 				left: single.left === multiple.left,
-				width: single.width === multiple.width,
+				rightShoulderReserve: single.right - multiple.right === shoulder,
+				widthShoulderReserve: single.width - multiple.width === shoulder,
 			},
 			wrapped: {
 				top: wrappedBottom.top === wrappedUpper.top,
-				right: wrappedBottom.right === wrappedUpper.right,
 				left: wrappedBottom.left === wrappedUpper.left,
+				rightShoulderReserve: wrappedBottom.right - wrappedUpper.right === shoulder,
 			},
 			horizontal: {
-				right: measurements.every(measurement => measurement.right === multiple.right),
 				left: measurements.every(measurement => measurement.left === multiple.left),
 			},
 			leftAction: {
 				top: leftSingle.top === leftMultiple.top,
-				right: leftSingle.right === leftMultiple.right,
 				left: leftSingle.left === leftMultiple.left,
-				width: leftSingle.width === leftMultiple.width,
+				rightShoulderReserve: leftSingle.right - leftMultiple.right === shoulder,
+				widthShoulderReserve: leftSingle.width - leftMultiple.width === shoulder,
 			},
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
-			single: { top: true, right: true, left: true, width: true },
-			wrapped: { top: true, right: true, left: true },
-			horizontal: { right: true, left: true },
-			leftAction: { top: true, right: true, left: true, width: true },
+			single: { top: true, left: true, rightShoulderReserve: true, widthShoulderReserve: true },
+			wrapped: { top: true, left: true, rightShoulderReserve: true },
+			horizontal: { left: true },
+			leftAction: { top: true, left: true, rightShoulderReserve: true, widthShoulderReserve: true },
 			actionPadding: true,
 		});
 	});
@@ -702,8 +702,8 @@ suite('MultiEditorTabsControl', () => {
 			});
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', stripHeight: 60, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [28, 28], rowGap: 2 },
-			{ tabHeight: 'compact', stripHeight: 52, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [24, 24], rowGap: 2 },
+			{ tabHeight: 'default', stripHeight: 58, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [28, 28], rowGap: 2 },
+			{ tabHeight: 'compact', stripHeight: 50, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [24, 24], rowGap: 2 },
 		]);
 	});
 
@@ -730,8 +730,8 @@ suite('MultiEditorTabsControl', () => {
 			});
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', stripHeight: 90, visibleHeights: [28, 28, 28], rowGaps: [2, 2] },
-			{ tabHeight: 'compact', stripHeight: 78, visibleHeights: [24, 24, 24], rowGaps: [2, 2] },
+			{ tabHeight: 'default', stripHeight: 88, visibleHeights: [28, 28, 28], rowGaps: [2, 2] },
+			{ tabHeight: 'compact', stripHeight: 76, visibleHeights: [24, 24, 24], rowGaps: [2, 2] },
 		]);
 	});
 

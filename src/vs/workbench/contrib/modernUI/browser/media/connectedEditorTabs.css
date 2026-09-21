@@ -91,11 +91,11 @@
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
 	background-color: var(--modern-ui-connected-tab-strip-background, var(--vscode-editorGroupHeader-tabsBackground));
 	padding-left: 0;
+	padding-top: 0;
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) {
 	align-items: flex-start;
-	padding-top: 0;
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > .editor-actions {
@@ -386,6 +386,18 @@
 }
 
 /* Terminal shoulders keep additional space rather than being cut off. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):not(.tab-actions-left):is(:last-child, .last-in-row) {
+	--modern-ui-tab-action-padding: calc(var(--vscode-spacing-size280) + var(--modern-ui-connected-tab-shoulder-radius) + var(--modern-ui-connected-tab-shoulder-radius));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-actions-left:is(:last-child, .last-in-row) {
+	padding-right: calc(var(--vscode-spacing-size80) + var(--modern-ui-connected-tab-shoulder-radius)) !important;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):not(.sticky-compact):not(.tab-actions-left):is(:last-child, .last-in-row) > .tab-actions {
+	right: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--modern-ui-connected-tab-shoulder-radius));
+}
+
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row):is(:last-child, .last-in-row) {
 	margin-right: var(--modern-ui-connected-tab-shoulder-radius);
 }

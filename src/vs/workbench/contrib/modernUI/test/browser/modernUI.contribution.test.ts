@@ -2468,10 +2468,12 @@ suite('ModernUIContribution', () => {
 		};
 
 		assert.deepStrictEqual({
+			rowPaddingTop: targetWindow.getComputedStyle(row).paddingTop,
 			upper: geometry(upperTab, upperFill),
 			inactiveBottom: geometry(inactiveBottomTab, inactiveBottomFill),
 			activeBottom: geometry(activeBottomTab, activeBottomFill),
 		}, {
+			rowPaddingTop: '0px',
 			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'] },
 			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'] },
 			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'] },
