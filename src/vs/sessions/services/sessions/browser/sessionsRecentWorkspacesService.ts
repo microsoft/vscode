@@ -24,6 +24,7 @@ import { isRecentFolder, IRecentWorkspace as IRecentWorkspaceFile, isStoredWorks
 import { ISessionWorkspace } from '../common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { WorkspaceHistoryLoadState } from '../../../common/workspaceSelection.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';
@@ -137,7 +138,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	getRecentWorkspaces(includeVSCodeRecents = true, collapseWorktrees = false): IRecentWorkspace[] {
-		const storedOwn = this._getStoredRecentWorkspaces();
+		const storedOwn = this._getStoredRecentWorkspaces().map(entry => this._canonicalizeStoredRecentWorkspace(entry));
 		if (!includeVSCodeRecents) {
 			return this._resolveStored(storedOwn, 'agents');
 		}
@@ -166,6 +167,15 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			.flatMap(entry => this._resolveStored([{ uri: entry.folderUri.toJSON(), checked: false }], entry.source));
 
 		return [...this._resolveStored(own, 'agents'), ...vsCode];
+	}
+
+	private _canonicalizeStoredRecentWorkspace(entry: IStoredRecentWorkspace): IStoredRecentWorkspace {
+		const provider = entry.providerId ? this.sessionsProvidersService.getProvider(entry.providerId) : undefined;
+		if (!provider || !isAgentHostProvider(provider) || !provider.devContainerSourceWorkspaceUri) {
+			return entry;
+		}
+		const source = this._resolveWorkspace(provider.devContainerSourceWorkspaceUri);
+		return source ? { ...entry, uri: source.workspace.uri.toJSON(), providerId: source.providerId } : entry;
 	}
 
 	private _resolveStored(stored: readonly IStoredRecentWorkspace[], source: IRecentWorkspace['source']): IRecentWorkspace[] {

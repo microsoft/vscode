@@ -103,6 +103,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 * one entry for the whole group instead of one per connection. See {@link IAgentHostGroup}.
 	 */
 	readonly hostGroup?: IAgentHostGroup;
+	/** Source workspace represented by this Dev Container provider. */
+	readonly devContainerSourceWorkspaceUri?: URI;
 	readonly devContainerWorktreeScope?: string;
 	/** Resolves the source host that owns this container's detached worktree handles. Defaults to the local host. */
 	readonly resolveDevContainerWorktreeConnection?: () => Promise<IAgentConnection>;
@@ -138,6 +140,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly remoteLocationPreferenceKey: string;
+	readonly devContainerSourceWorkspaceUri: URI | undefined;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
@@ -242,6 +245,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
+		this.devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			sessionSchemeAlias: this._sessionSchemeAlias,
 			defaultChangesetKind: this._defaultChangesetKind,
