@@ -665,40 +665,11 @@ suite('Sessions - Actions', () => {
 			activeChat: constObservable(mainChat),
 		});
 
-		test('renames the chat represented by a chat group header', async () => {
-			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-			const { session } = createTestSession('rename-header-chat');
-			const headerChat: IChat = {
-				...session.mainChat.get(),
-				resource: URI.parse('test-chat://header-chat'),
-				title: constObservable('Header Chat'),
-				status: constObservable(SessionStatus.Completed),
-			};
-			const activeSession = upcastPartial<IActiveSession>(session);
-			const renamedChats: string[] = [];
-			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-				override getSessionView(): SessionView {
-					return new class extends mock<SessionView>() {
-						override startChatTitleEditing(chatResource: URI): boolean {
-							renamedChats.push(chatResource.toString());
-							return true;
-						}
-					}();
-				}
-			});
-
-			const command = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID);
-			assert.ok(command);
-			await command.handler(instantiationService, activeSession, headerChat);
-
-			assert.deepStrictEqual(renamedChats, [headerChat.resource.toString()]);
-		});
-		const calls: string[] = [];
-		const closedGroups: string[] = [];
+		const operations: string[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
 			override async closeChat(_session: ISession, chat: IChat): Promise<void> {
-				calls.push(`close:${chat.resource.toString()}`);
+				operations.push(`close:${chat.resource.toString()}`);
 			}
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
@@ -709,7 +680,7 @@ suite('Sessions - Actions', () => {
 						return headerChat;
 					}
 					override closeChatGroup(chatResource: URI): Promise<boolean> {
-						closedGroups.push(chatResource.toString());
+						operations.push(`closeGroup:${chatResource.toString()}`);
 						return Promise.resolve(true);
 					}
 				}();
@@ -722,16 +693,42 @@ suite('Sessions - Actions', () => {
 		await command.handler(instantiationService, activeSession, tabChat);
 		await command.handler(instantiationService, activeSession, mainChat);
 
-		assert.deepStrictEqual({
-			calls,
-			closedGroups,
-		}, {
-			calls: [
-				`close:${headerChat.resource.toString()}`,
-				`close:${tabChat.resource.toString()}`,
-			],
-			closedGroups: [mainChat.resource.toString()],
+		assert.deepStrictEqual(operations, [
+			`closeGroup:${headerChat.resource.toString()}`,
+			`close:${headerChat.resource.toString()}`,
+			`closeGroup:${tabChat.resource.toString()}`,
+			`close:${tabChat.resource.toString()}`,
+			`closeGroup:${mainChat.resource.toString()}`,
+		]);
+	});
+
+	test('renames the chat represented by a chat group header', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('rename-header-chat');
+		const headerChat: IChat = {
+			...session.mainChat.get(),
+			resource: URI.parse('test-chat://header-chat'),
+			title: constObservable('Header Chat'),
+			status: constObservable(SessionStatus.Completed),
+		};
+		const activeSession = upcastPartial<IActiveSession>(session);
+		const renamedChats: string[] = [];
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(): SessionView {
+				return new class extends mock<SessionView>() {
+					override startChatTitleEditing(chatResource: URI): boolean {
+						renamedChats.push(chatResource.toString());
+						return true;
+					}
+				}();
+			}
 		});
+
+		const command = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService, activeSession, headerChat);
+
+		assert.deepStrictEqual(renamedChats, [headerChat.resource.toString()]);
 	});
 
 	test('pins the chat represented by a chat group header', async () => {
