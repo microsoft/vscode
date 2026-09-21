@@ -1054,11 +1054,15 @@ suite('AgentHostProtocolClient', () => {
 		const sessionUri = URI.parse('ahp-session:/test');
 		const chatUri = URI.parse('ahp-session:/test/chat-1');
 		const sourceUri = URI.parse('ahp-session:/test/chat-0');
+		const workingDirectory = toAgentHostUri(URI.file('/workspace'), agentHostAuthority('test.example:1234'));
 
-		test('forwards a fork source tagged with kind "fork"', async () => {
+		test('forwards a fork source and ignores its working directories', async () => {
 			const { client, transport } = createClient();
 
-			const resultPromise = client.createChat(sessionUri, chatUri, { fork: { source: sourceUri, turnId: 'turn-1' } });
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				fork: { source: sourceUri, turnId: 'turn-1' },
+				workingDirectories: [workingDirectory],
+			});
 
 			assert.deepStrictEqual(transport.sentMessages[0], {
 				jsonrpc: '2.0',
@@ -1075,11 +1079,14 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
-		test('forwards a side chat (`/btw`) source tagged with kind "sideChat"', async () => {
+		test('forwards a side chat source and maps its working directories', async () => {
 			const { client, transport } = createClient();
 
 			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
-			const resultPromise = client.createChat(sessionUri, chatUri, { sideChat: { source: sourceUri, turnId: 'turn-1', selection } });
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				sideChat: { source: sourceUri, turnId: 'turn-1', selection },
+				workingDirectories: [workingDirectory],
+			});
 
 			assert.deepStrictEqual(transport.sentMessages[0], {
 				jsonrpc: '2.0',
@@ -1088,7 +1095,28 @@ suite('AgentHostProtocolClient', () => {
 				params: {
 					channel: sessionUri.toString(),
 					chat: chatUri.toString(),
+					workingDirectories: [URI.file('/workspace').toString()],
 					source: { kind: ChatSourceKind.SideChat, chat: sourceUri.toString(), turnId: 'turn-1', selection },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('maps working directories without a source', async () => {
+			const { client, transport } = createClient();
+
+			const resultPromise = client.createChat(sessionUri, chatUri, { workingDirectories: [workingDirectory] });
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					workingDirectories: [URI.file('/workspace').toString()],
 				},
 			});
 

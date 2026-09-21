@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
@@ -26,7 +29,7 @@ import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessi
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
@@ -40,8 +43,8 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 suite('Sessions - Actions', () => {
@@ -291,7 +294,7 @@ suite('Sessions - Actions', () => {
 			chatsTitle: 'Side Chats',
 			chatsGroup: 'secondary/2_chats',
 			chatsOrder: 10,
-			chatsWhen: 'sessionHasSideChats && sessionIsCreated && !sessionIsArchived',
+			chatsWhen: 'sessionActiveChatHasSideChats && sessionIsCreated && !sessionIsArchived',
 			addChatGroup: 'secondary/3_newChat',
 			addChatOrder: 10,
 		});
@@ -357,28 +360,51 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('shows pinned sessions in the session toolbar navigation group', () => {
+	test('shows the pinned session or chat in the session toolbar navigation group', () => {
 		const pinItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.chatCompositeBar.togglePin')
-			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''))
-			.map(item => ({
-				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				group: item.group,
-				order: item.order,
-				when: item.when?.serialize(),
-			}));
+			.filter(item => item.command.id === TOGGLE_PIN_SESSION_COMMAND_ID || item.command.id === TOGGLE_PIN_CHAT_COMMAND_ID)
+			.sort((a, b) => `${a.command.id}:${a.group}`.localeCompare(`${b.command.id}:${b.group}`))
+			.map(item => {
+				const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
+				return {
+					id: item.command.id,
+					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+					group: item.group,
+					order: item.order,
+					when: item.when?.serialize(),
+					toggled: toggled?.serialize(),
+				};
+			});
 
 		assert.deepStrictEqual(pinItems, [{
+			id: TOGGLE_PIN_SESSION_COMMAND_ID,
 			title: 'Pin',
 			group: 'navigation',
 			order: 10,
-			when: 'sessionIsCreated && sessionIsSticky && !sessionIsArchived',
+			when: 'sessionIsCreated && sessionIsSticky && !sessionHeaderShowsChat && !sessionIsArchived',
+			toggled: 'sessionIsSticky',
 		}, {
+			id: TOGGLE_PIN_SESSION_COMMAND_ID,
 			title: 'Pin',
 			group: 'secondary/4_pin',
 			order: 10,
-			when: 'sessionIsCreated && !sessionIsArchived',
+			when: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived',
+			toggled: 'sessionIsSticky',
+		}, {
+			id: TOGGLE_PIN_CHAT_COMMAND_ID,
+			title: 'Pin',
+			group: 'navigation',
+			order: 10,
+			when: 'sessionHeaderActiveChatIsPinned && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+			toggled: 'sessionHeaderActiveChatIsPinned',
+		}, {
+			id: TOGGLE_PIN_CHAT_COMMAND_ID,
+			title: 'Pin',
+			group: 'secondary/4_pin',
+			order: 10,
+			when: 'sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+			toggled: 'sessionHeaderActiveChatIsPinned',
 		}]);
 	});
 
@@ -458,30 +484,343 @@ suite('Sessions - Actions', () => {
 	test('groups session toolbar actions with concise titles', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
-			.filter(item => ['sessions.chatCompositeBar.togglePin', 'sessions.chatCompositeBar.toggleMaximize', 'sessions.chatCompositeBar.close'].includes(item.command.id))
-			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.filter(item => [TOGGLE_PIN_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', CLOSE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID].includes(item.command.id))
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id))
 			.map(item => ({
+				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 				group: item.group,
 			}));
 
 		assert.deepStrictEqual(actions, [
-			{ title: 'Pin', group: 'navigation' },
-			{ title: 'Pin', group: 'secondary/4_pin' },
-			{ title: 'Maximize', group: 'secondary/4_pin' },
-			{ title: 'Close', group: 'secondary/4_pin' },
+			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'navigation' },
+			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
+			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
+			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
+			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
+			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
+			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 		]);
 	});
 
-	test('the Side Chats menu surfaces only side chats, not subagents or ordinary chats', () => {
+	test('uses mutually exclusive close actions for session and chat group headers', () => {
+		const getCloseWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === commandId)
+			?.when?.serialize();
+
+		assert.deepStrictEqual({
+			toolbar: {
+				chat: getCloseWhen(Menus.SessionBarToolbar, CLOSE_CHAT_COMMAND_ID),
+				session: getCloseWhen(Menus.SessionBarToolbar, CLOSE_SESSION_COMMAND_ID),
+			},
+			contextMenu: {
+				chat: getCloseWhen(Menus.SessionHeaderContext, CLOSE_CHAT_COMMAND_ID),
+				session: getCloseWhen(Menus.SessionHeaderContext, CLOSE_SESSION_COMMAND_ID),
+			},
+		}, {
+			toolbar: {
+				chat: 'sessionActiveChatIsClosable && sessionHeaderShowsChat',
+				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+			},
+			contextMenu: {
+				chat: 'sessionActiveChatIsClosable && sessionHeaderShowsChat',
+				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+			},
+		});
+
+		test('uses chat rename only for chat group headers', () => {
+			const getRenameWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
+				.filter(isIMenuItem)
+				.find(item => item.command.id === commandId)
+				?.when?.serialize();
+
+			assert.deepStrictEqual({
+				toolbar: {
+					chat: getRenameWhen(Menus.SessionBarToolbar, RENAME_CHAT_COMMAND_ID),
+					session: getRenameWhen(Menus.SessionBarToolbar, 'sessions.sessionHeader.rename'),
+				},
+				contextMenu: {
+					chat: getRenameWhen(Menus.SessionHeaderContext, RENAME_CHAT_COMMAND_ID),
+					session: getRenameWhen(Menus.SessionHeaderContext, 'sessions.sessionHeader.rename'),
+				},
+			}, {
+				toolbar: {
+					chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+					session: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived && sessionSupportsRename',
+				},
+				contextMenu: {
+					chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat',
+					session: 'sessionProviderId =~ /^(?:copilotcli|claude-agent|codex|copilotcloud|cloudagent|background|copilotcli-remote|agent-host):/ && !sessionHeaderShowsChat',
+				},
+			});
+		});
+	});
+
+	test('associates the close shortcut with the header close commands', () => {
+		const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Linux);
+		const closeKeybindingHash = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyW, OperatingSystem.Linux)?.getHashCode();
+		const sessionCloseBindings = bindings.filter(binding => binding.command === CLOSE_SESSION_COMMAND_ID);
+		const chatCloseBindings = bindings.filter(binding => binding.command === CLOSE_CHAT_COMMAND_ID);
+
+		assert.deepStrictEqual({
+			session: sessionCloseBindings.map(binding => ({
+				keybinding: binding.keybinding?.getHashCode(),
+				when: binding.when?.serialize().split(' && ').sort(),
+			})),
+			chat: chatCloseBindings.map(binding => binding.keybinding?.getHashCode()),
+			legacySessionClose: bindings.filter(binding => binding.command === 'sessionsViewPane.closeSession').length,
+		}, {
+			session: [{
+				keybinding: closeKeybindingHash,
+				when: ['!editorAreaFocus', '!isNewChatSession', 'isSessionsWindow', 'sessionsFocus'],
+			}],
+			chat: [closeKeybindingHash],
+			legacySessionClose: 0,
+		});
+	});
+
+	test('closes the active session when invoked from its keybinding', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('close-active-session');
+		const activeSession = upcastPartial<IActiveSession>(session);
+		const closedSessions: Array<IActiveSession | undefined> = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override closeSession(session: IActiveSession | undefined): void {
+				closedSessions.push(session);
+			}
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(): undefined {
+				return undefined;
+			}
+			override focusSession(): void { }
+		});
+
+		const command = CommandsRegistry.getCommand(CLOSE_SESSION_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService);
+
+		assert.deepStrictEqual(closedSessions, [activeSession]);
+	});
+
+	test('closes the active main chat group before the session when invoked from its keybinding', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('close-active-main-group');
+		const activeSession = upcastPartial<IActiveSession>(session);
+		let closeSessionCalls = 0;
+		const closedGroups: string[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override closeSession(): void {
+				closeSessionCalls++;
+			}
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(): SessionView {
+				return new class extends mock<SessionView>() {
+					override getActiveChat(): IChat {
+						return activeSession.mainChat.get();
+					}
+					override closeChatGroup(chatResource: URI): Promise<boolean> {
+						closedGroups.push(chatResource.toString());
+						return Promise.resolve(true);
+					}
+				}();
+			}
+			override focusSession(): void { }
+		});
+
+		const command = CommandsRegistry.getCommand(CLOSE_SESSION_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService);
+
+		assert.deepStrictEqual({
+			closeSessionCalls,
+			closedGroups,
+		}, {
+			closeSessionCalls: 0,
+			closedGroups: [activeSession.mainChat.get().resource.toString()],
+		});
+	});
+
+	test('closes the chat supplied by a tab or represented by a chat group header', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('close-header-chat');
+		const mainChat = session.mainChat.get();
+		const headerChat: IChat = {
+			...mainChat,
+			resource: URI.parse('test-chat://header-chat'),
+			title: constObservable('Header Chat'),
+			status: constObservable(SessionStatus.Completed),
+		};
+		const tabChat: IChat = {
+			...headerChat,
+			resource: URI.parse('test-chat://tab-chat'),
+			title: constObservable('Tab Chat'),
+		};
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			activeChat: constObservable(mainChat),
+		});
+
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async closeChat(_session: ISession, chat: IChat): Promise<void> {
+				operations.push(`close:${chat.resource.toString()}`);
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(): SessionView {
+				return new class extends mock<SessionView>() {
+					override getActiveChat(): IChat {
+						return headerChat;
+					}
+					override closeChatGroup(chatResource: URI): Promise<boolean> {
+						operations.push(`closeGroup:${chatResource.toString()}`);
+						return Promise.resolve(true);
+					}
+				}();
+			}
+		});
+
+		const command = CommandsRegistry.getCommand(CLOSE_CHAT_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService, activeSession);
+		await command.handler(instantiationService, activeSession, tabChat);
+		await command.handler(instantiationService, activeSession, mainChat);
+
+		assert.deepStrictEqual(operations, [
+			`closeGroup:${headerChat.resource.toString()}`,
+			`close:${headerChat.resource.toString()}`,
+			`closeGroup:${tabChat.resource.toString()}`,
+			`close:${tabChat.resource.toString()}`,
+			`closeGroup:${mainChat.resource.toString()}`,
+		]);
+	});
+
+	for (const scenario of [
+		{ name: 'succeeds', deleteResult: true, expectedOperations: ['delete', 'closeGroup'] },
+		{ name: 'is a no-op', deleteResult: false, expectedOperations: ['delete'] },
+		{ name: 'fails', deleteResult: new Error('delete failed'), expectedOperations: ['delete'] },
+	] as const) {
+		test(`removes an untitled chat group only when deletion ${scenario.name}`, async () => {
+			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			const { session } = createTestSession(`close-untitled-${scenario.name}`);
+			const untitledChat: IChat = {
+				...session.mainChat.get(),
+				resource: URI.parse('test-chat://untitled'),
+				title: constObservable('Untitled Chat'),
+				status: constObservable(SessionStatus.Untitled),
+			};
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				activeChat: constObservable(untitledChat),
+			});
+			const operations: string[] = [];
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(activeSession);
+			});
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override async deleteChat(): Promise<boolean> {
+					operations.push('delete');
+					if (scenario.deleteResult instanceof Error) {
+						throw scenario.deleteResult;
+					}
+					return scenario.deleteResult;
+				}
+			});
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getSessionView(): SessionView {
+					return new class extends mock<SessionView>() {
+						override closeChatGroup(): Promise<boolean> {
+							operations.push('closeGroup');
+							return Promise.resolve(true);
+						}
+					}();
+				}
+			});
+
+			const command = CommandsRegistry.getCommand(CLOSE_CHAT_COMMAND_ID);
+			assert.ok(command);
+			if (scenario.deleteResult instanceof Error) {
+				await assert.rejects(async () => command.handler(instantiationService, activeSession, untitledChat), /delete failed/);
+			} else {
+				await command.handler(instantiationService, activeSession, untitledChat);
+			}
+
+			assert.deepStrictEqual(operations, scenario.expectedOperations);
+		});
+	}
+
+	test('renames the chat represented by a chat group header', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('rename-header-chat');
+		const headerChat: IChat = {
+			...session.mainChat.get(),
+			resource: URI.parse('test-chat://header-chat'),
+			title: constObservable('Header Chat'),
+			status: constObservable(SessionStatus.Completed),
+		};
+		const activeSession = upcastPartial<IActiveSession>(session);
+		const renamedChats: string[] = [];
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(): SessionView {
+				return new class extends mock<SessionView>() {
+					override startChatTitleEditing(chatResource: URI): boolean {
+						renamedChats.push(chatResource.toString());
+						return true;
+					}
+				}();
+			}
+		});
+
+		const command = CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService, activeSession, headerChat);
+
+		assert.deepStrictEqual(renamedChats, [headerChat.resource.toString()]);
+	});
+
+	test('pins the chat represented by a chat group header', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('pin-header-chat');
+		const activeSession = upcastPartial<IActiveSession>(session);
+		let toggleCalls = 0;
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionView(): SessionView {
+				return new class extends mock<SessionView>() {
+					override toggleActiveChatPin(): void {
+						toggleCalls++;
+					}
+				}();
+			}
+		});
+
+		const command = CommandsRegistry.getCommand(TOGGLE_PIN_CHAT_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService, activeSession);
+
+		assert.strictEqual(toggleCalls, 1);
+	});
+
+	test('the Side Chats menu surfaces only side chats belonging to the represented chat', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('Session');
 		const completed = constObservable(SessionStatus.Completed);
 		const mainChat: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat://main'), title: constObservable('Main chat'), status: completed, origin: undefined };
 		const peerChat: IChat = { ...mainChat, resource: URI.parse('test-chat://peer'), title: constObservable('Peer chat'), origin: { kind: ChatOriginKind.User } };
-		const sideChat: IChat = { ...mainChat, resource: URI.parse('test-chat://side'), title: constObservable('Side chat'), origin: { kind: ChatOriginKind.SideChat } };
+		const mainSideChat: IChat = { ...mainChat, resource: URI.parse('test-chat://main-side'), title: constObservable('Main side chat'), origin: { kind: ChatOriginKind.SideChat, parentChat: mainChat.resource } };
+		const peerSideChat: IChat = { ...mainChat, resource: URI.parse('test-chat://peer-side'), title: constObservable('Peer side chat'), origin: { kind: ChatOriginKind.SideChat, parentChat: peerChat.resource } };
+		const orphanSideChat: IChat = { ...mainChat, resource: URI.parse('test-chat://orphan-side'), title: constObservable('Orphan side chat'), origin: { kind: ChatOriginKind.SideChat } };
 		const subagentChat: IChat = { ...mainChat, resource: URI.parse('test-chat://subagent'), title: constObservable('Subagent chat'), origin: { kind: ChatOriginKind.Tool, parentChat: mainChat.resource } };
-		const allChats = [mainChat, peerChat, sideChat, subagentChat];
+		const allChats = [mainChat, peerChat, mainSideChat, peerSideChat, orphanSideChat, subagentChat];
 
 		const activeSession = upcastPartial<IActiveSession>({
 			...session,
@@ -499,15 +838,35 @@ suite('Sessions - Actions', () => {
 
 		const registered = MenuRegistry.getMenuItems(Menus.SessionConversations)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`))
-			.map(item => ({
+			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`));
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		SessionIdContext.bindTo(contextKeyService).set(session.sessionId);
+		SessionIsCreatedContext.bindTo(contextKeyService).set(true);
+		SessionIsArchivedContext.bindTo(contextKeyService).set(false);
+		SessionActiveChatHasSideChatsContext.bindTo(contextKeyService).set(true);
+		const activeChatResource = SessionActiveChatResourceContext.bindTo(contextKeyService);
+		const visibleTitles = (chat: IChat) => {
+			activeChatResource.set(chat.resource.toString());
+			return registered
+				.filter(item => contextKeyService.contextMatchesRules(item.when))
+				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		};
+
+		assert.deepStrictEqual({
+			registered: registered.map(item => ({
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 				group: item.group,
-			}));
-
-		assert.deepStrictEqual(registered, [
-			{ title: 'Side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
-		]);
+			})),
+			forMain: visibleTitles(mainChat),
+			forPeer: visibleTitles(peerChat),
+		}, {
+			registered: [
+				{ title: 'Main side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
+				{ title: 'Peer side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
+			],
+			forMain: ['Main side chat'],
+			forPeer: ['Peer side chat'],
+		});
 	});
 
 	test('does not register a separate New Session to the Side command or shortcut', () => {

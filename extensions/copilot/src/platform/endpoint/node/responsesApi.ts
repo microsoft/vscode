@@ -606,7 +606,7 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Resp
 		case Raw.ChatCompletionContentPartKind.Opaque: {
 			const maybeCast = part.value as ResponsesConvertibleContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
-				return maybeCast;
+				return { ...maybeCast };
 			}
 		}
 	}

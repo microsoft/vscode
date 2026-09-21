@@ -66,14 +66,6 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 });
 
-KeybindingsRegistry.registerKeybindingRule({
-	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.SessionsContrib,
-	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
-});
-
 //  Open Session at Index (Ctrl/Cmd+1..9)
 
 const OPEN_SESSION_AT_INDEX_COMMAND_ID = 'sessionsViewPane.openSessionAtIndex';
@@ -632,13 +624,12 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
 				order: 1,
-				// Not on Done itself, the "Chats" section, or shortcut entries.
+				// Not on Done itself, and not on the "Chats" (quick chats) section.
+				// Also not on Automations.
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
-					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'newSession'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
-					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'customizations'),
 				),
 			}]
 		});

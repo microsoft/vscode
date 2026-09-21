@@ -65,6 +65,8 @@ Drafts expose the shared untitled `ISession` contract and use remote workspace m
 
 Remote session and chat resources preserve connection-specific routing identity through creation, hydration, and replacement. Backend session identifiers are translated only inside the provider.
 
+For cloud sandbox sessions, archive and unarchive update the client session cache without requiring a live host. Host refreshes preserve the cached archive flag; cross-client archive synchronization is not yet supported.
+
 ### Repository-backed session creation
 
 A repository selection is intent, not a host filesystem directory. Hosts advertise preparation through `InitializeResult.repositoryPreparation`, with `revision: true` for explicit revisions and `multipleRepositories: true` for more than one source. An empty capability supports one source at its default revision. The client passes a typed `repositories` list of `{ source, revision? }` objects on session creation and configuration queries, separate from `config` and working directories. A supplied list must be nonempty; multiple entries require explicit host support and are never silently truncated. Omitting the list preserves directory-based creation.

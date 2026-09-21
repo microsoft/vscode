@@ -108,10 +108,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
-	for (const { configuredValue, expectedConversation, expectedListAction } of [
-		{ configuredValue: undefined, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab' },
-		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab' },
-		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view' },
+	for (const { configuredValue, expectedConversation, expectedListAction, expectedGroupCloseHelp } of [
+		{ configuredValue: undefined, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab', expectedGroupCloseHelp: false },
+		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab', expectedGroupCloseHelp: false },
+		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true },
 	]) {
 		test(`describes sessions list chat presentation when the setting is ${configuredValue ?? 'default'}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -129,10 +129,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 				conversationDescription: content.some(line => line.includes(expectedConversation)),
 				menuAvailability: content.some(line => line.includes(`For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to ${expectedConversation}.`)),
 				sessionListAction: content.some(line => line.includes(expectedListAction)),
+				pinHelp: content.some(line => line.includes('Pin keeps that chat visible when another chat opens')),
+				groupCloseHelp: content.some(line => line.includes('Close removes that chat group')),
+				lastGroupCloseHelp: content.some(line => line.includes('Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later.')),
 			}, {
 				conversationDescription: true,
 				menuAvailability: true,
 				sessionListAction: true,
+				pinHelp: expectedGroupCloseHelp,
+				groupCloseHelp: expectedGroupCloseHelp,
+				lastGroupCloseHelp: expectedGroupCloseHelp,
 			});
 		});
 	}
