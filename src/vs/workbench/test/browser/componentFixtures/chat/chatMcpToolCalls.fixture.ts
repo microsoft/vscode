@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallRunningState } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { completedToolCallToSerialized, toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { completedToolCallToSerialized, toolCallStateToInvocation, toolCallStateToStreamingInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatProgressAnimation, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { renderChatWidget } from './chatWidget.fixture.js';
@@ -51,7 +51,7 @@ const mixedCalls = [
 	},
 ];
 
-function render(context: ComponentFixtureContext, calls: typeof mixedCalls, persistentProgress = false): Promise<void> {
+function render(context: ComponentFixtureContext, calls: typeof mixedCalls, progress?: 'running' | 'streaming'): Promise<void> {
 	return renderChatWidget(context, {
 		width: 640,
 		height: 540,
@@ -59,7 +59,7 @@ function render(context: ComponentFixtureContext, calls: typeof mixedCalls, pers
 		inputVisible: false,
 		agentHostSession: true,
 		collapseCompletedResponses: false,
-		persistentProgress: persistentProgress ? ChatProgressAnimation.Weave : undefined,
+		persistentProgress: progress ? ChatProgressAnimation.Weave : undefined,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
 		messages: [{ user: 'Investigate the issue and check the related tools and documentation.', responseComplete: false }],
 		onRendered: ({ model }) => {
@@ -76,17 +76,26 @@ function render(context: ComponentFixtureContext, calls: typeof mixedCalls, pers
 					contributor: { kind: ToolCallContributorKind.MCP, customizationId: call.serverName },
 					_meta: { mcpServerName: call.serverName, mcpToolName: call.toolName },
 				};
-				model.acceptResponseProgress(request, persistentProgress && index === calls.length - 1
-					? toolCallStateToInvocation(toolCall, undefined, model.sessionResource, 'local')
-					: completedToolCallToSerialized({
+				if (progress && index === calls.length - 1) {
+					const invocation = progress === 'streaming'
+						? toolCallStateToStreamingInvocation({
+							...toolCall,
+							status: ToolCallStatus.Streaming,
+							partialInput: JSON.stringify(call.input),
+						}, undefined, model.sessionResource, 'local')
+						: toolCallStateToInvocation(toolCall, undefined, model.sessionResource, 'local');
+					model.acceptResponseProgress(request, invocation);
+				} else {
+					model.acceptResponseProgress(request, completedToolCallToSerialized({
 						...toolCall,
 						status: ToolCallStatus.Completed,
 						pastTenseMessage: call.title,
 						success: true,
 						content: [{ type: ToolResultContentType.Text, text: call.output }],
 					}, undefined, model.sessionResource, 'local'));
+				}
 			}
-			if (!persistentProgress) {
+			if (!progress) {
 				request.response?.complete();
 			}
 		},
@@ -104,6 +113,10 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	}),
 	PersistentProgress: defineComponentFixture({
 		labels: { kind: 'animated' },
-		render: context => render(context, mixedCalls, true),
+		render: context => render(context, mixedCalls, 'running'),
+	}),
+	StreamingProgress: defineComponentFixture({
+		labels: { kind: 'animated' },
+		render: context => render(context, mixedCalls, 'streaming'),
 	}),
 });

@@ -436,6 +436,8 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 			}
 			case 'toolInvocation': {
 				const state = part.state.get();
+				const invocationMessage = renderChatMessageAsPlaintext(part.invocationMessage);
+				const originMessage = part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
 					const title = renderChatMessageAsPlaintext(state.confirmationMessages.title);
 					const message = state.confirmationMessages.message ? renderChatMessageAsPlaintext(state.confirmationMessages.message) : '';
@@ -444,32 +446,34 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					if (toolDataDesc) {
 						toolContent += `: ${toolDataDesc}`;
 					}
-					if (part.originMessage) {
-						toolContent += `\n${renderChatMessageAsPlaintext(part.originMessage)}`;
+					if (originMessage) {
+						toolContent += `\n${originMessage}`;
 					}
 					if (message) {
 						toolContent += `\n${message}`;
 					}
 					contentParts.push({ partIndex, text: toolContent });
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
-					contentParts.push({ partIndex, text: localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, part.toolId) });
+					const message = localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, invocationMessage);
+					contentParts.push({ partIndex, text: [message, originMessage].filter(Boolean).join('\n') });
 				} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
 						? state.resultDetails.input
 						: isToolResultOutputDetails(state.resultDetails)
 							? undefined
 							: toolContentToA11yString(state.contentForModel);
-					contentParts.push({ partIndex, text: localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", part.toolId) + (postApprovalDetails ?? '') });
+					const message = localize('toolPostApprovalA11yView', "Approve results of {0}? Result: ", invocationMessage) + (postApprovalDetails ?? '');
+					contentParts.push({ partIndex, text: [message, originMessage].filter(Boolean).join('\n') });
 				} else {
 					const resultDetails = IChatToolInvocation.resultDetails(part);
 					const isComplete = IChatToolInvocation.isComplete(part);
 					const description = getToolInvocationA11yDescription(
-						renderChatMessageAsPlaintext(part.invocationMessage),
+						invocationMessage,
 						part.pastTenseMessage ? renderChatMessageAsPlaintext(part.pastTenseMessage) : undefined,
 						part.toolSpecificData,
 						resultDetails,
 						isComplete,
-						part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined,
+						originMessage,
 					);
 					if (description) {
 						contentParts.push({ partIndex, text: description });
