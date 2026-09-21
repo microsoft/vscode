@@ -4890,6 +4890,16 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.executionSubagent.turnWisePrompting": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.executionSubagent.turnWisePrompting%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.summarizeAgentConversationHistoryThreshold": {
             "type": [
               "number",
