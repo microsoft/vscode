@@ -47,11 +47,19 @@
 
 .agent-finder-widget .agent-finder-search > .monaco-inputbox {
 	width: 100%;
+	min-height: 26px;
 }
 
 .agent-finder-widget .agent-finder-type-filter {
 	flex: 0 1 180px;
 	min-width: 0;
+}
+
+.agent-finder-widget .agent-finder-type-filter .monaco-select-box {
+	box-sizing: border-box;
+	min-height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	font: inherit;
 }
 
 .agent-finder-widget .agent-finder-controls > .monaco-button,

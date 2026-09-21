@@ -1421,6 +1421,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const finder = ctx.container.querySelector<HTMLElement>('.agent-finder-widget');
 		assert(finder !== null && finder.style.display !== 'none', 'The AgentFinder section must be visible.');
 		assert(finder.querySelectorAll('img').length === 0, 'AgentFinder fixtures must not request remote images.');
+		const search = finder.querySelector<HTMLElement>('.agent-finder-search .monaco-inputbox');
+		const filter = finder.querySelector<HTMLElement>('.agent-finder-type-filter .monaco-select-box');
+		const refresh = finder.querySelector<HTMLElement>('.agent-finder-controls > .monaco-button');
+		assert(search && filter && refresh, 'The AgentFinder toolbar must provide all three controls.');
+		const refreshBounds = refresh.getBoundingClientRect();
+		assert(refreshBounds.height > 0 && [search, filter].every(control => Math.abs(control.getBoundingClientRect().height - refreshBounds.height) < 1), 'AgentFinder controls must share the same height.');
+		assert(Math.abs(filter.getBoundingClientRect().top - refreshBounds.top) < 1, 'The resource filter must align with the Refresh button when the toolbar wraps.');
 		if (!options.agentFinderState || options.agentFinderState === 'ready') {
 			assert(finder.querySelectorAll('.agent-finder-card').length === agentFinderResources.length, 'The catalog must render deterministic mock resources.');
 		}
