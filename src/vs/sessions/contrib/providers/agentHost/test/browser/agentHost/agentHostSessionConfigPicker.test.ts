@@ -22,7 +22,7 @@ import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../..
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -35,7 +35,7 @@ import { IView } from '../../../../../../../workbench/common/views.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
-import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../../browser/menus.js';
+import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
@@ -47,6 +47,7 @@ import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace,
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -253,9 +254,11 @@ function setupServices(
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
-	}));
+	});
+	store.add(configurationService.onDidChangeConfigurationEmitter);
+	instantiationService.stub(IConfigurationService, configurationService);
 	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
 	instantiationService.stub(IDialogService, {
 		prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
@@ -333,7 +336,7 @@ function setupServices(
 		override readonly changesets = changesetsObs;
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs };
+	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -385,7 +388,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('contributes one repository toolbar action per renderable property', () => {
+	test('contributes repository toolbar actions in the configured layout order', async () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
@@ -399,27 +402,30 @@ suite('Agent Host Session Config Picker', () => {
 		}());
 		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
 
-		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+		const getEntries = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
-			.map(item => ({
-				id: item.command.id,
-				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				group: item.group,
-				order: item.order,
-			}));
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const orders = [getEntries()];
+		const setSetting = async (setting: string, value: boolean) => {
+			await services.configurationService.setUserConfiguration(setting, value);
+			services.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === setting;
+				}
+			}());
+			orders.push(getEntries());
+		};
+		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, true);
+		await setSetting(UNIFIED_WORKSPACE_PICKER_SETTING, true);
+		await setSetting(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, false);
 
-		assert.deepStrictEqual(entries, [{
-			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`,
-			title: 'Base Branch',
-			group: getNewSessionRepositoryConfigGroup(1, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`),
-			order: 1,
-		}, {
-			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`,
-			title: 'Isolation',
-			group: getNewSessionRepositoryConfigGroup(2, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`),
-			order: 2,
-		}]);
+		assert.deepStrictEqual(orders, [
+			['Isolation', 'Base Branch'],
+			['Isolation', 'Base Branch'],
+			['Base Branch', 'Isolation'],
+			['Isolation', 'Base Branch'],
+		]);
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {

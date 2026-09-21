@@ -41,15 +41,22 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent().includes('open and focus the workspace picker');
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.split('\n')
+				.find(line => line.includes('open and focus the workspace picker'));
 		};
+		const enabledHelp = getPickerHelp(true);
 
 		assert.deepStrictEqual({
-			disabled: getPickerHelp(false),
-			enabled: getPickerHelp(true),
+			disabled: getPickerHelp(false) !== undefined,
+			enabled: enabledHelp !== undefined,
+			contextMenuKeybinding: enabledHelp?.includes('<keybinding:editor.action.showContextMenu>'),
+			mouseOnly: enabledHelp?.includes('Right-click'),
 		}, {
 			disabled: false,
 			enabled: true,
+			contextMenuKeybinding: true,
+			mouseOnly: false,
 		});
 	});
 
