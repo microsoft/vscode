@@ -469,6 +469,9 @@ function makeLocalMcpServer(id: string, label: string, scope: LocalMcpServerScop
 		override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
 			override readonly id = id;
 			override readonly scope = scope;
+			override readonly mcpResource = scope === LocalMcpServerScope.Workspace
+				? URI.file('/workspace/.vscode/mcp.json')
+				: URI.file('/home/dev/.config/Code/User/mcp.json');
 		}();
 	}();
 }
@@ -2048,7 +2051,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with no Featured section.'],
+		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with full configuration paths beneath installed server names and no Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,

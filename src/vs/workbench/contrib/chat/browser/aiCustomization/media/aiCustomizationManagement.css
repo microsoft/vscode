@@ -2527,6 +2527,16 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
+.mcp-server-item .mcp-server-source-path {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 14px;
+}
+
 .mcp-server-item.has-error {
 	align-items: flex-start;
 	padding-top: var(--vscode-spacing-size120);
