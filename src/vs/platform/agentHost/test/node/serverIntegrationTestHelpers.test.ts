@@ -8,16 +8,54 @@ import { spawn } from 'child_process';
 import { once } from 'events';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { Promises, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, Promises, raceTimeout } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { stopServer } from './serverIntegrationTestHelpers.js';
+import { killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
 suite('Agent Host test server cleanup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a stalled descendant snapshot still sends EOF and reaches forced shutdown', async function () {
+		this.timeout(15_000);
+		const server = spawn(process.execPath, ['-e', `
+			process.stdin.resume();
+			process.stdout.write('ready');
+			setTimeout(() => process.exit(99), 30000);
+		`], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		const snapshot = new DeferredPromise<number[]>();
+		let stopped: Promise<Error | undefined> | undefined;
+		try {
+			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
+			stopped = stopServer({ process: server, port: 0 }, () => snapshot.p, 0).then(
+				() => undefined,
+				(error: Error) => error,
+			);
+			const error = await raceTimeout(stopped, 5_000);
+			assert.deepStrictEqual({
+				message: error?.message,
+				cause: error?.cause instanceof Error ? error.cause.message : undefined,
+				eof: server.stdin.writableEnded,
+				exited: server.exitCode !== null || server.signalCode !== null,
+			}, {
+				message: 'Failed to capture Agent Host test server descendants',
+				cause: 'Timed out capturing Agent Host test server descendants',
+				eof: true,
+				exited: true,
+			});
+		} finally {
+			snapshot.complete([]);
+			await stopped;
+			await killServer({ process: server, port: 0 });
+		}
+	});
 
 	(isWindows ? test : test.skip)('stops owned descendants after the server exits gracefully', async function () {
 		this.timeout(30_000);

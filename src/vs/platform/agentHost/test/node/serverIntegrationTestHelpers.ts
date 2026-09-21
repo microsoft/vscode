@@ -664,13 +664,23 @@ export interface IServerHandle {
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 
+async function getServerDescendants(pid: number): Promise<number[]> {
+	if (!isWindows) {
+		return [];
+	}
+	// Once the parent exits, taskkill /T can no longer discover its descendants.
+	const { getProcessList } = await import('@vscode/windows-process-tree');
+	return (await promisify(getProcessList)(pid)).filter(process => process.pid !== pid).map(process => process.pid);
+}
+
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
-export async function stopServer(server: IServerHandle | undefined): Promise<void> {
+export async function stopServer(server: IServerHandle | undefined, getDescendants = getServerDescendants, timeoutMs = SERVER_SHUTDOWN_TIMEOUT_MS): Promise<void> {
 	const serverProcess = server?.process;
 	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
 		return;
 	}
 
+	const deadline = Date.now() + timeoutMs;
 	const serverExit = new Promise<void>(resolve => {
 		const onExit = () => resolve();
 		serverProcess.once('exit', onExit);
@@ -682,17 +692,18 @@ export async function stopServer(server: IServerHandle | undefined): Promise<voi
 	let descendants: number[] = [];
 	let snapshotError: Error | undefined;
 	try {
-		if (isWindows && serverProcess.pid !== undefined) {
-			// Once the parent exits, taskkill /T can no longer discover its descendants.
-			const { getProcessList } = await import('@vscode/windows-process-tree');
-			descendants = (await promisify(getProcessList)(serverProcess.pid))
-				.filter(process => process.pid !== serverProcess.pid).map(process => process.pid);
+		if (serverProcess.pid !== undefined) {
+			const snapshot = await raceTimeout(getDescendants(serverProcess.pid), Math.max(0, deadline - Date.now()));
+			if (snapshot === undefined) {
+				throw new Error('Timed out capturing Agent Host test server descendants');
+			}
+			descendants = snapshot;
 		}
 	} catch (error) {
 		snapshotError = new Error('Failed to capture Agent Host test server descendants', { cause: error });
 	}
 	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+	if (!await raceTimeout(serverExit.then(() => true), Math.max(0, deadline - Date.now()))) {
 		try {
 			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
 				const pid = serverProcess.pid;
