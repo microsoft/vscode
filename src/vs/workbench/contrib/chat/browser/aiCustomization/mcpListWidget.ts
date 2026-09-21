@@ -1861,10 +1861,15 @@ export class McpListWidget extends Disposable {
 			if (entry.type === 'session-server-item' || !entry.localServer) {
 				return undefined;
 			}
-			if (isContributionDisabled(entry.localServer.enablement.read(reader))) {
+			const runtimeServers = this.mcpService.servers.read(reader);
+			const matchKeys = entry.type === 'server-item'
+				? getWorkbenchServerMatchKeys(entry.server)
+				: getRuntimeServerMatchKeys(entry.localServer);
+			const localServer = new LocalMcpServerMatcher(runtimeServers).find(matchKeys);
+			if (!localServer || isContributionDisabled(localServer.enablement.read(reader))) {
 				return undefined;
 			}
-			const connectionState = entry.localServer.connectionState.read(reader);
+			const connectionState = localServer.connectionState.read(reader);
 			return getMcpErrorMessage(connectionState.state, connectionState.state === McpConnectionState.Kind.Error ? connectionState.message : undefined);
 		}));
 	}

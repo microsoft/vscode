@@ -3663,6 +3663,22 @@ per-word capitalization does not survive translation. */
 	font-family: var(--monaco-monospace-font);
 }
 
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:hover,
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
 .ai-customization-management-editor .editor-save-indicator {
 	flex-shrink: 0;
 	width: 16px;

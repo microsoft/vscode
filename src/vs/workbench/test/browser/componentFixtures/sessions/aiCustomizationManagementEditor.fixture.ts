@@ -18,6 +18,7 @@ import { constObservable, derived, IObservable, observableValue } from '../../..
 import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -73,7 +74,7 @@ import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/p
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
+import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
@@ -1837,8 +1838,10 @@ function renderEmbeddedMcpDetail(
 		readonly height?: number;
 		readonly harnessLabel?: string;
 		readonly compatibility?: ICustomizationMcpServerCompatibility;
+		readonly compatibilityResolved?: boolean;
 		readonly error?: string;
 		readonly migratable?: boolean;
+		readonly source?: IMcpServerDetailInput['source'];
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -1855,7 +1858,7 @@ function renderEmbeddedMcpDetail(
 		mcpServerCompatibilityProvider: compatibility ? {
 			acquire: () => ({
 				servers: constObservable([compatibility]),
-				isResolved: constObservable(true),
+				isResolved: constObservable(options.compatibilityResolved ?? true),
 				dispose() { },
 			}),
 		} : undefined,
@@ -1872,6 +1875,9 @@ function renderEmbeddedMcpDetail(
 				override async open() { /* no-op in fixture */ }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor() { return undefined; }
+			}());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(URI.from({ scheme: harnessId, path: '/fixture-session' }), [harnessDescriptor]));
 		},
 	});
@@ -1886,10 +1892,12 @@ function renderEmbeddedMcpDetail(
 		openMigrationPage: () => { },
 	}));
 	if (server) {
+		const input = createWorkbenchMcpServerDetailInput(server);
 		detail.setInput({
-			...createWorkbenchMcpServerDetailInput(server),
+			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
+			source: options.source ?? input.source,
 		});
 	}
 }
@@ -2670,6 +2678,25 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		})),
 	}),
 
+	EmbeddedMcpDetailSourceLink: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The MCP detail header shows mcp.json as a themed source link above the configuration.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access for the active workspace', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+			}),
+			{
+				source: {
+					uri: URI.file('/workspace/.vscode/mcp.json'),
+					range: new Range(3, 3, 10, 4),
+				},
+			},
+		),
+	}),
+
 	// Standalone embedded MCP detail widget with a user HTTP definition.
 	EmbeddedMcpDetailUser: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -2725,6 +2752,47 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 						'Per-server sandbox settings are not supported by the Copilot harness.\nRemove the server sandbox setting to use the MCP server.',
 					],
 				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailSupportUnknown: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A yellow compatibility card explains that support could not be determined because the server definition has not loaded, followed by an actionable refresh suggestion.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('component-explorer', 'component-explorer', LocalMcpServerScope.Workspace, 'Component fixtures', {
+				type: McpServerType.LOCAL,
+				command: 'npm',
+			}),
+			{
+				width: 800,
+				height: 560,
+				harnessLabel: 'Copilot',
+				compatibility: {
+					id: 'component-explorer',
+					kind: 'unknown',
+					details: ['Compatibility cannot be determined because the server definition has not loaded.\nWait for MCP discovery to finish, then refresh this view.'],
+				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailCheckingCompatibility: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A neutral compatibility card with a loading icon says Checking compatibility with Copilot instead of showing a clean diagnostics state.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('component-explorer', 'component-explorer', LocalMcpServerScope.Workspace, 'Component fixtures', {
+				type: McpServerType.LOCAL,
+				command: 'npm',
+			}),
+			{
+				width: 800,
+				height: 560,
+				harnessLabel: 'Copilot',
+				compatibility: { id: 'component-explorer', kind: 'supported' },
+				compatibilityResolved: false,
 			},
 		),
 	}),

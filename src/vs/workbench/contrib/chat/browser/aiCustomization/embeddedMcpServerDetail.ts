@@ -21,6 +21,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 
@@ -81,7 +82,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly headerEl: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
-	private readonly pathEl: HTMLElement;
+	private readonly pathEl: HTMLAnchorElement;
 	private readonly bodyEl: HTMLElement;
 	private readonly diagnosticsEmpty: HTMLElement;
 	private readonly definitionEditorContainer: HTMLElement;
@@ -111,6 +112,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		super();
@@ -121,7 +123,18 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
 		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
 		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
-		this.pathEl = DOM.append(headerText, $('.editor-item-path'));
+		this.pathEl = DOM.append(headerText, $('a.editor-item-path')) as HTMLAnchorElement;
+		this._register(DOM.addDisposableListener(this.pathEl, DOM.EventType.CLICK, event => {
+			const source = this.current?.source;
+			if (!source) {
+				return;
+			}
+			event.preventDefault();
+			void this.editorService.openEditor({
+				resource: source.uri,
+				options: { selection: source.range, pinned: true },
+			});
+		}));
 
 		this.bodyEl = DOM.append(this.root, $('.mcp-detail-body'));
 		const diagnostics = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
@@ -210,13 +223,25 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!server) {
 			this.nameEl.textContent = '';
 			this.pathEl.textContent = '';
+			this.pathEl.removeAttribute('href');
+			this.pathEl.removeAttribute('aria-label');
+			this.pathEl.classList.remove('source-link');
 			this.setDefinition(undefined);
 			this.definitionEmptyEl.style.display = 'none';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
-		this.pathEl.textContent = server.source ? basename(server.source.uri) : 'mcp.json';
+		const sourceLabel = server.source ? basename(server.source.uri) : 'mcp.json';
+		this.pathEl.textContent = sourceLabel;
+		this.pathEl.classList.toggle('source-link', !!server.source);
+		if (server.source) {
+			this.pathEl.href = '#';
+			this.pathEl.setAttribute('aria-label', localize('openMcpServerSource', "Open {0}", sourceLabel));
+		} else {
+			this.pathEl.removeAttribute('href');
+			this.pathEl.removeAttribute('aria-label');
+		}
 		if (server.installState !== McpServerInstallState.Installed) {
 			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
 		} else if (server.config) {
@@ -282,11 +307,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private createDiagnosticSection(parent: HTMLElement): IMcpDiagnosticSection {
 		const section = DOM.append(parent, $('section.mcp-detail-diagnostic-section'));
 		const card = DOM.append(section, $('.mcp-detail-diagnostic-card'));
-		card.setAttribute('aria-live', 'polite');
 		const header = DOM.append(card, $('.mcp-detail-diagnostic-header'));
 		const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 		const summary = DOM.append(header, $('.mcp-detail-diagnostic-summary'));
+		summary.setAttribute('aria-live', 'polite');
 		const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
 		return { section, card, icon, summary, details };
 	}
@@ -330,7 +355,13 @@ export class EmbeddedMcpServerDetail extends Disposable {
 				this.updateDiagnosticSection(this.compatibilitySection, 'error', Codicon.error, localize('mcpUnsupportedByHarness', "Not supported by {0}", this.harnessLabel), state.details);
 				break;
 			case 'unknown':
+				this.compatibilitySection.section.style.display = '';
+				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.question, localize('mcpCompatibilityUnknownForHarness', "Compatibility with {0} could not be determined", this.harnessLabel), state.details);
+				break;
 			case 'checking':
+				this.compatibilitySection.section.style.display = '';
+				this.updateDiagnosticSection(this.compatibilitySection, 'neutral', ThemeIcon.modify(Codicon.loading, 'spin'), localize('mcpCheckingCompatibility', "Checking compatibility with {0}", this.harnessLabel), []);
+				break;
 			case 'unavailable':
 				this.compatibilitySection.section.style.display = 'none';
 				break;
@@ -372,7 +403,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
 	}
 
-	private updateDiagnosticSection(section: IMcpDiagnosticSection, kind: 'warning' | 'error', icon: ThemeIcon, summary: string, details: readonly string[]): void {
+	private updateDiagnosticSection(section: IMcpDiagnosticSection, kind: 'warning' | 'error' | 'neutral', icon: ThemeIcon, summary: string, details: readonly string[]): void {
 		section.card.className = `mcp-detail-diagnostic-card ${kind}`;
 		section.icon.className = 'mcp-detail-diagnostic-icon';
 		section.icon.classList.add(...ThemeIcon.asClassNameArray(icon));

@@ -928,6 +928,7 @@ suite('mcpListWidget', () => {
 			const shownLogSessions: string[] = [];
 			const managementClicks: string[] = [];
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
+			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
@@ -980,6 +981,7 @@ suite('mcpListWidget', () => {
 			const templateData = renderer.renderTemplate(container);
 			store.add({ dispose: () => renderer.disposeTemplate(templateData) });
 			const widget = Object.create(McpListWidget.prototype) as {
+				createInstalledMcpServerDetailInput(entry: Entry): ReturnType<typeof createInstalledMcpServerDetailInput>;
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
 				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
@@ -987,6 +989,7 @@ suite('mcpListWidget', () => {
 			Object.assign(widget, {
 				agentHostCustomizationService,
 				customizationHarnessService,
+				mcpService: { servers: runtimeServers },
 				workspaceService: { isSessionsWindow },
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, never>>(widget, new Map<string, never>()),
@@ -1005,7 +1008,9 @@ suite('mcpListWidget', () => {
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
 				activeSessionResource,
+				detailInput: (entry: Entry) => widget.createInstalledMcpServerDetailInput(entry),
 				setAriaProvider: (provider: (entry: Entry) => IObservable<string>) => { widget.getMcpEntryAriaLabel = provider; },
+				setRuntimeServers: (next: readonly IMcpServer[]) => runtimeServers.set(next, undefined),
 				menu: (entry: Entry, localServer?: IMcpServer) => {
 					const instantiationService = workbenchInstantiationService({}, store);
 					const enablement = createMcpService(ContributionEnablementState.EnabledProfile);
@@ -1231,6 +1236,30 @@ suite('mcpListWidget', () => {
 			ctx.templateData.actions.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
 			assert.deepStrictEqual({ local: ctx.localEnablementCalls(), host: ctx.hostEnablementCalls }, {
 				local: [['native', ContributionEnablementState.DisabledProfile]], host: [],
+			});
+		});
+
+		test('detail diagnostics follow a recreated runtime server', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const original = nativeServer();
+			const replacement = nativeServer();
+			replacement.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Replacement error' }, undefined);
+			const entry: Entry = { type: 'server-item', server: original.workbenchServer, localServer: original.server };
+			ctx.setRuntimeServers([original.server]);
+			const error = ctx.detailInput(entry).error!;
+			let currentError: string | undefined;
+			disposables.add(autorun(reader => { currentError = error.read(reader); }));
+			const before = currentError;
+
+			ctx.setRuntimeServers([replacement.server]);
+			const afterReplacement = currentError;
+			original.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Stale error' }, undefined);
+
+			assert.deepStrictEqual({ before, afterReplacement, afterStaleUpdate: currentError }, {
+				before: 'Native connection failed',
+				afterReplacement: 'Replacement error',
+				afterStaleUpdate: 'Replacement error',
 			});
 		});
 
