@@ -13,9 +13,11 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { IManagedSettingsUpdateInfo } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
@@ -24,6 +26,7 @@ export const enum SessionsBlockedReason {
 	/** Signed in but not in an approved org — must switch accounts. */
 	AccountPolicyGate = 'accountPolicyGate',
 	ManagedSettingsRefresh = 'managedSettingsRefresh',
+	UpdateRequired = 'updateRequired',
 }
 
 export interface ISessionsBlockedOverlayOptions {
@@ -31,6 +34,7 @@ export interface ISessionsBlockedOverlayOptions {
 	readonly approvedOrganizations?: readonly string[];
 	readonly accountName?: string;
 	readonly freshness?: Extract<IManagedSettingsFreshness, { state: ManagedSettingsFreshnessState.Blocked }>;
+	readonly updateInfo?: IManagedSettingsUpdateInfo;
 }
 
 /**
@@ -52,10 +56,16 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		super();
 
 		this.overlay = append(container, $('.sessions-policy-blocked-overlay'));
-		this.overlay.setAttribute('role', 'dialog');
-		this.overlay.setAttribute('aria-modal', 'true');
+		this.overlay.setAttribute('role', options.reason === SessionsBlockedReason.UpdateRequired ? 'region' : 'dialog');
+		if (options.reason !== SessionsBlockedReason.UpdateRequired) {
+			this.overlay.setAttribute('aria-modal', 'true');
+		}
 		this.overlay.tabIndex = -1;
-		this.overlay.focus();
+		const banner = options.reason === SessionsBlockedReason.UpdateRequired ? layoutService.getContainer(mainWindow, Parts.BANNER_PART) : undefined;
+		const focusOverlay = !banner?.contains(mainWindow.document.activeElement);
+		if (focusOverlay) {
+			this.overlay.focus();
+		}
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const workbenchRoot = layoutService.mainContainer;
@@ -63,9 +73,33 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this._register(toDisposable(() => workbenchRoot.classList.remove('sessions-policy-blocked')));
 
 		const card = append(this.overlay, $('.sessions-policy-blocked-card'));
+		if (options.reason === SessionsBlockedReason.UpdateRequired) {
+			this.overlay.classList.add('update-required');
+			const inertParts = new Map<HTMLElement, boolean>();
+			this._register(toDisposable(() => {
+				for (const [part, inert] of inertParts) {
+					part.inert = inert;
+				}
+			}));
+			const layout = () => {
+				this.overlay.style.top = `${layoutService.mainContainerOffset.top}px`;
+				for (const id of [Parts.SESSIONS_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.CUSTOM_VIEW_GRID_PART]) {
+					const part = layoutService.getContainer(mainWindow, id);
+					if (part && !inertParts.has(part)) {
+						inertParts.set(part, part.inert);
+						part.inert = true;
+					}
+				}
+			};
+			layout();
+			this._register(layoutService.onDidLayoutMainContainer(layout));
+		}
 
 		this._register(addDisposableListener(getWindow(this.overlay), EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (card.contains(e.target as Node)) {
+			if (options.reason === SessionsBlockedReason.UpdateRequired) {
+				return;
+			}
+			if (card.contains(e.target as Node) || banner?.contains(e.target as Node)) {
 				return;
 			}
 			e.preventDefault();
@@ -94,7 +128,37 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			case SessionsBlockedReason.ManagedSettingsRefresh:
 				this._renderManagedSettingsRefresh(card, options.freshness);
 				break;
+			case SessionsBlockedReason.UpdateRequired: {
+				const button = this._renderUpdateRequired(card, options.updateInfo!);
+				if (focusOverlay) {
+					button.focus();
+				}
+				break;
+			}
 		}
+	}
+
+	private _renderUpdateRequired(card: HTMLElement, info: IManagedSettingsUpdateInfo): Button {
+		this.overlay.setAttribute('aria-label', info.title);
+		append(card, $('h2', undefined, info.title));
+		append(card, $('p', undefined, info.message));
+		if (info.detail) {
+			append(card, $('p', undefined, info.detail));
+		}
+		if (info.updateStatus) {
+			append(card, $('p', undefined, info.updateStatus));
+		}
+		let updateButton: Button | undefined;
+		if (info.action) {
+			const action = info.action;
+			updateButton = this._register(new Button(card, defaultButtonStyles));
+			updateButton.label = action.label;
+			this._register(updateButton.onDidClick(() => this.openerService.open(action.href, { allowCommands: true })));
+		}
+		const button = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
+		button.label = localize('managedSettingsUpdate.openVSCode', "Open VS Code");
+		this._register(button.onDidClick(() => this._openVSCode()));
+		return updateButton ?? button;
 	}
 
 	private _renderAgentDisabled(card: HTMLElement): void {

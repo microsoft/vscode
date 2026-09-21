@@ -82,6 +82,7 @@ import { ICustomViewDescriptor } from '../services/customView/browser/customView
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { IBannerService } from '../../workbench/services/banner/browser/bannerService.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 
@@ -392,6 +393,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			top = this.mobileTopBarElement.offsetHeight;
 			quickPickTop = top;
 		}
+		if (this.bannerVisible) {
+			top += this.getPart(Parts.BANNER_PART).maximumHeight;
+			quickPickTop = top;
+		}
 
 		return { top, quickPickTop };
 	}
@@ -404,6 +409,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	protected workbenchGrid!: SerializableGrid<ISerializableView>;
 
 	private titleBarPartView!: ISerializableView;
+	private bannerPartView!: ISerializableView;
+	private bannerVisible = false;
 	protected sideBarPartView!: ISerializableView;
 	private panelPartView!: ISerializableView;
 	protected auxiliaryBarPartView!: ISerializableView;
@@ -933,6 +940,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Create Parts (editor starts hidden and is shown when an editor opens)
 		for (const { id, role, classes } of [
 			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
+			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', 'left'] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', 'right'] },
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
@@ -1220,6 +1228,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
 		accessor.get(ITitleService);
+		accessor.get(IBannerService);
 
 		// Resolve the single-pane layout mode once (reload to toggle).
 		this.layoutPolicy.setSinglePane(this.isSinglePaneLayoutEnabled);
@@ -1528,6 +1537,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this._applyLayoutContainerClass();
 
 		const titleBar = this.getPart(Parts.TITLEBAR_PART);
+		const banner = this.getPart(Parts.BANNER_PART);
 		const editorPart = this.getPart(Parts.EDITOR_PART);
 		const panelPart = this.getPart(Parts.PANEL_PART);
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
@@ -1537,6 +1547,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// View references for parts in the grid
 		this.titleBarPartView = titleBar;
+		this.bannerPartView = banner;
 		this.sideBarPartView = sideBar;
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
@@ -1546,6 +1557,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		const viewMap: { [key: string]: ISerializableView } = {
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
+			[Parts.BANNER_PART]: this.bannerPartView,
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
@@ -1574,7 +1586,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this._hasAppliedInitialEditorSplit = this.partVisibility.editor;
 
 		// Listen for part visibility changes (for parts in grid)
-		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, sessionsPart, editorPart]) {
+		for (const part of [titleBar, banner, panelPart, sideBar, auxiliaryBarPart, sessionsPart, editorPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
 				// A custom view renders over these parts without changing what the layout
 				// wants them to be, so its grid updates must not feed back into the
@@ -1684,6 +1696,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const savedEditorWidth = this._savedPartSizes.editor;
 		const editorSize = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedEditorWidth : EDITOR_PART_DEFAULT_WIDTH;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
+		const bannerHeight = this.bannerVisible ? this.bannerPartView.maximumHeight : 0;
 
 		// Calculate right section width — when sidebar is hidden it takes no space
 		const effectiveSideBarWidth = this.partVisibility.sidebar ? sideBarSize : 0;
@@ -1697,7 +1710,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const sessionsWidth = this._savedPartSizes.sessions
 			?? Math.max(0, rightSectionWidth - effectiveAuxBarWidth - effectiveEditorWidth);
 
-		const contentHeight = Math.max(0, height - titleBarHeight);
+		const contentHeight = Math.max(0, height - titleBarHeight - bannerHeight);
 		const topRightHeight = Math.max(0, contentHeight - panelSize);
 
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
@@ -1782,6 +1795,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				size: width,
 				data: [
 					titleBarNode,
+					{ type: 'leaf', data: { type: Parts.BANNER_PART }, size: bannerHeight, visible: this.bannerVisible },
 					contentSection
 				]
 			},
@@ -2159,9 +2173,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				return this._effectiveVisible(part);
 			case Parts.CUSTOM_VIEW_GRID_PART:
 				return this.partVisibility.customViewGrid;
+			case Parts.BANNER_PART:
+				return this.bannerVisible;
 			case Parts.ACTIVITYBAR_PART:
 			case Parts.STATUSBAR_PART:
-			case Parts.BANNER_PART:
 			default:
 				return false;
 		}
@@ -2169,6 +2184,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	setPartHidden(hidden: boolean, part: Parts): void {
 		switch (part) {
+			case Parts.BANNER_PART:
+				this.bannerVisible = !hidden;
+				if (this.workbenchGrid) {
+					this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
+					this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
+				}
+				break;
 			case Parts.SIDEBAR_PART:
 				this.setSideBarHidden(hidden);
 				break;
@@ -2713,6 +2735,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.titleBarPartView;
+			case Parts.BANNER_PART:
+				return this.bannerPartView;
 			case Parts.SIDEBAR_PART:
 				return this.sideBarPartView;
 			case Parts.AUXILIARYBAR_PART:
@@ -2738,10 +2762,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			: 0;
 		const panelHeight = this.partVisibility.panel ? this.workbenchGrid.getViewSize(this.panelPartView).height : 0;
 		const titleBarHeight = this.workbenchGrid.getViewSize(this.titleBarPartView).height;
+		const bannerHeight = this.bannerVisible ? this.workbenchGrid.getViewSize(this.bannerPartView).height : 0;
 
 		return new Dimension(
 			this._mainContainerDimension.width - sidebarWidth - auxiliaryBarWidth,
-			this._mainContainerDimension.height - titleBarHeight - panelHeight
+			this._mainContainerDimension.height - titleBarHeight - bannerHeight - panelHeight
 		);
 	}
 
@@ -2757,7 +2782,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		if (this.isPanelMaximized()) {
 			this.workbenchGrid.exitMaximizedView();
 		} else {
-			this.workbenchGrid.maximizeView(this.panelPartView, [this.titleBarPartView, this.sideBarPartView]);
+			this.workbenchGrid.maximizeView(this.panelPartView, [this.titleBarPartView, this.bannerPartView, this.sideBarPartView]);
 		}
 	}
 
@@ -2918,6 +2943,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		if (neighborView === this.titleBarPartView) {
 			return Parts.TITLEBAR_PART;
+		}
+		if (neighborView === this.bannerPartView) {
+			return Parts.BANNER_PART;
 		}
 		if (neighborView === this.sideBarPartView) {
 			return Parts.SIDEBAR_PART;

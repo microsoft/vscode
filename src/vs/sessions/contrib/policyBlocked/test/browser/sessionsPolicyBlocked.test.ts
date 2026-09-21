@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { State, UpdateType } from '../../../../../platform/update/common/update.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { AccountPolicyGateState, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
+import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
+import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
+
+suite('Sessions policy update explanation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const product = new class extends mock<IProductService>() {
+		override readonly nameShort = 'Code';
+		override readonly version = '1.140.0';
+		override readonly urlProtocol = 'code-oss';
+	}();
+	const info = getManagedSettingsUpdateInfo({ errorCode: 'client_update_required', minimumClientVersion: '1.141.0' }, product, State.Idle(UpdateType.Archive));
+
+	function setup(initial: IManagedSettingsUpdateInfo | undefined, agentEnabled = true) {
+		const services = store.add(new TestInstantiationService());
+		const root = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => root.remove()));
+		const banner = append(root, $('div'));
+		const content = append(root, $('div'));
+		const layoutEvent = store.add(new Emitter<{ width: number; height: number }>());
+		const layout = new class extends TestLayoutService {
+			override mainContainer = root;
+			override mainContainerOffset = { top: 56, quickPickTop: 56 };
+			override onDidLayoutMainContainer = layoutEvent.event;
+		}();
+		layout.getContainer = (_window?: Window, part?: Parts) => part === Parts.BANNER_PART ? banner : content;
+		const updateInfo = observableValue<IManagedSettingsUpdateInfo | undefined>('updateInfo', initial);
+		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: agentEnabled });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const gateChange = store.add(new Emitter<IAccountPolicyGateInfo>());
+		const gate = new class extends mock<IAccountPolicyGateService>() {
+			override gateInfo: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Inactive };
+			override readonly onDidChangeGateInfo = gateChange.event;
+		}();
+		const opened: string[] = [];
+		services.stub(IWorkbenchLayoutService, layout);
+		services.stub(IManagedSettingsUpdateService, { updateInfo });
+		services.stub(IConfigurationService, configuration);
+		services.stub(IAccountPolicyGateService, gate);
+		services.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount = null;
+		}());
+		services.stub(IProductService, product);
+		services.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		services.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(target: string) { opened.push(target); return true; }
+		}());
+		const contribution = store.add(services.createInstance(SessionsPolicyBlockedContribution));
+		return { root, content, updateInfo, opened, contribution, layout, layoutEvent, gateChange };
+	}
+
+	test('initially blocked Agents shows versions, a keyboard-focusable update action and space below the banner', () => {
+		const { root, content, opened, contribution, layout, layoutEvent } = setup(info);
+		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
+		const button = overlay.querySelector<HTMLElement>('.monaco-button')!;
+		const initial = {
+			title: overlay.querySelector('h2')?.textContent,
+			message: overlay.querySelector('p')?.textContent,
+			details: [...overlay.querySelectorAll('p')].map(p => p.textContent),
+			button: button.textContent,
+			focused: mainWindow.document.activeElement === button,
+			top: overlay.style.top,
+			inert: content.inert,
+		};
+		button.click();
+		layout.mainContainerOffset = { top: 30, quickPickTop: 30 };
+		layoutEvent.fire({ width: 800, height: 600 });
+		const newTop = overlay.style.top;
+		contribution.dispose();
+		assert.deepStrictEqual({ initial, opened, newTop, inert: content.inert, overlays: root.querySelectorAll('.sessions-policy-blocked-overlay').length }, {
+			initial: { title: info.title, message: info.message, details: [info.message, info.detail], button: 'Check for Updates', focused: true, top: '56px', inert: true },
+			opened: ['command:update.checkForUpdate'],
+			newTop: '30px',
+			inert: false,
+			overlays: 0,
+		});
+	});
+
+	test('late update explanation replaces but never relabels unrelated agent restrictions and clears cleanly', () => {
+		const { root, updateInfo, content, gateChange } = setup(undefined, false);
+		const titles: (string | null | undefined)[] = [];
+		const capture = () => titles.push(root.querySelector('h2')?.textContent);
+		capture();
+		updateInfo.set(info, undefined);
+		const first = root.querySelector('.sessions-policy-blocked-overlay');
+		gateChange.fire({ state: AccountPolicyGateState.Inactive });
+		assert.strictEqual(root.querySelector('.sessions-policy-blocked-overlay'), first);
+		capture();
+		updateInfo.set({ ...info, message: 'Your organization requires Code 1.142.0 or later to use AI features.' }, undefined);
+		capture();
+		updateInfo.set(undefined, undefined);
+		capture();
+		assert.deepStrictEqual({ titles, inert: content.inert, overlays: root.querySelectorAll('.sessions-policy-blocked-overlay').length }, {
+			titles: ['Agents Disabled', info.title, info.title, 'Agents Disabled'],
+			inert: false,
+			overlays: 1,
+		});
+	});
+
+	test('satisfying or removing the compatibility requirement removes the overlay', () => {
+		const { root, updateInfo, content } = setup(undefined);
+		const counts: number[] = [];
+		for (const value of [info, undefined, info, undefined]) {
+			updateInfo.set(value, undefined);
+			counts.push(root.querySelectorAll('.sessions-policy-blocked-overlay').length);
+		}
+		assert.deepStrictEqual({ counts, inert: content.inert }, { counts: [1, 0, 1, 0], inert: false });
+	});
+});
