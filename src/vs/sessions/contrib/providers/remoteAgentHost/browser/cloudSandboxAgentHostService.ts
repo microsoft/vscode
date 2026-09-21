@@ -126,6 +126,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			ahpLogger: ahpLoggingEnabled
 				? this._instantiationService.createInstance(AhpJsonlLogger, {
 					logsHome: this._environmentService.logsHome,
+					logId: address,
 					connectionId: staged.clientId,
 					transport: 'webpubsub',
 				})

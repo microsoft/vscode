@@ -37,9 +37,10 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID } from '../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -145,6 +146,7 @@ export class ChatCompositeBar extends Disposable {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -504,8 +506,10 @@ export class ChatCompositeBar extends Disposable {
 			this._delegate?.onTabDragEnd?.();
 		}));
 
-		const renameAction = this._tabDisposables.add(new Action('sessionCompositeBar.renameChat', localize('renameChat', "Rename"), undefined, true, async () => {
-			this._startTabEditing(chatTab);
+		const renameAction = this._tabDisposables.add(new Action(RENAME_CHAT_COMMAND_ID, localize('renameChat', "Rename..."), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
+			}
 		}));
 
 		const copyLinkAction = this._tabDisposables.add(new Action(COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, localize('copyChatLink', "Copy Link"), undefined, true, async () => {
@@ -551,7 +555,8 @@ export class ChatCompositeBar extends Disposable {
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 						capabilities.canDelete ? [deleteAction] : [],
 					);
-				}
+				},
+				getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id) ?? undefined,
 			});
 		}));
 
@@ -578,17 +583,29 @@ export class ChatCompositeBar extends Disposable {
 		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 
-	/**
-	 * Start an inline rename for the given tab. Enter commits via
-	 * {@link ISessionsManagementService.renameChat}; Escape or blur cancels.
-	 */
-	private _startTabEditing(chatTab: IChatTab): void {
+	startFocusedTabEditing(): boolean {
+		const chatTab = this._tabs.find(tab => tab.element === tab.element.ownerDocument.activeElement);
+		if (!chatTab) {
+			return false;
+		}
+		return this._startTabEditing(chatTab);
+	}
+
+	startTabEditing(chatResource: URI): boolean {
+		const chatTab = this._tabs.find(tab => tab.chat.resource.toString() === chatResource.toString());
+		return chatTab ? this._startTabEditing(chatTab) : false;
+	}
+
+	private _startTabEditing(chatTab: IChatTab): boolean {
 		const delegate = this._delegate;
 		if (!delegate || this._editingTab) {
-			return;
+			return false;
 		}
 
 		const { chat, element: tab, inputContainer } = chatTab;
+		if (chat.resource.toString() === delegate.mainChatResource.get() || chat.status.get() === SessionStatus.Untitled || !getChatCapabilities(chat, delegate.session, undefined).canRename) {
+			return false;
+		}
 		const initialTitle = chat.title.get();
 
 		this._editingTab = chatTab;
@@ -640,6 +657,7 @@ export class ChatCompositeBar extends Disposable {
 
 		store.add(addDisposableListener(inputBox.element, EventType.CLICK, e => e.stopPropagation()));
 		store.add(addDisposableListener(inputBox.element, EventType.DBLCLICK, e => e.stopPropagation()));
+		return true;
 	}
 
 	private _cancelTabEditing(): void {

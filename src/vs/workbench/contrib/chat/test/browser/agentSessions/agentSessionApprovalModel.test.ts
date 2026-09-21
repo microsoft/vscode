@@ -4,17 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { agentSessionApprovalId, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../browser/agentSessions/agentSessionApprovalModel.js';
 import { MockChatModel } from '../../common/model/mockChatModel.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
-import { IChatToolInvocation, IChatTerminalToolInvocationData, ToolConfirmKind, ConfirmedReason } from '../../../common/chatService/chatService.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel, IResponse, IChatProgressResponseContent } from '../../../common/model/chatModel.js';
+import { IChatService, IChatToolInvocation, IChatTerminalToolInvocationData, ToolConfirmKind, ConfirmedReason } from '../../../common/chatService/chatService.js';
+import { ChatModel, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel, IResponse, IChatProgressResponseContent } from '../../../common/model/chatModel.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 function makeToolInvocationPart(options: {
 	state: IChatToolInvocation.State;
@@ -76,15 +83,25 @@ function makeExecutingState(): IChatToolInvocation.State {
 	} as IChatToolInvocation.State;
 }
 
-/** Creates a minimal mock that satisfies the response chain: lastRequest.response.response.value */
-function mockModelWithResponse(model: MockChatModel, parts: IChatProgressResponseContent[]): void {
-	const response: Partial<IChatResponseModel> = {
+class TestChatModel extends MockChatModel {
+	private readonly _onRequestsChanged = this._register(new Emitter<IChatChangeEvent>());
+	override readonly onDidChange = this._onRequestsChanged.event;
+
+	override getRequests(): IChatRequestModel[] { return this.requests; }
+
+	setRequest(request: IChatRequestModel): void {
+		this.requests = [request];
+		this._onRequestsChanged.fire({ kind: 'addRequest', request });
+	}
+}
+
+function mockModelWithResponse(model: TestChatModel, parts: IChatProgressResponseContent[]): void {
+	const response = upcastPartial<IChatResponseModel>({
 		response: { value: parts, getMarkdown: () => '', getFinalResponse: () => '', toString: () => '' } satisfies IResponse,
-	};
-	const request: Partial<IChatRequestModel> = {
-		response: response as IChatResponseModel,
-	};
-	(model as { lastRequest: IChatRequestModel | undefined }).lastRequest = request as IChatRequestModel;
+		onDidChange: Event.None,
+		isPendingConfirmation: model.requestNeedsInput.map(info => info ? { startedWaitingAt: 0, detail: info.detail } : undefined),
+	});
+	model.setRequest(upcastPartial<IChatRequestModel>({ id: 'request', response }));
 }
 
 class MockLanguageService {
@@ -123,13 +140,31 @@ suite('AgentSessionApprovalModel', () => {
 		return model;
 	}
 
-	function addChatModel(uri?: URI): MockChatModel {
-		const chatModel = disposables.add(new MockChatModel(uri ?? URI.parse(`test://session/${Math.random()}`)));
+	function addChatModel(uri?: URI): TestChatModel {
+		const chatModel = disposables.add(new TestChatModel(uri ?? URI.parse(`test://session/${Math.random()}`)));
 		chatModelsObs.set([...Array.from(chatModelsObs.get()), chatModel], undefined);
 		return chatModel;
 	}
 
-	function getApproval(approvalModel: AgentSessionApprovalModel, chatModel: MockChatModel): IAgentSessionApprovalInfo | undefined {
+	function addLiveChatModel(): ChatModel {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IChatService, chatService);
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		chatModelsObs.set([...chatModelsObs.get(), model], undefined);
+		return model;
+	}
+
+	function pendingSubagentTool(toolCallId: string): ChatToolInvocation {
+		return new ChatToolInvocation({
+			invocationMessage: `Run ${toolCallId}`,
+			confirmationMessages: { title: 'Run in terminal?', message: new MarkdownString(toolCallId) },
+			toolSpecificData: { kind: 'terminal', commandLine: { original: toolCallId }, language: 'sh' },
+		}, { id: 'bash', displayName: 'Run Shell Command', modelDescription: 'Test command', source: ToolDataSource.Internal },
+			toolCallId, 'retained-agent', {});
+	}
+
+	function getApproval(approvalModel: AgentSessionApprovalModel, chatModel: IChatModel): IAgentSessionApprovalInfo | undefined {
 		return approvalModel.getApproval(chatModel.sessionResource).get();
 	}
 
@@ -450,6 +485,97 @@ suite('AgentSessionApprovalModel', () => {
 		chatModel.requestNeedsInput.set({ title: 'Test' }, undefined);
 
 		assert.strictEqual(getApproval(approvalModel, chatModel)?.label, 'second-cmd');
+	});
+
+	test('surfaces retained subagent approvals from an earlier response and confirms them independently', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const original = chatModel.addRequest({ text: 'Launch reviewers', parts: [] }, { variables: [] }, 0);
+		original.response!.complete();
+		const latest = chatModel.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+		latest.response!.complete();
+		const first = pendingSubagentTool('compiler-check');
+		const second = pendingSubagentTool('helper-tests');
+		original.response!.updateContent(first);
+		const firstApproval = getApproval(approvalModel, chatModel);
+		original.response!.updateContent(second);
+		const stableApproval = getApproval(approvalModel, chatModel) === firstApproval;
+		firstApproval?.confirm();
+		const nextApproval = getApproval(approvalModel, chatModel);
+		const afterFirst = { first: first.state.get().type, second: second.state.get().type };
+		nextApproval?.confirm();
+
+		assert.deepStrictEqual({
+			latestNeedsInput: chatModel.requestNeedsInput.get(),
+			firstApproval: firstApproval?.label,
+			stableApproval,
+			nextApproval: nextApproval?.label,
+			afterFirst,
+			afterBoth: getApproval(approvalModel, chatModel)?.label,
+			secondState: second.state.get().type,
+		}, {
+			latestNeedsInput: undefined,
+			firstApproval: 'compiler-check',
+			stableApproval: true,
+			nextApproval: 'helper-tests',
+			afterFirst: { first: IChatToolInvocation.StateKind.Executing, second: IChatToolInvocation.StateKind.WaitingForConfirmation },
+			afterBoth: undefined,
+			secondState: IChatToolInvocation.StateKind.Executing,
+		});
+	});
+
+	test('retains current-request approval precedence and drops removed historical approvals', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const original = chatModel.addRequest({ text: 'Launch reviewers', parts: [] }, { variables: [] }, 0);
+		original.response!.complete();
+		const latest = chatModel.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0);
+		original.response!.updateContent(pendingSubagentTool('old-check'));
+		latest.response!.updateContent(pendingSubagentTool('new-check'));
+		const currentApproval = getApproval(approvalModel, chatModel);
+		currentApproval?.confirm();
+		const historicalApproval = getApproval(approvalModel, chatModel)?.label;
+		chatModel.removeRequest(original.id);
+
+		assert.deepStrictEqual({
+			currentApproval: currentApproval?.label,
+			historicalApproval,
+			afterRemoval: getApproval(approvalModel, chatModel)?.label,
+		}, { currentApproval: 'new-check', historicalApproval: 'old-check', afterRemoval: undefined });
+	});
+
+	test('surfaces a single-choice file approval but leaves multi-choice file operations in chat', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const original = chatModel.addRequest({ text: 'Start work', parts: [] }, { variables: [] }, 0);
+		original.response!.complete();
+		chatModel.addRequest({ text: 'Continue', parts: [] }, { variables: [] }, 0).response!.complete();
+		const choice = new ChatToolInvocation({
+			confirmationMessages: { title: 'Move or copy files?', message: new MarkdownString('Choose a destination.') },
+			toolSpecificData: { kind: 'modifiedFilesConfirmation', options: ['Move', 'Copy'], modifiedFiles: [] },
+		}, { id: 'confirm', displayName: 'Confirm', modelDescription: 'File choice', source: ToolDataSource.Internal }, 'choice', 'retained-agent', {});
+		original.response!.updateContent(choice);
+		const unsupported = getApproval(approvalModel, chatModel)?.label;
+		const edit = new ChatToolInvocation({
+			confirmationMessages: { title: 'Create file?', message: new MarkdownString('Create the requested file.') },
+			toolSpecificData: { kind: 'modifiedFilesConfirmation', options: ['Allow'], modifiedFiles: [] },
+		}, { id: 'apply_patch', displayName: 'Apply Patch', modelDescription: 'File edit', source: ToolDataSource.Internal }, 'edit', 'retained-agent', {});
+		original.response!.updateContent(edit);
+		const approval = getApproval(approvalModel, chatModel);
+		approval?.confirm();
+		const state = edit.state.get();
+
+		assert.deepStrictEqual({
+			unsupported, label: approval?.label,
+			confirmed: state.type === IChatToolInvocation.StateKind.Executing ? state.confirmed : undefined,
+			choiceState: choice.state.get().type,
+			remainingApproval: getApproval(approvalModel, chatModel)?.label,
+		}, {
+			unsupported: undefined, label: 'Create file?',
+			confirmed: { type: ToolConfirmKind.UserAction, selectedButton: 'Allow' },
+			choiceState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			remainingApproval: undefined,
+		});
 	});
 
 	test('handles model added after approval model is created', () => {

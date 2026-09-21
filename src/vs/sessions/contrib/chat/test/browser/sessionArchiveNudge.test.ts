@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,12 +25,15 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Memento } from '../../../../../workbench/common/memento.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
+import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
-import { onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
+import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
 import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
@@ -42,7 +46,7 @@ import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
 import { SESSION_ARCHIVE_TOUR_ID } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
-import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
+import { getSessionArchiveOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
 suite('SessionArchiveNudge', () => {
@@ -178,6 +182,7 @@ suite('SessionArchiveNudge', () => {
 		const onboardingPayloads: ISpotlightPayload[] = [];
 		const onboardingStarted = new DeferredPromise<void>();
 		let onboardingResult = Promise.resolve(OnboardingOutcome.Completed);
+		let onboardingPresentation: IOnboardingPresentation | undefined;
 		let viewAvailable = true;
 		const view = upcastPartial<SessionsView>({
 			setExpanded: expanded => { onboardingEvents.push(`expanded:${expanded}`); return true; },
@@ -197,9 +202,12 @@ suite('SessionArchiveNudge', () => {
 		const viewsService = instantiationService.get(IViewsService);
 		store.add(onboardingPresentationRegistry.register({
 			kind: SPOTLIGHT_PRESENTATION_KIND,
-			async run(scenario) {
+			async run(scenario, runContext) {
 				const payload = scenario.presentation.payload as ISpotlightPayload;
 				onboardingPayloads.push(payload);
+				if (onboardingPresentation) {
+					return onboardingPresentation.run(scenario, runContext);
+				}
 				await payload.steps[0].onBeforeShow?.();
 				onboardingStarted.complete();
 				const outcome = await onboardingResult;
@@ -235,10 +243,12 @@ suite('SessionArchiveNudge', () => {
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
 			onboarding: {
+				service: onboardingService,
 				events: onboardingEvents,
 				payloads: onboardingPayloads,
 				started: onboardingStarted.p,
 				setResult(result: Promise<OnboardingOutcome>) { onboardingResult = result; },
+				setPresentation(presentation: IOnboardingPresentation) { onboardingPresentation = presentation; },
 				setViewAvailable(value: boolean) { viewAvailable = value; },
 			},
 			reloadService() {
@@ -654,6 +664,87 @@ suite('SessionArchiveNudge', () => {
 		}]);
 	});
 
+	test('shows the compact nudge only after three successful uses and remembers across reloads', async () => {
+		const sessions = Array.from({ length: 5 }, (_, index) => createSession(`session-${index}`));
+		const context = setup(sessions);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const compact: (boolean | undefined)[] = [];
+		for (const session of sessions) {
+			context.current.set(session, undefined);
+			const nudge = context.createNudge();
+			compact.push(nudge.options.get()?.compact);
+			await nudge.options.get()!.onArchive();
+			nudge.dispose();
+			context.reloadService();
+		}
+
+		assert.deepStrictEqual({
+			compact,
+			archiveCount: context.storage.getNumber('sessions.archiveNudge.archiveCount', StorageScope.PROFILE),
+		}, {
+			compact: [false, false, false, true, true],
+			archiveCount: 3,
+		});
+	});
+
+	test('does not count impressions, dismissals, or archiving outside the nudge', () => {
+		const sessions = Array.from({ length: 4 }, (_, index) => createSession(`session-${index}`));
+		const context = setup(sessions);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		for (const session of sessions.slice(0, 3)) {
+			context.current.set(session, undefined);
+			nudge.markShown();
+			nudge.options.get()!.onDismiss();
+			session.isArchived.set(true, undefined);
+			context.archived.fire(session);
+		}
+		context.current.set(sessions[3], undefined);
+
+		assert.strictEqual(nudge.options.get()?.compact, false);
+	});
+
+	test('compacts the next nudge when archiving switches sessions before completing', async () => {
+		const sessions = Array.from({ length: 4 }, (_, index) => createSession(`session-${index}`));
+		const context = setup(sessions);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		store.add(context.archived.event(session => {
+			const index = sessions.findIndex(candidate => candidate === session);
+			context.current.set(sessions[index + 1], undefined);
+		}));
+		const compact = [nudge.options.get()?.compact];
+		for (let index = 0; index < 3; index++) {
+			await nudge.options.get()!.onArchive();
+			compact.push(nudge.options.get()?.compact);
+		}
+
+		assert.deepStrictEqual(compact, [false, false, false, true]);
+	});
+
+	for (const failure of ['error', 'noop'] as const) {
+		test(`does not count unsuccessful uses toward compact mode (${failure})`, async () => {
+			const sessions = Array.from({ length: 4 }, (_, index) => createSession(`session-${index}`));
+			const context = setup(sessions);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			for (const session of sessions.slice(0, 2)) {
+				context.current.set(session, undefined);
+				await nudge.options.get()!.onArchive();
+			}
+			context.current.set(sessions[2], undefined);
+			if (failure === 'error') {
+				context.setArchiveError(new Error('Archive failed'));
+			} else {
+				context.setArchiveNoop();
+			}
+			await assert.rejects(nudge.options.get()!.onArchive(), failure === 'error' ? /Archive failed/ : /could not be updated/);
+			context.current.set(sessions[3], undefined);
+
+			assert.strictEqual(nudge.options.get()?.compact, false);
+		});
+	}
+
 	test('keeps the nudge available after an archive error and rejects a stale action', async () => {
 		const session = createSession();
 		const context = setup([session]);
@@ -733,9 +824,118 @@ suite('SessionArchiveNudge', () => {
 				button: 'Understood',
 				advanceOnTargetClick: 'advanceOnly',
 				hideNext: false,
-				missingTarget: { kind: 'abort' },
+				missingTarget: { kind: 'wait', timeoutMs: 2000, onTimeout: 'abort' },
 			});
 		});
+	}
+
+	function setupSpotlight(context: ReturnType<typeof setup>, onDidShow: () => void) {
+		const container = $('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const layoutService = new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}();
+		const presentation = store.add(new SpotlightPresentation(
+			layoutService,
+			new TestHostService(),
+			store.add(new ContextKeyService(context.configuration)),
+		));
+		context.onboarding.setPresentation({
+			kind: presentation.kind,
+			run: (scenario, runContext) => presentation.run(scenario, {
+				...runContext,
+				onDidShow: () => {
+					runContext.onDidShow?.();
+					onDidShow();
+				},
+			}),
+		});
+		return {
+			createTarget(session: ISession, delayMs: number): HTMLElement {
+				const target = $('button');
+				target.textContent = 'Archive';
+				store.add(markOnboardingTarget(target, getSessionArchiveOnboardingTargetId(session)));
+				store.add(disposableTimeout(() => container.appendChild(target), delayMs));
+				return target;
+			},
+		};
+	}
+
+	test('waits for a late archive target before showing the spotlight and archiving exactly once', () => runWithFakedTimers({ startTime: 1 }, async () => {
+		const session = createSession();
+		const context = setup([session], true, undefined, true);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		let archiveCountWhenShown: number | undefined;
+		let nativeActions = 0;
+		const spotlight = setupSpotlight(context, () => {
+			archiveCountWhenShown = context.archiveTargets.length;
+			target.click();
+		});
+		const target = spotlight.createTarget(session, 100);
+		store.add(addDisposableListener(target, EventType.CLICK, () => nativeActions++));
+
+		await nudge.options.get()!.onArchive();
+		await context.service.showArchiveOnboarding(createSession('after-completion'));
+
+		assert.deepStrictEqual({
+			archiveCountWhenShown,
+			nativeActions,
+			targets: context.archiveTargets,
+			archived: session.isArchived.get(),
+			tours: context.onboarding.payloads.length,
+			released: context.onboarding.events.at(-1),
+		}, {
+			archiveCountWhenShown: 0,
+			nativeActions: 0,
+			targets: [session],
+			archived: true,
+			tours: 1,
+			released: 'released',
+		});
+	}));
+
+	for (const developerMode of [false, true]) {
+		test(`archives after the archive target times out and retries the unseen spotlight (developer mode: ${developerMode})`, () => runWithFakedTimers({ startTime: 1 }, async () => {
+			const session = createSession();
+			const context = setup([session], true, undefined, true);
+			await context.configuration.setUserConfiguration(ONBOARDING_DEVELOPER_MODE_CONFIG, { [SESSION_ARCHIVE_TOUR_ID]: developerMode });
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			let shown = 0;
+			const spotlight = setupSpotlight(context, () => {
+				shown++;
+				target.click();
+			});
+
+			const startTime = Date.now();
+			await nudge.options.get()!.onArchive();
+			const afterTimeout = {
+				elapsed: Date.now() - startTime,
+				shown,
+				hasBeenShown: context.onboarding.service.hasBeenShown(SESSION_ARCHIVE_TOUR_ID),
+				archived: session.isArchived.get(),
+			};
+			const nextSession = createSession('retry');
+			const target = spotlight.createTarget(nextSession, 100);
+			await context.service.showArchiveOnboarding(nextSession);
+			await context.service.showArchiveOnboarding(createSession('after-completion'));
+
+			assert.deepStrictEqual({
+				afterTimeout,
+				shown,
+				tours: context.onboarding.payloads.length,
+				targets: context.archiveTargets,
+				released: context.onboarding.events.at(-1),
+			}, {
+				afterTimeout: { elapsed: 2000, shown: 0, hasBeenShown: false, archived: true },
+				shown: 1,
+				tours: 2,
+				targets: [session],
+				released: 'released',
+			});
+		}));
 	}
 
 	test('clicking the spotlighted action completes onboarding before archiving exactly once', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -34,7 +35,7 @@ import { IView } from '../../../../../../../workbench/common/views.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
-import { Menus } from '../../../../../../browser/menus.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
@@ -45,6 +46,7 @@ import { IActiveSession } from '../../../../../../services/sessions/common/sessi
 import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
+import { getWindow } from '../../../../../../../base/browser/dom.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -221,6 +223,7 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	readonly events: string[] = [];
 }
 
@@ -242,9 +245,10 @@ function setupServices(
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
-		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
 			actionWidget.items = items;
 			actionWidget.delegate = delegate;
+			actionWidget.accessibilityProvider = accessibilityProvider;
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
@@ -401,16 +405,19 @@ suite('Agent Host Session Config Picker', () => {
 			.map(item => ({
 				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
 				order: item.order,
 			}));
 
 		assert.deepStrictEqual(entries, [{
 			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`,
 			title: 'Isolation',
+			group: getNewSessionRepositoryConfigGroup(1, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Isolation}`),
 			order: 1,
 		}, {
 			id: `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`,
 			title: 'Base Branch',
+			group: getNewSessionRepositoryConfigGroup(2, `sessions.agentHost.sessionConfigPicker.${SessionConfigKey.Branch}`),
 			order: 2,
 		}]);
 	});
@@ -439,6 +446,54 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			pointerFocusCalls: 1,
 			keyboardFocusCalls: 2,
+		});
+	});
+
+	test('keeps the repository action bar active only while the branch picker is open', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeRepoConfig('main');
+		services.provider.config.schema.properties.other = {
+			title: 'Other', description: '', type: 'string',
+			enum: ['one', 'two'],
+		};
+		services.provider.config.values.other = 'one';
+		const { container } = renderPicker(store, services);
+		const repositoryConfigContainer = document.createElement('div');
+		repositoryConfigContainer.classList.add('new-chat-repo-config-container');
+		repositoryConfigContainer.appendChild(container);
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		const otherTrigger = Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-picker-slot'))
+			.at(-1)!
+			.querySelector<HTMLElement>('a.action-label')!;
+
+		const beforeOpen = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		otherTrigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const otherPickerOpen = {
+			expanded: otherTrigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		services.actionWidget.delegate!.onHide();
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const whileOpen = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+		services.actionWidget.delegate!.onHide();
+		const afterClose = {
+			expanded: trigger.getAttribute('aria-expanded'),
+			repositoryPickerOpen: repositoryConfigContainer.getAttribute('data-picker-open'),
+		};
+
+		assert.deepStrictEqual({ beforeOpen, otherPickerOpen, whileOpen, afterClose }, {
+			beforeOpen: { expanded: 'false', repositoryPickerOpen: null },
+			otherPickerOpen: { expanded: 'true', repositoryPickerOpen: null },
+			whileOpen: { expanded: 'true', repositoryPickerOpen: 'true' },
+			afterClose: { expanded: 'false', repositoryPickerOpen: null },
 		});
 	});
 
@@ -626,6 +681,47 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			ariaLabel: 'Approval Mode: Assisted, Read-Only',
 			warning: true,
+		});
+	});
+
+	test('generic approval choices announce their badges without losing accessible descriptions', async () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: {
+						title: 'Approvals',
+						type: 'string',
+						enum: ['default', 'assisted', 'custom'],
+						enumLabels: ['Manual permissions', 'Assisted permissions', 'Custom permissions'],
+					},
+				},
+			},
+			values: { autoApprove: 'default' },
+		};
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, SessionConfigKey.AutoApprove));
+		const container = document.createElement('div');
+		picker.render(container);
+		container.querySelector<HTMLElement>('.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		const getAriaLabel = services.actionWidget.accessibilityProvider?.getAriaLabel;
+		assert.ok(getAriaLabel);
+		const assisted = services.actionWidget.items.find(item => item.item?.value === 'assisted');
+		assert.ok(assisted);
+		assert.deepStrictEqual({
+			choices: services.actionWidget.items.map(item => ({ label: getAriaLabel(item), badge: item.badge })),
+			withDescription: getAriaLabel({ ...assisted, ariaDescription: 'Evaluates risk before running tools' }),
+			descriptionOnly: getAriaLabel({ ...assisted, badge: undefined, ariaDescription: 'Evaluates risk before running tools' }),
+		}, {
+			choices: [
+				{ label: 'Manual permissions', badge: undefined },
+				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Custom permissions', badge: undefined },
+			],
+			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});
 
@@ -1237,6 +1333,8 @@ suite('Agent Host Session Config Picker', () => {
 		checkbox.focus();
 		provider.set(makeRepoConfig('main', 'folder'), true);
 		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingActionLabel = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		resolvingActionLabel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		const resolvingState = {
 			sameNode: resolvingCheckbox === checkbox,
 			focused: document.activeElement === checkbox,
@@ -1245,6 +1343,8 @@ suite('Agent Host Session Config Picker', () => {
 			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
 			resolving: isolationSlot(container)!.classList.contains('resolving'),
 			dimmed: isolationSlot(container)!.classList.contains('disabled'),
+			pointerEvents: getWindow(container).getComputedStyle(resolvingActionLabel).pointerEvents,
+			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
 		};
 
 		provider.set(makeRepoConfig('main', 'folder'), false);
@@ -1268,6 +1368,8 @@ suite('Agent Host Session Config Picker', () => {
 				disabledPalette: false,
 				resolving: true,
 				dimmed: false,
+				pointerEvents: 'auto',
+				setSessionConfigValueCalls: 0,
 			},
 			resolved: {
 				sameNode: true,

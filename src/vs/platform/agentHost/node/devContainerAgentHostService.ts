@@ -6,6 +6,7 @@
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -47,9 +48,55 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
+const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
 export function getDevContainerExecArgs(workspaceFolder: string, command: string): readonly string[] {
 	return ['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command];
+}
+
+/** Waits for the relay WebSocket to open while observing every terminal startup condition. */
+export function waitForDevContainerRelayConnection(
+	webSocket: NodeEventEmitter,
+	child: NodeEventEmitter,
+	token: CancellationToken,
+	timeoutMs = DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS,
+): Promise<void> {
+	if (token.isCancellationRequested) {
+		return Promise.reject(new CancellationError());
+	}
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const finish = (error?: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeoutHandle);
+			cancellationListener.dispose();
+			webSocket.off('open', onOpen);
+			webSocket.off('error', onError);
+			webSocket.off('close', onWebSocketClose);
+			child.off('error', onError);
+			child.off('close', onChildClose);
+			if (error) {
+				reject(error);
+			} else {
+				resolve();
+			}
+		};
+		const onOpen = () => finish();
+		const onError = (error: Error) => finish(error);
+		const onWebSocketClose = (code: number) => finish(new Error(`Dev Container relay WebSocket closed before connecting (code ${code})`));
+		const onChildClose = (code: number | null, signal: NodeJS.Signals | null) => finish(new Error(`Dev Container relay process exited before connecting (exit code ${code ?? 'unknown'}${signal ? `, signal ${signal}` : ''})`));
+		const timeoutHandle = setTimeout(() => finish(new Error(`Timed out waiting for Dev Container relay to connect after ${timeoutMs}ms`)), timeoutMs);
+		const cancellationListener = token.onCancellationRequested(() => finish(new CancellationError()));
+
+		webSocket.once('open', onOpen);
+		webSocket.once('error', onError);
+		webSocket.once('close', onWebSocketClose);
+		child.once('error', onError);
+		child.once('close', onChildClose);
+	});
 }
 
 interface IDevContainerUpResult {
@@ -106,8 +153,8 @@ class DevContainerRelay extends Disposable implements IDevContainerRelay {
 	}
 }
 
-/** Launches Dev Containers and relays their Agent Host protocol through the shared process. */
-export class DevContainerAgentHostMainService extends Disposable implements IDevContainerAgentHostMainService {
+/** Launches Dev Containers and relays their Agent Host protocol on the owning host. */
+export abstract class DevContainerAgentHostService extends Disposable implements IDevContainerAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
@@ -134,7 +181,6 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
@@ -142,11 +188,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
-		await this.disconnect(config.connectionId);
+		this._disconnect(config.connectionId);
 		const store = new DisposableStore();
 		const tokenSource = store.add(new CancellationTokenSource());
 		this._connectionTokenSources.set(config.connectionId, tokenSource);
-		store.add(toDisposable(() => this._connectionTokenSources.delete(config.connectionId)));
+		store.add(toDisposable(() => {
+			if (this._connectionTokenSources.get(config.connectionId) === tokenSource) {
+				this._connectionTokenSources.delete(config.connectionId);
+			}
+		}));
 		this._connectionStores.set(config.connectionId, store);
 
 		try {
@@ -241,6 +291,10 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				endpoint.connectionToken,
 				tokenSource.token,
 			);
+			if (tokenSource.token.isCancellationRequested) {
+				relay.dispose();
+				throw new CancellationError();
+			}
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
 
@@ -249,9 +303,12 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 				address: `devcontainer:${upResult.containerId}`,
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
+				hostWorkspaceFolder: config.workspaceFolder,
 			};
 		} catch (error) {
-			this._connectionStores.deleteAndDispose(config.connectionId);
+			if (this._connectionStores.get(config.connectionId) === store) {
+				this._connectionStores.deleteAndDispose(config.connectionId);
+			}
 			throw error;
 		}
 	}
@@ -465,19 +522,9 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		const webSocket = new WS(url, { createConnection: () => duplex });
 
 		try {
-			await new Promise<void>((resolve, reject) => {
-				const onOpen = () => {
-					webSocket.off('error', onError);
-					resolve();
-				};
-				const onError = (error: Error) => {
-					webSocket.off('open', onOpen);
-					reject(error);
-				};
-				webSocket.once('open', onOpen);
-				webSocket.once('error', onError);
-			});
+			await waitForDevContainerRelayConnection(webSocket, child, token);
 		} catch (error) {
+			webSocket.once('error', closeError => this._logService.trace(`${LOG_PREFIX} relay WebSocket close error: ${getErrorMessage(closeError)}`));
 			webSocket.close();
 			if (!child.killed) {
 				child.kill();
@@ -566,14 +613,8 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return this._nativeRequire;
 	}
 
-	protected _resolveUserShellEnvironment(): Promise<typeof process.env> {
-		return getResolvedShellEnv(
-			this._configurationService,
-			this._logService,
-			{ ...this._environmentService.args, 'force-user-env': true },
-			process.env,
-		);
-	}
+	protected abstract _resolveUserShellEnvironment(): Promise<typeof process.env>;
+	protected abstract _useSystemCertificates(): boolean;
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
 		this._shellEnvironment ??= this._doResolveShellEnvironment();
@@ -607,7 +648,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
 			return environment;
 		}
-		if (this._configurationService.getValue<boolean>('http.systemCertificates') === false) {
+		if (!this._useSystemCertificates()) {
 			return environment;
 		}
 		const certificates = await this._requestService.loadCertificates();
@@ -696,8 +737,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	): ChildProcessWithoutNullStreams {
 		return spawn(process.execPath, [getDevContainerCliPath(), ...args], {
 			stdio: ['pipe', 'pipe', 'pipe'],
-			env: { ...environment, ELECTRON_RUN_AS_NODE: '1' },
+			env: this._getDevContainerSpawnEnvironment(environment),
 		});
+	}
+
+	protected _getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+		const spawnEnvironment: NodeJS.ProcessEnv = { ...environment, ELECTRON_RUN_AS_NODE: '1' };
+		delete spawnEnvironment.NODE_OPTIONS;
+		delete spawnEnvironment.VSCODE_INSPECTOR_OPTIONS;
+		return spawnEnvironment;
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
@@ -709,9 +757,53 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
+		this._disconnect(connectionId);
+	}
+
+	private _disconnect(connectionId: string): void {
 		this._connectionTokenSources.get(connectionId)?.cancel();
 		this._connectionStores.deleteAndDispose(connectionId);
 		this._connections.deleteAndDispose(connectionId);
+	}
+
+	override dispose(): void {
+		for (const tokenSource of this._connectionTokenSources.values()) {
+			tokenSource.cancel();
+		}
+		super.dispose();
+	}
+}
+
+/** Shared-process adapter that preserves the desktop's shell and certificate settings. */
+export class DevContainerAgentHostMainService extends DevContainerAgentHostService {
+	constructor(
+		@ILogService private readonly _mainLogService: ILogService,
+		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
+		@IRequestService requestService: IRequestService,
+	) {
+		super(_mainLogService, productService, telemetryService, _nativeEnvironmentService, requestService);
+	}
+
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return getResolvedShellEnv(this._configurationService, this._mainLogService, { ...this._nativeEnvironmentService.args, 'force-user-env': true }, process.env);
+	}
+
+	protected override _useSystemCertificates(): boolean {
+		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
+	}
+}
+
+/** Standalone hosts inherit the environment of their SSH, tunnel, or CLI launcher. */
+export class RemoteDevContainerAgentHostService extends DevContainerAgentHostService {
+	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
+		return Promise.resolve(process.env);
+	}
+
+	protected override _useSystemCertificates(): boolean {
+		return true;
 	}
 }
 

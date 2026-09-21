@@ -151,6 +151,11 @@ class TestScheduler {
 		return this._entries.filter(entry => entry.active).map(entry => entry.delay);
 	}
 
+	/** Every timer ever created, so coalescing can be asserted. */
+	get allDelays(): readonly number[] {
+		return this._entries.map(entry => entry.delay);
+	}
+
 	run(delay: number): void {
 		const entry = this._entries.find(candidate => candidate.active && candidate.delay === delay);
 		assert.ok(entry, `No active ${delay}ms timer`);
@@ -970,6 +975,135 @@ suite('AgentHostCatalogReconciliationService', () => {
 			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
 			databaseOpenAttempts: 0,
 			sourceResolutions: 0,
+		});
+	});
+
+	test('a source that cannot resolve is parked instead of retried every pass', async () => {
+		const harness = await createHarness(['one']);
+		let sourceResolutions = 0;
+		const service = harness.createService(async () => {
+			sourceResolutions++;
+			return { status: 'sourceUnresolvable' };
+		});
+
+		const first = await service.runPass();
+		const openAttemptsAfterFirstPass = harness.getDatabaseOpenAttempts();
+		const second = await service.runPass();
+
+		assert.deepStrictEqual({
+			first: first.outcomes,
+			second: second.outcomes,
+			openAttemptsAfterFirstPass,
+			finalOpenAttempts: harness.getDatabaseOpenAttempts(),
+			sourceResolutions,
+		}, {
+			first: [{ session: 'agenthost:one', status: 'retry', reason: 'sourceUnresolvable' }],
+			second: [],
+			openAttemptsAfterFirstPass: 1,
+			finalOpenAttempts: 1,
+			sourceResolutions: 1,
+		});
+	});
+
+	test('a parked source is re-attempted once its provider becomes resolvable', async () => {
+		const harness = await createHarness(['one']);
+		let sourceResolutions = 0;
+		let resolvable = false;
+		const service = harness.createService(async session => {
+			sourceResolutions++;
+			return resolvable
+				? { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: {} } }
+				: { status: 'sourceUnresolvable' };
+		});
+
+		const parked = await service.runPass();
+		resolvable = true;
+		service.wakeParkedSessions();
+		const woken = await service.runPass();
+
+		assert.deepStrictEqual({
+			parked: parked.outcomes,
+			woken: woken.outcomes,
+			sourceResolutions,
+		}, {
+			parked: [{ session: 'agenthost:one', status: 'retry', reason: 'sourceUnresolvable' }],
+			woken: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
+			sourceResolutions: 2,
+		});
+	});
+
+	test('a mutation arriving during source resolution is not parked away', async () => {
+		const harness = await createHarness(['one']);
+		const session = 'agenthost:one';
+		let sourceResolutions = 0;
+		let pendingMutation = true;
+		const service = harness.createService(async () => {
+			sourceResolutions++;
+			if (pendingMutation) {
+				// The mutation lands while the source is still resolving, so its own
+				// wake is a no-op: this session is not parked yet.
+				pendingMutation = false;
+				await harness.central.markSessionV2PayloadDirty(session);
+			}
+			return { status: 'sourceUnresolvable' };
+		});
+
+		const mutated = await service.runPass();
+		const parked = await service.runPass();
+		const afterParking = await service.runPass();
+
+		assert.deepStrictEqual({
+			mutated: mutated.outcomes,
+			parked: parked.outcomes,
+			afterParking: afterParking.outcomes,
+			sourceResolutions,
+		}, {
+			// Parking the mutated revision would hide it until the periodic
+			// verification, so the pass yields and the next one re-attempts it.
+			mutated: [{ session, status: 'retry', reason: 'superseded' }],
+			parked: [{ session, status: 'retry', reason: 'sourceUnresolvable' }],
+			afterParking: [],
+			sourceResolutions: 2,
+		});
+	});
+
+	test('mutations during a pass coalesce into one follow-up taken after the floor', async () => {
+		const harness = await createHarness(['one']);
+		const scheduler = new TestScheduler();
+		let releaseSource!: () => void;
+		const sourceGate = new Promise<void>(resolve => releaseSource = resolve);
+		let sourceStarted!: () => void;
+		const started = new Promise<void>(resolve => sourceStarted = resolve);
+		let passes = 0;
+		const service = harness.createService(async session => {
+			passes++;
+			if (passes === 1) {
+				sourceStarted();
+				await sourceGate;
+			}
+			return { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: {} } };
+		}, { backgroundDelayMs: 10, intervalMs: 300, minimumPassIntervalMs: 30, schedule: scheduler.schedule });
+
+		service.schedule();
+		scheduler.run(10);
+		await started;
+		service.schedule();
+		service.schedule();
+		service.schedule();
+		releaseSource();
+		await service.whenIdle();
+
+		assert.deepStrictEqual({
+			passes,
+			allDelays: scheduler.allDelays,
+			activeDelays: scheduler.activeDelays,
+		}, {
+			// Three mutations mid-pass owe exactly one follow-up, taken at the
+			// 30ms floor rather than chained back to back. It re-projects nothing
+			// because the first pass already cleaned the row.
+			passes: 1,
+			allDelays: [10, 30, 300],
+			activeDelays: [300],
 		});
 	});
 
