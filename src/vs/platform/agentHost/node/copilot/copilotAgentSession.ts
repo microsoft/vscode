@@ -88,6 +88,7 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
+import { CopilotFusionProgress, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
@@ -1188,6 +1189,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
 	private _hasActivity = false;
+	private readonly _fusionProgress = new CopilotFusionProgress();
+	private _fusionActivity: string | undefined;
 
 	/**
 	 * Last SDK-reported MCP status logged for each server (keyed by server
@@ -1859,6 +1862,8 @@ export class CopilotAgentSession extends Disposable {
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType)): void {
+		this._fusionProgress.reset();
+		this._fusionActivity = undefined;
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -1984,6 +1989,12 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
+		this._fusionProgress.reset();
+		if (this._fusionActivity !== undefined) {
+			this._fusionActivity = undefined;
+			this._hasActivity = false;
+			this._emitAction({ type: ActionType.SessionActivityChanged, activity: undefined });
+		}
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
 		}
@@ -4136,8 +4147,9 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId,
 					toolName,
 					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
-					contributor: trackedToolCall?.contributor,
+					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
+					_meta: !trackedToolCall && isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
 					invocationMessage,
 					toolInput,
 					confirmationTitle,
@@ -6789,12 +6801,71 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		if (update.part) {
+			this._beginToolCallRound(undefined);
+			this._emitAction({ type: ActionType.ChatResponsePart, turnId: turn.id, part: update.part }, undefined, trustedRootTurn);
+		}
+		if (update.phase) {
+			const { toolCall, isNew } = update.phase;
+			if (isNew) {
+				this._beginToolCallRound(undefined);
+				this._emitAction({
+					type: ActionType.ChatToolCallStart, turnId: turn.id, toolCallId: toolCall.toolCallId,
+					toolName: toolCall.toolName, displayName: toolCall.displayName, _meta: toolCall._meta,
+				}, undefined, trustedRootTurn);
+			}
+			// A terminal event can be the first observation of a phase. It still
+			// needs to enter Running before Complete; repeat Ready refreshes live metadata.
+			if (isNew || toolCall.status === ToolCallStatus.Running) {
+				this._emitAction({
+					type: ActionType.ChatToolCallReady, turnId: turn.id, toolCallId: toolCall.toolCallId,
+					invocationMessage: toolCall.invocationMessage, confirmed: ToolCallConfirmationReason.NotNeeded,
+					_meta: toolCall._meta,
+				}, undefined, trustedRootTurn);
+			}
+			if (toolCall.status === ToolCallStatus.Completed) {
+				this._emitAction({
+					type: ActionType.ChatToolCallComplete, turnId: turn.id, toolCallId: toolCall.toolCallId,
+					result: { success: toolCall.success, pastTenseMessage: toolCall.pastTenseMessage, content: toolCall.content },
+					_meta: toolCall._meta,
+				}, undefined, trustedRootTurn);
+			}
+		}
+		if (update.activity !== this._fusionActivity) {
+			this._fusionActivity = update.activity;
+			this._hasActivity = update.activity !== undefined;
+			this._emitAction({ type: ActionType.SessionActivityChanged, activity: update.activity });
+		}
+	}
+
 	private _subscribeToSdkEvents(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
+		this._register(wrapper.onFusionEvent(event => {
+			const turn = this._currentTurn.value;
+			if (!turn || event.agentId || this._shouldDropLateRootTurnEvent(event.type, true)) {
+				return;
+			}
+			const update = this._fusionProgress.accept(event);
+			if (!update) {
+				return;
+			}
+			this._emitFusionProgress(update);
+		}));
+
 		this._register(wrapper.onUnhandledEvent(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(e)}`);
+			// Fusion handoffs/internal events can contain model-visible prompts,
+			// including event types not yet represented in the SDK union.
+			const loggedEvent = e.type.startsWith('session.fusion_') || e.type.startsWith('assistant.fusion_')
+				? { type: e.type, id: e.id, timestamp: e.timestamp, parentId: e.parentId, ephemeral: e.ephemeral, agentId: e.agentId }
+				: e;
+			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(loggedEvent)}`);
 		}));
 
 		this._register(wrapper.onSessionStart(e => {
@@ -6971,6 +7042,12 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
+			if (!e.agentId && this._currentTurn.value) {
+				const update = this._fusionProgress.interrupt();
+				if (update) {
+					this._emitFusionProgress(update, true);
+				}
+			}
 			this._cancelActiveRepoInfoTelemetry();
 			const turn = this._currentTurn.value;
 			if (turn?.isRunning) {

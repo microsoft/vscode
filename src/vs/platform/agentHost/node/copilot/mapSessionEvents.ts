@@ -21,6 +21,7 @@ import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellL
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { CopilotFusionProgress, isCopilotFusionEvent, isProvisionalFusionConversationEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
@@ -30,6 +31,22 @@ function tryStringify(value: unknown): string | undefined {
 		return JSON.stringify(value);
 	} catch {
 		return undefined;
+	}
+}
+
+function appendFusionProgress(parts: ResponsePart[], update: ICopilotFusionProgressUpdate): void {
+	if (update.part) {
+		parts.push(update.part);
+	}
+	if (update.phase) {
+		const part: ResponsePart = { kind: ResponsePartKind.ToolCall, toolCall: update.phase.toolCall };
+		const index = parts.findIndex(existing => existing.kind === ResponsePartKind.ToolCall
+			&& existing.toolCall.toolCallId === update.phase?.toolCall.toolCallId);
+		if (index < 0) {
+			parts.push(part);
+		} else {
+			parts[index] = part;
+		}
 	}
 }
 
@@ -361,6 +378,9 @@ export async function mapSessionEvents(
 	}
 
 	for (const e of events) {
+		if (isProvisionalFusionConversationEvent(e)) {
+			continue;
+		}
 		if (e.type === 'subagent.started') {
 			subagentInfoByToolCallId.set(e.data.toolCallId, {
 				agentName: e.data.agentName,
@@ -432,6 +452,16 @@ export async function mapSessionEvents(
 	/** Same, per subagent tool call: applied when that subagent's turn is built. */
 	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
 	const subagentModels = new Map<string, string>();
+	const fusionProgress = new CopilotFusionProgress();
+	const pendingFusionParts: ResponsePart[] = [];
+	const fusionEventTurns = new Map<string, number>();
+	let fusionTurn = 0;
+	let pendingFusionTurn = false;
+
+	const resetFusionProgress = (): void => {
+		fusionProgress.reset();
+		fusionTurn++;
+	};
 
 	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined): void => {
 		if (!parentToolCallId || !model) {
@@ -510,7 +540,42 @@ export async function mapSessionEvents(
 	};
 
 	for (const e of events) {
+		if (isProvisionalFusionConversationEvent(e)) {
+			continue;
+		}
 		currentEventTimestamp = readEventTimestamp(e);
+		if (isCopilotFusionEvent(e)) {
+			if (e.agentId) {
+				continue;
+			}
+			const key = e.type === 'session.fusion_route_started' || e.type === 'session.fusion_route_failed'
+				? `attempt:${e.data.attemptId}` : `fusion:${e.data.fusionId}`;
+			const eventTurn = fusionEventTurns.get(key);
+			if (eventTurn !== undefined && eventTurn !== fusionTurn) {
+				// Resetting for a new turn must not revive an earlier turn's late events.
+				continue;
+			}
+			if (eventTurn === undefined && !rootRequestActive && !pendingFusionTurn
+				&& (!parentBuilder || e.type === 'session.fusion_route_started' || e.type === 'session.fusion_resolved' || e.type === 'session.fusion_route_failed')) {
+				// Routing can precede the user message that owns this Fusion workflow.
+				resetFusionProgress();
+				pendingFusionTurn = true;
+			}
+			fusionEventTurns.set(key, fusionTurn);
+			if (e.ephemeral) {
+				continue;
+			}
+			const update = fusionProgress.accept(e);
+			if (update && (update.part || update.phase)) {
+				if (!parentBuilder || pendingFusionTurn) {
+					appendFusionProgress(pendingFusionParts, update);
+				} else {
+					appendFusionProgress(parentBuilder.responseParts, update);
+					touch(parentBuilder);
+				}
+			}
+			continue;
+		}
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (e.agentId) {
@@ -617,8 +682,13 @@ export async function mapSessionEvents(
 					// turn id round-trips back to the SDK boundary id that
 					// fork / truncate RPCs operate on.
 					flushParent();
+					if (!pendingFusionTurn) {
+						resetFusionProgress();
+					}
+					pendingFusionTurn = false;
 					const turnId = e.id ?? messageId;
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
+					parentBuilder.responseParts.push(...pendingFusionParts.splice(0));
 					rootRequestActive = true;
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
@@ -815,7 +885,11 @@ export async function mapSessionEvents(
 					if (!terminatedSubagentTurns.has(parentToolCallId)) {
 						subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
 					}
-				} else {
+				} else if (!e.agentId) {
+					const update = fusionProgress.interrupt();
+					if (update && parentBuilder) {
+						appendFusionProgress(parentBuilder.responseParts, update);
+					}
 					rootAssistantTurnActive = false;
 					rootRequestActive = false;
 					if (parentBuilder && !parentTurnTerminated) {
@@ -827,7 +901,9 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.idle':
-				rootRequestActive = false;
+				if (!e.agentId) {
+					rootRequestActive = false;
+				}
 				break;
 			default:
 				break;

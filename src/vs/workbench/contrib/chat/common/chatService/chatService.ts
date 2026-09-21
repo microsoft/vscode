@@ -331,8 +331,8 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
-	/** Use a quiet transcript boundary treatment instead of a progress row. */
-	presentation?: 'workspaceTransition';
+	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
+	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */
@@ -1194,6 +1194,11 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	/** Reuse the compact pill for a phase summary without a child-chat navigation target. */
+	presentation?: 'phase';
+	phaseStatus?: 'running' | 'succeeded' | 'failed' | 'cancelled';
+	/** Content-free phase activity, not a tool name or a model-authored summary. */
+	activityDescription?: string;
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;

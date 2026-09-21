@@ -38,11 +38,13 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { toSessionEvents } from './copilotTestEvents.js';
+import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { chatReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -742,6 +744,21 @@ function getActions(signals: readonly AgentSignal[]) {
 	return signals
 		.filter((s): s is IAgentActionSignal => s.kind === 'action')
 		.map(s => s.action);
+}
+
+function reduceTurnSignals(signals: readonly AgentSignal[], turnId: string) {
+	const state = chatReducer(createChatState({
+		resource: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
+		title: 'Test chat',
+		status: SessionStatus.Idle,
+		modifiedAt: '2026-09-18T12:00:00Z',
+	}), {
+		type: ActionType.ChatTurnStarted,
+		turnId,
+		message: { text: 'Test message', origin: { kind: MessageKind.User } },
+		startedAt: '2026-09-18T12:00:00Z',
+	});
+	return getActions(signals).filter(isChatAction).reduce((state, action) => chatReducer(state, action), state);
 }
 
 function withoutModelCallDiagnostics(usage: ChatUsageAction['usage'] | undefined): ChatUsageAction['usage'] | undefined {
@@ -2262,6 +2279,33 @@ suite('CopilotAgentSession', () => {
 			logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
 			['[Copilot:test-session-1] Unhandled SDK event: {"type":"session.title_changed","data":{"title":"A new title"},"id":"evt-title","timestamp":"2026-06-24T00:00:00.000Z","parentId":null,"ephemeral":true}']
 		);
+	});
+
+	test('logs only envelope metadata for unknown Fusion events', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession, signals } = await createAgentSession(disposables, { logService });
+		const types = ['session.fusion_handoff', 'session.fusion_commit_started', 'assistant.fusion_internal'];
+		for (const type of types) {
+			mockSession.fireRaw({
+				type,
+				id: `event:${type}`,
+				timestamp: '2026-09-18T12:00:00Z',
+				parentId: 'parent-event',
+				ephemeral: true,
+				agentId: 'agent-1',
+				data: { message: 'PRIVATE HANDOFF', content: 'PRIVATE PHASE CONTENT', nested: { prompt: 'PRIVATE PROMPT' } },
+				internal: 'PRIVATE TOP-LEVEL DETAIL',
+			});
+		}
+		assert.deepStrictEqual({
+			traces: logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+			signals,
+		}, {
+			traces: types.map(type => `[Copilot:test-session-1] Unhandled SDK event: ${JSON.stringify({
+				type, id: `event:${type}`, timestamp: '2026-09-18T12:00:00Z', parentId: 'parent-event', ephemeral: true, agentId: 'agent-1',
+			})}`),
+			signals: [],
+		});
 	});
 
 	test('logs managed settings resolution and enforcement', async () => {
@@ -6479,6 +6523,23 @@ suite('CopilotAgentSession', () => {
 			})));
 		});
 
+		test('shell permission before a held start retains the command preview without guessing approval language', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const request = {
+				kind: 'shell' as const, toolCallId: 'held-shell', fullCommandText: 'npm test', intention: 'Run tests',
+			};
+			const resultPromise = runtime.handlePermissionRequest(request);
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(signal.kind === 'pending_confirmation');
+			assert.deepStrictEqual({
+				kind: readToolCallMeta(signal.state).toolKind,
+				command: getInlineToolInput(signal.state.toolInput),
+				language: signal.shellLanguage,
+			}, { kind: 'terminal', command: 'npm test', language: undefined });
+			session.respondToPermissionRequest('held-shell', false);
+			assert.strictEqual((await resultPromise).kind, 'reject');
+		});
+
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
@@ -10357,6 +10418,151 @@ Use the attached image as context.
 			]);
 		});
 
+		test('Fusion phase events surface milestones and clear live activity on completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_activity', fusionTestData.activity);
+			mockSession.fire('assistant.fusion_phase_activity', fusionTestData.activity);
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			const parts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart ? [signal.action.part] : []);
+			const activity = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionActivityChanged ? [signal.action.activity] : []);
+			assert.deepStrictEqual({
+				statuses: parts.flatMap(part => part.kind === ResponsePartKind.SystemNotification ? [readAgentSystemNotificationMeta(part).fusionStatus] : []),
+				phaseModels: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [readToolCallMeta(action).fusionPhase?.model] : []),
+				phaseActions: getActions(signals).filter(isChatAction).filter(action => action.type !== ActionType.ChatResponsePart).map(action => action.type),
+				phaseParts: parts.filter(part => part.kind === ResponsePartKind.ToolCall),
+				subagentSignals: signals.filter(signal => signal.kind !== 'action'),
+				activity,
+				leaksPhaseContent: JSON.stringify(signals).includes('PRIVATE'),
+			}, {
+				statuses: ['selected', 'completed'],
+				phaseModels: ['model-a'],
+				phaseActions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+				phaseParts: [],
+				subagentSignals: [],
+				activity: [
+					'Choosing a HydraFusion workflow...',
+					'Preparing the Cascade workflow...',
+					'Main pass running with model-a',
+					'Continuing the HydraFusion workflow...',
+					undefined,
+				],
+				leaksPhaseContent: false,
+			});
+		});
+
+		test('Fusion refreshes one running phase with Ready actions for activity and actual model changes', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const timestamp = '2026-09-18T12:00:00Z';
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started, { timestamp });
+			mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, activity: 'tool_started' });
+			mockSession.fire('assistant.fusion_phase_activity', { ...fusionTestData.activity, activity: 'tool_started' });
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, model: 'actual-model' });
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, model: 'actual-model' });
+
+			let state = reduceTurnSignals([], 'fusion-turn');
+			const snapshots = getActions(signals).filter(isChatAction).map(action => {
+				state = chatReducer(state, action);
+				assert.strictEqual(state.activeTurn?.responseParts.length, 1);
+				const part = state.activeTurn.responseParts[0];
+				assert.ok(part.kind === ResponsePartKind.ToolCall);
+				const tc = part.toolCall;
+				const meta = readToolCallMeta(tc);
+				assert.strictEqual(tc.toolCallId, 'fusion:fusion-1:phase-1');
+				assert.strictEqual(meta.toolKind, 'fusionPhase');
+				assert.strictEqual(meta.fusionPhase?.phaseId, 'phase-1');
+				assert.strictEqual(meta.fusionPhase.startedAt, Date.parse(timestamp));
+				if (tc.status !== ToolCallStatus.Streaming) {
+					assert.strictEqual(tc.invocationMessage, 'Main pass');
+				}
+				return { action: action.type, status: tc.status, model: meta.fusionPhase.model, progress: meta.progressMessage };
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ action: ActionType.ChatToolCallStart, status: ToolCallStatus.Streaming, model: 'model-a', progress: 'Main pass running with model-a' },
+				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'model-a', progress: 'Main pass running with model-a' },
+				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'model-a', progress: 'Main pass: running a tool' },
+				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'actual-model', progress: 'Main pass running with actual-model' },
+				{ action: ActionType.ChatToolCallComplete, status: ToolCallStatus.Completed, model: 'actual-model', progress: undefined },
+			]);
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
+				'Main pass running with model-a', 'Main pass: running a tool', 'Main pass running with actual-model', 'Continuing the HydraFusion workflow...',
+			]);
+		});
+
+		for (const status of ['succeeded', 'failed', 'cancelled'] as const) {
+			test(`Fusion ${status} without a start event uses the complete tool-call lifecycle`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('fusion-turn');
+				if (status === 'failed') {
+					mockSession.fire('assistant.fusion_phase_failed', fusionTestData.phaseFailed);
+				} else {
+					mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, status });
+				}
+				const state = reduceTurnSignals(signals, 'fusion-turn');
+				assert.strictEqual(state.activeTurn?.responseParts.length, 1);
+				const part = state.activeTurn.responseParts[0];
+				assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+				assert.deepStrictEqual({
+					actions: getActions(signals).filter(isChatAction).map(action => action.type),
+					toolCallId: part.toolCall.toolCallId,
+					confirmed: part.toolCall.confirmed,
+					success: part.toolCall.success,
+					status: readToolCallMeta(part.toolCall).fusionPhase?.status,
+					model: readToolCallMeta(part.toolCall).fusionPhase?.model,
+					leaksContent: JSON.stringify(signals).includes('PRIVATE'),
+					subagentSignals: signals.filter(signal => signal.kind !== 'action'),
+				}, {
+					actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+					toolCallId: 'fusion:fusion-1:phase-1',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					success: status === 'succeeded',
+					status,
+					model: 'model-a',
+					leaksContent: false,
+					subagentSignals: [],
+				});
+			});
+		}
+
+		test('Fusion abort clears activity and ignores late phase completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			assert.deepStrictEqual({
+				statuses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete ? [readToolCallMeta(signal.action).fusionPhase?.status] : []),
+				completions: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallComplete ? [{ toolCallId: action.toolCallId, success: action.result.success }] : []),
+				activity: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionActivityChanged ? [signal.action.activity] : []),
+			}, {
+				statuses: ['cancelled'],
+				completions: [{ toolCallId: 'fusion:fusion-1:phase-1', success: false }],
+				activity: ['Main pass running with model-a', undefined],
+			});
+		});
+
+		test('provisional Fusion messages and tool calls stay out of the parent transcript', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single' };
+			mockSession.fire('assistant.message', { messageId: 'message-1', content: 'PRIVATE DRAFT', fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_start', { toolCallId: 'provisional-tool', toolName: 'read_file', fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'provisional-tool', success: true, fusion }, { ephemeral: true });
+			assert.strictEqual(signals.length, 0);
+			mockSession.fire('assistant.message', { messageId: 'message-1', content: 'Selected final answer', fusion: { ...fusion, commitId: 'commit-1' } });
+			const markdown = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart
+				&& signal.action.part.kind === ResponsePartKind.Markdown ? [signal.action.part.content] : []);
+			assert.deepStrictEqual(markdown, ['Selected final answer']);
+		});
+
 		test('assistant.intent from a peer chat targets the owning session', async () => {
 			const sessionUri = AgentSession.uri('copilot', 'owner');
 			const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));
@@ -12356,6 +12562,20 @@ Use the attached image as context.
 			toolSet.set(clientId, snapshot.tools);
 			return toolSet;
 		};
+
+		test('permission before a held client-tool start retains the owning client', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client'),
+			});
+			const result = runtime.handlePermissionRequest({
+				kind: 'custom-tool', toolName: 'my_tool', toolCallId: 'held-client-tool', args: { query: 'test' },
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(signal.kind === 'pending_confirmation');
+			assert.deepStrictEqual(signal.state.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
+			session.respondToPermissionRequest('held-client-tool', false);
+			assert.strictEqual((await result).kind, 'reject');
+		});
 
 		test('semantic search overrides the built-in tool and is never deferred', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {

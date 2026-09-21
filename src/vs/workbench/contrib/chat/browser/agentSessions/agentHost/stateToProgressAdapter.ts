@@ -18,6 +18,7 @@ import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMe
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -31,7 +32,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSyst
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
-import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
@@ -402,6 +403,24 @@ function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultS
 }
 
 function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
+	const phase = readToolCallMeta(tc).fusionPhase;
+	if (getToolKind(tc) === 'fusionPhase' && phase) {
+		return {
+			kind: 'subagent',
+			presentation: 'phase',
+			phaseStatus: tc.status === ToolCallStatus.Cancelled ? 'cancelled' : phase.status,
+			activityDescription: tc.status === ToolCallStatus.Running ? readToolCallMeta(tc).progressMessage : undefined,
+			hasStarted: true,
+			isActive: tc.status === ToolCallStatus.Running,
+			description: getSubagentTaskDescription(tc) ?? tc.displayName,
+			modelId: phase.model,
+			modelName: phase.model,
+			startedAt: phase.startedAt,
+			duration: phase.duration,
+			result: tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined,
+			isChatAvailable: false,
+		};
+	}
 	const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) ? getToolSubagentContent(tc) : undefined;
 	if (!isSubagentTool(tc) && !subagentContent) {
 		return undefined;
@@ -513,6 +532,17 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	switch (meta.kind) {
+		case AgentSystemNotificationKind.FusionProgress:
+			return {
+				kind: 'systemNotification',
+				content: markdown,
+				collapsible: meta.fusionStatus !== 'selected',
+				presentation: meta.fusionStatus === 'selected' ? 'workflow' : undefined,
+				icon: meta.fusionStatus === 'selected' ? Codicon.layers
+					: meta.fusionStatus === 'failed' ? Codicon.error
+						: meta.fusionStatus === 'cancelled' ? Codicon.circleSlash
+							: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
+			};
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -550,6 +580,16 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
+}
+
+/** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
+export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): string | undefined {
+	if (parts.length === 0) {
+		return 'agentHost.chatActivity';
+	}
+	return parts.every(part => part.kind === ResponsePartKind.SystemNotification
+		&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress)
+		? `agentHost.chatActivity:fusion:${parts.length}` : undefined;
 }
 
 /**
@@ -597,8 +637,8 @@ export interface TurnModelLookup {
 	toActualModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
 	toModelDisplayName?(rawModelId: string): string | undefined;
-	/** Returns the human-readable response details, or undefined if unknown. */
-	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
+	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -617,6 +657,14 @@ export interface ITurnModelInfo {
 export interface ITurnResponseModel {
 	readonly name: string;
 	readonly pricing?: string;
+}
+
+/** Fusion is the response-level model; constituent models remain in phase pills and usage. */
+export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
+	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
+		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
+		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
 }
 
 /**
@@ -962,7 +1010,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 /**
  * Converts completed turns from the protocol state into session history items.
  *
- * Requests preserve the selected model, while response details use the model that actually ran.
+ * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
@@ -970,7 +1018,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
-		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
+		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
@@ -1897,9 +1945,10 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
-	const isSubagent = subagentContent || isSubagentTool(tc);
-	if (isSubagent && tc.status === ToolCallStatus.Completed) {
-		const resultText = getToolOutputText(tc);
+	const fusionPhaseData = getToolKind(tc) === 'fusionPhase' ? getSubagentToolSpecificData(tc, sessionResource) : undefined;
+	const isSubagent = subagentContent || isSubagentTool(tc) || fusionPhaseData;
+	if (isSubagent && (tc.status === ToolCallStatus.Completed || fusionPhaseData)) {
+		const resultText = tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined;
 		const pastTenseMsg = isSuccess
 			? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
 			: invocationMsg;
@@ -1915,7 +1964,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			isComplete: true,
 			presentation: undefined,
 			subAgentInvocationId: subAgentInvocationId,
-			toolSpecificData: {
+			toolSpecificData: fusionPhaseData ?? {
 				kind: 'subagent',
 				hasStarted: false,
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
@@ -2662,6 +2711,12 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	}
 	applyToolCallProgress(existing, tc);
 
+	if (getToolKind(tc) === 'fusionPhase') {
+		existing.toolSpecificData = getSubagentToolSpecificData(tc, sessionResource);
+		existing.notifyToolSpecificDataChanged();
+		return;
+	}
+
 	const subagentContent = getToolSubagentContent(tc);
 	if (subagentContent) {
 		existing.toolSpecificData = {
@@ -2782,7 +2837,10 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	// Check for subagent content — set toolSpecificData so the UI renders a subagent widget
-	if (isCompleted) {
+	if (getToolKind(tc) === 'fusionPhase') {
+		invocation.toolSpecificData = getSubagentToolSpecificData(tc, backendSession);
+		invocation.notifyToolSpecificDataChanged();
+	} else if (isCompleted) {
 		const subagentContent = getToolSubagentContent(tc);
 		if (subagentContent) {
 			const resultText = getToolOutputText(tc);

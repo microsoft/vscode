@@ -7,7 +7,8 @@ import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getTurnError, ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { importedTurnsFromChatModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
 
@@ -233,5 +234,35 @@ suite('importedTurnsFromChatModel', () => {
 			error: undefined,
 			parts: [{ kind: ResponsePartKind.ToolCall, subagent: { agentName: 'explore', description: 'Explores the codebase' } }],
 		}]);
+	});
+
+	test('imports a phase summary as text without inventing a child subagent', () => {
+		const phase: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			presentation: undefined,
+			toolId: 'hydrafusion_phase',
+			toolCallId: 'fusion:phase-1',
+			invocationMessage: 'Main pass',
+			originMessage: undefined,
+			pastTenseMessage: 'Main pass completed',
+			isConfirmed: undefined,
+			isComplete: true,
+			source: undefined,
+			toolSpecificData: {
+				kind: 'subagent',
+				presentation: 'phase',
+				phaseStatus: 'succeeded',
+				description: 'Main pass',
+				result: 'Main pass completed',
+				isChatAvailable: false,
+			},
+		};
+		const turns = importedTurnsFromChatModel(model([request('q', response([phase]))]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+				? part.toolCall.content
+				: undefined
+		), [[{ type: ToolResultContentType.Text, text: 'Main pass completed' }]]);
 	});
 });

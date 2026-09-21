@@ -85,6 +85,7 @@ function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlin
  * result text seeds the output when the generic result details carry neither.
  * The sub-agent's own turn-by-turn transcript lives in a separate worker chat
  * that has no backend counterpart after import, so only the summary is carried.
+ * Phase presentations retain their textual output without a child-chat identity.
  */
 function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSerialized): ResponsePart {
 	const invocationMessage = stringifyChatMessage(part.invocationMessage);
@@ -118,7 +119,7 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 	if (outputText) {
 		content.push({ type: ToolResultContentType.Text, text: outputText });
 	}
-	if (subagentData) {
+	if (subagentData && subagentData.presentation !== 'phase') {
 		// Preserve the sub-agent identity as structured content so it renders as a
 		// sub-agent tool call (matching native sessions) and survives the events
 		// round-trip — `buildSessionEventsFromTurns` emits a matching

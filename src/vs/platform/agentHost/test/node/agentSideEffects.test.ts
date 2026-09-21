@@ -19,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -29,7 +29,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -4579,6 +4579,108 @@ suite('AgentSideEffects', () => {
 	// ---- tool_ready progress dispatch -----------------------------------
 
 	suite('tool_ready dispatches progress actions to advance tool call state', () => {
+
+		for (const toolName of ['shell', 'runTests']) {
+			for (const approved of [false, true]) {
+				test(`missing tool start still exposes ${toolName} approval and routes decision (${approved})`, async () => {
+					setupSession();
+					startTurn('turn-1');
+					disposables.add(sideEffects.registerProgressListener(agent));
+					const envelopes: ActionEnvelope[] = [];
+					disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+					const contributor = toolName === 'runTests' ? { kind: ToolCallContributorKind.Client, clientId: 'test-client' } as const : undefined;
+					const pending: IAgentToolPendingConfirmationSignal = {
+						kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+						state: {
+							status: ToolCallStatus.PendingConfirmation, toolCallId: 'held-tool', toolName, displayName: 'Run tests',
+							contributor, invocationMessage: 'Run tests', toolInput: 'npm test', confirmationTitle: 'Allow tests?',
+						},
+						permissionKind: toolName === 'shell' ? 'shell' : 'custom-tool', permissionPath: undefined,
+					};
+					agent.fireProgress(pending);
+					const state = await waitForState(stateManager, () => {
+						const s = stateManager.getSessionState(defaultChatUri);
+						return s?.activeTurn?.responseParts.some(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.status === ToolCallStatus.PendingConfirmation) ? s : undefined;
+					});
+					const part = state.activeTurn?.responseParts[0];
+					assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation);
+					assert.deepStrictEqual({
+						contributor: part.toolCall.contributor, title: part.toolCall.confirmationTitle,
+						hasOptions: !!part.toolCall.options?.length, permissionResponses: agent.respondToPermissionCalls,
+					}, { contributor, title: 'Allow tests?', hasOptions: true, permissionResponses: [] });
+
+					// The provider may publish the held start later. It must not
+					// duplicate the row or erase its pending approval.
+					agent.fireProgress({
+						kind: 'action', resource: URI.parse(defaultChatUri),
+						action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'held-tool', toolName, displayName: 'Run tests', contributor },
+					});
+					const afterStart = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts;
+					assert.deepStrictEqual({
+						rows: afterStart?.length,
+						status: afterStart?.[0].kind === ResponsePartKind.ToolCall ? afterStart[0].toolCall.status : undefined,
+						starts: envelopes.filter(e => e.action.type === ActionType.ChatToolCallStart).length,
+					}, { rows: 1, status: ToolCallStatus.PendingConfirmation, starts: 1 });
+					sideEffects.handleAction(defaultChatUri, approved
+						? { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'held-tool', approved: true, confirmed: ToolCallConfirmationReason.UserAction }
+						: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'held-tool', approved: false, reason: ToolCallCancellationReason.Denied });
+					assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'held-tool', approved }]);
+				});
+			}
+		}
+
+		for (const nextTurn of [false, true]) {
+			test(`does not create or approve an orphan request after its turn ends (next turn: ${nextTurn})`, async () => {
+				setupSession();
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				const response = new DeferredPromise<boolean>();
+				agent.respondToPermissionRequest = (requestId, approved) => {
+					agent.respondToPermissionCalls.push({ requestId, approved });
+					void response.complete(approved);
+				};
+				const envelopes: ActionEnvelope[] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'stale-tool', toolName: 'runTests', displayName: 'Run tests', invocationMessage: 'Run tests', confirmationTitle: 'Allow tests?' },
+					permissionKind: 'custom-tool', permissionPath: undefined,
+				});
+				stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 100 });
+				if (nextTurn) {
+					startTurn('turn-2');
+				}
+				await response.p;
+				assert.deepStrictEqual({
+					responses: agent.respondToPermissionCalls,
+					starts: envelopes.filter(e => e.action.type === ActionType.ChatToolCallStart).length,
+					newTurnParts: stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.length,
+				}, { responses: [{ requestId: 'stale-tool', approved: false }], starts: 0, newTurnParts: nextTurn ? 0 : undefined });
+			});
+		}
+
+		test('managed orphan approvals stay manual even when the session allows all', async () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} }, values: { autoApprove: 'autoApprove' },
+			});
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), managedApprovalRequired: true,
+				state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'managed-tool', toolName: 'shell', displayName: 'Shell', invocationMessage: 'Run command', confirmationTitle: 'Managed approval required' },
+				permissionKind: 'shell', permissionPath: undefined,
+			});
+			const state = await waitForState(stateManager, () => {
+				const s = stateManager.getSessionState(defaultChatUri);
+				return s?.activeTurn?.responseParts.length ? s : undefined;
+			});
+			const part = state.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				status: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+				permissions: agent.respondToPermissionCalls,
+			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
+		});
 
 		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();

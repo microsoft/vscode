@@ -11,6 +11,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type CopilotFusionEvent } from './copilotFusionProgress.js';
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
 
@@ -53,6 +54,9 @@ export class CopilotSessionWrapper extends Disposable {
 		super();
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
+			if (isProvisionalFusionConversationEvent(event)) {
+				return;
+			}
 			if (event.type === 'session.shutdown') {
 				void this._shutdown.complete();
 				this._logService.info(this._lifecycleLogMessage(`shutdown received (${event.data.shutdownType})`));
@@ -137,6 +141,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
 	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> {
 		return this._onMessageDelta ??= this._sdkEvent('assistant.message_delta');
+	}
+
+	private _onFusionEvent: Event<CopilotFusionEvent> | undefined;
+	get onFusionEvent(): Event<CopilotFusionEvent> {
+		return this._onFusionEvent ??= Event.any(...copilotFusionEventTypes.map(type => this._sdkEvent(type)));
 	}
 
 	private _onMessage: Event<SessionEventPayload<'assistant.message'>> | undefined;
@@ -409,7 +418,11 @@ export class CopilotSessionWrapper extends Disposable {
 			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
 			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
 		}));
-		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
+		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => {
+			if (!isProvisionalFusionConversationEvent(data)) {
+				emitter.fire(data);
+			}
+		});
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}

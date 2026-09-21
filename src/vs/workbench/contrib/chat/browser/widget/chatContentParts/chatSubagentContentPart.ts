@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
@@ -44,6 +45,7 @@ import { CollapsibleListPool } from './chatReferencesContentPart.js';
 import { buildPhrasePool, getToolInvocationIcon } from './chatThinkingContentPart.js';
 import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
+import { OpenSubagentChatActionViewItem, type ISubagentPhaseContext } from './chatSubagentOpenChat.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
@@ -247,13 +249,15 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		return data?.kind === 'subagent' ? data.chatResource : undefined;
 	}
 
+	private _isPhasePresentation(): boolean {
+		const data = this._subagentToolInvocation.toolSpecificData;
+		return data?.kind === 'subagent' && data.presentation === 'phase';
+	}
+
 	/**
-	 * Creates (once) and toggles the subagent header toolbar that hosts the
-	 * `MenuId.ChatSubagentContent` menu. The Agents window contributes an "Open
-	 * Subagent" pill into that menu to reveal the subagent's own (read-only)
-	 * chat; in the regular chat view the menu is empty and nothing renders. The
-	 * subagent chat resource can arrive after the part is first constructed, so
-	 * this is also called from the tool-completion autorun.
+	 * Hosts the compact subagent pill: real subagents use their chat menu action,
+	 * while phase summaries have no navigation target. A subagent's chat resource
+	 * can arrive later, so the tool-completion autorun also updates this presentation.
 	 */
 	private _updateOpenChatLink(): void {
 		const resource = this._shouldUseOpenChatPresentation() ? this._getChatResource() : undefined;
@@ -266,7 +270,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		// collapsed to just the header + "Open Subagent" pill — the full transcript
 		// lives in the dedicated read-only chat. Toggle a class the CSS uses to
 		// suppress the collapsed streaming peek.
-		if (!resource) {
+		if (!resource && !this._isPhasePresentation()) {
 			this._openChatToolbarContainer?.classList.add('hidden');
 			this._updateOpenChatOnlyMode();
 			return;
@@ -282,12 +286,15 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (this._openChatToolbar) {
 			return true;
 		}
-		const menuAction = this._getOpenChatMenuAction();
+		const isPhase = this._isPhasePresentation();
+		const menuAction = isPhase
+			? this._register(new Action('chat.fusionPhase', localize('chat.fusionPhase', "HydraFusion phase"), undefined, false))
+			: this._getOpenChatMenuAction();
 		if (!menuAction) {
 			return false;
 		}
 		const actionViewItemProvider = this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
-		if (!actionViewItemProvider) {
+		if (!isPhase && !actionViewItemProvider) {
 			if (!this._openChatActionViewRegistration.value) {
 				this._openChatActionViewRegistration.value = Event.once(Event.filter(
 					this.actionViewItemService.onDidChange,
@@ -306,12 +313,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this._openChatToolbarContainer = container;
 		this._openChatToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			actionViewItemProvider: (action, options) => actionViewItemProvider(
-				action,
-				options,
-				this.instantiationService,
-				dom.getWindow(container).vscodeWindowId
-			),
+			actionViewItemProvider: (action, options) => isPhase
+				? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
+				: actionViewItemProvider?.(action, options, this.instantiationService, dom.getWindow(container).vscodeWindowId),
 		}));
 		this._openChatToolbar.setActions([menuAction]);
 		this._updateOpenChatOnlyMode();
@@ -332,7 +336,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (!this._collapseButton) {
 			return;
 		}
-		const openChatOnly = !!this._openChatToolbar && this._shouldUseOpenChatPresentation() && !!this._getChatResource();
+		const openChatOnly = !!this._openChatToolbar && this._shouldUseOpenChatPresentation() && (!!this._getChatResource() || this._isPhasePresentation());
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
 		if (openChatOnly || this._shouldReserveOpenChatPresentation()) {
 			dom.hide(this._collapseButton.element);
@@ -350,7 +354,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	private _updateOpenChatToolbarContext(): void {
 		const chatResource = this._getChatResource();
-		if (chatResource && this._openChatToolbar) {
+		if ((chatResource || this._isPhasePresentation()) && this._openChatToolbar) {
 			const data = this._subagentToolInvocation.toolSpecificData;
 			const response = isResponseVM(this.context.element) ? this.context.element : undefined;
 			const selectedModel = response?.session?.model.inputModel.state.get()?.selectedModel;
@@ -365,9 +369,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 					? this.mostRecentToolPresentation
 					: undefined;
 			const agentType = this.getAgentTypeLabel();
-			this._openChatToolbar.context = {
-				chatResource,
-				isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined,
+			const commonContext = {
 				parentSessionResource: this.context.element.sessionResource.toString(),
 				title: this.description,
 				...(agentType ? { agentType } : {}),
@@ -384,12 +386,23 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				...(parentResolvedModelId ? { parentResolvedModelId } : {}),
 				...(this.isActive && displayedTool ? { activeToolCallId: displayedTool.callId, activeToolLabel: displayedTool.label, activeToolIcon: displayedTool.icon } : {}),
 			};
+			if (data?.kind === 'subagent' && data.presentation === 'phase') {
+				this._openChatToolbar.context = {
+					...commonContext,
+					presentation: 'phase',
+					phaseStatus: data.phaseStatus,
+					activityLabel: data.activityDescription ? new MarkdownString().appendText(data.activityDescription).value : undefined,
+				} satisfies ISubagentPhaseContext;
+			} else if (chatResource) {
+				this._openChatToolbar.context = { ...commonContext, chatResource, isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined };
+			}
 			this._updateOpenChatOnlyMode();
 		}
 	}
 
 	private _shouldUseOpenChatPresentation(): boolean {
-		return this.environmentService.isSessionsWindow || this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsUseRichRendering);
+		// The preference chooses a child-chat presentation; phases have no transcript to expand.
+		return this._isPhasePresentation() || this.environmentService.isSessionsWindow || this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsUseRichRendering);
 	}
 
 	private _shouldReserveOpenChatPresentation(): boolean {

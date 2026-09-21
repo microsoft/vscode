@@ -11,6 +11,8 @@ import { AgentSession } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
+import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 
 function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
 	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), options);
@@ -24,6 +26,225 @@ suite('mapSessionEvents — history replay', () => {
 
 	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
+	}
+
+	function fusionParts(parts: readonly ResponsePart[]) {
+		return parts.map(part => part.kind === ResponsePartKind.SystemNotification
+			? readAgentSystemNotificationMeta(part).fusionStatus
+			: part.kind === ResponsePartKind.ToolCall ? readToolCallMeta(part.toolCall).fusionPhase?.status
+				: part.kind === ResponsePartKind.Markdown ? part.content : part.kind);
+	}
+
+	function fusionTurnData(index: number) {
+		const fusionId = `fusion-${index}`;
+		const phaseId = `phase-${index}`;
+		const turnId = `sdk-turn-${index}`;
+		const attemptId = `attempt-${index}`;
+		return {
+			routeStarted: { ...fusion.routeStarted, attemptId },
+			routeFailed: { ...fusion.routeFailed, attemptId },
+			resolved: { ...fusion.resolved, fusionId, turnId },
+			phaseCompleted: { ...fusion.phaseCompleted, fusionId, phaseId },
+			completed: { ...fusion.completed, fusionId, turnId, commitId: `commit-${index}`, finalSourcePhaseId: phaseId },
+		};
+	}
+
+	test('restores durable Fusion milestones once without private or provisional content', async () => {
+		const provisional = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+		const resolved = event('session.fusion_resolved', fusion.resolved);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([{ type: 'user.message', id: 'user-1', data: { content: 'Implement the change.' } }]),
+			resolved,
+			resolved,
+			event('assistant.fusion_phase_started', fusion.started, { ephemeral: true }),
+			event('assistant.fusion_phase_activity', fusion.activity, { ephemeral: true }),
+			event('assistant.message', { messageId: 'draft', content: 'PRIVATE DRAFT', fusion: provisional }, { ephemeral: true }),
+			event('tool.execution_start', { toolCallId: 'hidden', toolName: 'read_file', fusion: provisional }, { ephemeral: true }),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('assistant.message', { messageId: 'final', content: 'Selected final answer', fusion: { ...provisional, commitId: 'commit-1' } }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual({
+			turnCount: turns.length,
+			parts: fusionParts(turns[0].responseParts),
+			leaksPhaseContent: JSON.stringify(turns).includes('PRIVATE'),
+		}, {
+			turnCount: 1,
+			parts: ['selected', 'succeeded', 'Selected final answer', 'completed'],
+			leaksPhaseContent: false,
+		});
+	});
+
+	test('attaches early Fusion routing to the next user turn rather than the previous answer', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, [
+			...toSessionEvents([
+				{ type: 'user.message', id: 'user-1', data: { content: 'First request' } },
+				{ type: 'assistant.message', data: { messageId: 'first', content: 'First answer' } },
+			]),
+			event('session.idle', {}),
+			event('session.fusion_resolved', fusion.resolved),
+			...toSessionEvents([{ type: 'user.message', id: 'user-2', data: { content: 'Second request' } }]),
+			event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			milestones: turn.responseParts.filter(part => part.kind === ResponsePartKind.SystemNotification || part.kind === ResponsePartKind.ToolCall).length,
+		})), [{ id: 'user-1', milestones: 0 }, { id: 'user-2', milestones: 3 }]);
+	});
+
+	for (const abortAfter of ['resolved', 'phase completed', 'phase failed with fallback'] as const) {
+		for (const earlyRouting of [false, true]) {
+			for (const idle of [false, true]) {
+				test(`restores Fusion after abort following ${abortAfter} (${earlyRouting ? 'early' : 'normal'} routing, ${idle ? 'with' : 'without'} idle)`, async () => {
+					const next = fusionTurnData(2);
+					const routing = [
+						...(earlyRouting ? [event('session.fusion_route_started', next.routeStarted)] : []),
+						event('session.fusion_resolved', next.resolved),
+					];
+					const lateEvents = [
+						event('session.fusion_route_started', fusion.routeStarted),
+						event('session.fusion_route_failed', fusion.routeFailed),
+						event('session.fusion_resolved', fusion.resolved),
+						event('assistant.fusion_phase_completed', { ...fusion.phaseCompleted, phaseId: 'late-phase' }),
+						event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, phaseId: 'late-failed-phase', degradedToPhaseId: 'late-fallback' }),
+						event('session.fusion_completed', fusion.completed),
+					];
+					const { turns } = await mapSessionEvents(session, undefined, [
+						event('user.message', { content: 'First request' }, { id: 'user-1' }),
+						event('session.fusion_route_started', fusion.routeStarted),
+						event('session.fusion_resolved', fusion.resolved),
+						...(abortAfter === 'phase completed' ? [event('assistant.fusion_phase_completed', fusion.phaseCompleted)]
+							: abortAfter === 'phase failed with fallback' ? [event('assistant.fusion_phase_failed', { ...fusion.phaseFailed, degradedToPhaseId: 'fallback' })] : []),
+						event('abort', { reason: 'user_initiated' }),
+						...lateEvents,
+						...(idle ? [event('session.idle', {})] : []),
+						...lateEvents,
+						...(earlyRouting ? routing : []),
+						event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+						...lateEvents,
+						...(earlyRouting ? [] : routing),
+						event('session.fusion_resolved', next.resolved),
+						...lateEvents,
+						event('assistant.fusion_phase_completed', next.phaseCompleted),
+						event('assistant.message', { messageId: 'answer-2', content: 'Second answer' }),
+						event('session.fusion_completed', next.completed),
+						...lateEvents,
+					]);
+					assert.deepStrictEqual(turns.map(turn => ({
+						id: turn.id,
+						state: turn.state,
+						parts: fusionParts(turn.responseParts),
+					})), [
+						{
+							id: 'user-1',
+							state: TurnState.Cancelled,
+							parts: ['selected', ...(abortAfter === 'resolved' ? [] : [abortAfter === 'phase completed' ? 'succeeded' : 'failed']), 'cancelled'],
+						},
+						{ id: 'user-2', state: TurnState.Complete, parts: ['selected', 'succeeded', 'Second answer', 'completed'] },
+					]);
+				});
+			}
+		}
+	}
+
+	test('restores consecutive cancelled and completed Fusion turns without reviving prior workflows', async () => {
+		const states = [TurnState.Cancelled, TurnState.Cancelled, TurnState.Complete, TurnState.Complete, TurnState.Cancelled, TurnState.Complete];
+		const events = states.flatMap((state, index) => {
+			const data = fusionTurnData(index + 1);
+			const routing = [
+				event('session.fusion_route_started', data.routeStarted),
+				event('session.fusion_resolved', data.resolved),
+			];
+			return [
+				...(index % 2 === 0 ? routing : []),
+				event('user.message', { content: `Request ${index + 1}` }, { id: `user-${index + 1}` }),
+				...(index % 2 === 0 ? [] : routing),
+				event('assistant.fusion_phase_completed', data.phaseCompleted),
+				...(state === TurnState.Cancelled ? [event('abort', { reason: 'user_initiated' })] : [
+					event('assistant.message', { messageId: `answer-${index + 1}`, content: `Answer ${index + 1}` }),
+					event('session.fusion_completed', data.completed),
+				]),
+				event('session.idle', {}),
+			];
+		});
+		for (let index = 0; index < states.length - 1; index++) {
+			const data = fusionTurnData(index + 1);
+			events.push(
+				event('session.fusion_resolved', data.resolved),
+				event('assistant.fusion_phase_completed', { ...data.phaseCompleted, phaseId: 'late-phase' }),
+				event('session.fusion_completed', data.completed),
+			);
+		}
+		const { turns } = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			state: turn.state,
+			parts: fusionParts(turn.responseParts),
+		})), states.map((state, index) => ({
+			id: `user-${index + 1}`,
+			state,
+			parts: ['selected', 'succeeded', ...(state === TurnState.Cancelled ? ['cancelled'] : [`Answer ${index + 1}`, 'completed'])],
+		})));
+	});
+
+	test('preserves early routing state across the user message and restores a routing fallback after abort', async () => {
+		const next = fusionTurnData(2);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'First request' }, { id: 'user-1' }),
+			event('session.fusion_resolved', fusion.resolved),
+			event('abort', { reason: 'user_initiated' }),
+			event('session.fusion_route_started', next.routeStarted),
+			event('session.fusion_route_failed', next.routeFailed),
+			event('user.message', { content: 'Second request' }, { id: 'user-2' }),
+			event('session.fusion_route_failed', next.routeFailed),
+			event('assistant.message', { messageId: 'answer-2', content: 'Fallback answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			parts: fusionParts(turn.responseParts),
+		})), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['degraded', 'Fallback answer'] },
+		]);
+	});
+
+	for (const knownAgent of [false, true]) {
+		test(`subagent events do not reset or interrupt root Fusion progress (${knownAgent ? 'known' : 'unknown'} agent)`, async () => {
+			const next = fusionTurnData(2);
+			const agent = { agentId: 'child-agent' };
+			const { turns } = await mapSessionEvents(session, undefined, [
+				event('user.message', { content: 'Root request' }, { id: 'user-1' }),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				...(knownAgent ? [event('subagent.started', { toolCallId: 'child-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Child task' }, agent)] : []),
+				event('user.message', { content: 'Child request' }, agent),
+				event('assistant.turn_start', { turnId: 'child-turn' }, agent),
+				event('session.fusion_route_started', next.routeStarted, agent),
+				event('session.fusion_resolved', next.resolved, agent),
+				event('assistant.fusion_phase_completed', next.phaseCompleted, agent),
+				event('session.fusion_completed', next.completed, agent),
+				event('abort', { reason: 'user_initiated' }, agent),
+				event('assistant.turn_end', { turnId: 'child-turn' }, agent),
+				event('session.idle', {}, agent),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				event('session.fusion_completed', fusion.completed),
+				event('session.fusion_resolved', next.resolved),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('assistant.message', { messageId: 'root-answer', content: 'Root answer' }),
+				event('session.fusion_completed', next.completed),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({
+				id: turn.id,
+				state: turn.state,
+				parts: fusionParts(turn.responseParts),
+			})), [{
+				id: 'user-1',
+				state: TurnState.Complete,
+				parts: ['selected', 'succeeded', 'completed', 'selected', 'succeeded', 'Root answer', 'completed'],
+			}]);
+		});
 	}
 
 	for (const hasExecutionEvents of [true, false]) {

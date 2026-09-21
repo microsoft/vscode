@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $, isHTMLElement } from '../../../../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -15,6 +16,7 @@ import { autorun, observableValue } from '../../../../../../../base/common/obser
 import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatWidgetService } from '../../../../browser/chat.js';
@@ -46,7 +48,7 @@ import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration, ChatProgressAnimation } from '../../../../common/constants.js';
-import { formatCompactSubagentDuration, getSubagentEditorResource, IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition, shouldShowSubagentModel } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { formatCompactSubagentDuration, getSubagentEditorResource, IOpenSubagentChatContext, ISubagentPhaseContext, OpenSubagentChatActionViewItem, shouldAnimateSubagentToolTransition, shouldShowSubagentModel } from '../../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 
 class TestOpenChatActionViewItem extends ActionViewItem {
 	constructor(sourceAction: IAction, options: IActionViewItemOptions) {
@@ -429,6 +431,131 @@ suite('ChatSubagentContentPart', () => {
 				{ workingRows: 0, hasPrompt: true },
 			]);
 		});
+
+		test('renders a replayed Fusion phase in the compact pill without a chat link or action provider', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			actionViewItemService.setProviderAvailable(false);
+			const part = createPart(createMockSerializedToolInvocation({
+				toolId: 'hydrafusion_phase',
+				toolSpecificData: {
+					kind: 'subagent', presentation: 'phase', phaseStatus: 'succeeded', hasStarted: true, isActive: false,
+					description: 'Review pass', agentDisplayName: 'HydraFusion',
+					modelId: 'model-b', modelName: 'model-b', startedAt: 1000, duration: 2000,
+					isChatAvailable: false, result: 'Review requested changes.',
+				},
+			}), createMockRenderContext(true));
+			const pill = part.domNode.querySelector('.chat-subagent-pill-widget');
+			assert.deepStrictEqual({
+				compact: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				collapseDisplay: getCollapseButton(part)?.style.display,
+				title: pill?.querySelector('.chat-subagent-pill-label')?.textContent,
+				model: pill?.querySelector('.chat-subagent-pill-model')?.textContent,
+				duration: pill?.querySelector('.chat-subagent-pill-duration')?.textContent,
+				hidden: pill?.classList.contains('hidden'),
+				role: pill?.getAttribute('role'),
+				chatResource: getOpenChatContext(part)?.chatResource,
+			}, { compact: true, collapseDisplay: 'none', title: 'Review pass', model: 'model-b', duration: '2s', hidden: false, role: 'group', chatResource: undefined });
+		});
+
+		test('updates the same compact Fusion pill when its model and execution state change', () => {
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent', presentation: 'phase', phaseStatus: 'running', hasStarted: true, isActive: true,
+				description: 'Main pass', modelId: 'model-a', modelName: 'model-a', startedAt: Date.now(),
+				activityDescription: 'Generating output',
+			};
+			const state = observableValue('phaseState', createState(IChatToolInvocation.StateKind.Executing));
+			const invocation = { ...createMockToolInvocation({ toolId: 'hydrafusion_phase', toolSpecificData: data }), state };
+			const part = createPart(invocation, createMockRenderContext());
+			const pill = part.domNode.querySelector('.chat-subagent-pill-widget');
+			assert.ok(pill);
+			const snapshot = () => ({
+				title: pill.querySelector('.chat-subagent-pill-label')?.textContent,
+				model: pill.querySelector('.chat-subagent-pill-model')?.textContent,
+				running: pill.classList.contains('chat-subagent-running'),
+			});
+			const initial = snapshot();
+			const activity = pill.querySelector('.chat-subagent-pill-active-tool-label')?.textContent?.replace(/\u00a0/g, ' ');
+			data.modelId = data.modelName = 'model-b';
+			state.set({ ...state.get() }, undefined);
+			const switched = snapshot();
+			data.isActive = false;
+			data.phaseStatus = 'failed';
+			data.duration = 2000;
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			assert.deepStrictEqual({
+				initial, switched, completed: snapshot(), activity,
+				samePill: part.domNode.querySelector('.chat-subagent-pill-widget') === pill,
+				failed: pill.getAttribute('aria-label')?.includes('Phase failed'),
+				duration: pill.querySelector('.chat-subagent-pill-duration')?.textContent,
+				activityHidden: pill.querySelector('.chat-subagent-pill-active-tool')?.classList.contains('hidden'),
+			}, {
+				initial: { title: 'Main pass', model: 'model-a', running: true },
+				switched: { title: 'Main pass', model: 'model-b', running: true },
+				completed: { title: 'Main pass', model: 'model-b', running: false },
+				activity: 'Generating output', samePill: true, failed: true, duration: '2s', activityHidden: true,
+			});
+		});
+
+		test('phase pills never open or drag a child chat and describe phases accessibly', async () => {
+			let opened = 0;
+			let tracked = 0;
+			let dragged = 0;
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+				openSession: async () => { opened++; return undefined; },
+			}));
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', title: 'Main pass',
+				isActive: true, modelName: 'model-a', parentModelName: 'model-a',
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestOpenSubagentChatActionViewItem, context, action, { draggable: true }, true));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			item.trackEnabled(() => { tracked++; return { dispose() { } }; });
+			item.setDragDataProvider(() => { dragged++; return true; });
+			const content = container.querySelector<HTMLElement>('.chat-subagent-pill-content');
+			assert.ok(content);
+			content.click();
+			content.dispatchEvent(new MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
+			for (const key of ['Enter', ' ']) {
+				container.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'Enter' ? 13 : 32, bubbles: true, cancelable: true }));
+				container.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode: key === 'Enter' ? 13 : 32, bubbles: true, cancelable: true }));
+			}
+			container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true }));
+			const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+			container.dispatchEvent(drag);
+			await item.actionRunner.run(item.action, context);
+			const cancelled = { ...context, phaseStatus: 'cancelled', isActive: false, startedAt: 1000, duration: 2000 } satisfies ISubagentPhaseContext;
+			item.setActionContext(cancelled);
+			assert.deepStrictEqual({
+				opened, tracked, dragged, dragPrevented: drag.defaultPrevented,
+				enabled: item.action.enabled, draggable: container.draggable,
+				role: container.getAttribute('role'), ariaDisabled: container.getAttribute('aria-disabled'),
+				phaseTooltip: item.tooltip, model: container.querySelector('.chat-subagent-pill-model')?.textContent,
+				cancelled: container.getAttribute('aria-label')?.includes('Phase cancelled'),
+				cancelledIcon: !!container.querySelector('.codicon-circle-slash'),
+			}, {
+				opened: 0, tracked: 0, dragged: 0, dragPrevented: true,
+				enabled: false, draggable: false, role: 'group', ariaDisabled: null,
+				phaseTooltip: 'HydraFusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
+				cancelled: true, cancelledIcon: true,
+			});
+		});
+
+		test('freezes elapsed time when an interrupted phase has no SDK duration', () => runWithFakedTimers({ startTime: 10000 }, async () => {
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'cancelled', isActive: false, startedAt: 8000, title: 'Main pass',
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, true));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			const duration = () => container.querySelector('.chat-subagent-pill-duration')?.textContent;
+			const before = duration();
+			await timeout(3000);
+			item.setActionContext({ ...context });
+			assert.deepStrictEqual({ before, after: duration() }, { before: '2s', after: '2s' });
+		}));
 
 		test('should create subagent part with correct classes', () => {
 			const toolInvocation = createMockToolInvocation();
