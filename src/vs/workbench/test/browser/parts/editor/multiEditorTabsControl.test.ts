@@ -616,8 +616,8 @@ suite('MultiEditorTabsControl', () => {
 			});
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', stripHeight: 60, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [28, 28], rowGap: 2 },
-			{ tabHeight: 'compact', stripHeight: 52, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [24, 24], rowGap: 2 },
+			{ tabHeight: 'default', stripHeight: 60, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [28, 28], rowGap: 2 },
+			{ tabHeight: 'compact', stripHeight: 52, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', visibleHeights: [24, 24], rowGap: 2 },
 		]);
 	});
 
@@ -700,8 +700,8 @@ suite('MultiEditorTabsControl', () => {
 			inactive: { top: inactiveFillStyle.top, left: inactiveFillStyle.left, right: inactiveFillStyle.right, bottom: inactiveFillStyle.bottom },
 			rowPaddingLeft: rowStyle.paddingLeft,
 		}, {
-			active: { top: '-4px', left: '0px', right: '0px', bottom: '-6px' },
-			inactive: { top: '-4px', left: '0px', right: '0px', bottom: '-5px' },
+			active: { top: '0px', left: '0px', right: '0px', bottom: '-2px' },
+			inactive: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			rowPaddingLeft: '0px',
 		});
 	});
