@@ -386,24 +386,6 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Install Dependencies & Build Fast",
-			"detail": "Install dependencies and build VS Code.",
-			"dependsOn": [
-				"Install Dependencies",
-				"Build Fast"
-			],
-			"dependsOrder": "sequence",
-			"inAgents": true,
-			"runOptions": {
-				"runOn": "worktreeCreated"
-			},
-			"presentation": {
-				"reveal": "silent",
-				"clear": false
-			},
-			"problemMatcher": []
-		},
-		{
 			"type": "npm",
 			"script": "electron",
 			"label": "Download electron"
@@ -606,6 +588,17 @@
 			"dependsOrder": "sequence",
 			"problemMatcher": [],
 			"inAgents": true
+		},
+		{
+			"label": "Install Dependencies & Build Fast",
+			"detail": "Install dependencies and build VS Code.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Build Fast"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
+			"problemMatcher": []
 		},
 		{
 			"type": "npm",
